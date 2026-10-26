@@ -16,5 +16,6 @@
 - ③RTM 缺测试条件层 → 用户 2026-10-26 愿景已确认，落点=plan 节点+test_conditions 表（vision-and-gaps.md §3.2）；④变异测试定位已定稿（§7）：归因标定仪器+有效用例率，实验=注入已知缺陷测归因混淆矩阵
 - 归因设计定稿（2026-10-26，vision-and-gaps.md §7）：自动归因不可能 100% 准（oracle 问题）；证据分层打分+置信度，不确定时"宁可误报不可造假"；需求明示的失败用例永不删/不改断言；gen_tests 输出加 expected_basis 字段
 - 文献锚点：ISTQB v4 测试过程（基线）、Meta TestGen-LLM、CoverUp、CodaMosa（前沿，各对应 loop 内一个机制）
-- 2026-10-27 搭建计划获批（docs/build-plan.md）：阶段0已完成并提交（21adace：A1-A12 清零、repair 单测 24 绿、场景B pass/场景A 熔断冒烟通过、A12 指纹塌缩由单测抓到已修）；git 仓库已建（baseline 4f4ec3a）
-- 下一步：阶段 1（build_images.py + bench_local_vs_docker.py 跑出宿主 vs 容器对比数据）→ 阶段 2 L1 界面按图 → 阶段 3 ①②+RTM → 阶段 4 评估五工具
+- 2026-10-27 搭建计划获批（docs/build-plan.md）：阶段0已提交（21adace：A1-A12 清零、单测 24 绿、双场景冒烟过）；阶段1已提交（1166e0d：镜像自动构建闭环+性能对比实验，结果在 benchmarks/results/，复跑两次数据吻合）
+- **实验核心结论（论文引用）**：容器热运行 0.8s vs Windows 宿主 3.1s（约3.8x），冷启动一次性 ~1.3s——容器化无性能 penalty 反而更快，L4 选型的量化依据；诚实边界=单机/n=5/微型项目/Linux 宿主上差距预计收窄
+- 下一步：阶段 2 L1 界面按图（FastAPI+静态前端，先落 requirements + API + 五页面；主链路真接口其余壳）→ 阶段 3 ①②+RTM → 阶段 4 评估五工具

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>容器化大模型软件测试 Agent</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 登录遮罩 -->
+<div id="login-mask" class="login-mask hidden">
+  <div class="login-card">
+    <div class="login-brand">容器化大模型软件测试 Agent</div>
+    <input id="login-user" placeholder="用户名" autocomplete="username">
+    <input id="login-pass" type="password" placeholder="密码" autocomplete="current-password">
+    <button id="login-btn" class="btn btn-primary btn-block">登 录</button>
+    <div class="login-hint">演示账号：admin/admin123（管理员）· dev/dev123（开发者）· caller/caller123（调用者）</div>
+    <div id="login-err" class="login-err"></div>
+  </div>
+</div>
+
+<!-- 应用外壳 -->
+<header class="topbar">
+  <div class="brand"><span class="brand-logo">▣</span> 容器化大模型软件测试 Agent</div>
+  <div class="user-chip"><span id="user-role-badge" class="badge badge-dev">开发者</span><span id="user-name">-</span></div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <nav id="nav">
+      <a href="#/new" class="nav-item active" data-page="new">⊕ 新建测试</a>
+      <a href="#/workbench" class="nav-item" data-page="workbench">⌨ 脚本工作台</a>
+      <a href="#/tasks" class="nav-item" data-page="tasks">≡ 任务列表</a>
+      <a href="#/reports" class="nav-item" data-page="reports">▤ 报告</a>
+      <a href="#/settings" class="nav-item" data-page="settings">⚙ 设置</a>
+    </nav>
+    <div class="role-legend">
+      <div class="legend-title">角色 权限</div>
+      <div><span class="dot dot-admin"></span> 管理员：全部功能</div>
+      <div><span class="dot dot-dev"></span> 开发者：除设置管理外</div>
+      <div><span class="dot dot-caller"></span> 调用者：仅新建测试、任务列表、报告</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ① 新建测试 -->
+    <section id="page-new" class="page">
+      <div class="stepper" id="stepper-new"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>1. 项目信息与需求</h3>
+          <label class="fld-label">项目地址 <span class="req">*</span></label>
+          <input id="new-repo" placeholder="https://github.com/example/test-project 或本地路径">
+          <label class="fld-label">自然语言需求 <span class="req">*</span></label>
+          <textarea id="new-req" rows="5" placeholder="请描述您想测试的测试场景...&#10;例如：验证 add 与 div 函数的正常流程和异常流程，包括除零保护"></textarea>
+          <button id="new-submit" class="btn btn-primary btn-block">生成测试任务 (AI)</button>
+          <div id="new-result" class="hint hidden"></div>
+        </div>
+        <div class="card">
+          <h3><span class="ai-chip">AI</span> 生成的测试用例（可编辑）</h3>
+          <div id="new-cases" class="case-list"><div class="hint">任务下发执行后，AI 生成的用例会实时显示在这里。</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ② 脚本工作台 -->
+    <section id="page-workbench" class="page hidden">
+      <div class="stepper" id="stepper-wb"></div>
+      <div class="grid-2">
+        <div>
+          <div class="card">
+            <h3>选择任务</h3>
+            <select id="wb-task"></select>
+            <div class="confirm-bar hidden" id="wb-confirm-bar">
+              人工确认后才能下发执行
+              <button id="wb-confirm" class="btn btn-primary btn-sm">人工确认</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>测试框架 / 插件</h3>
+            <div class="framework-row">
+              <label class="fw active">Pytest<span class="fw-sub">v1 深度支持</span></label>
+              <label class="fw disabled">Playwright<span class="fw-sub">规划中</span></label>
+              <label class="fw disabled">Jest<span class="fw-sub">规划中</span></label>
+              <label class="fw disabled">Postman<span class="fw-sub">规划中</span></label>
+            </div>
+          </div>
+          <div class="card">
+            <h3>添加用例（人工 / AI 插件）</h3>
+            <input id="ac-name" placeholder="用例名称，如：除零保护测试">
+            <input id="ac-method" placeholder="方法标签（可选）：等价类/边界值/判定表/覆盖/错误推测">
+            <textarea id="ac-code" rows="4" placeholder="def test_div_zero():&#10;    from calc import div&#10;    import pytest&#10;    with pytest.raises(ZeroDivisionError):&#10;        div(1, 0)"></textarea>
+            <button id="ac-submit" class="btn btn-primary btn-block">插入用例（写入工作区，下次执行生效）</button>
+            <div id="ac-result" class="hint"></div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h3>用例清单（勾选=启用）</h3>
+            <div id="wb-cases" class="case-list"></div>
+          </div>
+          <div class="card">
+            <h3>脚本预览</h3>
+            <pre id="wb-preview" class="code-view">（选择任务后加载最新脚本）</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ③ 任务列表 -->
+    <section id="page-tasks" class="page hidden">
+      <div class="tabs" id="task-tabs">
+        <button class="tab active" data-f="all">全部</button>
+        <button class="tab" data-f="running">运行中</button>
+        <button class="tab" data-f="done">已完成</button>
+        <button class="tab" data-f="failed">失败</button>
+      </div>
+      <div class="card">
+        <table class="tbl">
+          <thead><tr><th>任务</th><th>项目</th><th>状态</th><th>进度</th><th>操作</th></tr></thead>
+          <tbody id="task-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ④ 报告 -->
+    <section id="page-reports" class="page hidden">
+      <div class="card report-head">
+        <select id="rp-task"></select>
+        <span id="rp-rate" class="badge badge-ok">通过率 --%</span>
+      </div>
+      <div class="metric-row" id="rp-metrics"></div>
+      <div class="tabs">
+        <button class="tab active" data-rp="overview">概览</button>
+        <button class="tab" data-rp="logs">日志</button>
+        <button class="tab" data-rp="attach">附件</button>
+      </div>
+      <div id="rp-overview" class="card"></div>
+      <div id="rp-logs" class="card hidden"><div id="rp-log-list" class="log-list"></div></div>
+      <div id="rp-attach" class="card hidden">
+        <button id="rp-export" class="btn btn-primary btn-sm">导出报告 (Markdown)</button>
+        <pre id="rp-export-view" class="code-view hidden"></pre>
+      </div>
+    </section>
+
+    <!-- ⑤ 设置（仅管理员可见完整页） -->
+    <section id="page-settings" class="page hidden">
+      <div class="card"><h3>基础配置</h3><div id="st-config" class="kv-list"></div></div>
+      <div class="card"><h3>容器 / 镜像管理</h3><div id="st-images"></div></div>
+      <div class="card"><h3>插件管理（仅管理员）</h3><div class="hint">v1 壳：插件=内置三 Skill（install_deps / run_tests / gen_tests），管理界面属后续工作。</div></div>
+      <div class="card"><h3>用户与权限（仅管理员）</h3><div id="st-users"></div></div>
+    </section>
+
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
