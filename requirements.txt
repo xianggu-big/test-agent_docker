@@ -1,0 +1,6 @@
+# Test Agent 依赖清单 —— 版本已钉死（对应本机实测通过的版本组合）
+# 纪律：毕设答辩前不得升级（LangChain 系迭代猛、breaking changes 多）
+langchain==1.2.15
+langgraph==1.1.6
+langchain-openai==1.1.13   # DeepSeek 走 OpenAI 兼容接口
+docker==7.2.0              # L4 容器驱动（docker SDK for Python）
