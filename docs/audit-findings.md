@@ -54,6 +54,11 @@
 - msg() seq 用 COUNT(*)，并发写有竞态（单任务串行下无害，A4 修复后彻底无虞）
 - CLI 未配置 logging（cli.py 无 basicConfig，模块 logger 的 info 全部丢弃，warning 走 lastResort）→ main 里加一行
 
+### A12 🟡 指纹塌缩：所有失败共享同一指纹（2026-10-27 单测抓到，已修复）
+- 位置：repair.py `fingerprint_of` 原正则 `(\S+?)` 非贪婪且无行尾锚点 → 每行只匹配 1 个字符，所有 FAILED/ERROR 行的 nodeid 塌缩成同一值 → 任意两轮失败（哪怕失败点完全不同）都触发同指纹熔断，熔断语义失真。
+- 发现方式：tests/test_repair.py `test_不同用例失败_异指纹`（阶段 0 新增单测的即时回报——"纯函数可单测"注释欠下的债）。
+- 修复：改为按 " - " 分隔符解析 nodeid 与错误类名。
+
 ## B. 构思层未完善
 
 ### B1 🔴 实验设计方案完全缺位（构思里最大的空洞）

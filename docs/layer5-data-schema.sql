@@ -54,6 +54,7 @@ CREATE TABLE test_tasks (
   project_id       INTEGER NOT NULL REFERENCES projects(id),
   user_id          INTEGER NOT NULL REFERENCES users(id),
   requirement_text TEXT,                              -- 用户自然语言需求
+  coverage_target  REAL,                              -- 准出标准：分析阶段冻结（如 0.70），decide 只认任务行的值
   status           TEXT NOT NULL DEFAULT 'queued'
                    CHECK (status IN ('queued','cloning','analyzing','provisioning',
                                      'generating','running','reporting',

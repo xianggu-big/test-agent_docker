@@ -24,7 +24,6 @@ from .state import TaskState
 
 log = logging.getLogger(__name__)
 
-_SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "dist", "build", ".idea"}
 _EXT_LANG = {".py": "python", ".java": "java", ".js": "javascript", ".ts": "typescript",
              ".jsx": "javascript", ".tsx": "typescript", ".go": "go", ".c": "c", ".cpp": "cpp"}
 
@@ -72,7 +71,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         src = state["repo_url"]
         if os.path.isdir(src):
             shutil.copytree(src, ws, dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns(*_SKIP_DIRS))
+                            ignore=shutil.ignore_patterns(*config.SKIP_DIRS))
             how = "本地目录快照"
         else:
             r = subprocess.run(["git", "clone", "--depth", "1", src, str(ws)],
@@ -93,7 +92,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         for p in ws.rglob("*"):
             if not p.is_file() or p.suffix.lower() not in _EXT_LANG:
                 continue
-            if any(part in _SKIP_DIRS for part in p.parts):
+            if any(part in config.SKIP_DIRS for part in p.parts):
                 continue
             try:
                 lang = _EXT_LANG[p.suffix.lower()]
@@ -110,11 +109,15 @@ def make_nodes(deps: GraphDeps) -> dict:
         cur = conn.execute(
             "INSERT INTO modules(project_id, path, language, loc, strategy) VALUES (?, '.', ?, ?, ?)",
             (pid, primary, total, strategy))
+        # 准出标准冻结进任务行（A1）：此后 decide 只认这个值，实验中途改 config 不影响在途任务
+        conn.execute("UPDATE test_tasks SET coverage_target=? WHERE id=?",
+                     (config.COVERAGE_TARGET, tid))
         conn.commit()
         msg(state["session_id"], "assistant",
             f"[analyze] 语言占比 {ratios} → 主语言 {primary}，分级 {strategy}，"
             f"准出标准冻结：行覆盖率 ≥ {config.COVERAGE_TARGET:.0%} 或预算耗尽")
         out = {"primary_language": primary, "module_id": cur.lastrowid,
+               "coverage_target": config.COVERAGE_TARGET,
                "image": config.IMAGE_PY if primary == "python" else config.IMAGE_JAVA}
         if strategy != "full":
             return {**out, "done": True, "verdict": "stop",
@@ -125,17 +128,20 @@ def make_nodes(deps: GraphDeps) -> dict:
     def provision(state: TaskState) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "provisioning")
-        container = runner.ensure_container(state["image"], state["container_name"])
+        # 上一轮执行超时（exit=-1）说明容器里有 exec 残留，必须重建（A2），否则新旧任务争抢 CPU
+        fresh = state.get("last_exit") == -1 and state.get("round_no", 0) > 0
+        container = runner.ensure_container(state["image"], state["container_name"], fresh=fresh)
         runner.copy_dir_into(container, state["workspace"])
         dep = registry.invoke(tid, skills["install_deps"], {
             "container_name": state["container_name"],
             "has_requirements": (Path(state["workspace"]) / "requirements.txt").exists()})
         cur = conn.execute(
             """INSERT INTO container_jobs(task_id, module_id, image, status, cpu_limit, mem_limit_mb,
-                                          container_id, started_at)
-               VALUES (?, ?, ?, 'running', ?, ?, ?, datetime('now'))""",
+                                          priority, timeout_at, container_id, started_at)
+               VALUES (?, ?, ?, 'running', ?, ?, ?, datetime('now', '+' || ? || ' seconds'), ?, datetime('now'))""",
             (tid, state.get("module_id"), state["image"],
-             config.DEFAULT_CPU_LIMIT, config.DEFAULT_MEM_LIMIT_MB, container.id))
+             config.DEFAULT_CPU_LIMIT, config.DEFAULT_MEM_LIMIT_MB,
+             5, config.DEFAULT_JOB_TIMEOUT_S, container.id))
         conn.commit()
         msg(state["session_id"], "assistant",
             f"[provision] 容器 {state['container_name']} 就绪；依赖安装：{dep.status}")
@@ -151,6 +157,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             "requirement": state.get("requirement", ""),
             "module_hint": state.get("primary_language", ""),
             "container_name": state["container_name"],
+            "module_id": state.get("module_id"),
             "round_no": next_round})
         msg(state["session_id"], "assistant", f"[generate 第{next_round}轮] {res.output[:400]}")
         return {"round_no": next_round}
@@ -159,24 +166,20 @@ def make_nodes(deps: GraphDeps) -> dict:
     def run(state: TaskState) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "running")
-        if state["primary_language"] == "python":
-            cmd = ["pytest", "-q", "--tb=short", "-rfE",
-                   "--cov=.", "--cov-report=term-missing:skip-covered"]
+        if state["primary_language"] != "python":
+            # Java 链路占位：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
+            return {"done": True, "verdict": "stop",
+                    "stop_reason": "Java/Maven 执行链路 v1 未接入（诚实降级），任务终止"}
+        cmd = ["pytest", "-q", "--tb=short", "-rfE",
+               "--cov=.", "--cov-report=term-missing:skip-covered"]
+        res = registry.invoke(tid, skills["run_tests"],
+                              {"container_name": state["container_name"], "cmd": cmd})
+        if res.status == "denied":
+            raise RuntimeError("run_tests 被确认门拒绝：主流程不应在未确认时到达此节点")
+        if res.status == "timeout":
+            out = json.dumps({"exit": -1, "stdout": "", "stderr": res.error}, ensure_ascii=False)
         else:
-            # Java 链路占位：合成失败 → 归因 env → 修复循环 → 指纹熔断，诚实暴露未实现
-            cmd = None
-        if cmd:
-            res = registry.invoke(tid, skills["run_tests"],
-                                  {"container_name": state["container_name"], "cmd": cmd})
-            if res.status == "denied":
-                raise RuntimeError("run_tests 被确认门拒绝：主流程不应在未确认时到达此节点")
-            if res.status == "timeout":
-                out = json.dumps({"exit": -1, "stdout": "", "stderr": res.error}, ensure_ascii=False)
-            else:
-                out = res.output
-        else:
-            out = json.dumps({"exit": 1, "stdout": "",
-                              "stderr": "Java/Maven 执行链路将在后续版本接入（v1 诚实降级）"}, ensure_ascii=False)
+            out = res.output
         r = json.loads(out)
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"]}
 
@@ -198,7 +201,8 @@ def make_nodes(deps: GraphDeps) -> dict:
         verdict, kind, reason = repair.decide(
             state.get("last_exit", 1), stdout, stderr,
             state.get("fingerprints", []), fp,
-            state.get("round_no", 0), coverage)
+            state.get("round_no", 0), coverage,
+            state.get("coverage_target"))
         msg(state["session_id"], "assistant",
             f"[evaluate 第{state.get('round_no', 0)}轮] 通过{passed} 失败{failed} 跳过{skipped} "
             f"覆盖率{coverage if coverage is not None else 'N/A'} 指纹{fp[:8] or '无'} → {verdict}（{reason}）")

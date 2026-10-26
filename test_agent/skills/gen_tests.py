@@ -21,14 +21,29 @@ from .prompt_library import MAX_SOURCE_CHARS, SYSTEM_PROMPT, build_user_prompt
 
 log = logging.getLogger(__name__)
 
-_SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "dist", "build"}
+
+def _sanitize_name(name: str, idx: int, used: set[str]) -> str:
+    """把 LLM 自报的用例名规整成合法且唯一的函数名。
+
+    A5 纪律：写文件前统一用这个名字重写 def，保证 test_cases.name 与
+    pytest nodeid 一一对应——归因/定向修复（②）按 nodeid 查用例的前提。
+    """
+    base = re.sub(r"\W+", "_", (name or "").strip()).strip("_") or f"test_case_{idx}"
+    if not base.startswith("test_"):
+        base = "test_" + base
+    candidate, n = base, 2
+    while candidate in used:
+        candidate = f"{base}_{n}"
+        n += 1
+    used.add(candidate)
+    return candidate
 
 
 def _collect_sources(ws: Path) -> list[tuple[str, str]]:
     """被测源码 = 非测试、非噪声的 .py 文件，按路径排序后限量收录。"""
     srcs, used = [], 0
     for p in sorted(ws.rglob("*.py")):
-        if any(part in _SKIP_DIRS for part in p.parts):
+        if any(part in config.SKIP_DIRS for part in p.parts):
             continue
         if p.name.startswith("test_") or p.name.endswith("_test.py"):
             continue
@@ -81,6 +96,16 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                            "reason": "LLM 返回无法解析为用例（诚实降级，本轮不生成）"},
                           ensure_ascii=False)
 
+    # —— def 名对齐（A5）：用规整后的 name 重写首个 def，nodeid 从此可反查用例 ——
+    used_names: set[str] = set()
+    for i, c in enumerate(data["cases"]):
+        def_name = _sanitize_name(c.get("name"), i, used_names)
+        code = c["code"].strip()
+        m = re.search(r"def\s+\w+", code)
+        if m:
+            code = code[:m.start()] + f"def {def_name}" + code[m.end():]
+        c["code"], c["name"] = code, def_name
+
     # —— 写入工作区 ——
     round_no = args.get("round_no", 1)
     fname = f"test_gen_r{round_no}.py"
@@ -97,9 +122,9 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     # —— 落库：脚本版本 + 用例清单 ——
     conn = get_conn()
     cur = conn.execute(
-        """INSERT INTO test_scripts(task_id, framework, version, content, content_hash)
-           VALUES (?, 'pytest', ?, ?, ?)""",
-        (task_id, round_no, content,
+        """INSERT INTO test_scripts(task_id, module_id, framework, version, content, content_hash)
+           VALUES (?, ?, 'pytest', ?, ?, ?)""",
+        (task_id, args.get("module_id"), round_no, content,
          hashlib.sha256(content.encode()).hexdigest()[:16]))
     script_id = cur.lastrowid
     for c in data["cases"]:

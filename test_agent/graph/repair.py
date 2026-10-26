@@ -28,13 +28,17 @@ def fingerprint_of(stdout: str, stderr: str) -> str:
         return hashlib.sha256(tail.encode()).hexdigest()[:16]
     norm = []
     for l in lines:
-        m = re.match(r"(?:FAILED|ERROR)\s+(\S+?)(?:\s+-\s+([A-Za-z_.]+))?", l)
-        if m:
-            nodeid, err = m.group(1), (m.group(2) or "Unknown")
-            err = err.split(":")[0].split(".")[-1]  # 只留错误类名
-            norm.append(f"{nodeid}|{err}")
-        else:
-            norm.append(l)
+        # 注意：不能用非贪婪 (\S+?) 无锚点匹配——它会只吃 1 个字符，把所有失败行
+        # 塌缩成同一指纹（单测 test_不同用例失败_异指纹 抓到的回归）
+        parts = l.split(" - ", 1)
+        head = parts[0].split(None, 1)          # ["FAILED", "nodeid"]
+        nodeid = head[1].strip() if len(head) > 1 else parts[0]
+        err = "Unknown"
+        if len(parts) > 1:
+            m = re.match(r"([A-Za-z_.]+)", parts[1].strip())
+            if m:
+                err = m.group(1).split(".")[-1]  # 只留错误类名
+        norm.append(f"{nodeid}|{err}")
     return hashlib.sha256("|".join(sorted(norm)).encode()).hexdigest()[:16]
 
 
@@ -59,13 +63,17 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
 
 
 def decide(exit_code: int, stdout: str, stderr: str, fingerprints: list[str],
-           fingerprint: str, round_no: int, coverage_line: float | None) -> tuple[str, str, str]:
+           fingerprint: str, round_no: int, coverage_line: float | None,
+           coverage_target: float | None = None) -> tuple[str, str, str]:
     """R-Loop 判定。返回 (verdict, failure_kind, stop_reason)。
 
     verdict ∈ pass / repair_env / repair_gen / stop
+    coverage_target 用任务行冻结的准出标准（A1），不传时退回全局配置。
+    覆盖率解析失败（None）按"未知"处理：不算达标，走补测获取数据（A8）。
     """
     kind = classify_failure(exit_code, stdout, stderr)
-    coverage_ok = coverage_line is None or coverage_line >= config.COVERAGE_TARGET
+    target = coverage_target if coverage_target is not None else config.COVERAGE_TARGET
+    coverage_ok = coverage_line is not None and coverage_line >= target
 
     # 1) 准出标准
     if exit_code == 0 and coverage_ok:
@@ -80,12 +88,15 @@ def decide(exit_code: int, stdout: str, stderr: str, fingerprints: list[str],
     # 3) 轮次预算
     if round_no >= config.MAX_REPAIR_ROUNDS:
         if exit_code == 0:
-            return "stop", kind, f"覆盖率未达标（目标 {config.COVERAGE_TARGET:.0%}）且补测预算耗尽"
+            cov_desc = "未知（解析失败）" if coverage_line is None else f"{coverage_line:.0%}"
+            return "stop", kind, f"覆盖率{cov_desc}未达准出标准（目标 {target:.0%}）且补测预算耗尽"
         return "stop", kind, f"补测轮次预算耗尽（{config.MAX_REPAIR_ROUNDS} 轮）仍未通过"
 
     # 4) 分流修复
     if exit_code == 0:
-        return "repair_gen", kind, f"通过但覆盖率 {coverage_line:.0%} 低于目标 {config.COVERAGE_TARGET:.0%}，补测"
+        if coverage_line is None:
+            return "repair_gen", kind, "通过但覆盖率未知（TOTAL 行解析失败），补测一轮获取数据"
+        return "repair_gen", kind, f"通过但覆盖率 {coverage_line:.0%} 低于目标 {target:.0%}，补测"
     if kind == "env":
         return "repair_env", kind, "环境类失败，修复环境后重跑"
     return "repair_gen", kind, "用例/产品类失败，重新生成用例"

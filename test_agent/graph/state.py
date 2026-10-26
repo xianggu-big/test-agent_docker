@@ -18,6 +18,7 @@ class TaskState(TypedDict, total=False):
     container_name: str
     # R-Loop 账本
     round_no: int
+    coverage_target: float   # 准出标准（分析阶段冻结进任务行，A1）
     fingerprints: list[str]  # 历史轮失败指纹（含当前轮之前的）
     fingerprint: str         # 当前轮指纹
     failure_kind: str        # none / env / case_defect / product_defect

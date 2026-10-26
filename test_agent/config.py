@@ -11,9 +11,16 @@ DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "test_agent.db"                   # 第 5 层数据库
 SCHEMA_PATH = ROOT / "docs" / "layer5-data-schema.sql"  # 建库脚本（13 张表）
 
-# —— L4 执行镜像（与 docker/ 下 Dockerfile 对应） ——
+# —— L4 执行镜像（与 docker/ 下 Dockerfile 对应；注册表供镜像管理/自动补齐用） ——
 IMAGE_PY = "mta-test:py312"
 IMAGE_JAVA = "mta-test:jdk17-maven"
+IMAGE_BUILD_CTX = {
+    IMAGE_PY: ROOT / "docker" / "python-test",
+    IMAGE_JAVA: ROOT / "docker" / "java-test",
+}
+
+# —— 噪声目录（clone 快照 / 语言统计 / 源码收集共用一份定义） ——
+SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "dist", "build", ".idea"}
 
 # —— 容器默认资源限额（对应 container_jobs 表默认值） ——
 DEFAULT_CPU_LIMIT = 1.0

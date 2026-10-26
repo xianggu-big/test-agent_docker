@@ -9,6 +9,7 @@
   python cli.py log <task_id>                              # 查看 Agent 会话轨迹
 """
 import json
+import logging
 import sys
 
 from test_agent.graph.builder import run_task
@@ -25,6 +26,8 @@ def _default_uid(conn) -> int:
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
     if len(sys.argv) < 2:
         print(USAGE)
         return 1

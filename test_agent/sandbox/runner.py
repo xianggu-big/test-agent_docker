@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import docker
-from docker.errors import NotFound
+from docker.errors import BuildError, ImageNotFound, NotFound
 
 from .. import config
 
@@ -48,23 +48,53 @@ class SandboxRunner:
 
     def ensure_container(self, image: str, name: str,
                          cpu_limit: float = config.DEFAULT_CPU_LIMIT,
-                         mem_mb: int = config.DEFAULT_MEM_LIMIT_MB):
-        """确保常驻容器在跑（幂等：同名容器存在则复用）。"""
+                         mem_mb: int = config.DEFAULT_MEM_LIMIT_MB,
+                         fresh: bool = False):
+        """确保常驻容器在跑（幂等：同名容器存在则复用）。
+
+        fresh=True 时先销毁同名旧容器再新建——用于超时后重建（A2）与脏容器场景（A3）；
+        普通 R-Loop 轮次不传 fresh，保留容器内的依赖缓存。
+        """
         try:
             c = self.client.containers.get(name)
-            if c.status != "running":
-                c.start()
-            return c
+            if fresh:
+                c.remove(force=True)
+                log.info("已销毁旧容器 %s（fresh 重建）", name)
+            else:
+                if c.status != "running":
+                    c.start()
+                return c
         except NotFound:
-            log.info("启动沙箱容器 %s (image=%s, cpu=%s, mem=%sm)", name, image, cpu_limit, mem_mb)
-            return self.client.containers.run(
-                image,
-                name=name,
-                command=["sleep", "infinity"],
-                detach=True,
-                nano_cpus=int(cpu_limit * 1e9),
-                mem_limit=f"{mem_mb}m",
-            )
+            pass
+        log.info("启动沙箱容器 %s (image=%s, cpu=%s, mem=%sm)", name, image, cpu_limit, mem_mb)
+        return self.client.containers.run(
+            image,
+            name=name,
+            command=["sleep", "infinity"],
+            detach=True,
+            nano_cpus=int(cpu_limit * 1e9),
+            mem_limit=f"{mem_mb}m",
+        )
+
+    def ensure_image(self, image: str, buildargs: dict | None = None) -> bool:
+        """本地缺镜像时按注册表自动构建（"自动拉取容器"闭环）。返回镜像是否就绪。"""
+        try:
+            self.client.images.get(image)
+            return True
+        except ImageNotFound:
+            pass
+        ctx = config.IMAGE_BUILD_CTX.get(image)
+        if ctx is None:
+            log.error("镜像 %s 不在构建注册表，无法自动补齐", image)
+            return False
+        log.info("本地缺镜像 %s，开始自动构建 %s", image, ctx)
+        try:
+            self.client.images.build(path=str(ctx), tag=image, rm=True,
+                                     buildargs=buildargs or {})
+        except BuildError as e:
+            log.error("镜像 %s 构建失败: %s", image, e)
+            return False
+        return True
 
     def cleanup(self, name: str) -> None:
         """停掉并删除容器（幂等）。"""

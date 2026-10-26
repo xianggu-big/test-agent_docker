@@ -12,6 +12,7 @@ import logging
 
 from langgraph.graph import END, StateGraph
 
+from .. import config
 from ..store.db import get_conn
 from .nodes import GraphDeps, make_deps, make_nodes
 from .state import TaskState
@@ -31,7 +32,10 @@ def build_graph(deps: GraphDeps):
                             {"report": "report", "provision": "provision"})
     g.add_edge("provision", "generate")
     g.add_edge("generate", "run")
-    g.add_edge("run", "evaluate")
+    # run 可能诚实短路（如 Java 链路占位，A7）：done=True 直接进 report，不进 evaluate
+    g.add_conditional_edges("run",
+                            lambda s: "report" if s.get("done") else "evaluate",
+                            {"report": "report", "evaluate": "evaluate"})
     g.add_conditional_edges("evaluate",
                             lambda s: "report" if s["verdict"] in ("pass", "stop")
                             else ("provision" if s["verdict"] == "repair_env" else "generate"),
@@ -53,6 +57,22 @@ def run_task(task_id: int) -> dict:
     if task["confirmed"] != 1:
         raise RuntimeError("任务未确认（confirmed=0），禁止下发执行 —— fail-closed 确认门")
 
+    # A4：抢占式置位乐观锁——任务已在执行链路中时拒绝并发下发
+    lock = conn.execute(
+        """UPDATE test_tasks SET status='cloning', updated_at=datetime('now')
+           WHERE id=? AND status NOT IN ('cloning','analyzing','provisioning',
+                                         'generating','running','reporting')""",
+        (task_id,))
+    conn.commit()
+    if lock.rowcount == 0:
+        raise RuntimeError("任务正在执行中，禁止并发下发")
+
+    # A3：预清理上次运行残留的容器，保证本轮从干净容器起步（R-Loop 轮次内仍复用）
+    try:
+        deps.runner.cleanup(f"mta-run-{task_id}")
+    except Exception as e:  # 预清理失败不阻断，provision 的 ensure_container 会兜底
+        log.warning("预清理容器失败: %s", e)
+
     cur = conn.execute("INSERT INTO agent_sessions(task_id, agent_role) VALUES (?, 'test_agent')",
                        (task_id,))
     conn.commit()
@@ -63,6 +83,7 @@ def run_task(task_id: int) -> dict:
         "requirement": task["requirement_text"] or "",
         "container_name": f"mta-run-{task_id}",
         "round_no": 0,
+        "coverage_target": config.COVERAGE_TARGET,
         "fingerprints": [],
     }
     graph = build_graph(deps)
