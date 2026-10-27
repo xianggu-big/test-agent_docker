@@ -1,0 +1,91 @@
+[
+  {
+    "tag": "A·prune基线",
+    "strategy": "prune",
+    "r1_llm": 0,
+    "r2_llm": 0,
+    "repair_ms": 535,
+    "regen_ms": 9628,
+    "exec_ms": 1639,
+    "r1": {
+      "passed": 2,
+      "failed": 3,
+      "coverage": 0.9
+    },
+    "r1_verdict": "repair_gen(case_defect)",
+    "skip_full_regen": false,
+    "pruned": 2,
+    "rewritten": [],
+    "fallback": "",
+    "regen_n": 19,
+    "r2": {
+      "passed": 20,
+      "failed": 2,
+      "coverage": 1.0
+    },
+    "r2_verdict": "stop(product_defect)",
+    "total_ms": 11903,
+    "witness_kept": true
+  },
+  {
+    "tag": "B·rewrite(YATE)",
+    "strategy": "rewrite",
+    "r1_llm": 0,
+    "r2_llm": 1,
+    "repair_ms": 1737,
+    "regen_ms": 0,
+    "exec_ms": 1644,
+    "r1": {
+      "passed": 2,
+      "failed": 3,
+      "coverage": 0.9
+    },
+    "r1_verdict": "repair_gen(case_defect)",
+    "skip_full_regen": true,
+    "pruned": 2,
+    "rewritten": [
+      "test_bad_import",
+      "test_bad_attr"
+    ],
+    "fallback": "",
+    "r2": {
+      "passed": 4,
+      "failed": 1,
+      "coverage": 0.97
+    },
+    "r2_verdict": "stop(product_defect)",
+    "total_ms": 3472,
+    "witness_kept": true
+  },
+  {
+    "tag": "C·hybrid合成",
+    "strategy": "hybrid",
+    "r1_llm": 0,
+    "r2_llm": 1,
+    "repair_ms": 1838,
+    "regen_ms": 9508,
+    "exec_ms": 1639,
+    "r1": {
+      "passed": 2,
+      "failed": 3,
+      "coverage": 0.9
+    },
+    "r1_verdict": "repair_gen(case_defect)",
+    "skip_full_regen": false,
+    "pruned": 2,
+    "rewritten": [
+      "test_bad_import",
+      "test_bad_attr"
+    ],
+    "fallback": "",
+    "regen_n": 19,
+    "r2": {
+      "passed": 22,
+      "failed": 2,
+      "coverage": 1.0
+    },
+    "r2_verdict": "stop(product_defect)",
+    "total_ms": 13067,
+    "witness_kept": true
+  }
+]

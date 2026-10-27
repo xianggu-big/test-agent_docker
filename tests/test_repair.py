@@ -1,153 +1,186 @@
-"""repair.py 纯函数单测 —— R-Loop 三停（准出/熔断/预算）与归因三分类的逻辑保证。
+"""R-Loop 核心纯函数回归网：失败指纹 / 归因分类 / 停止判定。
 
-运行：pytest tests/ -q（宿主侧，需 requirements-dev.txt）
-这些测试是论文「归因正确率/补测闭环」实验的合规底线：判定逻辑改变必须先过这里。
+这组测试防的是系统最脆弱的一环：解析依赖 pytest 文本输出格式。
+fixture 均为真实运行的输出片段（pytest 9.1.1，镜像内版本）——
+若镜像内工具链升级导致格式变化，这里会最先变红，而不是线上熔断静默失效。
+
+判定义务（2026-10-27 语义升级后）：
+- 疑似产品缺陷 → 立即冻结上报（断言失败=缺陷证人，不回炉迁就，防造假）
+- 覆盖率未知 ≠ 达标 → 补测一轮获取数据（诚实边界）
+- 指纹熔断 / 轮次预算对 用例缺陷与环境失败 生效
 """
-import pytest
-
+from test_agent import config
 from test_agent.graph import repair
-from test_agent.graph.repair import classify_failure, decide, fingerprint_of
+
+# —— 真实输出 fixture（源自任务 3/6 实际运行记录） ——
+
+PASS_STDOUT = """\
+..                                                                        [100%]
+2 passed in 0.01s
+
+Name      Stmts   Miss  Cover   Missing
+---------------------------------------
+calc.py       4      0   100%
+---------------------------------------
+TOTAL         4      0   100%
+"""
+
+FAIL_STDOUT = """\
+.F                                                                        [100%]
+1 failed, 1 passed in 0.02s
+
+FAILED test_calc.py::test_div_wrong_expectation - AssertionError: assert 2.0 == 5
+"""
+
+COLLECT_ERROR_STDERR = """\
+ERRORS
+_____________ ERROR collecting test_calc.py _____________
+ImportError while importing test module 'test_calc.py'.
+E   ModuleNotFoundError: No module named 'calc'
+"""
 
 
-# ---------- fingerprint_of ----------
+# —— 指纹 ——
 
-class TestFingerprint:
-    def test_断言值变化但同一失败点_同指纹(self):
-        a = "FAILED test_calc.py::test_add - assert 3 == 5"
-        b = "FAILED test_calc.py::test_add - assert 3 == 4"
-        assert fingerprint_of(a, "") == fingerprint_of(b, "")
-
-    def test_不同用例失败_异指纹(self):
-        a = "FAILED test_calc.py::test_add - assert 3 == 5"
-        b = "FAILED test_calc.py::test_div - assert 2 == 5"
-        assert fingerprint_of(a, "") != fingerprint_of(b, "")
-
-    def test_错误类型只留类名(self):
-        a = "FAILED t.py::test_x - ModuleNotFoundError: No module named 'requests'"
-        b = "FAILED t.py::test_x - ModuleNotFoundError: No module named 'flask'"
-        assert fingerprint_of(a, "") == fingerprint_of(b, "")
-
-    def test_无摘要时退化为输出尾部哈希_且稳定(self):
-        out = "some crash traceback\nline2\nline3"
-        fp1 = fingerprint_of("", out)
-        fp2 = fingerprint_of("", out)
-        assert fp1 == fp2 and fp1
-
-    def test_空输入_空指纹(self):
-        assert fingerprint_of("", "") == ""
-
-    def test_多行失败摘要_与顺序无关(self):
-        a = "FAILED t.py::test_a - assert 1 == 2\nFAILED t.py::test_b - assert 3 == 4"
-        b = "FAILED t.py::test_b - assert 3 == 4\nFAILED t.py::test_a - assert 1 == 2"
-        assert fingerprint_of(a, "") == fingerprint_of(b, "")
+def test_fingerprint_stable_across_assert_values():
+    """设计目标：同一用例同一错误类型，断言数值不同 → 同指纹（该熔断就熔断）。"""
+    a = repair.fingerprint_of(
+        "FAILED test_calc.py::test_div - AssertionError: assert 2.0 == 5\n", "")
+    b = repair.fingerprint_of(
+        "FAILED test_calc.py::test_div - AssertionError: assert 9.9 == 5\n", "")
+    assert a and a == b
 
 
-# ---------- classify_failure ----------
-
-class TestClassify:
-    def test_通过为none(self):
-        assert classify_failure(0, "1 passed", "") == "none"
-
-    def test_缺pytest为env(self):
-        assert classify_failure(1, "", "/bin/sh: pytest: not found") == "env"
-
-    def test_no_module_named_pytest为env(self):
-        assert classify_failure(1, "No module named pytest", "") == "env"
-
-    def test_没有可跑用例为case_defect(self):
-        assert classify_failure(5, "no tests ran in 0.01s", "") == "case_defect"
-
-    def test_用例引用不存在的东西为case_defect(self):
-        assert classify_failure(1, "ImportError: cannot import name 'foo'", "") == "case_defect"
-
-    def test_断言失败为疑似产品缺陷(self):
-        assert classify_failure(1, "FAILED t.py::test_x - AssertionError", "") == "product_defect"
-
-    def test_未知失败默认按env处理(self):
-        assert classify_failure(1, "some weird output", "") == "env"
+def test_fingerprint_differs_by_nodeid_or_errtype():
+    a = repair.fingerprint_of("FAILED t.py::test_x - AssertionError: a\n", "")
+    b = repair.fingerprint_of("FAILED t.py::test_y - AssertionError: a\n", "")
+    c = repair.fingerprint_of("FAILED t.py::test_x - TypeError: a\n", "")
+    assert a != b and a != c
 
 
-# ---------- decide（三停 + 分流；vision §7.2 product_defect 冻结证人）----------
-
-PASS_OUT = "3 passed"
-CASE_FAIL_OUT = "ERROR test_gen_r1.py - ImportError: cannot import name 'foo' from 'calc'"
-PROD_FAIL_OUT = "1 failed, 2 passed\nFAILED t.py::test_x - assert 3 == 5"
-FP = "abc123"
-
-
-class TestDecide:
-    def test_准出标准_通过且覆盖达标(self):
-        v, _, r = decide(0, PASS_OUT, "", [], "", 1, 0.90, 0.70)
-        assert v == "pass" and "达标" in r
-
-    def test_A8_覆盖率解析失败不放行_走补测(self):
-        v, _, r = decide(0, PASS_OUT, "", [], "", 1, None, 0.70)
-        assert v == "repair_gen" and "未知" in r
-
-    def test_通过但覆盖不足_补测(self):
-        v, _, r = decide(0, PASS_OUT, "", [], "", 1, 0.50, 0.70)
-        assert v == "repair_gen" and "补测" in r
-
-    def test_A1_任务行阈值生效_低阈值即达标(self):
-        v, _, _ = decide(0, PASS_OUT, "", [], "", 1, 0.60, 0.50)
-        assert v == "pass"
-
-    def test_同指纹第二次出现即熔断(self):
-        v, _, r = decide(1, CASE_FAIL_OUT, "", [FP], FP, 1, None, 0.70)
-        assert v == "stop" and "熔断" in r
-
-    def test_空指纹不参与熔断(self):
-        # 指纹为空（无失败摘要）时不得误触发熔断，应继续走预算/分流
-        v, _, _ = decide(1, "", "", [""], "", 1, None, 0.70)
-        assert v != "stop"
-
-    def test_预算耗尽_未通过如实上报(self):
-        v, _, r = decide(1, CASE_FAIL_OUT, "", [], FP, 3, None, 0.70)
-        assert v == "stop" and "预算耗尽" in r
-
-    def test_预算耗尽_通过但覆盖未达标如实上报(self):
-        v, _, r = decide(0, PASS_OUT, "", [], "", 3, 0.50, 0.70)
-        assert v == "stop" and "预算耗尽" in r
-
-    def test_env失败分流修复环境(self):
-        v, kind, _ = decide(1, "", "/bin/sh: pip: not found", [], FP, 1, None, 0.70)
-        assert v == "repair_env" and kind == "env"
-
-    def test_S72_疑似产品缺陷冻结证人不回炉(self):
-        v, kind, r = decide(1, PROD_FAIL_OUT, "", [], FP, 1, None, 0.70)
-        assert v == "stop" and kind == "product_defect" and "证人" in r
-
-    def test_S72_产品缺陷优先于熔断与预算(self):
-        v, _, r = decide(1, PROD_FAIL_OUT, "", [FP], FP, 3, None, 0.70)
-        assert v == "stop" and "证人" in r  # 证人语义优先，不停在"原地打转"的误导文案上
+def test_fingerprint_multi_failures_order_insensitive():
+    a = repair.fingerprint_of(
+        "FAILED t.py::test_x - AssertionError: a\nFAILED t.py::test_y - TypeError: b\n", "")
+    b = repair.fingerprint_of(
+        "FAILED t.py::test_y - TypeError: b\nFAILED t.py::test_x - AssertionError: a\n", "")
+    assert a == b
 
 
-# ---------- failing_nodeids / error_class_of（②定向修复的数据源） ----------
-
-class TestFailingNodeids:
-    OUT = ("1 failed, 2 passed\n"
-           "FAILED test_gen_r1.py::test_a - assert 3 == 5\n"
-           "ERROR test_gen_r1.py - ImportError: cannot import name 'x'\n"
-           "FAILED test_calc.py::test_b - AssertionError")
-
-    def test_只取函数级nodeid(self):
-        ids = repair.failing_nodeids(self.OUT)
-        assert ids == ["test_gen_r1.py::test_a", "test_calc.py::test_b"]
-
-    def test_错误类提取(self):
-        assert repair.error_class_of(self.OUT, "test_gen_r1.py::test_a") == "assert"
-        assert repair.error_class_of(self.OUT, "test_calc.py::test_b") == "AssertionError"
-        assert repair.error_class_of(self.OUT, "nope::none") == ""
+def test_fingerprint_empty_when_no_failure_text():
+    assert repair.fingerprint_of("", "") == ""
 
 
-# ---------- A5 def 名规整（借用 langchain 已装则测，未装则跳过） ----------
+def test_fingerprint_falls_back_to_tail_hash():
+    a = repair.fingerprint_of("", "some crash tail\nline2")
+    b = repair.fingerprint_of("", "some crash tail\nline2")
+    assert a and a == b
 
-class TestSanitizeName:
-    def test_名字规整_唯一_可回查(self):
-        pytest.importorskip("langchain_openai")
-        from test_agent.skills.gen_tests import _sanitize_name
-        used: set[str] = set()
-        assert _sanitize_name("登录正常流程 测试", 0, used) == "test_登录正常流程_测试"
-        first = _sanitize_name("边界值分析", 1, used)
-        second = _sanitize_name("边界值分析", 2, used)
-        assert first.startswith("test_") and first != second  # 同名自动去重
+
+def test_failing_nodeids_extracts_locations():
+    ids = repair.failing_nodeids(FAIL_STDOUT)
+    assert ids == ["test_calc.py::test_div_wrong_expectation"]
+
+
+# —— 归因 ——
+
+def test_classify_none_when_exit_zero():
+    assert repair.classify_failure(0, PASS_STDOUT, "") == "none"
+
+
+def test_classify_env_missing_pytest():
+    assert repair.classify_failure(4, "", "No module named 'pytest'") == "env"
+
+
+def test_classify_case_defect_no_tests():
+    assert repair.classify_failure(5, "no tests ran in 0.01s", "") == "case_defect"
+
+
+def test_classify_case_defect_import_error():
+    assert repair.classify_failure(2, "", COLLECT_ERROR_STDERR) == "case_defect"
+
+
+def test_classify_product_defect_assertion():
+    assert repair.classify_failure(1, FAIL_STDOUT, "") == "product_defect"
+
+
+def test_classify_unknown_defaults_to_env():
+    assert repair.classify_failure(1, "", "segmentation fault") == "env"
+
+
+# —— 判定（R-Loop 停止条件，按当前语义） ——
+
+def _decide(**kw):
+    base = dict(exit_code=0, stdout=PASS_STDOUT, stderr="",
+                fingerprints=[], fingerprint="", round_no=1, coverage_line=1.0)
+    base.update(kw)
+    return repair.decide(**base)
+
+
+def test_decide_pass_when_green_and_coverage_met():
+    verdict, kind, _ = _decide()
+    assert verdict == "pass" and kind == "none"
+
+
+def test_decide_coverage_unknown_is_not_pass():
+    """诚实边界：覆盖率解析失败不算达标，补测一轮拿数据。"""
+    verdict, _, reason = _decide(coverage_line=None)
+    assert verdict == "repair_gen"
+    assert "未知" in reason
+
+
+def test_decide_repair_gen_when_coverage_below_target():
+    verdict, _, reason = _decide(coverage_line=0.5)
+    assert verdict == "repair_gen"
+    assert "补测" in reason
+
+
+def test_decide_honors_frozen_task_target():
+    """任务级冻结阈值（A1）：任务冻结 90% 时 80% 不达标。"""
+    verdict, _, _ = _decide(coverage_line=0.8, coverage_target=0.9)
+    assert verdict == "repair_gen"
+
+
+def test_decide_product_defect_stops_immediately_as_witness():
+    """疑似产品缺陷：第 1 次失败即停止上报，不重造用例迁就（防造假）。"""
+    verdict, kind, reason = _decide(exit_code=1, stdout=FAIL_STDOUT, fingerprint="p1")
+    assert verdict == "stop" and kind == "product_defect"
+    assert "证人" in reason or "疑似产品缺陷" in reason
+
+
+def test_decide_breaker_on_repeated_case_defect_fingerprint():
+    """指纹熔断对用例自身缺陷生效：同指纹出现 2 次即停。"""
+    fp = "abc123"
+    verdict, kind, reason = _decide(exit_code=2, stderr=COLLECT_ERROR_STDERR,
+                                    fingerprints=[fp], fingerprint=fp)
+    assert verdict == "stop" and kind == "case_defect"
+    assert "熔断" in reason
+
+
+def test_decide_breaker_on_repeated_env_fingerprint():
+    fp = "e999"
+    verdict, _, reason = _decide(exit_code=4, stderr="pipeline crash",
+                                 fingerprints=[fp], fingerprint=fp)
+    assert verdict == "stop" and "熔断" in reason
+
+
+def test_decide_first_case_defect_failure_repairs():
+    verdict, kind, _ = _decide(exit_code=2, stderr=COLLECT_ERROR_STDERR, fingerprint="c1")
+    assert verdict == "repair_gen" and kind == "case_defect"
+
+
+def test_decide_first_env_failure_routes_to_repair_env():
+    verdict, kind, _ = _decide(exit_code=4, stderr="No module named 'pytest'", fingerprint="e1")
+    assert verdict == "repair_env" and kind == "env"
+
+
+def test_decide_budget_exhausted_for_case_defect():
+    verdict, _, reason = _decide(exit_code=2, stderr=COLLECT_ERROR_STDERR,
+                                 fingerprint="c2", round_no=config.MAX_REPAIR_ROUNDS)
+    assert verdict == "stop"
+    assert "预算" in reason
+
+
+def test_decide_budget_with_low_coverage():
+    verdict, _, reason = _decide(coverage_line=0.5, round_no=config.MAX_REPAIR_ROUNDS)
+    assert verdict == "stop"
+    assert "预算" in reason

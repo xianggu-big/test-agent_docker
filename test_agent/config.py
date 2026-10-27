@@ -32,6 +32,12 @@ MAX_REPAIR_ROUNDS = 3                # 同一模块最多补测轮数
 FINGERPRINT_BREAKER = 2              # 相同失败指纹出现次数 >= 此值即熔断
 COVERAGE_TARGET = 0.70               # 准出标准：行覆盖率阈值（分析阶段冻结进任务）
 
+# —— ②定向修复策略（调研报告 §8 行2/行3；三链路对比见 benchmarks/compare_pipelines.py） ——
+# prune  = 链路A基线：剪坏用例+下轮全量重生成 ｜ rewrite = 链路B：带失败上下文重写（YATE）
+# hybrid = 链路C：重写(预算+准入闸)+缺口回灌全量补测+剪除兜底 —— 优缺点合成路线
+REPAIR_STRATEGY = "prune"
+REWRITE_BUDGET = 3                   # 单轮重写条数上限（防重写风暴）
+
 # —— LLM 配置（第 3~4 步启用；密钥走环境变量 DEEPSEEK_API_KEY，不进代码库） ——
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-chat"

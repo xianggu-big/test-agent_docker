@@ -17,7 +17,7 @@ from pathlib import Path
 from .. import config
 from ..sandbox.runner import SandboxRunner
 from ..skills.builtin import build_skills
-from ..skills.gen_tests import prune_failing_cases
+from ..skills.repair_strategy import make_deepseek_fn, run_repair_strategy
 from ..skills.prompt_library import PLAN_SYSTEM, build_plan_prompt
 from ..skills.registry import SkillRegistry
 from ..store.db import get_conn
@@ -183,23 +183,39 @@ def make_nodes(deps: GraphDeps) -> dict:
             f"[provision] 容器 {state['container_name']} 就绪；依赖安装：{dep.status}")
         return {"job_id": cur.lastrowid}
 
-    # ---------- 4. 生成用例（LLM，未配 Key 时诚实降级；repair_gen 先定向剪枝） ----------
+    # ---------- 4. 生成用例（LLM，未配 Key 时诚实降级；repair_gen 先按策略定向修复） ----------
     def generate(state: TaskState) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "generating")
         next_round = state.get("round_no", 0) + 1
 
-        # ②定向修复：上一轮用例自身坏掉的（ImportError 等强信号）先从工作区剪除；
-        # 断言失败一律保留为疑似缺陷证人（§7.2 防造假），仓库自带测试不动。
+        # ②定向修复策略分派（调研报告 §8 行2/行3）：
+        # A=prune 剪除+全量重生成（基线）｜B=rewrite 带上下文重写（YATE）｜C=hybrid 合成
+        # 共用铁律：断言失败证人永不剪永不重写（§7.2），仓库自带测试不动。
+        skip_full_regen = False
         if state.get("round_no", 0) >= 1:
             pairs = [(nid, repair.error_class_of(state.get("last_stdout", ""), nid))
                      for nid in repair.failing_nodeids(state.get("last_stdout", ""))]
             if pairs:
-                info = prune_failing_cases(Path(state["workspace"]), pairs, tid, conn)
+                info = run_repair_strategy(
+                    config.REPAIR_STRATEGY, Path(state["workspace"]), pairs, tid, conn,
+                    round_no=next_round,
+                    llm_fn=make_deepseek_fn(os.environ.get("DEEPSEEK_API_KEY")),
+                    runner=runner, container_name=state["container_name"],
+                    requirement=state.get("requirement", ""),
+                    fail_summary=(state.get("last_stdout", "") + state.get("last_stderr", ""))[-1500:])
+                skip_full_regen = info.get("skip_full_regen", False)
                 msg(state["session_id"], "assistant",
-                    f"[定向修复] 剪除 {len(info['pruned'])} 条坏用例、"
-                    f"保留证人 {len(info['kept'])} 条：" +
-                    json.dumps(info, ensure_ascii=False)[:400])
+                    f"[定向修复·{info.get('strategy', config.REPAIR_STRATEGY)}] "
+                    f"剪{len(info.get('pruned', []))} 重写{len(info.get('rewritten', []))} "
+                    f"保留证人{len(info.get('kept', []))}：" +
+                    json.dumps({k: info[k] for k in ("pruned", "rewritten", "kept", "fallback")
+                                if info.get(k)}, ensure_ascii=False)[:400])
+
+        if skip_full_regen:
+            msg(state["session_id"], "assistant",
+                f"[generate 第{next_round}轮] 坏用例全部重写成功，跳过全量重生成（YATE 路线）")
+            return {"round_no": next_round}
 
         res = registry.invoke(tid, skills["gen_tests"], {
             "workspace": state["workspace"],

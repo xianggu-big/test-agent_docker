@@ -5,13 +5,16 @@
   python cli.py confirm <task_id>                          # 人工确认（放行执行）
   python cli.py run <task_id>                              # 下发执行（R-Loop 全链路）
   python cli.py status <task_id>                           # 查看任务状态
-  python cli.py report <task_id>                           # 查看测试报告
-  python cli.py log <task_id>                              # 查看 Agent 会话轨迹
+  python cli.py report <task_id>                           # 查看测试报告（标注最新）
+  python cli.py log <task_id>                              # 查看 Agent 会话轨迹（按会话分组）
+  python cli.py clean                                      # 清理任务工作区快照（data/workspaces）
 """
 import json
 import logging
+import shutil
 import sys
 
+from test_agent import config
 from test_agent.graph.builder import run_task
 from test_agent.store import db
 
@@ -66,7 +69,15 @@ def main() -> int:
             return 0
 
         if cmd == "run":
-            final = run_task(tid)
+            try:
+                final = run_task(tid)
+            except Exception as e:
+                # Docker daemon 未启动是最常见的环境坑（pitfalls #2），友好提示不甩栈
+                if "docker" in type(e).__module__.lower() or "npipe" in str(e) \
+                        or "docker API" in str(e):
+                    print("Docker daemon 未连接：请先启动 Docker Desktop（约 1 分钟就绪）后重试")
+                    return 1
+                raise
             print(json.dumps({k: final.get(k) for k in
                               ("verdict", "stop_reason", "passed", "failed",
                                "coverage_line", "round_no")},
@@ -78,20 +89,46 @@ def main() -> int:
             return 0
 
         if cmd == "report":
-            rows = conn.execute("SELECT * FROM test_reports WHERE task_id=?", (tid,)).fetchall()
+            rows = conn.execute("SELECT * FROM test_reports WHERE task_id=? ORDER BY id",
+                                (tid,)).fetchall()
             if not rows:
                 print("暂无报告")
                 return 1
+            latest_id = rows[-1]["id"]  # 多次 run 会有多份历史报告，标注最新一份
             for r in rows:
+                tag = "（最新）" if r["id"] == latest_id else ""
+                print(f"—— 报告 #{r['id']}{tag} ——")
                 print(json.dumps(dict(r), ensure_ascii=False, indent=2))
             return 0
 
         if cmd == "log":
-            for r in conn.execute("""SELECT m.seq, m.content FROM agent_messages m
-                                     JOIN agent_sessions s ON s.id = m.session_id
-                                     WHERE s.task_id = ? ORDER BY m.seq""", (tid,)):
-                print(f"[{r['seq']:02d}] {r['content'][:300]}")
+            # 按会话分组显示：同一任务多次 run 各自成段，序号不交错
+            sessions = conn.execute(
+                "SELECT id, started_at FROM agent_sessions WHERE task_id=? ORDER BY id",
+                (tid,)).fetchall()
+            if not sessions:
+                print("暂无会话记录")
+                return 1
+            for s in sessions:
+                print(f"—— 会话 #{s['id']}（开始于 {s['started_at']}）——")
+                for r in conn.execute("""SELECT seq, content FROM agent_messages
+                                         WHERE session_id = ? ORDER BY seq""", (s["id"],)):
+                    print(f"[{r['seq']:02d}] {r['content'][:300]}")
             return 0
+
+    # —— 工作区清理 ——
+    if cmd == "clean":
+        ws_root = config.DATA_DIR / "workspaces"
+        if not ws_root.exists():
+            print("没有可清理的工作区")
+            return 0
+        n = 0
+        for d in ws_root.iterdir():
+            if d.is_dir():
+                shutil.rmtree(d)
+                n += 1
+        print(f"已清理 {n} 个任务工作区（{ws_root}）")
+        return 0
 
     print(USAGE)
     return 1
