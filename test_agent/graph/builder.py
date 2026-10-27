@@ -1,10 +1,10 @@
 """StateGraph 组装 + run_task 入口。
 
-主图（对应论文"五阶段 + 带熔断的补测循环"插图）：
+    主图（对应论文"五阶段 + 带熔断的补测循环"插图）：
 
-    clone → analyze → provision → generate → run → evaluate ─┬─ pass/stop → report → END
-                  ↑          ↑_______________________________├─ repair_env（装依赖重跑）
-                  └──────────(repair_gen：重新生成用例)────────┘
+        clone → analyze → plan(RTM) → provision → generate → run → evaluate ─┬─ pass/stop → report → END
+                  ↑               ↑__________________________________________├─ repair_env（装依赖重跑）
+                  └───────────────(repair_gen：剪坏用例→缺口回灌→重生成)──────┘
 
 analyze 遇到非深度支持语言时短路到 report（诚实降级）。
 """
@@ -23,13 +23,14 @@ log = logging.getLogger(__name__)
 def build_graph(deps: GraphDeps):
     nodes = make_nodes(deps)
     g = StateGraph(TaskState)
-    for name in ("clone", "analyze", "provision", "generate", "run", "evaluate", "report"):
+    for name in ("clone", "analyze", "plan", "provision", "generate", "run", "evaluate", "report"):
         g.add_node(name, nodes[name])
     g.set_entry_point("clone")
     g.add_edge("clone", "analyze")
     g.add_conditional_edges("analyze",
-                            lambda s: "report" if s.get("done") else "provision",
-                            {"report": "report", "provision": "provision"})
+                            lambda s: "report" if s.get("done") else "plan",
+                            {"report": "report", "plan": "plan"})
+    g.add_edge("plan", "provision")
     g.add_edge("provision", "generate")
     g.add_edge("generate", "run")
     # run 可能诚实短路（如 Java 链路占位，A7）：done=True 直接进 report，不进 evaluate

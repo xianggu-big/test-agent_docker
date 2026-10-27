@@ -178,13 +178,19 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     if not sources:
         return json.dumps({"generated": 0, "reason": "未发现可测源码"}, ensure_ascii=False)
 
+    conn = get_conn()
+    conditions = [dict(r) for r in conn.execute(
+        "SELECT condition, priority, method_hint FROM test_conditions "
+        "WHERE task_id=? ORDER BY id", (task_id,)).fetchall()] or None
+
     llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
                      base_url=config.DEEPSEEK_BASE_URL,
                      temperature=0.2, timeout=90, max_retries=2)
     resp = llm.invoke([("system", SYSTEM_PROMPT),
                        ("user", build_user_prompt(sources, args.get("requirement", ""),
                                                   args.get("coverage_gaps"),
-                                                  args.get("coverage_target")))])
+                                                  args.get("coverage_target"),
+                                                  conditions))])
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,
@@ -216,12 +222,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                + (imports + "\n\n" if imports else "") + body + "\n")
     (ws / fname).write_text(content, encoding="utf-8")
 
-    # —— 回灌容器（依赖随项目走，生成物也随项目走） ——
-    container = runner.client.containers.get(args["container_name"])
-    runner.copy_dir_into(container, ws)
-
-    # —— 落库：脚本版本 + 用例清单 ——
-    conn = get_conn()
+    # —— 落库：脚本版本 + 用例清单（先于闸门，收集失败时可整体废案删除） ——
     cur = conn.execute(
         """INSERT INTO test_scripts(task_id, module_id, framework, version, content, content_hash)
            VALUES (?, ?, 'pytest', ?, ?, ?)""",
@@ -237,6 +238,26 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
              c.get("priority"), c.get("input"), c.get("steps"),
              c.get("expected"), c.get("expected_basis")))
     conn.commit()
+
+    # —— 回灌容器（依赖随项目走，生成物也随项目走） ——
+    container = runner.client.containers.get(args["container_name"])
+    runner.copy_dir_into(container, ws)
+
+    # —— 第二道闸（§3.6 第 2 道）：容器内 --collect-only 可收集性检查 ——
+    # 收集失败是文件级问题（模块级 import 等），无法按用例归责 → 整体废案（诚实降级），
+    # 绝不把注定 ERROR 的生成物交给执行轮。
+    r = runner.exec_in(container, ["pytest", "--collect-only", "-q", fname], timeout_s=120)
+    if r.exit_code != 0:
+        (ws / fname).unlink(missing_ok=True)
+        conn.execute("DELETE FROM test_cases WHERE script_id=?", (script_id,))
+        conn.execute("DELETE FROM test_scripts WHERE id=?", (script_id,))
+        conn.commit()
+        runner.exec_in(container, ["rm", "-f", f"/work/{fname}"], timeout_s=30)
+        log.warning("gen_tests task=%s collect 失败，本轮生成物废案: %s",
+                    task_id, r.stderr[-200:])
+        return json.dumps({"generated": 0,
+                           "reason": "生成物未过容器内 --collect-only 可收集性检查（整体废案）",
+                           "detail": (r.stdout + r.stderr)[-300:]}, ensure_ascii=False)
 
     summary = {"generated": len(data["cases"]), "file": fname, "script_id": script_id,
                "static_rejected": rejected,

@@ -142,3 +142,43 @@ TOTAL             18      2    89%   12-13, 17
     def test_全量覆盖时为空_不算异常(self):
         from test_agent.graph.nodes import _parse_per_file_coverage
         assert _parse_per_file_coverage("TOTAL 8 0 100%\n2 passed") == []
+
+
+# ---------- parse_conditions（plan/RTM 数据源）与提示词段落 ----------
+
+class TestParseConditions:
+    GOOD = '{"conditions": [{"requirement_ref": "VIP 享 8 折", "condition": "VIP 客户折扣后价格为原价 80%", "priority": "高", "method_hint": "等价类划分"}, {}]}'
+
+    def test_解析并剔除空条件(self):
+        from test_agent.graph.nodes import parse_conditions
+        conds = parse_conditions(self.GOOD)
+        assert conds and len(conds) == 1 and conds[0]["priority"] == "高"
+
+    def test_不可解析返回None_诚实降级(self):
+        from test_agent.graph.nodes import parse_conditions
+        assert parse_conditions("抱歉，我无法输出 JSON") is None
+        assert parse_conditions('{"cases": []}') is None
+
+
+class TestPromptSections:
+    def test_条件段落存在(self):
+        from test_agent.skills.prompt_library import build_user_prompt
+        p = build_user_prompt([("a.py", "def f(): pass")], "需求",
+                              conditions=[{"condition": "VIP 打八折", "priority": "高", "method_hint": "等价类划分"}])
+        assert "测试条件（RTM" in p and "VIP 打八折" in p
+
+    def test_缺口段落存在(self):
+        from test_agent.skills.prompt_library import build_user_prompt
+        p = build_user_prompt([("a.py", "def f(): pass")], "需求",
+                              coverage_gaps=[{"file": "a.py", "missing": "12-13", "cover": 75}],
+                              coverage_target=0.7)
+        assert "上一轮覆盖缺口" in p and "12-13" in p and "70%" in p
+
+    def test_无条件无缺口时两段落都不出现(self):
+        from test_agent.skills.prompt_library import build_user_prompt
+        p = build_user_prompt([("a.py", "def f(): pass")], "需求")
+        assert "测试条件" not in p and "上一轮覆盖缺口" not in p
+
+    def test_plan提示词含保守语义纪律(self):
+        from test_agent.skills.prompt_library import build_plan_prompt
+        assert "不要发明" in build_plan_prompt("VIP 享 8 折")

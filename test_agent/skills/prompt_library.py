@@ -10,6 +10,26 @@ SYSTEM_PROMPT = (
     "断言必须先于执行结果确定（预期结果来自需求而非实际输出）。只输出 JSON。"
 )
 
+PLAN_SYSTEM = (
+    "你是资深软件测试分析师（测试分析阶段）。把用户的自然语言需求拆解为可验证的测试条件"
+    "（需求追踪矩阵 RTM 的条件层）。只输出 JSON。"
+)
+
+
+def build_plan_prompt(requirement: str) -> str:
+    return f"""## 用户需求
+{requirement}
+
+## 任务
+把需求拆解为可验证的测试条件：每条是单一行为陈述、可通过测试证伪；标注优先级（高/中/低）
+与建议的用例设计方法（等价类划分/边界值分析/判定表/语句分支覆盖/错误推测法）。
+只拆解需求声明过的行为，不要发明；需求含糊处按最保守语义拆解并在 condition 中注明假设。
+
+## 输出格式
+只输出一个 JSON 对象：
+{{"conditions": [{{"requirement_ref": "需求原文关键句", "condition": "可验证行为陈述",
+   "priority": "高", "method_hint": "等价类划分"}}]}}"""
+
 MAX_SOURCE_CHARS = 8000   # 被测源码总量上限，防 token 爆炸
 
 METHODS = [
@@ -33,16 +53,27 @@ METHODS = [
 
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
-                      coverage_target: float | None = None) -> str:
+                      coverage_target: float | None = None,
+                      conditions: list[dict] | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
     有缺口时优先生成命中缺口行的用例，这是"补测轮次知道该往哪补"的信息通道。
+    conditions: plan 节点拆解的测试条件（RTM）——用例逐条对准条件设计。
     """
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
     method_text = "\n".join(f"{i}.【{m['name']}】{m['skeleton']}"
                             for i, m in enumerate(METHODS, 1))
+    cond_text = ""
+    if conditions:
+        rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
+                         f"（建议方法：{c.get('method_hint') or '不限'}）"
+                         for i, c in enumerate(conditions, 1))
+        cond_text = f"""
+
+## 测试条件（RTM，逐条设计用例对准覆盖）
+{rows}"""
     gap_text = ""
     if coverage_gaps:
         rows = "\n".join(f"- {g['file']}: 未覆盖行 {g['missing']}（当前行覆盖 {g['cover']}%）"
@@ -59,7 +90,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{gap_text}
+{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text}

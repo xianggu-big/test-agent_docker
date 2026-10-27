@@ -32,6 +32,8 @@ _MIGRATIONS = {
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
+    # 幂等执行整个 schema（IF NOT EXISTS）：老库自动补新表与索引，DDL 单一真源不漂移
+    conn.executescript(config.SCHEMA_PATH.read_text(encoding="utf-8"))
     for table, cols in _MIGRATIONS.items():
         have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
         for col, ddl in cols.items():

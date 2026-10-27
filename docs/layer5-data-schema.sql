@@ -7,14 +7,14 @@
 --   * 时间统一 TEXT ISO8601（UTC）；比值/覆盖率用 REAL（0~1）；耗时毫秒 INTEGER
 --   * 枚举用 TEXT + CHECK，不建字典表（本科规模，简单优先）
 --   * 外键运行时开启：PRAGMA foreign_keys = ON
---   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 13 张
+--   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 14 张
 -- ============================================================================
 
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
 -- 1) 用户与权限（管理员 admin / 开发者 developer / 调用者 caller）
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE users (
 );
 
 -- 2) 项目（一次测试的对象仓库；语言占比判定结果落在这里）
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id          INTEGER NOT NULL REFERENCES users(id),
   repo_url         TEXT NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE projects (
 );
 
 -- 3) 模块（多模块拆分与分级策略：<10% 语言 static_only，不拉执行镜像）
-CREATE TABLE modules (
+CREATE TABLE IF NOT EXISTS modules (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL REFERENCES projects(id),
   path       TEXT NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE modules (
 );
 
 -- 4) 测试任务（一次端到端测试 = 一条任务；状态机与界面进度条一一对应）
-CREATE TABLE test_tasks (
+CREATE TABLE IF NOT EXISTS test_tasks (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id       INTEGER NOT NULL REFERENCES projects(id),
   user_id          INTEGER NOT NULL REFERENCES users(id),
@@ -68,7 +68,7 @@ CREATE TABLE test_tasks (
 );
 
 -- 5) 智能体会话（Test Agent / Planner / Evaluator 各一轮编排 = 一条会话）
-CREATE TABLE agent_sessions (
+CREATE TABLE IF NOT EXISTS agent_sessions (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id    INTEGER NOT NULL REFERENCES test_tasks(id),
   agent_role TEXT NOT NULL DEFAULT 'test_agent'
@@ -78,7 +78,7 @@ CREATE TABLE agent_sessions (
 );
 
 -- 6) 会话消息（智能体多轮交互证据；答辩演示「多轮规划/判读」就查这张表）
-CREATE TABLE agent_messages (
+CREATE TABLE IF NOT EXISTS agent_messages (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER NOT NULL REFERENCES agent_sessions(id),
   seq        INTEGER NOT NULL,           -- 会话内序号，前端按 seq 增量渲染
@@ -90,7 +90,7 @@ CREATE TABLE agent_messages (
 );
 
 -- 7) 测试脚本插件与版本（固定框架 + 可插拔用例；版本不可变，确认后才能下发）
-CREATE TABLE test_scripts (
+CREATE TABLE IF NOT EXISTS test_scripts (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id      INTEGER NOT NULL REFERENCES test_tasks(id),
   module_id    INTEGER REFERENCES modules(id),
@@ -105,7 +105,7 @@ CREATE TABLE test_scripts (
 );
 
 -- 8) 用例库（内置 builtin / AI 生成 ai / 外部导入 imported 三来源统一入库）
-CREATE TABLE test_cases (
+CREATE TABLE IF NOT EXISTS test_cases (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   script_id      INTEGER NOT NULL REFERENCES test_scripts(id),
   source         TEXT NOT NULL CHECK (source IN ('builtin','ai','imported')),
@@ -122,7 +122,7 @@ CREATE TABLE test_cases (
 );
 
 -- 9) Skill 注册表（Schema、权限、超时 —— 对齐借用框架 ToolRegistry 的约定）
-CREATE TABLE skills (
+CREATE TABLE IF NOT EXISTS skills (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   name         TEXT NOT NULL UNIQUE,      -- clone_repo / detect_lang / start_container /
                                           -- gen_tests / run_tests / collect_report / ...
@@ -135,7 +135,7 @@ CREATE TABLE skills (
 );
 
 -- 10) Skill 调用日志（工具维度审计 + 成本核算；论文「工具调用成功率」指标数据源）
-CREATE TABLE skill_invocations (
+CREATE TABLE IF NOT EXISTS skill_invocations (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id     INTEGER NOT NULL REFERENCES test_tasks(id),
   skill_id    INTEGER NOT NULL REFERENCES skills(id),
@@ -149,7 +149,7 @@ CREATE TABLE skill_invocations (
 );
 
 -- 11) 容器任务队列（L4 调度器工作队列 + 资源限额台账）
-CREATE TABLE container_jobs (
+CREATE TABLE IF NOT EXISTS container_jobs (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id      INTEGER NOT NULL REFERENCES test_tasks(id),
   module_id    INTEGER REFERENCES modules(id),
@@ -167,7 +167,7 @@ CREATE TABLE container_jobs (
 );
 
 -- 12) 测试报告与指标（论文核心实验表：通过率 / 覆盖率 / 缺陷 / 耗时）
-CREATE TABLE test_reports (
+CREATE TABLE IF NOT EXISTS test_reports (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id         INTEGER NOT NULL REFERENCES test_tasks(id),
   module_id       INTEGER REFERENCES modules(id),
@@ -183,7 +183,7 @@ CREATE TABLE test_reports (
 );
 
 -- 13) 误报/漏报人工标注（正确率闭环：标注回流 → 提示词与规则改进，可写对比实验）
-CREATE TABLE feedback_annotations (
+CREATE TABLE IF NOT EXISTS feedback_annotations (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   report_id    INTEGER NOT NULL REFERENCES test_reports(id),
   case_id      INTEGER REFERENCES test_cases(id),
@@ -194,11 +194,23 @@ CREATE TABLE feedback_annotations (
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 14) 测试条件（RTM 需求追踪矩阵的条件层：需求 → 测试条件 → 用例 可追溯，防需求变更失控）
+CREATE TABLE IF NOT EXISTS test_conditions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id         INTEGER NOT NULL REFERENCES test_tasks(id),
+  requirement_ref TEXT,                    -- 需求原文关键句（变更影响分析的反查键）
+  condition       TEXT NOT NULL,           -- 可验证的测试条件陈述
+  priority        TEXT,                    -- 高/中/低（对应用户需求优先级）
+  method_hint     TEXT,                    -- 建议用例设计方法（五方法之一）
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 常用查询索引
-CREATE INDEX idx_tasks_status     ON test_tasks(status);
-CREATE INDEX idx_tasks_project    ON test_tasks(project_id);
-CREATE INDEX idx_msgs_session     ON agent_messages(session_id, seq);
-CREATE INDEX idx_invocations_task ON skill_invocations(task_id);
-CREATE INDEX idx_jobs_status      ON container_jobs(status, priority);
-CREATE INDEX idx_reports_task     ON test_reports(task_id);
-CREATE INDEX idx_feedback_report  ON feedback_annotations(report_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_status     ON test_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_project    ON test_tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_msgs_session     ON agent_messages(session_id, seq);
+CREATE INDEX IF NOT EXISTS idx_invocations_task ON skill_invocations(task_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_status      ON container_jobs(status, priority);
+CREATE INDEX IF NOT EXISTS idx_reports_task     ON test_reports(task_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_report  ON feedback_annotations(report_id);
+CREATE INDEX IF NOT EXISTS idx_conditions_task  ON test_conditions(task_id);

@@ -18,6 +18,7 @@ from .. import config
 from ..sandbox.runner import SandboxRunner
 from ..skills.builtin import build_skills
 from ..skills.gen_tests import prune_failing_cases
+from ..skills.prompt_library import PLAN_SYSTEM, build_plan_prompt
 from ..skills.registry import SkillRegistry
 from ..store.db import get_conn
 from . import repair
@@ -51,6 +52,22 @@ def set_status(conn, task_id: int, status: str) -> None:
 
 
 _ROW = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+([\d,\s\-]+)$")
+
+
+def parse_conditions(text: str) -> list[dict] | None:
+    """从 LLM 回复中鲁棒提取测试条件；解析失败返回 None（诚实降级，不硬造条件）。"""
+    m = re.search(r"\{.*\}", text, re.S)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+    conds = data.get("conditions")
+    if not isinstance(conds, list):
+        return None
+    cleaned = [c for c in conds if isinstance(c, dict) and c.get("condition")]
+    return cleaned or None
 
 
 def _parse_per_file_coverage(stdout: str) -> list[dict]:
@@ -272,5 +289,38 @@ def make_nodes(deps: GraphDeps) -> dict:
         msg(state["session_id"], "assistant", digest)
         return {"done": True, "stop_reason": state.get("stop_reason")}
 
-    return {"clone": clone, "analyze": analyze, "provision": provision,
+    # ---------- 2.5 测试计划（RTM：需求 → 测试条件，测试分析阶段的产物） ----------
+    def plan(state: TaskState) -> dict:
+        tid = state["task_id"]
+        set_status(conn, tid, "analyzing")  # 测试条件制定属测试分析阶段（理论章口径）
+        requirement = (state.get("requirement") or "").strip()
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not requirement or not api_key:
+            why = "无需求文本" if not requirement else "未配置 DEEPSEEK_API_KEY"
+            msg(state["session_id"], "assistant", f"[plan] {why}：跳过测试条件拆解（诚实降级）")
+            return {}
+        from langchain_openai import ChatOpenAI  # 延迟导入，无 Key 时零开销
+        llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+                         base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
+                         timeout=60, max_retries=2)
+        resp = llm.invoke([("system", PLAN_SYSTEM),
+                           ("user", build_plan_prompt(requirement))])
+        conds = parse_conditions(resp.content)
+        if not conds:
+            msg(state["session_id"], "assistant", "[plan] 需求拆解不可解析，跳过（诚实降级）")
+            return {}
+        for c in conds:
+            conn.execute(
+                """INSERT INTO test_conditions(task_id, requirement_ref, condition, priority, method_hint)
+                   VALUES (?,?,?,?,?)""",
+                (tid, c.get("requirement_ref"), c["condition"],
+                 c.get("priority"), c.get("method_hint")))
+        conn.commit()
+        msg(state["session_id"], "assistant",
+            f"[plan] 需求拆解为 {len(conds)} 条测试条件（RTM 落库）：" +
+            "; ".join(f"[{c.get('priority') or '中'}]{c['condition'][:36]}"
+                      for c in conds)[:400])
+        return {}
+
+    return {"clone": clone, "analyze": analyze, "plan": plan, "provision": provision,
             "generate": generate, "run": run, "evaluate": evaluate, "report": report}
