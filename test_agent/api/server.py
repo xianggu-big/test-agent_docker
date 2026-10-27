@@ -11,6 +11,7 @@
 """
 import hashlib
 import logging
+import re
 import threading
 from pathlib import Path
 
@@ -157,7 +158,14 @@ def api_stop(tid: int, user: dict = Depends(staff)):
     conn = get_conn()
     row = _task_or_404(conn, tid)
     if row["status"] in ACTIVE:
-        raise HTTPException(409, "运行中任务 v1 不支持强制停止，容器将随任务结束统一回收")
+        # v1 不杀运行中的图执行；但进程死亡会把任务留在执行态"变砖"——管理员强制解卡
+        if user["role"] != "admin":
+            raise HTTPException(409, "运行中任务 v1 不支持强制停止；管理员可强制解卡")
+        conn.execute(
+            "UPDATE test_tasks SET status='failed', error='管理员强制停止（解卡）', updated_at=datetime('now') WHERE id=?",
+            (tid,))
+        conn.commit()
+        return {"task_id": tid, "stopped": True, "forced": True}
     conn.execute("UPDATE test_tasks SET status='cancelled', updated_at=datetime('now') WHERE id=? AND status='queued'",
                  (tid,))
     conn.commit()
@@ -243,12 +251,18 @@ def api_add_case(tid: int, body: dict, user: dict = Depends(staff)):
     if not ws.exists():
         raise HTTPException(409, "工作区不存在（任务尚未运行过），请先下发执行一次")
 
-    # name 与 nodeid 对齐（A5 同款规整）：查重范围 = 最新脚本全部用例
+    # name 与 nodeid 对齐（A5 同款规整）：查重范围 = 任务全域用例名
+    # （test_imported.py 合并跨脚本版本的全部 imported 用例，只查最新脚本会漏重名）
     script = conn.execute(
         "SELECT id FROM test_scripts WHERE task_id=? ORDER BY version DESC LIMIT 1", (tid,)).fetchone()
     used = {r["name"] for r in conn.execute(
-        "SELECT name FROM test_cases WHERE script_id=?", (script["id"],))} if script else set()
+        """SELECT c.name FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
+           WHERE s.task_id = ?""", (tid,))} if script else set()
     def_name = _sanitize_name(name, len(used), used)
+    # A5 同款 def 名重写：name↔nodeid 对齐 + 文件内唯一性真正生效
+    m = re.search(r"def\s+\w+", code)
+    if m:
+        code = code[:m.start()] + f"def {def_name}" + code[m.end():]
 
     script_id = script["id"] if script else conn.execute(
         "INSERT INTO test_scripts(task_id, framework, version, content, content_hash) "
@@ -258,18 +272,47 @@ def api_add_case(tid: int, body: dict, user: dict = Depends(staff)):
         (script_id, "imported", def_name, method, code))
     conn.commit()
 
-    # 重建 test_imported.py（以库为准），随下次 provision 快照进容器
-    imported = conn.execute(
-        """SELECT c.content FROM test_cases c JOIN test_scripts s ON s.id=c.script_id
-           WHERE s.task_id=? AND c.source='imported' ORDER BY c.id""", (tid,)).fetchall()
-    file_content = '"""人工/AI 插入用例（test_cases.source=imported）"""\n\n' + \
-                   "\n\n".join(r["content"].strip() for r in imported) + "\n"
-    (ws / "test_imported.py").write_text(file_content, encoding="utf-8")
+    file_content = _rebuild_imported_file(conn, tid)
     if script is None:  # 首个用例创建的脚本行，回填内容与哈希
         conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
                      (file_content, hashlib.sha256(file_content.encode()).hexdigest()[:16], script_id))
         conn.commit()
     return {"task_id": tid, "case_name": def_name, "file": "test_imported.py"}
+
+
+def _rebuild_imported_file(conn, tid: int) -> str:
+    """以库为准重建 test_imported.py（仅 enabled=1），随下次 provision 快照进容器。"""
+    ws = Path(config.DATA_DIR) / "workspaces" / f"task_{tid}"
+    imported = conn.execute(
+        """SELECT c.content FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
+           WHERE s.task_id=? AND c.source='imported' AND c.enabled=1 ORDER BY c.id""", (tid,)).fetchall()
+    content = '"""人工/AI 插入用例（test_cases.source=imported，enabled=1）"""\n\n' + \
+              "\n\n".join(r["content"].strip() for r in imported) + "\n"
+    (ws / "test_imported.py").write_text(content, encoding="utf-8")
+    return content
+
+
+@app.post("/api/cases/{case_id}/toggle")
+def api_toggle_case(case_id: int, user: dict = Depends(staff)):
+    """用例启停：imported 用例重建工作区文件即生效；AI 生成脚本为不可变版本，v1 不支持。"""
+    conn = get_conn()
+    row = conn.execute(
+        """SELECT c.enabled, c.source, s.id AS script_id, s.task_id FROM test_cases c
+           JOIN test_scripts s ON s.id = c.script_id WHERE c.id=?""", (case_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, f"用例 {case_id} 不存在")
+    task = conn.execute("SELECT status FROM test_tasks WHERE id=?", (row["task_id"],)).fetchone()
+    if task and task["status"] in ACTIVE:
+        raise HTTPException(409, "任务执行中，禁止切换用例状态")
+    if row["source"] != "imported":
+        raise HTTPException(409, "v1 仅支持人工/导入用例启停；AI 生成脚本为不可变版本")
+    conn.execute("UPDATE test_cases SET enabled=? WHERE id=?", (0 if row["enabled"] else 1, case_id))
+    conn.commit()
+    content = _rebuild_imported_file(conn, row["task_id"])
+    conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
+                 (content, hashlib.sha256(content.encode()).hexdigest()[:16], row["script_id"]))
+    conn.commit()
+    return {"case_id": case_id, "enabled": 0 if row["enabled"] else 1}
 
 
 # ---------- 设置页（仅管理员）：基础配置 / 镜像管理 ----------
@@ -314,8 +357,19 @@ def api_build_image(image: str, user: dict = Depends(admin)):
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
+def _sweep_orphan_containers() -> None:
+    """服务重启即视为旧任务已死：回收上次进程死亡残留的 mta-run-* 容器（幂等）。"""
+    try:
+        for c in get_runner().client.containers.list(filters={"name": "mta-run-"}):
+            c.remove(force=True)
+            log.warning("已回收疑似孤儿容器 %s", c.name)
+    except Exception as e:  # Docker 未起等场景不阻断服务启动
+        log.warning("孤儿容器清扫跳过: %s", e)
+
+
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
     auth.ensure_default_users()
+    _sweep_orphan_containers()
     log.info("L1 服务就绪：http://127.0.0.1:8000（演示账号 admin/admin123 · dev/dev123 · caller/caller123）")

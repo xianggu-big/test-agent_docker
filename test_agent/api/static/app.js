@@ -1,6 +1,8 @@
 /* L1 前端逻辑：hash 路由 + 角色守卫 + 轮询（主链路真接口） */
 "use strict";
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (m) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[m]));
 
 const ROLE_CN = { admin: "管理员", developer: "开发者", caller: "调用者" };
 const STATUS_CN = { queued: "待下发", cloning: "克隆中", analyzing: "分析中", provisioning: "准备环境",
@@ -85,7 +87,7 @@ async function createTask() {
   try {
     const b = await api("/tasks", { method: "POST", body: JSON.stringify({ repo_url: repo, requirement: req }) });
     NEW_TASK_ID = b.task_id;
-    $("new-result").innerHTML = `任务 <b>#${b.task_id}</b> 已创建（项目：${b.project_name}）。` +
+    $("new-result").innerHTML = `任务 <b>#${b.task_id}</b> 已创建（项目：${esc(b.project_name)}）。` +
       `下一步：<a href="#/workbench">进入脚本工作台</a> 确认后下发执行。`;
     $("new-result").classList.remove("hidden");
     renderStepper("stepper-new", 1);
@@ -103,17 +105,12 @@ async function pollNewCases(tid) {
       return;
     }
     box.innerHTML = b.cases.map(c =>
-      `<label class="case-item"><input type="checkbox" checked ${c.enabled ? "" : ""}>` +
-      `<code>${c.name}</code><span class="m">${c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置"}·${c.method || "-"}</span></label>`).join("");
+      `<label class="case-item"><input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleCase(${c.id})">` +
+      `<code>${esc(c.name)}</code><span class="m">${c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置"}·${esc(c.method) || "-"}</span></label>`).join("");
   } catch (_) { /* 轮询失败静默，下轮再取 */ }
 }
 
 /* ---------- 脚本工作台 ---------- */
-async function staffTasks() {
-  const list = await api("/tasks");
-  return list.filter(t => true);
-}
-
 async function refreshWorkbench() {
   renderStepper("stepper-wb", 2);
   const sel = $("wb-task");
@@ -137,8 +134,8 @@ async function loadWorkbench() {
   };
   const box = $("wb-cases");
   box.innerHTML = (cases.cases.length ? cases.cases.map(c =>
-    `<label class="case-item"><input type="checkbox" checked><code>${c.name}</code>` +
-    `<span class="m">${c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置"}·${c.method || "-"}</span></label>`).join("")
+    `<label class="case-item"><input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleCase(${c.id})"><code>${esc(c.name)}</code>` +
+    `<span class="m">${c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置"}·${esc(c.method) || "-"}</span></label>`).join("")
     : '<div class="hint">暂无用例：先下发执行触发 AI 生成，或在下方插入用例。</div>');
   if (cases.script && cases.script.content) $("wb-preview").textContent = cases.script.content;
 }
@@ -152,6 +149,11 @@ async function addCase() {
     $("ac-result").textContent = `已插入：${b.case_name} → ${b.file}（下次执行生效）`;
     loadWorkbench();
   } catch (e) { $("ac-result").textContent = "插入失败：" + e.message; }
+}
+
+async function toggleCase(id) {
+  try { await api(`/cases/${id}/toggle`, { method: "POST", body: "{}" }); loadWorkbench(); }
+  catch (e) { alert(e.message); loadWorkbench(); }
 }
 
 /* ---------- 任务列表 ---------- */
@@ -173,8 +175,8 @@ function renderTasks() {
     const confirmable = isStaff && t.confirmed !== 1 && t.progress < 100;
     const runnable = isStaff && t.confirmed === 1 && t.progress < 100;
     return `<tr>
-      <td><b>#${t.id}</b><div class="hint">${(t.requirement_text || "").slice(0, 24)}…</div></td>
-      <td>${t.project_name}<div class="hint">${t.primary_language || "-"}</div></td>
+      <td><b>#${t.id}</b><div class="hint">${esc((t.requirement_text || "").slice(0, 24))}…</div></td>
+      <td>${esc(t.project_name)}<div class="hint">${esc(t.primary_language) || "-"}</div></td>
       <td><span class="badge ${t.status === "done" ? "badge-ok" : t.status === "failed" ? "badge-fail" :
         t.progress < 100 && t.status !== "queued" ? "badge-run" : t.status === "cancelled" ? "badge-cancel" : "badge-queued"}">${STATUS_CN[t.status] || t.status}</span>
         ${t.confirmed !== 1 ? '<div class="hint">未确认 · 禁止下发</div>' : ""}</td>
@@ -221,10 +223,10 @@ async function loadReport() {
     ["失败", latest.failed, "fail"], ["跳过", latest.skipped, ""],
   ].map(([k, v, c]) => `<div class="metric"><div class="k">${k}</div><div class="v ${c}">${v ?? 0}</div></div>`).join("")
     : '<div class="metric"><div class="k">暂无报告</div><div class="v">--</div></div>';
-  const lines = logs.map(l => `<div class="log-line"><b>[${l.seq}]</b> ${l.content.replace(/</g, "&lt;")}</div>`);
+  const lines = logs.map(l => `<div class="log-line"><b>[${l.seq}]</b> ${esc(l.content)}</div>`);
   $("rp-log-list").innerHTML = lines.join("") || '<div class="hint">暂无日志</div>';
   $("rp-overview").innerHTML = logs.filter(l => l.content.includes("[evaluate") || l.content.includes("[digest") || l.content.includes("[analyze"))
-    .map(l => `<div class="log-line">${l.content.replace(/</g, "&lt;")}</div>`).join("") || '<div class="hint">暂无评估摘要</div>';
+    .map(l => `<div class="log-line">${esc(l.content)}</div>`).join("") || '<div class="hint">暂无评估摘要</div>';
   $("rp-export").onclick = () => {
     const md = `# 测试报告 · 任务 ${tid}\n\n通过率：${rate ?? "--"}%\n\n## 指标\n\n- 总数 ${latest?.total ?? 0} / 通过 ${latest?.passed ?? 0} / 失败 ${latest?.failed ?? 0} / 跳过 ${latest?.skipped ?? 0}\n\n## 轨迹\n\n` +
       logs.map(l => `- [${l.seq}] ${l.content}`).join("\n");
@@ -236,15 +238,15 @@ async function loadReport() {
 async function refreshSettings() {
   const cfg = await api("/config");
   $("st-config").innerHTML = Object.entries(cfg).filter(([k]) => k !== "note").map(([k, v]) =>
-    `<div class="k">${k}</div><div>${typeof v === "object" ? JSON.stringify(v) : v}</div>`).join("") +
-    `<div class="k">说明</div><div class="hint" style="grid-column:1/-1">${cfg.note}</div>`;
+    `<div class="k">${esc(k)}</div><div>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</div>`).join("") +
+    `<div class="k">说明</div><div class="hint" style="grid-column:1/-1">${esc(cfg.note)}</div>`;
   const imgs = await api("/images");
   $("st-images").innerHTML = imgs.map(i =>
-    `<div class="img-row"><span>${i.image}</span><span class="badge ${i.ready ? "badge-ok" : "badge-fail"}">${i.ready ? "就绪 " + i.size_mb + "MB" : "缺失"}</span>` +
-    (i.ready ? "" : `<button class="btn btn-primary btn-sm" onclick="buildImage('${i.image}')">自动构建</button>`) + `</div>`).join("");
+    `<div class="img-row"><span>${esc(i.image)}</span><span class="badge ${i.ready ? "badge-ok" : "badge-fail"}">${i.ready ? "就绪 " + i.size_mb + "MB" : "缺失"}</span>` +
+    (i.ready ? "" : `<button class="btn btn-primary btn-sm" onclick="buildImage('${encodeURIComponent(i.image)}')">自动构建</button>`) + `</div>`).join("");
   const users = await api("/users");
   $("st-users").innerHTML = users.map(u =>
-    `<div class="img-row"><span>${u.username}</span><span class="badge badge-${u.role === "developer" ? "dev" : u.role}">${ROLE_CN[u.role]}</span><span class="hint">创建于 ${u.created_at}</span></div>`).join("");
+    `<div class="img-row"><span>${esc(u.username)}</span><span class="badge badge-${u.role === "developer" ? "dev" : u.role}">${ROLE_CN[u.role]}</span><span class="hint">创建于 ${esc(u.created_at)}</span></div>`).join("");
 }
 
 async function buildImage(image) {
