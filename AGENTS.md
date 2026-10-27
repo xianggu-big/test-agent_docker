@@ -18,7 +18,9 @@
 - 文献锚点：ISTQB v4 测试过程（基线）、Meta TestGen-LLM、CoverUp、CodaMosa（前沿，各对应 loop 内一个机制）
 - 2026-10-27 搭建计划获批（docs/build-plan.md）：阶段0已提交（21adace：A1-A12 清零、单测 24 绿、双场景冒烟过）；阶段1已提交（1166e0d：镜像自动构建闭环+性能对比实验，结果在 benchmarks/results/，复跑两次数据吻合）
 - **实验核心结论（论文引用）**：容器热运行 0.8s vs Windows 宿主 3.1s（约3.8x），冷启动一次性 ~1.3s——容器化无性能 penalty 反而更快，L4 选型的量化依据；诚实边界=单机/n=5/微型项目/Linux 宿主上差距预计收窄
-- 下一步：阶段 3 余项（plan 节点+test_conditions 表即 RTM；容器内 pytest --collect-only 第2道闸）→ 阶段 4 评估五工具（先 B1 实验设计）→ L1 打磨
+- 下一步：阶段 4（B1 实验设计定稿→评估五工具 collect_metrics/map_requirements/gen_report/review_report/gen_charts→变异标定实验）→ L1 打磨（报告页展示 RTM/六要素）
+- 阶段 3 全部完成（4e6c457）：plan 节点+test_conditions 第14张表（RTM 落地，实测拆出 9 条含保守语义假设的条件）、collect-only 第二道闸（文件级失败整体废案）、schema 全 DDL 幂等化（_migrate 执行整个 schema，老库自动补表）；主图 8 节点 clone→analyze→plan→provision→generate→run→evaluate→report
+- 回归基线：pytest 42 绿 + smoke 15 + adversarial 9；服务需重启才载新图逻辑（cli 每次新进程天然生效）
 - 阶段 3 主体已完成（be89a62）：①缺口回灌（per_file 落库→generate 提示词注入）②定向修复（强信号剪枝/证人保留/仓库测试不动）③§7.2 证人冻结入 decide（product_defect 即停，优先于熔断/预算）④六要素+expected_basis 落库（实测 LLM 输出"需求明示"证据链）⑤静态闸（AST）⑥analyze modules upsert 修复重跑崩溃
 - 实测轨迹：场景A 第1轮 27过1败即停"疑似产品缺陷证人"；场景C（种植真bug）第1轮 10过7败即停如实上报——学习环+防造假语义落地；单测 36 绿
 - 下一轮注意：per_file 回灌需"通过但覆盖不足"的任务才触发（场景C 覆盖 100% 无缺口，属正确行为）；LLM 偶发 case_defect 时剪枝+补测轨迹可在论文展示
