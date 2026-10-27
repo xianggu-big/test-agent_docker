@@ -67,10 +67,11 @@ class TestClassify:
         assert classify_failure(1, "some weird output", "") == "env"
 
 
-# ---------- decide（三停 + 分流）----------
+# ---------- decide（三停 + 分流；vision §7.2 product_defect 冻结证人）----------
 
 PASS_OUT = "3 passed"
-FAIL_OUT = "1 failed, 2 passed\nFAILED t.py::test_x - assert 3 == 5"
+CASE_FAIL_OUT = "ERROR test_gen_r1.py - ImportError: cannot import name 'foo' from 'calc'"
+PROD_FAIL_OUT = "1 failed, 2 passed\nFAILED t.py::test_x - assert 3 == 5"
 FP = "abc123"
 
 
@@ -92,7 +93,7 @@ class TestDecide:
         assert v == "pass"
 
     def test_同指纹第二次出现即熔断(self):
-        v, _, r = decide(1, FAIL_OUT, "", [FP], FP, 1, None, 0.70)
+        v, _, r = decide(1, CASE_FAIL_OUT, "", [FP], FP, 1, None, 0.70)
         assert v == "stop" and "熔断" in r
 
     def test_空指纹不参与熔断(self):
@@ -101,7 +102,7 @@ class TestDecide:
         assert v != "stop"
 
     def test_预算耗尽_未通过如实上报(self):
-        v, _, r = decide(1, FAIL_OUT, "", [], FP, 3, None, 0.70)
+        v, _, r = decide(1, CASE_FAIL_OUT, "", [], FP, 3, None, 0.70)
         assert v == "stop" and "预算耗尽" in r
 
     def test_预算耗尽_通过但覆盖未达标如实上报(self):
@@ -112,9 +113,31 @@ class TestDecide:
         v, kind, _ = decide(1, "", "/bin/sh: pip: not found", [], FP, 1, None, 0.70)
         assert v == "repair_env" and kind == "env"
 
-    def test_产品类失败分流重生成用例(self):
-        v, kind, _ = decide(1, FAIL_OUT, "", [], FP, 1, None, 0.70)
-        assert v == "repair_gen" and kind == "product_defect"
+    def test_S72_疑似产品缺陷冻结证人不回炉(self):
+        v, kind, r = decide(1, PROD_FAIL_OUT, "", [], FP, 1, None, 0.70)
+        assert v == "stop" and kind == "product_defect" and "证人" in r
+
+    def test_S72_产品缺陷优先于熔断与预算(self):
+        v, _, r = decide(1, PROD_FAIL_OUT, "", [FP], FP, 3, None, 0.70)
+        assert v == "stop" and "证人" in r  # 证人语义优先，不停在"原地打转"的误导文案上
+
+
+# ---------- failing_nodeids / error_class_of（②定向修复的数据源） ----------
+
+class TestFailingNodeids:
+    OUT = ("1 failed, 2 passed\n"
+           "FAILED test_gen_r1.py::test_a - assert 3 == 5\n"
+           "ERROR test_gen_r1.py - ImportError: cannot import name 'x'\n"
+           "FAILED test_calc.py::test_b - AssertionError")
+
+    def test_只取函数级nodeid(self):
+        ids = repair.failing_nodeids(self.OUT)
+        assert ids == ["test_gen_r1.py::test_a", "test_calc.py::test_b"]
+
+    def test_错误类提取(self):
+        assert repair.error_class_of(self.OUT, "test_gen_r1.py::test_a") == "assert"
+        assert repair.error_class_of(self.OUT, "test_calc.py::test_b") == "AssertionError"
+        assert repair.error_class_of(self.OUT, "nope::none") == ""
 
 
 # ---------- A5 def 名规整（借用 langchain 已装则测，未装则跳过） ----------

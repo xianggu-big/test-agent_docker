@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from .. import config
 from ..graph.builder import run_task
 from ..sandbox.runner import SandboxRunner
-from ..skills.gen_tests import _sanitize_name
+from ..skills.gen_tests import _rebuild_imported_file, _sanitize_name
 from ..store import db
 from ..store.db import get_conn
 from . import auth
@@ -272,24 +272,12 @@ def api_add_case(tid: int, body: dict, user: dict = Depends(staff)):
         (script_id, "imported", def_name, method, code))
     conn.commit()
 
-    file_content = _rebuild_imported_file(conn, tid)
+    file_content = _rebuild_imported_file(conn, tid, ws)
     if script is None:  # 首个用例创建的脚本行，回填内容与哈希
         conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
                      (file_content, hashlib.sha256(file_content.encode()).hexdigest()[:16], script_id))
         conn.commit()
     return {"task_id": tid, "case_name": def_name, "file": "test_imported.py"}
-
-
-def _rebuild_imported_file(conn, tid: int) -> str:
-    """以库为准重建 test_imported.py（仅 enabled=1），随下次 provision 快照进容器。"""
-    ws = Path(config.DATA_DIR) / "workspaces" / f"task_{tid}"
-    imported = conn.execute(
-        """SELECT c.content FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
-           WHERE s.task_id=? AND c.source='imported' AND c.enabled=1 ORDER BY c.id""", (tid,)).fetchall()
-    content = '"""人工/AI 插入用例（test_cases.source=imported，enabled=1）"""\n\n' + \
-              "\n\n".join(r["content"].strip() for r in imported) + "\n"
-    (ws / "test_imported.py").write_text(content, encoding="utf-8")
-    return content
 
 
 @app.post("/api/cases/{case_id}/toggle")
@@ -308,7 +296,8 @@ def api_toggle_case(case_id: int, user: dict = Depends(staff)):
         raise HTTPException(409, "v1 仅支持人工/导入用例启停；AI 生成脚本为不可变版本")
     conn.execute("UPDATE test_cases SET enabled=? WHERE id=?", (0 if row["enabled"] else 1, case_id))
     conn.commit()
-    content = _rebuild_imported_file(conn, row["task_id"])
+    content = _rebuild_imported_file(conn, row["task_id"],
+                                     Path(config.DATA_DIR) / "workspaces" / f"task_{row['task_id']}")
     conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
                  (content, hashlib.sha256(content.encode()).hexdigest()[:16], row["script_id"]))
     conn.commit()

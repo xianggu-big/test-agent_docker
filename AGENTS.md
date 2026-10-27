@@ -19,4 +19,5 @@
 - 2026-10-27 搭建计划获批（docs/build-plan.md）：阶段0已提交（21adace：A1-A12 清零、单测 24 绿、双场景冒烟过）；阶段1已提交（1166e0d：镜像自动构建闭环+性能对比实验，结果在 benchmarks/results/，复跑两次数据吻合）
 - **实验核心结论（论文引用）**：容器热运行 0.8s vs Windows 宿主 3.1s（约3.8x），冷启动一次性 ~1.3s——容器化无性能 penalty 反而更快，L4 选型的量化依据；诚实边界=单机/n=5/微型项目/Linux 宿主上差距预计收窄
 - 下一步：阶段 3（①覆盖缺口回灌+②定向修复，做完立即跑轮次轨迹验证；B2 用 test_reports.per_file JSON 列）→ plan/RTM 节点 → 阶段 4 评估五工具
+- 阶段 2.1 已完成（bb9b6b7）：红队自测实锤并修复 5 缺陷——任务变砖无解卡（admin 强停）/跨脚本重名静默吞用例（补 def 名重写+全域查重）/enabled 装饰性（toggle 端点+过滤+前端接真）/前端 XSS（esc 全量转义，DOM 级验证通过）/孤儿容器清扫；scripts/api_adversarial.py 9 项全绿可复跑
 - 阶段 2 已完成（81d5d86）：L1 界面按图上线，uvicorn 起服务 http://127.0.0.1:8000（演示账号 admin/admin123 · dev/dev123 · caller/caller123）；API 冒烟 15/15（scripts/api_smoke.py）；浏览器截图对照 mockup 三页一致；fastapi==0.162.0（starlette>=0.49 兼容本机 langgraph-api，勿降级）；IAB 自动化受信输入不达页面属环境怪癖（页面内事件验证全通过）

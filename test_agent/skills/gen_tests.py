@@ -7,6 +7,7 @@
 4. 重新快照进容器（下一轮 run_tests 直接可跑）
 5. test_scripts + test_cases 落库（source='ai'，method=方法标签）—— 论文用例库数据源
 """
+import ast
 import hashlib
 import json
 import logging
@@ -16,6 +17,7 @@ from pathlib import Path
 from langchain_openai import ChatOpenAI
 
 from .. import config
+from ..graph.repair import CASE_OWN_DEFECT_ERRORS
 from ..store.db import get_conn
 from .prompt_library import MAX_SOURCE_CHARS, SYSTEM_PROMPT, build_user_prompt
 
@@ -79,6 +81,97 @@ def _parse_cases(text: str) -> dict | None:
     return data
 
 
+def _module_top_level(ws: Path) -> dict[str, set[str]]:
+    """被测工作区各模块的顶层符号表（静态闸用）：module stem -> {def/class 名}。"""
+    table: dict[str, set[str]] = {}
+    for p in ws.rglob("*.py"):
+        if any(part in config.SKIP_DIRS for part in p.parts):
+            continue
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8", errors="ignore"))
+        except SyntaxError:
+            continue
+        names = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
+        table.setdefault(p.stem, set()).update(names)
+    return table
+
+
+def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
+    """生成后静态闸（§3.6 第 1 道，确定性、零成本）：
+    语法可解析 + from-import 的符号在被测模块顶层存在。剔除理由如实返回。"""
+    table = _module_top_level(ws)
+    kept, rejected = [], []
+    for c in cases:
+        try:
+            tree = ast.parse(c["code"])
+        except SyntaxError as e:
+            rejected.append(f"{c.get('name')}: 语法错误({e.lineno}行)")
+            continue
+        ok = True
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.ImportFrom) and node.module):
+                continue
+            mod = node.module.split(".")[0]
+            if mod in table:
+                for alias in node.names:
+                    if alias.name != "*" and alias.name not in table[mod]:
+                        rejected.append(f"{c.get('name')}: from {mod} import {alias.name} 不存在")
+                        ok = False
+                        break
+            if not ok:
+                break
+        if ok:
+            kept.append(c)
+    return kept, rejected
+
+
+def _rebuild_imported_file(conn, tid: int, ws: Path) -> str:
+    """以库为准重建 test_imported.py（仅 enabled=1），随下次 provision 快照进容器。"""
+    imported = conn.execute(
+        """SELECT c.content FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
+           WHERE s.task_id=? AND c.source='imported' AND c.enabled=1 ORDER BY c.id""", (tid,)).fetchall()
+    content = '"""人工/AI 插入用例（test_cases.source=imported，enabled=1）"""\n\n' + \
+              "\n\n".join(r["content"].strip() for r in imported) + "\n"
+    (Path(ws) / "test_imported.py").write_text(content, encoding="utf-8")
+    return content
+
+
+def prune_failing_cases(ws: Path, pairs: list[tuple[str, str]],
+                        task_id: int, conn) -> dict:
+    """②定向修复（TestGen-LLM 准入思想）：上一轮失败用例按归因分流——
+
+    - 用例自身坏掉的强信号（ImportError/SyntaxError/AttributeError 等）→ 剪除：
+      生成文件走 AST 摘除函数，imported 文件以库为准重建（enabled=0 保留审计记录）；
+    - AssertionError（疑似产品缺陷）→ 一律保留为证人（§7.2 防造假铁律）；
+    - 仓库自带测试永远不动（那是被测项目的一部分，不是 Agent 的产物）。
+    """
+    pruned, kept = [], []
+    for nodeid, err in pairs:
+        fname, _, func = nodeid.partition("::")
+        agent_file = fname.startswith(("test_gen_r", "test_imported"))
+        if not agent_file or err not in CASE_OWN_DEFECT_ERRORS:
+            kept.append({"nodeid": nodeid, "err": err or "unknown"})
+            continue
+        # DB 记录保留但停用（论文审计台账），文件层面真正摘除
+        conn.execute(
+            """UPDATE test_cases SET enabled=0 WHERE name=? AND enabled=1 AND script_id IN
+               (SELECT id FROM test_scripts WHERE task_id=?)""", (func, task_id))
+        conn.commit()
+        path = Path(ws) / fname
+        if fname == "test_imported.py":
+            _rebuild_imported_file(conn, task_id, ws)
+        elif path.exists():
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+                tree.body = [n for n in tree.body
+                             if not (isinstance(n, ast.FunctionDef) and n.name == func)]
+                path.write_text(ast.unparse(tree) + "\n", encoding="utf-8")
+            except SyntaxError:
+                path.unlink(missing_ok=True)  # 整文件已不可解析，整体废案
+        pruned.append({"nodeid": nodeid, "err": err})
+    return {"pruned": pruned, "kept": kept}
+
+
 def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     ws = Path(args["workspace"])
     sources = _collect_sources(ws)
@@ -89,12 +182,20 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                      base_url=config.DEEPSEEK_BASE_URL,
                      temperature=0.2, timeout=90, max_retries=2)
     resp = llm.invoke([("system", SYSTEM_PROMPT),
-                       ("user", build_user_prompt(sources, args.get("requirement", "")))])
+                       ("user", build_user_prompt(sources, args.get("requirement", ""),
+                                                  args.get("coverage_gaps"),
+                                                  args.get("coverage_target")))])
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,
                            "reason": "LLM 返回无法解析为用例（诚实降级，本轮不生成）"},
                           ensure_ascii=False)
+
+    # —— 静态闸（§3.6 第 1 道）：语法 + from-import 符号存在性，坏案在写盘前剔除 ——
+    data["cases"], rejected = _static_filter(data["cases"], ws)
+    if not data["cases"]:
+        return json.dumps({"generated": 0, "reason": "全部用例未过静态审查（诚实降级）",
+                           "rejected": rejected}, ensure_ascii=False)
 
     # —— def 名对齐（A5）：用规整后的 name 重写首个 def，nodeid 从此可反查用例 ——
     used_names: set[str] = set()
@@ -129,11 +230,16 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     script_id = cur.lastrowid
     for c in data["cases"]:
         conn.execute(
-            "INSERT INTO test_cases(script_id, source, name, method, content) VALUES (?,?,?,?,?)",
-            (script_id, "ai", c.get("name", "unnamed"), c.get("method"), c["code"]))
+            """INSERT INTO test_cases(script_id, source, name, method, content,
+                                      priority, input, steps, expected, expected_basis)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (script_id, "ai", c.get("name", "unnamed"), c.get("method"), c["code"],
+             c.get("priority"), c.get("input"), c.get("steps"),
+             c.get("expected"), c.get("expected_basis")))
     conn.commit()
 
     summary = {"generated": len(data["cases"]), "file": fname, "script_id": script_id,
+               "static_rejected": rejected,
                "methods": [c.get("method") for c in data["cases"]]}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)

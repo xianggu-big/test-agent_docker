@@ -12,6 +12,34 @@ import re
 
 from .. import config
 
+# 用例自身坏掉的强信号错误类（②定向修复只剪这类；断言失败保留为疑似缺陷证人）
+CASE_OWN_DEFECT_ERRORS = {"ImportError", "ModuleNotFoundError", "AttributeError",
+                          "SyntaxError", "NameError", "UnboundLocalError"}
+
+
+def failing_nodeids(stdout: str) -> list[str]:
+    """上一轮失败的 nodeid 列表（与 fingerprint_of 同源解析，pytest -rfE 摘要行）。"""
+    out = []
+    for l in stdout.splitlines():
+        l = l.strip()
+        if not l.startswith(("FAILED", "ERROR")):
+            continue
+        head = l.split(" - ", 1)[0].split(None, 1)
+        if len(head) > 1 and "::" in head[1]:
+            out.append(head[1].strip())
+    return out
+
+
+def error_class_of(stdout: str, nodeid: str) -> str:
+    """提取某 nodeid 的错误类名；找不到返回空串（未知 → 不剪，保守）。"""
+    for l in stdout.splitlines():
+        l = l.strip()
+        if l.startswith(("FAILED", "ERROR")) and nodeid in l and " - " in l:
+            m = re.match(r"([A-Za-z_.]+)", l.split(" - ", 1)[1].strip())
+            if m:
+                return m.group(1).split(".")[-1]
+    return ""
+
 
 def fingerprint_of(stdout: str, stderr: str) -> str:
     """失败指纹 = pytest 短摘要（-rfE 的 FAILED/ERROR 行）规整后哈希。
@@ -78,6 +106,11 @@ def decide(exit_code: int, stdout: str, stderr: str, fingerprints: list[str],
     # 1) 准出标准
     if exit_code == 0 and coverage_ok:
         return "pass", kind, "达标（通过且覆盖率满足准出标准）"
+
+    # 1.5) 疑似产品缺陷（vision-and-gaps §7.2）：断言失败=缺陷证人，冻结并如实上报，
+    #      不重造用例迁就（防造假）。宁可误报不可造假——误判由人工标注与变异标定纠偏。
+    if exit_code != 0 and kind == "product_defect":
+        return "stop", kind, "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
 
     # 2) 指纹熔断（空指纹不参与）
     if fingerprint:

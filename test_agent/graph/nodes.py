@@ -17,6 +17,7 @@ from pathlib import Path
 from .. import config
 from ..sandbox.runner import SandboxRunner
 from ..skills.builtin import build_skills
+from ..skills.gen_tests import prune_failing_cases
 from ..skills.registry import SkillRegistry
 from ..store.db import get_conn
 from . import repair
@@ -47,6 +48,21 @@ def set_status(conn, task_id: int, status: str) -> None:
     conn.execute("UPDATE test_tasks SET status=?, updated_at=datetime('now') WHERE id=?",
                  (status, task_id))
     conn.commit()
+
+
+_ROW = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+([\d,\s\-]+)$")
+
+
+def _parse_per_file_coverage(stdout: str) -> list[dict]:
+    """term-missing 逐文件覆盖明细（B2）：只留有缺口的文件行，供缺口回灌与趋势图。"""
+    rows = []
+    for line in stdout.splitlines():
+        m = _ROW.match(line.strip())
+        if m and m.group(1) not in ("Name", "TOTAL"):
+            rows.append({"file": m.group(1), "stmts": int(m.group(2)),
+                         "miss": int(m.group(3)), "cover": int(m.group(4)),
+                         "missing": m.group(5).strip()})
+    return rows
 
 
 def make_nodes(deps: GraphDeps) -> dict:
@@ -106,8 +122,11 @@ def make_nodes(deps: GraphDeps) -> dict:
         conn.execute("UPDATE projects SET primary_language=?, language_ratios=?, clone_status='ok' WHERE id=?",
                      (primary, json.dumps(ratios, ensure_ascii=False), pid))
         strategy = "full" if primary in ("python", "java") else "static_only"
+        # upsert：A4 允许重跑 done/failed 任务，重跑时模块行必须幂等（否则 UNIQUE 崩）
         cur = conn.execute(
-            "INSERT INTO modules(project_id, path, language, loc, strategy) VALUES (?, '.', ?, ?, ?)",
+            """INSERT INTO modules(project_id, path, language, loc, strategy) VALUES (?, '.', ?, ?, ?)
+               ON CONFLICT(project_id, path) DO UPDATE SET language=excluded.language,
+                 loc=excluded.loc, strategy=excluded.strategy""",
             (pid, primary, total, strategy))
         # 准出标准冻结进任务行（A1）：此后 decide 只认这个值，实验中途改 config 不影响在途任务
         conn.execute("UPDATE test_tasks SET coverage_target=? WHERE id=?",
@@ -147,17 +166,32 @@ def make_nodes(deps: GraphDeps) -> dict:
             f"[provision] 容器 {state['container_name']} 就绪；依赖安装：{dep.status}")
         return {"job_id": cur.lastrowid}
 
-    # ---------- 4. 生成用例（LLM，未配 Key 时诚实降级） ----------
+    # ---------- 4. 生成用例（LLM，未配 Key 时诚实降级；repair_gen 先定向剪枝） ----------
     def generate(state: TaskState) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "generating")
         next_round = state.get("round_no", 0) + 1
+
+        # ②定向修复：上一轮用例自身坏掉的（ImportError 等强信号）先从工作区剪除；
+        # 断言失败一律保留为疑似缺陷证人（§7.2 防造假），仓库自带测试不动。
+        if state.get("round_no", 0) >= 1:
+            pairs = [(nid, repair.error_class_of(state.get("last_stdout", ""), nid))
+                     for nid in repair.failing_nodeids(state.get("last_stdout", ""))]
+            if pairs:
+                info = prune_failing_cases(Path(state["workspace"]), pairs, tid, conn)
+                msg(state["session_id"], "assistant",
+                    f"[定向修复] 剪除 {len(info['pruned'])} 条坏用例、"
+                    f"保留证人 {len(info['kept'])} 条：" +
+                    json.dumps(info, ensure_ascii=False)[:400])
+
         res = registry.invoke(tid, skills["gen_tests"], {
             "workspace": state["workspace"],
             "requirement": state.get("requirement", ""),
             "module_hint": state.get("primary_language", ""),
             "container_name": state["container_name"],
             "module_id": state.get("module_id"),
+            "coverage_gaps": state.get("per_file") or [],   # ①覆盖缺口回灌（CoverUp 模式）
+            "coverage_target": state.get("coverage_target"),
             "round_no": next_round})
         msg(state["session_id"], "assistant", f"[generate 第{next_round}轮] {res.output[:400]}")
         return {"round_no": next_round}
@@ -207,7 +241,8 @@ def make_nodes(deps: GraphDeps) -> dict:
             f"[evaluate 第{state.get('round_no', 0)}轮] 通过{passed} 失败{failed} 跳过{skipped} "
             f"覆盖率{coverage if coverage is not None else 'N/A'} 指纹{fp[:8] or '无'} → {verdict}（{reason}）")
         return {"passed": passed, "failed": failed, "skipped": skipped,
-                "coverage_line": coverage, "fingerprint": fp, "failure_kind": kind,
+                "coverage_line": coverage, "per_file": _parse_per_file_coverage(stdout),
+                "fingerprint": fp, "failure_kind": kind,
                 "verdict": verdict, "stop_reason": reason,
                 "fingerprints": state.get("fingerprints", []) + [fp]}
 
@@ -217,12 +252,13 @@ def make_nodes(deps: GraphDeps) -> dict:
         ok = state.get("verdict") == "pass"
         conn.execute(
             """INSERT INTO test_reports(task_id, module_id, passed, failed, skipped,
-                                        coverage_line, defects, duration_ms)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                                        coverage_line, defects, per_file, duration_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (tid, state.get("module_id"), state.get("passed", 0), state.get("failed", 0),
              state.get("skipped", 0), state.get("coverage_line"),
              json.dumps({"failure_kind": state.get("failure_kind"),
-                         "stop_reason": state.get("stop_reason")}, ensure_ascii=False), None))
+                         "stop_reason": state.get("stop_reason")}, ensure_ascii=False),
+             json.dumps(state.get("per_file") or [], ensure_ascii=False), None))
         final = "done" if ok else "failed"
         conn.execute("UPDATE test_tasks SET status=?, error=?, updated_at=datetime('now') WHERE id=?",
                      (final, None if ok else state.get("stop_reason"), tid))

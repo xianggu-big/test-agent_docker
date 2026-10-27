@@ -31,21 +31,49 @@ METHODS = [
 ]
 
 
-def build_user_prompt(sources: list[tuple[str, str]], requirement: str) -> str:
-    """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。"""
+def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
+                      coverage_gaps: list[dict] | None = None,
+                      coverage_target: float | None = None) -> str:
+    """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
+
+    coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
+    有缺口时优先生成命中缺口行的用例，这是"补测轮次知道该往哪补"的信息通道。
+    """
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
     method_text = "\n".join(f"{i}.【{m['name']}】{m['skeleton']}"
                             for i, m in enumerate(METHODS, 1))
+    gap_text = ""
+    if coverage_gaps:
+        rows = "\n".join(f"- {g['file']}: 未覆盖行 {g['missing']}（当前行覆盖 {g['cover']}%）"
+                         for g in coverage_gaps if g.get("missing"))
+        if rows:
+            tgt = f"（准出标准 {coverage_target:.0%}）" if coverage_target else ""
+            gap_text = f"""
+
+## 上一轮覆盖缺口（本轮优先补测目标{tgt}）
+{rows}
+生成用例时必须优先命中上述未覆盖行；已在上一轮覆盖的分支不必重复设计。"""
+
     return f"""## 被测源码
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}
+{requirement or "（无额外需求，按源码行为设计）"}{gap_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text}
 
 ## 输出格式
-只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记：
-{{"imports": "测试文件顶部所需的全部 import 语句", "cases": [{{"name": "test_xxx_等价类划分", "method": "等价类划分", "code": "def test_xxx_等价类划分():\\n    ..."}}]}}"""
+只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。
+expected = 预期结果（断言依据，必须先于执行确定）；expected_basis = 该预期值的出处，
+四选一：「需求明示」「docstring文档」「源码推导」「常识」——预期值不得从实际运行结果反推。
+{{"imports": "测试文件顶部所需的全部 import 语句",
+  "cases": [{{"name": "test_xxx_等价类划分",
+    "method": "等价类划分",
+    "priority": "高/中/低",
+    "input": "输入条件（来自需求的输入域）",
+    "steps": "操作步骤",
+    "expected": "预期输出/状态变化",
+    "expected_basis": "需求明示",
+    "code": "def test_xxx_等价类划分():\\n    ..."}}]}}"""

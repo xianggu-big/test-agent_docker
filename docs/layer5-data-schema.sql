@@ -106,14 +106,19 @@ CREATE TABLE test_scripts (
 
 -- 8) 用例库（内置 builtin / AI 生成 ai / 外部导入 imported 三来源统一入库）
 CREATE TABLE test_cases (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  script_id  INTEGER NOT NULL REFERENCES test_scripts(id),
-  source     TEXT NOT NULL CHECK (source IN ('builtin','ai','imported')),
-  name       TEXT NOT NULL,
-  method     TEXT,                        -- 测试方法标签：等价类/边界值/路径分支/变异
-  content    TEXT NOT NULL,
-  enabled    INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  script_id      INTEGER NOT NULL REFERENCES test_scripts(id),
+  source         TEXT NOT NULL CHECK (source IN ('builtin','ai','imported')),
+  name           TEXT NOT NULL,
+  method         TEXT,                        -- 测试方法标签：等价类/边界值/判定表/覆盖/错误推测
+  content        TEXT NOT NULL,
+  priority       TEXT,                        -- 六要素：重要级别（对应用户需求优先级）
+  input          TEXT,                        -- 六要素：测试输入条件
+  steps          TEXT,                        -- 六要素：操作步骤
+  expected       TEXT,                        -- 六要素：预期结果（断言先于执行）
+  expected_basis TEXT,                        -- 预期值出处：需求明示/docstring/源码推导/常识（§7 归因证据）
+  enabled        INTEGER NOT NULL DEFAULT 1,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- 9) Skill 注册表（Schema、权限、超时 —— 对齐借用框架 ToolRegistry 的约定）
@@ -172,6 +177,7 @@ CREATE TABLE test_reports (
   coverage_line   REAL,                  -- 0~1，行覆盖率
   coverage_branch REAL,                  -- 0~1，分支覆盖率
   defects         TEXT,                  -- JSON：疑似缺陷清单（文件/行/描述/置信度/分类）
+  per_file        TEXT,                  -- JSON：逐文件覆盖率与未覆盖行（B2：覆盖率趋势图与缺口回灌数据源）
   duration_ms     INTEGER,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -30,6 +30,7 @@ class TaskState(TypedDict, total=False):
     failed: int
     skipped: int
     coverage_line: float | None
+    per_file: list[dict]     # 逐文件覆盖明细（B2：缺口回灌与趋势图数据源）
     # 判定
     verdict: str             # pass / repair_env / repair_gen / stop
     stop_reason: str
