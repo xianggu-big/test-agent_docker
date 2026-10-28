@@ -100,6 +100,27 @@ def test_xxx_属性测试(cents):
     text = format_amount(cents)
     assert len(text.split(".")[1]) == 2   # 不变量示例：小数部分恒两位"""
 
+TEMPLATE_SECTION = """
+
+## 槽位模板通道（【等价类划分】【边界值分析】【错误推测法】的基础用例优先走此通道）
+这三类方法的用例形态固定，用"模板+槽位"代替完整代码（更省时、通过率更高）：
+cases 元素用 template + slots 代替 code，其余字段（name/method/priority/input/steps/
+expected/expected_basis）照常填写。两种形态可混用：
+{"name": "test_div_边界值", "method": "边界值分析", "priority": "高",
+ "input": "除数与被除数边界", "steps": "调用 div", "expected": "见各点预期",
+ "expected_basis": "需求明示", "template": "T2",
+ "slots": {"mode": "valid", "imports": "from calc import div",
+   "target": "div({v}, 2)",
+   "cases": [{"value": 1, "expected": 0, "label": "min"},
+              {"value": 2, "expected": 1, "label": "min+1"}]}}
+- slots.mode="valid"：cases 元素 {"value": 字面量, "expected": 字面量, "label": "说明"}；
+  slots.mode="invalid"：元素 {"value": 字面量, "error": "内置异常名", "label": "说明"}，
+  异常路径必须单发一条 mode=invalid 的模板用例（一条用例只产一个测试函数）。
+- target 是含 {v} 占位符的调用表达式；T2 的 valid 槽位至少 4 个点
+  （min-1/min/min+1/max-1/max/max+1 语义，边界是缺陷高发区，禁止省略）；
+  T1 等价类有效与无效各至少 2 行（无效走 mode=invalid 单发）；T5 至少 2 条攻击用例。
+- 预期值同样必须先于执行确定、标注 expected_basis；槽位非法的用例会被整案剔除。"""
+
 
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
@@ -108,6 +129,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       include_methods: bool = True,
                       boundary_attack: bool = False,
                       pbt: bool = False,
+                      templates: bool = False,
                       cond_forced: bool = False,
                       existing_cases: list[str] | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
@@ -118,6 +140,9 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     include_methods: 五方法骨架开关（实验变量 V2；False=自由发挥对照组）。
     boundary_attack: 边界攻击纪律开关（实验变量 V6；True=强制边界外输入用例）。
     pbt: 属性测试第七法开关（方案B；True=追加 hypothesis 属性测试骨架段）。
+    templates: 槽位模板通道开关（方法组合 T1/T2/T5；True=基础方法优先槽位填充）。
+    注意消融效度：做"模板 vs 自由生成"对照时对照组必须 templates=False，
+    且本函数不向自由通道泄漏任何模板示例（writing-for-agents 教训）。
     cond_forced: 条件缺口回灌模式（方案C；True=conditions 段改为"强制逐条覆盖"措辞）。
     """
     src_text = "\n\n".join(
@@ -126,6 +151,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                             for i, m in enumerate(METHODS, 1)) if include_methods else ""
     boundary_text = BOUNDARY_ATTACK_SECTION if boundary_attack else ""
     pbt_text = PBT_SECTION if pbt else ""
+    template_text = TEMPLATE_SECTION if templates else ""
     cond_text = ""
     if conditions:
         rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
@@ -163,7 +189,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}{boundary_text}{pbt_text}
+{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}{boundary_text}{pbt_text}{template_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}

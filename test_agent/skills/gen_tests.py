@@ -20,6 +20,7 @@ from .. import config
 from ..graph.repair import CASE_OWN_DEFECT_ERRORS
 from ..store.db import get_conn
 from .prompt_library import MAX_SOURCE_CHARS, SYSTEM_PROMPT, build_user_prompt
+from .test_templates import expand_template_cases
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,11 @@ def _collect_sources(ws: Path) -> list[tuple[str, str]]:
 
 
 def _parse_cases(text: str) -> dict | None:
-    """从 LLM 回复中鲁棒提取 JSON；解析失败返回 None（诚实降级，不硬造用例）。"""
+    """从 LLM 回复中鲁棒提取 JSON；解析失败返回 None（诚实降级，不硬造用例）。
+
+    用例两种合法形态（双通道）：①自由代码（code 含 def test_）②槽位模板
+    （template+slots，由 test_templates 展开）——解析层两种都收，展开在后续步骤。
+    """
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
         return None
@@ -72,9 +77,9 @@ def _parse_cases(text: str) -> dict | None:
     cases = data.get("cases")
     if not isinstance(cases, list):
         return None
-    cleaned = [c for c in cases
-               if isinstance(c, dict) and isinstance(c.get("code"), str)
-               and re.search(r"def\s+test_\w+", c["code"])]
+    cleaned = [c for c in cases if isinstance(c, dict) and (
+        (isinstance(c.get("code"), str) and re.search(r"def\s+test_\w+", c["code"]))
+        or (isinstance(c.get("template"), str) and isinstance(c.get("slots"), dict)))]
     if not cleaned:
         return None
     data["cases"] = cleaned
@@ -260,6 +265,7 @@ def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
                        ("user", build_user_prompt(
                            sources, requirement, None, None, gaps,
                            include_methods=include_methods, pbt=pbt, cond_forced=True,
+                           templates=False,   # 补生成轮保持自由通道（定向补缺不做结构先验）
                            existing_cases=[c["name"] for c in cases]))])
     data = _parse_cases(resp.content)
     if not data:
@@ -324,18 +330,28 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   conditions,
                                                   include_methods=config.GEN_METHODS_ENABLED,
                                                   boundary_attack=config.GEN_BOUNDARY_ATTACK,
-                                                  pbt=config.PBT_ENABLED))])
+                                                  pbt=config.PBT_ENABLED,
+                                                  templates=config.TEMPLATES_ENABLED))])
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,
                            "reason": "LLM 返回无法解析为用例（诚实降级，本轮不生成）"},
                           ensure_ascii=False)
 
+    # —— 槽位模板展开（双通道）：基础方法 T1/T2/T5 渲染成代码，失败案留台账理由剔除 ——
+    data["cases"], template_rejected = expand_template_cases(data["cases"])
+    if template_rejected:
+        log.info("gen_tests task=%s 模板展开剔除: %s", task_id, template_rejected)
+    if not data["cases"] and template_rejected:
+        return json.dumps({"generated": 0, "reason": "全部用例模板展开失败（槽位无效，诚实降级）",
+                           "template_rejected": template_rejected}, ensure_ascii=False)
+
     # —— 静态闸（§3.6 第 1 道）：语法 + from-import 符号存在性，坏案在写盘前剔除 ——
     data["cases"], rejected = _static_filter(data["cases"], ws)
     if not data["cases"]:
         return json.dumps({"generated": 0, "reason": "全部用例未过静态审查（诚实降级）",
-                           "rejected": rejected}, ensure_ascii=False)
+                           "rejected": rejected, "template_rejected": template_rejected},
+                          ensure_ascii=False)
 
     # —— def 名对齐（A5）：用规整后的 name 重写首个 def，nodeid 从此可反查用例 ——
     used_names: set[str] = set()
@@ -421,6 +437,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     summary = {"generated": len(data["cases"]), "file": fname, "script_id": script_id,
                "static_rejected": rejected,
                "methods": [c.get("method") for c in data["cases"]],
+               "template_rejected": template_rejected,
                "assertion": assertion_stats, "cond_feedback": cond_feedback}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)
