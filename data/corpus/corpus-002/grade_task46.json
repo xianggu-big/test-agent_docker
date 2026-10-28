@@ -1,0 +1,46 @@
+{
+ "task_id": 46,
+ "corpus_id": "corpus-002",
+ "planted_assertion": 4,
+ "detected": 0,
+ "uncertain": 1,
+ "not": 3,
+ "recall": 0.0,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "witness_note": "宿主重放工作区：1 个失败 nodeid，命中证人 2 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只涉及 settle_order 的 qty 边界，未触及 validate_coupon 的 min_spend 等值门槛。"
+   },
+   {
+    "id": "D2",
+    "verdict": "not",
+    "by": "",
+    "reason": "答案键已声明该条件在 raw==max_discount 时数值相同、不可断言暴露，证人用例也未涉及 calculate_discount。"
+   },
+   {
+    "id": "D3",
+    "verdict": "uncertain",
+    "by": "test_settle_order_qty_negative_边界值分析",
+    "reason": "证人用例确实覆盖 settle_order 的 qty<=0 非法订单路径，但答案键自述未发现缺失错误处理，无法确认其对应植入缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例未涉及 apply_coupon 或 payable 负值保护，且答案键自述该路径不会产生负 payable。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_settle_order_qty_negative_边界值分析",
+    "reason": "两条同名用例对同一输入给出互相矛盾的预期（200 vs -100），且第二条传入多余参数 None，疑似用例自身签名/预期错误而非被测缺陷。"
+   }
+  ]
+ }
+}

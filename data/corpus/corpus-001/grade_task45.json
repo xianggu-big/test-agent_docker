@@ -1,0 +1,64 @@
+{
+ "task_id": 45,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 5,
+ "detected": 2,
+ "uncertain": 1,
+ "not": 2,
+ "recall": 0.4,
+ "extra_suspect": 4,
+ "expected_miss_performance": 0,
+ "witness_note": "宿主重放工作区：10 个失败 nodeid，命中证人 16 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_default_boundaries_边界值分析",
+    "reason": "断言 check_length('a'*64) is True，恰好命中 max_len 边界返回 False 的缺陷。"
+   },
+   {
+    "id": "D2",
+    "verdict": "not",
+    "by": "",
+    "reason": "答案键自述该函数无缺陷，且无任何用例断言 has_special(' ') 的行为。"
+   },
+   {
+    "id": "D3",
+    "verdict": "not",
+    "by": "",
+    "reason": "答案键自述非字符串输入不在契约内，无用例涉及非字符串输入。"
+   },
+   {
+    "id": "D4",
+    "verdict": "uncertain",
+    "by": "test_is_strong_length_64_boundary_边界值分析",
+    "reason": "有用例覆盖长度 64 的 is_strong，但无任何用例直接断言 strength_score 在长度 64 时的分值（如 ==5）。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_length_64_boundary_边界值分析",
+    "reason": "断言长度 64 的强密码 is_strong 为 True，命中边界长度被误判为弱的缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_strength_score_length_65_only_边界值分析",
+    "reason": "断言 strength_score('a'*65)==0，但长度 65 仅超长，若实现按长度外条件计分可能非 0，需核对需求。"
+   },
+   {
+    "case": "test_strength_score_length_8_only_边界值分析",
+    "reason": "断言纯小写长度 8 得 1 分，依赖长度得分与字符类别得分的具体权重，可能与需求分值定义不符。"
+   },
+   {
+    "case": "test_strength_score_only_length_判定表",
+    "reason": "断言 'aaaaaaaa' 得 1 分，与 length_8 用例重复且同样依赖分值权重假设。"
+   },
+   {
+    "case": "test_is_strong_custom_bounds_等价类划分",
+    "reason": "多条同名用例对自定义边界 (4,6)/(4,10) 断言不同，'Ab1!xy' 长度 6 在 (4,6) 闭区间应为 True，需确认实现是否同样存在 max_len 边界缺陷。"
+   }
+  ]
+ }
+}
