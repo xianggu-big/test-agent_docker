@@ -76,6 +76,14 @@ class SandboxRunner:
             mem_limit=f"{mem_mb}m",
         )
 
+    def image_exists(self, image: str) -> bool:
+        """本地是否已有该镜像（只探测不构建，沙箱自适应模式①的判定用）。"""
+        try:
+            self.client.images.get(image)
+            return True
+        except Exception:                     # noqa: BLE001 —— ImageNotFound 及驱动差异
+            return False
+
     def ensure_image(self, image: str, buildargs: dict | None = None) -> bool:
         """本地缺镜像时按注册表自动构建（"自动拉取容器"闭环）。返回镜像是否就绪。"""
         try:

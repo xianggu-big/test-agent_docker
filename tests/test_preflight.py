@@ -8,6 +8,7 @@ import pytest
 
 from test_agent import config
 from test_agent.sandbox import preflight
+from test_agent.graph.nodes import prepare_task_image as _prepare_task_image
 
 
 class _FakeImage:
@@ -167,6 +168,22 @@ def test_ensure_no_repair_mode_has_no_side_effects(env, monkeypatch):
     assert result["ready"] is False
 
 
+def test_ensure_images_subset_only_builds_listed(env, monkeypatch):
+    """images 参数任务级按需供给：只构建列出的镜像（Java 镜像不自动补）。"""
+    monkeypatch.setattr(config, "IMAGE_BUILD_CTX",
+                        {config.IMAGE_PY: env / "ctx_py", config.IMAGE_JAVA: env / "ctx_java"})
+    (env / "ctx_py").mkdir()
+    (env / "ctx_java").mkdir()
+    client = _FakeClient(up=True, existing=[])
+    _use(monkeypatch, client)
+
+    result = preflight.ensure(auto_repair=True, images=[config.IMAGE_PY])
+
+    assert config.IMAGE_PY in client.images.built
+    assert config.IMAGE_JAVA not in client.images.built
+    assert config.IMAGE_PY in result["repaired"]
+
+
 # ---------- L1 下发守卫（api/server.env_gate） ----------
 
 def test_env_gate_blocks_and_triggers_repair(monkeypatch):
@@ -197,3 +214,69 @@ def test_env_gate_passes_when_ready(monkeypatch):
                         lambda: pytest.fail("就绪时不该触发补齐"))
 
     server.env_gate()                   # 不抛即通过
+
+
+def test_env_gate_ignores_missing_images(monkeypatch):
+    """镜像缺失不拦下发：主语言要 analyze 才测出，镜像由 provision 按模式分流。"""
+    from test_agent.api import server
+
+    monkeypatch.setattr(server.preflight, "probe", lambda: {
+        "ready": False,
+        "items": [{"key": "docker", "label": "Docker 守护进程", "status": "ok", "detail": "", "blocking": True},
+                  {"key": "image:mta-test:py312", "label": "执行镜像", "status": "missing",
+                   "detail": "", "blocking": True}]})
+    monkeypatch.setattr(server, "trigger_env_prepare",
+                        lambda: pytest.fail("仅缺镜像时不该触发补齐"))
+
+    server.env_gate()                   # 不抛即通过（镜像项被过滤）
+
+
+# ---------- 沙箱自适应：任务级镜像门（graph/nodes.prepare_task_image） ----------
+
+class _FakeTaskRunner:
+    def __init__(self, has=True, build_ok=True):
+        self._has, self._build_ok = has, build_ok
+        self.calls = []
+
+    def image_exists(self, image):
+        self.calls.append(("exists", image))
+        return self._has
+
+    def ensure_image(self, image):
+        self.calls.append(("build", image))
+        return self._build_ok
+
+
+def test_prepare_task_image_manual_mode_never_builds():
+    """模式①手动感知：只探测不构建，缺失返回 False 由 provision 诚实 stop。"""
+    r = _FakeTaskRunner(has=False)
+    ok, how = _prepare_task_image(r, "img:x", auto=False)
+    assert ok is False and "缺失" in how
+    assert r.calls == [("exists", "img:x")]      # 没有触发构建
+
+
+def test_prepare_task_image_auto_mode_builds_when_missing():
+    r = _FakeTaskRunner(has=False, build_ok=True)
+    ok, _ = _prepare_task_image(r, "img:x", auto=True)
+    assert ok is True
+    assert r.calls == [("build", "img:x")]
+
+
+def test_prepare_task_image_auto_mode_build_failure_is_honest():
+    r = _FakeTaskRunner(has=False, build_ok=False)
+    ok, how = _prepare_task_image(r, "img:x", auto=True)
+    assert ok is False and "构建失败" in how
+
+
+def test_auto_prepare_column_migrated():
+    """老库自动补列：init_db 迁移后 test_tasks.auto_prepare 存在且默认 0。"""
+    from test_agent.store import db as store_db
+    store_db.init_db()                  # 迁移入口（get_conn 本身不跑 ALTER）
+    conn = store_db.get_conn()
+    try:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(test_tasks)")}
+        assert "auto_prepare" in cols
+        row = conn.execute("SELECT auto_prepare FROM test_tasks LIMIT 1").fetchone()
+        assert row is None or row["auto_prepare"] in (0, 1)
+    finally:
+        conn.close()

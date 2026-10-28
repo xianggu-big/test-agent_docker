@@ -145,8 +145,13 @@ def start_docker(wait_s: int = DOCKER_WAIT_S) -> tuple[bool, str]:
     return False, f"Docker Desktop 启动后 {wait_s}s 内仍未就绪，请手动检查"
 
 
-def ensure(auto_repair: bool = True, wait_s: int = DOCKER_WAIT_S) -> dict:
-    """检测并（可选）自动补齐；返回 probe 结果 + repaired/failed/elapsed_s。"""
+def ensure(auto_repair: bool = True, wait_s: int = DOCKER_WAIT_S,
+           images: list[str] | None = None) -> dict:
+    """检测并（可选）自动补齐；返回 probe 结果 + repaired/failed/elapsed_s。
+
+    images=None 时补齐注册表内全部镜像；传入列表则只补指定镜像
+    （任务级按需供给：L1「一键准备」只补 Python 执行镜像，Java 镜像链路未接入、仅手动构建）。
+    """
     began = time.monotonic()
     repaired: list[str] = []
     failed: list[str] = []
@@ -165,9 +170,11 @@ def ensure(auto_repair: bool = True, wait_s: int = DOCKER_WAIT_S) -> dict:
         log.info("环境补齐·Docker: %s（%s）", ok, detail)
         (repaired if ok else failed).append("docker")
 
-    # 2) 执行镜像（Docker 可能刚起来，重新取客户端）
+    # 2) 执行镜像（Docker 可能刚起来，重新取客户端；只补 images 指定的子集）
     client = get_client()
-    for image, ctx in config.IMAGE_BUILD_CTX.items():
+    wanted = {img: ctx for img, ctx in config.IMAGE_BUILD_CTX.items()
+              if images is None or img in images}
+    for image, ctx in wanted.items():
         if client is None:
             failed.append(image)
             continue

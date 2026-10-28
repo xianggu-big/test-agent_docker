@@ -34,7 +34,10 @@ def build_graph(deps: GraphDeps):
                             lambda s: "report" if s.get("done") else "plan",
                             {"report": "report", "plan": "plan"})
     g.add_edge("plan", "provision")
-    g.add_edge("provision", "generate")
+    # provision 可能诚实短路（镜像未就绪且未开自动准备，沙箱自适应模式①）：直接进 report
+    g.add_conditional_edges("provision",
+                            lambda s: "report" if s.get("done") else "generate",
+                            {"report": "report", "generate": "generate"})
     g.add_edge("generate", "run")
     # run 可能诚实短路（如 Java 链路占位，A7）：done=True 直接进 report，不进 evaluate
     g.add_conditional_edges("run",
@@ -58,7 +61,7 @@ def run_task(task_id: int) -> dict:
     deps = make_deps()
     conn = deps.conn
     task = conn.execute(
-        """SELECT t.requirement_text, t.confirmed, p.repo_url
+        """SELECT t.requirement_text, t.confirmed, t.auto_prepare, p.repo_url
            FROM test_tasks t JOIN projects p ON p.id = t.project_id
            WHERE t.id = ?""", (task_id,)).fetchone()
     if not task:
@@ -94,6 +97,7 @@ def run_task(task_id: int) -> dict:
         "round_no": 0,
         "coverage_target": config.COVERAGE_TARGET,
         "fingerprints": [],
+        "auto_prepare": bool(task["auto_prepare"]) if "auto_prepare" in task.keys() else False,
     }
     graph = build_graph(deps)
     try:

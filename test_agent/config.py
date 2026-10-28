@@ -50,6 +50,15 @@ ASSERTION_GATE_ENABLED = False       # 方案A·断言质量闸：全弱断言�
 PBT_ENABLED = False                  # 方案B·属性测试第七法：PBT 骨架注入 + 容器/宿主装 hypothesis（锚点 Tanaka 2510.25297）
 COND_FEEDBACK_ENABLED = False        # 方案C·条件缺口回灌：生成后 2-gram 查 RTM 缺口 → 定向补生成 1 轮（锚点 Gotel&Finkelstein）
 
+# —— 方法组合扩展（docs/黑盒白盒方法组合与沙箱自适应设计.md；新法默认关，逐个开做消融） ——
+TEMPLATES_ENABLED = True             # 槽位填充模板通道（T1/T2/T5）：基础方法结构先验，降 token 提过闸率
+STATE_TRANSITION_ENABLED = False     # B4 状态迁移法（T4 迁移清单模板；锚点 Chow TSE 1978）
+METAMORPHIC_ENABLED = False          # B8 蜕变法（MR 模式库提示词；锚点 Chen CSUR 2018）
+
+# —— 沙箱自适应（同上设计文档 §6；用户三模式） ——
+AUTO_PREPARE_ENV = False             # 模式③一条龙：True=provision 缺镜像时自动构建（开局等待）；
+                                     # False=模式①手动感知（provision 诚实 stop 并提示）；模式②=界面「一键准备」始终可用
+
 # —— LLM 配置（第 3~4 步启用；密钥走环境变量 DEEPSEEK_API_KEY，不进代码库） ——
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-chat"

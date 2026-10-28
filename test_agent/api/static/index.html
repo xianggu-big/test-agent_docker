@@ -60,6 +60,9 @@
           <input id="new-repo" placeholder="https://github.com/example/test-project 或本地路径">
           <label class="fld-label">自然语言需求 <span class="req">*</span></label>
           <textarea id="new-req" rows="5" placeholder="请描述您想测试的测试场景...&#10;例如：验证 add 与 div 函数的正常流程和异常流程，包括除零保护"></textarea>
+          <label class="chk-row" title="勾选后开局自动拉取/构建执行镜像（首次可能需数分钟）；不勾选则缺镜像时下发会被提示，需手动点「一键准备」">
+            <input id="new-auto-prepare" type="checkbox"> 自动准备环境（一条龙模式：开局自动拉取镜像，需等待）
+          </label>
           <button id="new-submit" class="btn btn-primary btn-block">生成测试任务 (AI)</button>
           <div id="new-result" class="hint hidden"></div>
         </div>

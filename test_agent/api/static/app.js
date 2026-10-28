@@ -86,7 +86,9 @@ async function createTask() {
   if (!repo || !req) { $("new-result").textContent = "项目地址与需求均必填"; $("new-result").classList.remove("hidden"); return; }
   $("new-submit").disabled = true;
   try {
-    const b = await api("/tasks", { method: "POST", body: JSON.stringify({ repo_url: repo, requirement: req }) });
+    const autoPrepare = $("new-auto-prepare") && $("new-auto-prepare").checked ? 1 : 0;
+    const b = await api("/tasks", { method: "POST",
+      body: JSON.stringify({ repo_url: repo, requirement: req, auto_prepare: autoPrepare }) });
     NEW_TASK_ID = b.task_id;
     $("new-result").innerHTML = `任务 <b>#${b.task_id}</b> 已创建（项目：${esc(b.project_name)}）。` +
       `下一步：<a href="#/workbench">进入脚本工作台</a> 确认后下发执行。`;

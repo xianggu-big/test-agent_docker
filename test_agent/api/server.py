@@ -56,7 +56,9 @@ _ENV_STATE: dict = {"state": "idle", "message": "尚未检测", "result": None,
 
 def _env_worker() -> None:
     try:
-        result = preflight.ensure(auto_repair=True)
+        # L1 一键准备只补 Python 执行镜像（Java 链路 v1 未接入，其镜像仅设置页手动构建）——
+        # 任务级按需供给：真正缺什么由 provision 在 analyze 测出语言后决定
+        result = preflight.ensure(auto_repair=True, images=[config.IMAGE_PY])
     except Exception as e:  # noqa: BLE001 —— 自检自身失败也不能炸服务
         log.error("环境自检异常: %s: %s", type(e).__name__, e)
         result = {"ready": False, "items": [], "repaired": [], "failed": ["internal"],
@@ -82,13 +84,18 @@ def trigger_env_prepare() -> dict:
 
 
 def env_gate() -> None:
-    """L1 环境守卫：不就绪则触发自动补齐并拒绝下发（409），不把环境问题留到图里炸。"""
+    """L1 环境守卫：Docker/工作区不就绪则触发自动补齐并拒绝下发（409）。
+
+    镜像不在此拦截——主语言要到图内 analyze 才测出，缺镜像由 provision
+    按沙箱自适应模式分流（自动构建 / 诚实 stop），这里拦反而会误伤。
+    """
     env = preflight.probe()
-    if env["ready"]:
+    blocking = [i for i in env["items"]
+                if i["blocking"] and i["status"] != "ok" and not i["key"].startswith("image:")]
+    if not blocking:
         return
     trigger_env_prepare()
-    missing = "、".join(i["label"] for i in env["items"]
-                        if i["blocking"] and i["status"] != "ok")
+    missing = "、".join(i["label"] for i in blocking)
     raise HTTPException(
         409, f"运行环境未就绪（{missing}），已自动开始补齐；"
              f"进度见环境状态栏，完成后可再次下发")
@@ -159,13 +166,14 @@ def api_create_task(body: dict, user: dict = Depends(current_user)):  # 调用�
     requirement = str(body.get("requirement", "")).strip()
     if not repo_url or not requirement:
         raise HTTPException(422, "项目地址与自然语言需求必填")
+    auto_prepare = 1 if body.get("auto_prepare") else 0
     conn = get_conn()
     name = repo_url.rstrip("/").split("/")[-1] or "project"
     pid = conn.execute("INSERT INTO projects(user_id, repo_url, name) VALUES (?,?,?)",
                        (user["user_id"], repo_url, name)).lastrowid
     tid = conn.execute(
-        "INSERT INTO test_tasks(project_id, user_id, requirement_text) VALUES (?,?,?)",
-        (pid, user["user_id"], requirement)).lastrowid
+        "INSERT INTO test_tasks(project_id, user_id, requirement_text, auto_prepare) VALUES (?,?,?,?)",
+        (pid, user["user_id"], requirement, auto_prepare)).lastrowid
     conn.commit()
     return {"task_id": tid, "project_name": name}
 
@@ -191,7 +199,7 @@ def api_run(tid: int, user: dict = Depends(staff)):
         raise HTTPException(409, "任务正在执行中")
     if row["confirmed"] != 1:
         raise HTTPException(409, "任务未确认（fail-closed 确认门），禁止下发")
-    # L1 环境守卫：缺 Docker/镜像/工作区时自动开始补齐，不把"环境没准备"留到图里炸
+    # L1 环境守卫：Docker/工作区缺失时自动开始补齐，不把"环境没准备"留到图里炸
     env_gate()
     threading.Thread(target=_run_worker, args=(tid,), daemon=True).start()
     return {"task_id": tid, "started": True}

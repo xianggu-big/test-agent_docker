@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS test_tasks (
                                      'generating','running','reporting',
                                      'done','failed','cancelled')),
   confirmed        INTEGER NOT NULL DEFAULT 0,        -- 人工确认门：0 = 禁止下发执行
+  auto_prepare     INTEGER NOT NULL DEFAULT 0,        -- 沙箱自适应：1 = 开局自动拉取/构建执行镜像（模式③）
   confirmed_by     INTEGER REFERENCES users(id),
   confirmed_at     TEXT,
   error            TEXT,

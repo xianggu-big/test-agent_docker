@@ -88,6 +88,22 @@ def _parse_per_file_coverage(stdout: str) -> list[dict]:
     return rows
 
 
+def prepare_task_image(runner, image: str, auto: bool) -> tuple[bool, str]:
+    """沙箱自适应的镜像门（模块级纯函数便于单测）：
+
+    auto=True（模式③一条龙 / AUTO_PREPARE_ENV / 任务勾选）→ 缺镜像自动构建（ensure_image）；
+    auto=False（模式①手动感知）→ 只探测不构建，缺失时返回 False 由 provision 诚实 stop。
+    返回 (是否就绪, 来源说明)。
+    """
+    if auto:
+        if runner.ensure_image(image):
+            return True, "本地已有或已自动构建"
+        return False, "自动构建失败（详见服务端日志）"
+    if runner.image_exists(image):
+        return True, "本地已有"
+    return False, "本地缺失（未开启自动准备）"
+
+
 def make_nodes(deps: GraphDeps) -> dict:
     conn, runner = deps.conn, deps.runner
     registry, skills = deps.registry, deps.skills
@@ -170,6 +186,16 @@ def make_nodes(deps: GraphDeps) -> dict:
     def provision(state: TaskState) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "provisioning")
+        # 沙箱自适应（设计文档 §6）：镜像按需供给——任务级判定，缺镜像按模式分流
+        auto = config.AUTO_PREPARE_ENV or bool(state.get("auto_prepare"))
+        ready, how = prepare_task_image(runner, state["image"], auto)
+        if not ready:
+            reason = ("执行镜像未就绪且未开启自动准备（模式①手动感知）："
+                      "请在界面点「一键准备」或到设置页构建镜像，"
+                      "或新建任务时勾选「自动准备环境」后重跑")
+            msg(state["session_id"], "assistant", f"[provision] {reason}")
+            return {"done": True, "verdict": "stop", "stop_reason": reason}
+        msg(state["session_id"], "assistant", f"[provision] 执行镜像 {state['image']} 就绪（{how}）")
         # 上一轮执行超时（exit=-1）说明容器里有 exec 残留，必须重建（A2），否则新旧任务争抢 CPU
         fresh = state.get("last_exit") == -1 and state.get("round_no", 0) > 0
         container = runner.ensure_container(state["image"], state["container_name"], fresh=fresh)
