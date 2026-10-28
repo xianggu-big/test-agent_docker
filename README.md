@@ -63,7 +63,7 @@ python scripts/demo.py                            # 一键演示：建任务→�
 | E4 归因变异标定 | `python benchmarks/mutation_calibration.py` | benchmarks/results/mutation_calibration_*.md（14/14） |
 | E5 报告审查双闸 | `pytest tests/test_review_node.py tests/test_eval_tools.py` | 机制锁死 + 端到端轨迹 |
 
-回归：`python -m pytest`（82 绿 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
+回归：`python -m pytest`（99 绿 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
 API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/api_adversarial.py`（9 项）。
 
 ## 文档索引
