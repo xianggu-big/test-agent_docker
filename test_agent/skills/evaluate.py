@@ -478,10 +478,17 @@ def build_eval_skills() -> dict[str, Skill]:
     def _charts(task_id: int, args: dict) -> str:
         conn = get_conn()
         try:
-            metrics = collect_metrics(conn, task_id)
-            latest = conn.execute("SELECT matrix FROM rtm_maps WHERE task_id=?"
-                                  " ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
-            rtm = {"matrix": json.loads(latest["matrix"]) if latest else []}
+            # 单快照语义（与 _report/_review 同款，run46 根修）：优先吃下传快照，
+            # 独立调用本 skill 时才自取——否则图表数字与叙述/审查所依据的指标包
+            # 在"评估工具自身台账"上漂移，报告页出现叙述与图表各说各话。
+            metrics = args.get("metrics")
+            if metrics is None:
+                metrics = collect_metrics(conn, task_id)
+            rtm = args.get("rtm")
+            if rtm is None:
+                latest = conn.execute("SELECT matrix FROM rtm_maps WHERE task_id=?"
+                                      " ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+                rtm = {"matrix": json.loads(latest["matrix"]) if latest else []}
             paths = gen_charts(task_id, metrics, rtm)
             return json.dumps({"charts": paths}, ensure_ascii=False)
         finally:

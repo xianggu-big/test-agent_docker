@@ -177,3 +177,41 @@ class TestFallbackReport:
         assert out["passed"] == 8
         out = json.loads(skills["review_report"].func(tid, {"verdict": "stop"}))
         assert out["status"] in ("pass", "reject")       # 无 Key 时规则闸兜底可执行
+
+
+class TestSnapshotConsistency:
+    """单快照语义（run46 根修）：叙述/审查/图表必须派生自同一份指标包——
+    skill 层吃下传快照时不许再自取 collect_metrics（两次 collect 之间评估工具
+    自身台账必然增长，这正是 run46 叙述与审查数字漂移的根源）。"""
+
+    _SNAP = {"task_id": 1, "report_id": 1, "passed": 8, "failed": 1, "skipped": 1,
+             "coverage_line": 0.85, "coverage_target": 0.7,
+             "trace": [{"round": 1, "coverage": 0.6, "verdict": "stop"}],
+             "verdict_counts": {"stop": 1},
+             "tool_invocations": {"run_tests": {"ok": 2, "total": 3, "duration_ms": 100}}}
+
+    def test_charts_吃下传快照_不得自取(self, conn, monkeypatch, tmp_path):
+        import test_agent.skills.evaluate as ev
+        monkeypatch.setattr(ev.config, "DATA_DIR", tmp_path)   # 出图落 tmp，不污染 data/
+        tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]
+
+        def _boom(*a, **k):
+            raise AssertionError("下传快照时不得再调 collect_metrics（漂移根源）")
+        monkeypatch.setattr(ev, "collect_metrics", _boom)
+        out = json.loads(build_eval_skills()["gen_charts"].func(
+            tid, {"metrics": dict(self._SNAP, task_id=tid, report_id=1),
+                  "rtm": {"matrix": []}}))
+        assert len(out["charts"]) == 3                  # 趋势+判定+工具耗时，全来自下传快照
+
+    def test_charts_无下传时才自取_机制对称(self, conn, monkeypatch, tmp_path):
+        import test_agent.skills.evaluate as ev
+        monkeypatch.setattr(ev.config, "DATA_DIR", tmp_path)
+        tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]
+        calls, real = [], ev.collect_metrics
+
+        def _spy(c, t, *a, **k):
+            calls.append(t)
+            return real(c, t, *a, **k)
+        monkeypatch.setattr(ev, "collect_metrics", _spy)
+        build_eval_skills()["gen_charts"].func(tid, {})   # 独立调用：允许自取
+        assert calls == [tid]

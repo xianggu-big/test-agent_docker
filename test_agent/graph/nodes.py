@@ -358,6 +358,15 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "reporting")   # 评估属报告阶段；状态机 CHECK 枚举不扩（老库无 CHECK 迁移）
         verdict = state.get("verdict", "")
+        ok = verdict == "pass"
+        try:
+            return _review_body(state, tid, verdict)
+        finally:
+            # 终态恢复：report 节点已写 done/failed，review 入口的 reporting 只是过程态；
+            # 无论审查 pass/reject，任务终态跟随执行判定（审查结论落 test_reports.review，不改判任务）
+            set_status(conn, tid, "done" if ok else "failed")
+
+    def _review_body(state: TaskState, tid: int, verdict: str) -> dict:
         # 快照一致性：指标包只 collect 一次，gen_report / review_report 经 args 共用同一份——
         # 各自现 collect 会让"评估工具自身台账"在两次采集间漂移，LLM 闸永远可能自审自 reject
         res_m = registry.invoke(tid, skills["collect_metrics"], {})
@@ -393,7 +402,9 @@ def make_nodes(deps: GraphDeps) -> dict:
 
         paths = []
         if res_r.status == "ok":
-            res_c = registry.invoke(tid, skills["gen_charts"], {})
+            # 单快照语义（run46 根修收官）：charts 也吃同一份 metrics/rtm 下传——
+            # 叙述、审查、图表三类产物全部派生自 collect 一次的同一时点，彼此零漂移
+            res_c = registry.invoke(tid, skills["gen_charts"], {"metrics": metrics, "rtm": rtm})
             if res_c.status == "ok":
                 paths = json.loads(res_c.output).get("charts", [])
                 if paths:
@@ -402,8 +413,9 @@ def make_nodes(deps: GraphDeps) -> dict:
 
         # 回炉语义（vision §1.6）：stop（product_defect）是证人冻结的上报，审查不可推翻。
         # v1 收口（run46 实锤：reject 回炉与快照时点漂移叠加造成 14 轮死循环）——
-        # 审查 reject 一律**不回炉**，如实标记 review_status=rejected 放行（结论+原因已落报告）；
-        # "reject → 重写报告一次"的受控回炉列为下一轮工作（需先修叙述快照时点）。
+        # 审查 reject 一律**不回炉**，如实标记 review_status=rejected 放行（结论+原因已落报告）。
+        # 快照时点已根修（评估链单快照下传，gen_charts 亦同源），"reject → 受控重写报告一次"
+        # 的受控回炉由此解锁，列为下一轮工作。
         if rev["status"] == "reject":
             msg(state["session_id"], "assistant",
                 "[review] 审查未过：如实标记 rejected 放行（不回炉——防叙述时点漂移死循环）")

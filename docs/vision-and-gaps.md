@@ -23,18 +23,18 @@
 |---|---|---|
 | 输入 repo + 需求 | cli.py `new`：projects + test_tasks(requirement_text) | ✅ 已实现 |
 | 语言占比检测 tool | graph/nodes.py `analyze`：后缀统计→占比→主语言→分级 | ✅（口径差异见 §2.1） |
-| <10% 不拉镜像 | schema 注释有 10% 阈值，实现是"主语言不在 python/java → static_only" | ⚠️ 口径未对齐 |
+| <10% 不拉镜像 | **口径 b 已实施（2026-10-28 拍板）**：主语言不在 python/java → 整仓 static_only；模块级拆分（口径 a）列论文未来工作 | ✅ 口径已对齐 |
 | 预构建镜像调用 | docker/ 两 Dockerfile + config.IMAGE_PY/JAVA + ensure_container 幂等复用 | ✅ 已实现 |
 | LLM 生成用例（固定格式） | skills/gen_tests.py：五方法提示词 → JSON → 清洗 → 写工作区 → 回灌容器 → 落库 | ✅ 已实现 |
-| 用例**二次审查** | 仅格式审查（JSON 解析 + def test_ 清洗）；无语义审查 | ❌ 缺，§3.6 方案 |
+| 用例**二次审查** | 静态闸（AST import 符号校验）+ 可收集闸（容器内 --collect-only）两道已生效；LLM 交叉语义审 v1 未做（§3.6 第 3 道闸，列未来工作） | ⚠️ 两道闸已生效，LLM 闸未做 |
 | 容器执行测试 | sandbox/runner.py + run_tests skill（高风险、确认门 fail-closed） | ✅ 已实现 |
 | 失败→回炉→retest，3 轮上限 | graph/repair.py：归因三分类 + 指纹熔断(≥2) + 轮次预算(3) | ✅ 已实现 |
 | 归因分流（env/case/product） | repair.classify_failure + decide 分流 repair_env / repair_gen | ✅ 已实现 |
-| 评估阶段工具集（§1.5） | 仅 report 节点落 test_reports + digest 消息 | ❌ 缺，§3 方案 |
-| 报告合理性二次审查（§1.6） | 无 | ❌ 缺，§3.4 方案 |
-| 人工插入/编辑用例 | schema 已留 test_cases.source='imported' + test_scripts.confirmed_*，无入口 | ❌ 缺（依赖 L1） |
-| 测试分析阶段的条件/RTM/可追溯性 | 无测试条件实体，需求只有整段 requirement_text | ❌ 缺，§3.2 方案 |
-| 用例六要素结构化（编号/标题/优先级/输入/步骤/预期） | 用例只有 name/method/code，断言埋在 code 里 | ⚠️ 部分，§3.3 方案 |
+| 评估阶段工具集（§1.5） | skills/evaluate.py 五工具（collect_metrics/map_requirements/gen_report/review_report/gen_charts）+ review 节点编排（E5，2026-10-28） | ✅ 已实现 |
+| 报告合理性二次审查（§1.6） | review_report 双闸（规则闸纯函数先行 + LLM 闸收窄聚焦）落 test_reports.review；**v1 收口：reject 一律不回炉、如实标记 rejected 放行**（run46 实锤 reject 回炉×快照漂移=14 轮死循环；受控重写回炉列下一轮，见 §3.4） | ✅ 已实现（语义 v1 收口） |
+| 人工插入/编辑用例 | L1 已建：PUT /api/scripts 落库 source='imported' + 重建工作区 test_imported.py 随快照进容器 | ✅ 已实现 |
+| 测试分析阶段的条件/RTM/可追溯性 | plan 节点 + test_conditions 表（第 14 张）+ rtm_maps 矩阵快照（第 15 张，map_requirements 每次评估覆盖写） | ✅ 已实现 |
+| 用例六要素结构化（编号/标题/优先级/输入/步骤/预期） | test_cases 六要素列 + expected_basis 证据链落库（阶段 3 be89a62，实测 LLM 输出"需求明示"） | ✅ 已实现 |
 
 ### 2.1 10% 阈值口径（需拍板）
 
@@ -48,6 +48,8 @@
 输入 task_id；查 test_reports / test_cases / skill_invocations / container_jobs / feedback_annotations；
 输出结构化指标包 JSON：通过率、行覆盖率、缺陷按归因分布、R-Loop 每轮轨迹（指纹/verdict/原因）、工具调用成功率、各阶段耗时。**LLM 禁止自己算数。**
 
+> **快照一致性补记（run46 实锤 + 根修，2026-10-28）**：collect_metrics 的 tool_invocations 统计包含"评估工具自身"的调用台账，任何两次 collect 之间数字必然增长。因此评估链确立**单快照语义**：review 节点 collect 一次，同一份 metrics 快照经 args 下传给 gen_report / review_report / gen_charts——叙述、审查、图表三类产物全部派生自同一时点，彼此零漂移；与"之后重跑 collect 得到的数字"不同属台账自然增长的诚实语义（LLM 审查提示词已声明不对台账字段判不一致）。根修落点：evaluate.py `_charts` 与 `_report`/`_review` 同款 args 下传。
+
 ### 3.2 plan 节点 + test_conditions 表 —— 补"测试分析阶段"（最大缺口）
 analyze 之后、provision 之前加一个 `plan` 节点：LLM 把 requirement_text 拆成结构化测试条件（requirement_ref / condition / priority / method_hint），落新表 `test_conditions`（schema 13→14 张）。
 这同时解决：①需求可追溯（防变更影响分析：条件→用例→结果 反查）；②"LLM 做 plan"的落点——**plan 是产物，不是流程控制**；③§3.3 需求对比的数据源。
@@ -58,7 +60,7 @@ analyze 之后、provision 之前加一个 `plan` 节点：LLM 把 requirement_t
 ### 3.4 review_report —— 报告合理性二次审查 tool（§1.6 的落点，双闸）
 - **规则闸（确定性，先行）**：exit=0 但 failed>0；coverage>100% 或 None；报告数字 vs 指标包逐个比对；耗时离群；归因为 product_defect 却写成"已解决"。
 - **LLM 闸**：报告叙述与原始数据是否一致、结论是否有证据。
-- 输出 pass / reject(reasons)。reject → verdict=repair_gen 回炉 + 落 feedback_annotations。**审查闭环同样吃轮次预算与指纹熔断**，不另开无限循环。
+- 输出 pass / reject(reasons)，结论落 test_reports.review。**v1 收口（run46 实锤，2026-10-28）**：reject 一律**不回炉**——如实标记 review_status=rejected 放行（原因留痕），因为"reject → repair_gen 回炉"与叙述快照时点漂移叠加会造成 14 轮死循环；"reject → 受控重写报告一次"列为下一轮工作（叙述快照时点已根修：评估链单快照下传，见 §3.1 补记）。stop（product_defect 证人冻结）是上报不可被审查改判。
 
 ### 3.5 map_requirements + gen_report + gen_charts
 - `map_requirements`（确定性+LLM 辅助）：test_conditions ↔ test_cases ↔ 执行结果 → RTM 矩阵（覆盖/缺口）。

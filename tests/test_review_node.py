@@ -66,6 +66,8 @@ def test_pass_叙述自洽_审查通过不回炉(env):
     rev = json.loads(c.execute("SELECT review FROM test_reports WHERE id=?",
                                (rid,)).fetchone()["review"])
     assert rev["status"] == "pass"
+    assert c.execute("SELECT status FROM test_tasks WHERE id=?",
+                     (tid,)).fetchone()["status"] == "done"   # 终态恢复（review 入口的 reporting 是过程态）
 
 
 def test_pass_叙述数字失真_审查reject标记不回炉(env):
@@ -99,3 +101,22 @@ def test_stop_产品缺陷_审查不可推翻(env):
 def test_无报告行_诚实跳过(env):
     c, review, tid, ses, sid = env                      # 不造 report 行（static_only 短路链路）
     assert review(_state(tid, ses, "stop")) == {}
+    assert c.execute("SELECT status FROM test_tasks WHERE id=?",
+                     (tid,)).fetchone()["status"] == "failed"  # 终态跟随执行判定（stop→failed）
+
+
+def test_评估链单快照_collect恰好一次(env):
+    """run46 漂移根修的机制锁：叙述/审查/图表全链只允许 collect 一次——
+    gen_charts 若自取（旧实现），账本里 collect_metrics 会变成 2 次，漂移即回归。"""
+    c, review, tid, ses, sid = env
+    rid = _add_report(c, tid, sid, 10, 0, 0.9)
+    _set_narrative(c, rid, "本轮通过 10、失败 0、跳过 0，覆盖率 90%。")
+    out = review(_state(tid, ses, "pass"))
+    assert out == {"review_status": "pass"}
+    rows = c.execute("""SELECT sk.name, COUNT(*) AS n FROM skill_invocations i
+                        JOIN skills sk ON sk.id = i.skill_id
+                        WHERE i.task_id=? GROUP BY sk.name""", (tid,)).fetchall()
+    counts = {r["name"]: r["n"] for r in rows}
+    assert counts.get("collect_metrics") == 1        # 单快照：评估链只 collect 一次
+    for name in ("map_requirements", "gen_report", "review_report", "gen_charts"):
+        assert counts.get(name) == 1, name           # 五工具各恰好一次
