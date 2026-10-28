@@ -26,7 +26,7 @@
 | <10% 不拉镜像 | **口径 b 已实施（2026-10-28 拍板）**：主语言不在 python/java → 整仓 static_only；模块级拆分（口径 a）列论文未来工作 | ✅ 口径已对齐 |
 | 预构建镜像调用 | docker/ 两 Dockerfile + config.IMAGE_PY/JAVA + ensure_container 幂等复用 | ✅ 已实现 |
 | LLM 生成用例（固定格式） | skills/gen_tests.py：五方法提示词 → JSON → 清洗 → 写工作区 → 回灌容器 → 落库 | ✅ 已实现 |
-| 用例**二次审查** | 静态闸（AST import 符号校验）+ 可收集闸（容器内 --collect-only）两道已生效；LLM 交叉语义审 v1 未做（§3.6 第 3 道闸，列未来工作） | ⚠️ 两道闸已生效，LLM 闸未做 |
+| 用例**二次审查** | 静态闸（AST import 符号校验）+ 可收集闸（容器内 --collect-only）+ LLM 交叉语义审（§3.6 第 3 道闸，V9）三道全部生效；LLM 审默认关（GEN_CROSS_REVIEW_ENABLED），真机消融待 DeepSeek 余额 | ✅ 三道闸已实现（LLM 审默认关待消融） |
 | 容器执行测试 | sandbox/runner.py + run_tests skill（高风险、确认门 fail-closed） | ✅ 已实现 |
 | 失败→回炉→retest，3 轮上限 | graph/repair.py：归因三分类 + 指纹熔断(≥2) + 轮次预算(3) | ✅ 已实现 |
 | 归因分流（env/case/product） | repair.classify_failure + decide 分流 repair_env / repair_gen | ✅ 已实现 |
@@ -70,7 +70,7 @@ analyze 之后、provision 之前加一个 `plan` 节点：LLM 把 requirement_t
 ### 3.6 生成用例的语义二次审查（§1.4-③ 的落点，三层闸门，规则先行）
 1. **静态闸**（AST）：import 是否可解析、调用的函数/签名在被测源码中是否存在——确定性代码，零成本。
 2. **可收集闸**：容器内 `pytest --collect-only`，收集失败即废案。
-3. **LLM 交叉审**：以审查者角色审断言是否对应需求（≠自审走过场）。不过审 → 单独重造该用例，不拖累整批。
+3. **LLM 交叉审（✅ 2026-10-29 实现，V9，默认关）**：以审查者角色审断言是否对应需求（≠自审走过场）。不过审 → 单独重造该用例 1 次（复审仍 fail 剔除），不拖累整批；审查不可解析 fail-open 放行（辅助闸不废整批）；phase=cross_review/regen_case 记 llm_calls 成本台账。机制由 fake-LLM 单测 12 个锁死。
 
 ## 4. 落地顺序建议
 

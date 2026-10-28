@@ -20,7 +20,9 @@ from .. import config
 from ..graph.repair import CASE_OWN_DEFECT_ERRORS
 from ..store.db import get_conn
 from .llm_usage import log_llm_call
-from .prompt_library import MAX_SOURCE_CHARS, SYSTEM_PROMPT, build_user_prompt
+from .prompt_library import (CROSS_REVIEW_SYSTEM, MAX_SOURCE_CHARS, SYSTEM_PROMPT,
+                             build_cross_review_prompt, build_regen_prompt,
+                             build_user_prompt)
 from .test_templates import expand_template_cases
 
 log = logging.getLogger(__name__)
@@ -323,6 +325,106 @@ def apply_assertion_gate(cases: list[dict], gate: bool = False
     return kept, rejected, stats
 
 
+def parse_cross_review(text: str) -> dict[str, dict] | None:
+    """从审查 LLM 回复鲁棒提取 {name: {verdict, reason}}；不可用返回 None（fail-open）。
+
+    只认 verdict∈{pass,fail} 且 name 为字符串的条目；一条有效判决都没有 = 没审，
+    同样返回 None 交由调用方放行（诚实降级，不硬造判决）。
+    """
+    m = re.search(r"\{.*\}", text, re.S)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+    reviews = data.get("reviews")
+    if not isinstance(reviews, list):
+        return None
+    out: dict[str, dict] = {}
+    for r in reviews:
+        if (isinstance(r, dict) and isinstance(r.get("name"), str)
+                and r.get("verdict") in ("pass", "fail")):
+            out[r["name"]] = {"verdict": r["verdict"],
+                              "reason": str(r.get("reason") or "")[:200]}
+    return out or None
+
+
+def cross_review_gate(llm, cases: list[dict], requirement: str,
+                      sources: list[tuple[str, str]], ws: Path,
+                      used_names: set[str], task_id: int | None = None
+                      ) -> tuple[list[dict], dict]:
+    """§3.6 第 3 道闸：LLM 交叉语义审（V9，审查者角色，≠生成器自审走过场）。
+
+    逐案审断言是否对应需求；fail 用例**单独重造 1 次**（受控，不无限循环）→ 重造产物
+    复审仍 fail 则剔除（单案处置不拖累整批——这正是与"整批废案"的可收集闸的区别）。
+    - 审查输出不可解析 → fail-open 全放行（辅助闸不因自身故障废掉整批生成，
+      与 review_report 失败放行同语义）；复审不可解析同样放行。
+    - 无需求文本 → 跳过（没有对齐基准，无从审起）。
+    返回 (用例清单, 台账信息)；LLM 调用逐次记 llm_calls（phase=cross_review/regen_case）。
+    """
+    info: dict = {"reviewed": len(cases), "failed": [], "regenerated": 0,
+                  "dropped": [], "note": ""}
+    if not cases or not (requirement or "").strip():
+        info["note"] = "无用例或无需求文本，跳过交叉审（无对齐基准）"
+        return cases, info
+    resp = llm.invoke([("system", CROSS_REVIEW_SYSTEM),
+                       ("user", build_cross_review_prompt(requirement, cases))])
+    log_llm_call(task_id, "cross_review", resp)
+    verdicts = parse_cross_review(resp.content)
+    if verdicts is None:
+        info["note"] = "审查输出不可解析（fail-open 放行，留痕备查）"
+        return cases, info
+    failed = [c for c in cases if verdicts.get(c["name"], {}).get("verdict") == "fail"]
+    info["failed"] = [{"name": c["name"], "reason": verdicts[c["name"]]["reason"]}
+                      for c in failed]
+    kept = [c for c in cases if verdicts.get(c["name"], {}).get("verdict") != "fail"]
+    if not failed:
+        return cases, info
+    # 单独重造：逐案定向重造（原案被否决的理由随提示词进入），产物过静态闸 + def 名对齐
+    regen: list[dict] = []
+    for i, c in enumerate(failed):
+        r2 = llm.invoke([("system", SYSTEM_PROMPT),
+                         ("user", build_regen_prompt(sources, requirement, c,
+                                                     verdicts[c["name"]]["reason"]))])
+        log_llm_call(task_id, "regen_case", r2)
+        data = _parse_cases(r2.content)
+        new: dict | None = None
+        if data and data["cases"]:
+            cand, _ = _static_filter(data["cases"], ws)
+            if cand:
+                one = cand[0]                     # 单案重造只取第一条
+                def_name = _sanitize_name(one.get("name"), len(used_names), used_names)
+                code = one["code"].strip()
+                m = re.search(r"def\s+\w+", code)
+                if m:
+                    code = code[:m.start()] + f"def {def_name}" + code[m.end():]
+                one["code"], one["name"] = code, def_name
+                new = one
+        if new:
+            regen.append(new)
+            info["regenerated"] += 1
+            info["failed"][i]["regen_as"] = new["name"]   # 台账可追溯：原案 → 重造案名
+        else:
+            info["dropped"].append({"name": c["name"], "reason": "重造失败（输出不可用或未过静态闸）"})
+    # 复审（受控 1 次）：仍 fail 剔除——迁就性断言宁缺毋滥；不可解析 fail-open 放行
+    if regen:
+        resp3 = llm.invoke([("system", CROSS_REVIEW_SYSTEM),
+                            ("user", build_cross_review_prompt(requirement, regen))])
+        log_llm_call(task_id, "cross_review", resp3)
+        v3 = parse_cross_review(resp3.content)
+        survived = []
+        for c in regen:
+            if v3 is not None and v3.get(c["name"], {}).get("verdict") == "fail":
+                info["dropped"].append({"name": c["name"], "reason": v3[c["name"]]["reason"]})
+            else:
+                survived.append(c)
+        regen = survived
+    out = kept + regen
+    info["passed_cases"] = len(out)
+    return out, info
+
+
 def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     ws = Path(args["workspace"])
     sources = _collect_sources(ws)
@@ -406,6 +508,21 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                            "rejected": rejected, "assertion": assertion_stats,
                            "cond_feedback": cond_feedback}, ensure_ascii=False)
 
+    # —— §3.6 第 3 道闸：LLM 交叉语义审（V9，默认关；规则闸先行、LLM 闸收尾）——
+    # 审查者角色逐案审断言是否对应需求，fail 单独重造 1 次、复审仍 fail 剔除，
+    # 单案处置不拖累整批；审查不可解析 fail-open 放行（辅助闸不废整批生成）
+    cross_info: dict | None = None
+    if config.GEN_CROSS_REVIEW_ENABLED:
+        data["cases"], cross_info = cross_review_gate(
+            llm, data["cases"], args.get("requirement", ""), sources, ws,
+            used_names, task_id=task_id)
+        if not data["cases"]:
+            return json.dumps({"generated": 0,
+                               "reason": "全部用例未过交叉语义审（诚实降级）",
+                               "rejected": rejected, "assertion": assertion_stats,
+                               "cond_feedback": cond_feedback,
+                               "cross_review": cross_info}, ensure_ascii=False)
+
     # —— 写入工作区 ——
     round_no = args.get("round_no", 1)
     fname = f"test_gen_r{round_no}.py"
@@ -456,6 +573,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                "static_rejected": rejected,
                "methods": [c.get("method") for c in data["cases"]],
                "template_rejected": template_rejected,
-               "assertion": assertion_stats, "cond_feedback": cond_feedback}
+               "assertion": assertion_stats, "cond_feedback": cond_feedback,
+               "cross_review": cross_info}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)

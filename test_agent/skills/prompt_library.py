@@ -25,6 +25,12 @@ REVIEW_SYSTEM = (
     "只输出 JSON。"
 )
 
+CROSS_REVIEW_SYSTEM = (
+    "你是测试用例审查员（独立于生成方的二次审查）。逐条审查测试用例的断言是否与用户需求对应："
+    "预期值是否来自需求语义而非迁就实现反推、断言是否具备证伪能力。只依据给定信息判断，"
+    "不要臆测信息之外的意图；判不准的条目给 pass 并注明不确定——宁可放行，不可误杀。只输出 JSON。"
+)
+
 
 def build_map_prompt(conditions: list[dict], cases: list[dict]) -> str:
     """map_requirements 的 LLM 辅助映射：条件 ↔ 用例 关联判定。"""
@@ -43,6 +49,56 @@ def build_map_prompt(conditions: list[dict], cases: list[dict]) -> str:
 
 ## 输出格式
 {{"mappings": [{{"condition_id": 1, "cases": ["test_xxx"]}}]}}"""
+
+
+def build_cross_review_prompt(requirement: str, cases: list[dict]) -> str:
+    """交叉语义审（§3.6 第 3 道闸）：审查者角色逐案审断言是否对应需求。"""
+    rows = "\n".join(
+        f"- {c['name']}｜预期：{(c.get('expected') or '未标注')[:80]}"
+        f"｜预期依据：{(c.get('expected_basis') or '未标注')[:60]}\n"
+        f"  代码：{c['code'][:400]}"
+        for c in cases)
+    return f"""## 用户需求
+{requirement}
+
+## 待审查的测试用例
+{rows}
+
+## 审查任务（逐条判定）
+1. 断言的预期值是否对应需求声明的行为（而非从实现反推的迁就值）
+2. 断言是否具备证伪能力（具体值/关系比较，而非裸真值断言）
+3. 用例的输入与所断言的行为是否一致
+name 必须精确取自上面列表。
+
+## 输出格式
+{{"reviews": [{{"name": "test_xxx", "verdict": "pass", "reason": "一句话依据"}}]}}"""
+
+
+def build_regen_prompt(sources: list[tuple[str, str]], requirement: str,
+                       case: dict, reason: str) -> str:
+    """单案重造（交叉审 fail 后的定向修复）：原案 + 否决理由 + 被测源码 → 重造这一条。"""
+    src_text = "\n\n".join(f"### {p}\n{t}" for p, t in sources)
+    return f"""## 用户需求
+{requirement}
+
+## 被测源码
+{src_text}
+
+## 被审查否决的用例（只重造这一条）
+名称：{case['name']}
+代码：
+{case['code']}
+
+## 审查否决理由
+{reason}
+
+## 重造任务
+针对同一测试意图重新设计这一条用例：断言的预期值必须来自需求语义（不得迁就实现反推）、
+具备证伪能力（具体值/关系比较），并修正审查指出的具体问题。
+只输出一个 JSON 对象，"cases" 数组内只放这 1 条用例。
+
+## 输出格式
+{{"imports": "", "cases": [{{"name": "test_xxx", "method": "边界值分析", "code": "def test_xxx():\\n    ..."}}]}}"""
 
 
 def build_plan_prompt(requirement: str, hotspots: list[dict] | None = None) -> str:
