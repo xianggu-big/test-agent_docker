@@ -191,7 +191,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   args.get("coverage_gaps"),
                                                   args.get("coverage_target"),
                                                   conditions,
-                                                  include_methods=config.GEN_METHODS_ENABLED))])
+                                                  include_methods=config.GEN_METHODS_ENABLED,
+                                                  boundary_attack=config.GEN_BOUNDARY_ATTACK))])
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,

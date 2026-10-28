@@ -80,22 +80,33 @@ METHODS = [
 ]
 
 
+BOUNDARY_ATTACK_SECTION = """
+
+## 边界攻击纪律（强制，实验变量 V6）
+对每个被测公开函数至少生成 1 条边界外输入用例：min-1、max+1、空串/None、0/负数、
+超长输入等越界值，断言其行为符合需求契约——预期值必须来自需求而非实际输出，
+禁止"实现返回什么就断言什么"。"""
+
+
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
                       coverage_target: float | None = None,
                       conditions: list[dict] | None = None,
-                      include_methods: bool = True) -> str:
+                      include_methods: bool = True,
+                      boundary_attack: bool = False) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
     有缺口时优先生成命中缺口行的用例，这是"补测轮次知道该往哪补"的信息通道。
     conditions: plan 节点拆解的测试条件（RTM）——用例逐条对准条件设计。
     include_methods: 五方法骨架开关（实验变量 V2；False=自由发挥对照组）。
+    boundary_attack: 边界攻击纪律开关（实验变量 V6；True=强制边界外输入用例）。
     """
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
     method_text = "\n".join(f"{i}.【{m['name']}】{m['skeleton']}"
                             for i, m in enumerate(METHODS, 1)) if include_methods else ""
+    boundary_text = BOUNDARY_ATTACK_SECTION if boundary_attack else ""
     cond_text = ""
     if conditions:
         rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
@@ -121,7 +132,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}
+{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}{boundary_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}

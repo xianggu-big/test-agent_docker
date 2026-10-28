@@ -42,6 +42,8 @@ REWRITE_BUDGET = 3                   # 单轮重写条数上限（防重写风�
 GEN_METHODS_ENABLED = True           # 五方法骨架注入 gen 提示词（变量 V2：False=自由发挥）
 PLAN_ENABLED = True                  # plan/RTM 测试条件拆解（变量 V3：False=跳过 plan 节点）
 COVERAGE_FEEDBACK_ENABLED = True     # 缺口回灌 generate 提示词（变量 V4：False=盲补）
+GEN_BOUNDARY_ATTACK = False          # 边界攻击纪律（变量 V6：True=强制每函数至少 1 条边界外输入；
+                                     # corpus-002 recall=0 的改进实验，默认关）
 
 # —— LLM 配置（第 3~4 步启用；密钥走环境变量 DEEPSEEK_API_KEY，不进代码库） ——
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"

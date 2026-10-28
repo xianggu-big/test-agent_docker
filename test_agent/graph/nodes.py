@@ -411,15 +411,27 @@ def make_nodes(deps: GraphDeps) -> dict:
                     msg(state["session_id"], "assistant",
                         f"[review·charts] {len(paths)} 张图 → data/reports/charts/")
 
-        # 回炉语义（vision §1.6）：stop（product_defect）是证人冻结的上报，审查不可推翻。
-        # v1 收口（run46 实锤：reject 回炉与快照时点漂移叠加造成 14 轮死循环）——
-        # 审查 reject 一律**不回炉**，如实标记 review_status=rejected 放行（结论+原因已落报告）。
-        # 快照时点已根修（评估链单快照下传，gen_charts 亦同源），"reject → 受控重写报告一次"
-        # 的受控回炉由此解锁，列为下一轮工作。
+        # 回炉语义（vision §1.6）：stop（product_defect）是证人冻结的上报，审查只修叙述不改判。
+        # 受控重写（快照单点根修后解锁）：reject → 以新快照重写报告一次 → 复审一次，
+        # 无论复审结果如何一律收敛（硬上限 1 次、在节点内完成、不回测试环——run46 的
+        # 14 轮死循环由构造排除：重写只改叙述，不改数据）。
         if rev["status"] == "reject":
+            if state.get("review_rejects", 0) >= 1:
+                return {"review_rejects": 1, "review_status": "rejected"}
             msg(state["session_id"], "assistant",
-                "[review] 审查未过：如实标记 rejected 放行（不回炉——防叙述时点漂移死循环）")
-            return {"review_status": "rejected"}
+                "[review·重写] 首次 reject：以新快照受控重写报告一次（硬上限 1，复审后必收敛）")
+            res_m2 = registry.invoke(tid, skills["collect_metrics"], {})
+            if res_m2.status == "ok" and "no_report" not in (res_m2.output or "{}"):
+                metrics2 = json.loads(res_m2.output)
+                registry.invoke(tid, skills["gen_report"], {"metrics": metrics2, "rtm": rtm})
+                res_v2 = registry.invoke(tid, skills["review_report"],
+                                         {"metrics": metrics2, "verdict": verdict})
+                rev2 = json.loads(res_v2.output) if res_v2.status == "ok" else {"status": "reject"}
+                msg(state["session_id"], "assistant",
+                    f"[review·复审] {rev2['status']}（受控重写后终审，无论结果收敛）")
+                status = "pass" if rev2["status"] == "pass" else "rejected"
+                return {"review_rejects": 1, "review_status": status}
+            return {"review_rejects": 1, "review_status": "rejected"}
         return {"review_status": "pass"}
 
     return {"clone": clone, "analyze": analyze, "plan": plan, "provision": provision,
