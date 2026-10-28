@@ -1,6 +1,7 @@
 """内置测试 Skill：与 L4 沙箱联动，全部经 SkillRegistry 调用以留审计台账。
 
-- install_deps：低风险，容器内装项目依赖（requirements.txt 随项目走、不进镜像）
+- install_deps：低风险，容器内装项目依赖（依赖清单随项目走、不进镜像：
+  requirements.txt / pyproject.toml / setup.py 三类探测分流）
 - run_tests：高风险，需人工确认后才能下发（fail-closed 确认门）
 - gen_tests：调用 LLM 生成用例；未配置 API Key 时诚实降级（跳过生成）
 """
@@ -15,18 +16,42 @@ from .registry import Skill
 log = logging.getLogger(__name__)
 
 
+def probe_deps_manifest(workspace: str | Path) -> str | None:
+    """探测被测项目的依赖清单类型（provision 探测、install_deps 分流安装）。
+
+    返回 "requirements" | "pyproject" | "setup_py" | None。requirements.txt 优先：
+    显式清单最常见且安装最便宜；pyproject.toml / setup.py 项目走 `pip install .`
+    装项目声明的依赖。三类都缺返回 None（诚实跳过，不猜依赖）。
+    """
+    ws = Path(workspace)
+    for name, kind in (("requirements.txt", "requirements"),
+                       ("pyproject.toml", "pyproject"),
+                       ("setup.py", "setup_py")):
+        if (ws / name).exists():
+            return kind
+    return None
+
+
 def build_skills(runner) -> dict[str, Skill]:
     """构造内置 Skill 集合。runner: sandbox.runner.SandboxRunner"""
 
     def install_deps(task_id: int, args: dict) -> str:
         container = runner.client.containers.get(args["container_name"])
+        # 老调用方只传 has_requirements 布尔（=存在 requirements.txt），保持兼容
+        manifest = args.get("deps_manifest") or (
+            "requirements" if args.get("has_requirements") else None)
         parts = []
-        if args.get("has_requirements"):
+        if manifest == "requirements":
             r = runner.exec_in(container, ["pip", "install", "-r", "requirements.txt"],
                                timeout_s=300)
             parts.append(f"requirements exit={r.exit_code}\n{r.stdout[-1500:]}{r.stderr[-500:]}")
+        elif manifest in ("pyproject", "setup_py"):
+            # PEP 621 / setup.py 项目：装项目自身，把 [project].dependencies 拉进来；
+            # 构建失败时 exit_code 如实上报（诚实降级，不吞错）
+            r = runner.exec_in(container, ["pip", "install", "."], timeout_s=300)
+            parts.append(f"{manifest} exit={r.exit_code}\n{r.stdout[-1500:]}{r.stderr[-500:]}")
         else:
-            parts.append("无 requirements.txt，跳过项目依赖安装")
+            parts.append("未发现依赖清单（requirements.txt / pyproject.toml / setup.py），跳过项目依赖安装")
         # 方案B：属性测试用例依赖 hypothesis——随开关装进容器（宿主侧由实验环境自备）
         if config.PBT_ENABLED:
             h = runner.exec_in(container, ["pip", "install", "hypothesis"], timeout_s=300)
@@ -49,9 +74,9 @@ def build_skills(runner) -> dict[str, Skill]:
 
     return {
         "install_deps": Skill(
-            name="install_deps", description="容器内安装被测项目 Python 依赖",
+            name="install_deps", description="容器内安装被测项目 Python 依赖（三类清单探测分流）",
             func=install_deps, risk_level="low", timeout_ms=300_000,
-            arg_schema={"container_name": "str", "has_requirements": "bool"}),
+            arg_schema={"container_name": "str", "deps_manifest": "str"}),
         "run_tests": Skill(
             name="run_tests", description="容器内执行 pytest（需人工确认后下发）",
             func=run_tests, risk_level="high", timeout_ms=config.DEFAULT_JOB_TIMEOUT_S * 1000,

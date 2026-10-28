@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .. import config
 from ..sandbox.runner import SandboxRunner
-from ..skills.builtin import build_skills
+from ..skills.builtin import build_skills, probe_deps_manifest
 from ..skills.evaluate import build_eval_skills
 from ..skills.repair_strategy import make_deepseek_fn, run_repair_strategy
 from ..skills.prompt_library import PLAN_SYSTEM, build_plan_prompt
@@ -223,7 +223,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         runner.copy_dir_into(container, state["workspace"])
         dep = registry.invoke(tid, skills["install_deps"], {
             "container_name": state["container_name"],
-            "has_requirements": (Path(state["workspace"]) / "requirements.txt").exists()})
+            "deps_manifest": probe_deps_manifest(state["workspace"])})
         cur = conn.execute(
             """INSERT INTO container_jobs(task_id, module_id, image, status, cpu_limit, mem_limit_mb,
                                           priority, timeout_at, container_id, started_at)
