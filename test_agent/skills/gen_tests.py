@@ -190,7 +190,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                        ("user", build_user_prompt(sources, args.get("requirement", ""),
                                                   args.get("coverage_gaps"),
                                                   args.get("coverage_target"),
-                                                  conditions))])
+                                                  conditions,
+                                                  include_methods=config.GEN_METHODS_ENABLED))])
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,

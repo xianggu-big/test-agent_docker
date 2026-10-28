@@ -1,0 +1,40 @@
+{
+  "corpus_id": "corpus-002",
+  "theme": "优惠券与订单折扣引擎",
+  "requirement_summary": "实现优惠券校验、折扣计算与订单结算，金额以分为单位，含最低消费边界、折扣封顶与空订单/非法数量区分。",
+  "planted_defects": [
+    {
+      "id": "D1",
+      "type": "boundary_off_by_one",
+      "location": "discount_engine.py::validate_coupon",
+      "description": "需求规定 subtotal_cents 等于 min_spend 时满足门槛应通过校验；实现使用 subtotal_cents < min_spend 返回 below_min_spend，当 subtotal_cents == min_spend 时实际返回 False, \"below_min_spend\"，而需求要求返回通过。",
+      "expected_assertion": "assert validate_coupon({\"expired\": False, \"min_spend\": 1000, \"type\": \"fixed\", \"value\": 100}, 1000) == (True, \"ok\")；实现实际返回 (False, \"below_min_spend\")",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D2",
+      "type": "condition_inverted",
+      "location": "discount_engine.py::calculate_discount",
+      "description": "需求规定折扣券 raw 大于 max_discount 时才封顶；实现使用 raw >= max_discount 就返回 max_discount，导致 raw 恰好等于 max_discount 时行为虽数值相同但语义错误；更关键的是当 raw 小于 max_discount 时正常返回 raw 是正确的，但条件应为 raw > max_discount。当 raw == max_discount 时结果相同，但该条件写反（>= 代替 >）本身在 raw == max_discount 时无法通过数值断言区分；需结合下一缺陷或选取 raw > max_discount 场景。实际可暴露点：当 max_discount 为 None 时正常。此处条件 >= 在 raw == max_discount 时输出相同，故该缺陷需用 raw > max_discount 验证？实际 raw > max_discount 时也返回 max_discount，行为正确。因此该条件反转仅在 raw == max_discount 时语义不同但数值相同，不可断言暴露。更正：该植入缺陷应描述为 raw >= max_discount 时返回 max_discount 导致当 raw 等于 max_discount 时结果相同，无法暴露；因此本条不作为可检测缺陷，替换为实际可检测缺陷：实现中 max_discount 判断使用 raw >= max_discount 返回 max_discount，当 raw == max_discount 时数值与需求一致，无法暴露。故本数组需替换此条。",
+      "expected_assertion": "该条件在 raw == max_discount 时数值相同，无法通过断言暴露；已替换为其他缺陷。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D3",
+      "type": "missing_error_handling",
+      "location": "discount_engine.py::settle_order",
+      "description": "需求规定应先按原样累加所有项得到 subtotal，再检查 qty；实现先累加再检查，顺序正确。但需求规定 qty <= 0 视为非法订单返回 (subtotal, 0, subtotal, \"invalid_quantity\")；实现使用 item.get(\"qty\", 0) <= 0 判断，当 qty 为 0 时返回 invalid_quantity，符合需求。此处实际缺陷：需求规定空列表返回 empty_order，实现先累加再判断 not items，顺序正确。未发现缺失错误处理。",
+      "expected_assertion": "待替换。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D4",
+      "type": "calculation_error",
+      "location": "discount_engine.py::apply_coupon",
+      "description": "需求规定 payable_cents 不得小于 0；实现直接 subtotal_cents - discount，未做 max(0, ...) 保护。当满减券 value 大于 subtotal 时 calculate_discount 已封顶为 subtotal，payable 为 0，不会为负；但折扣券 max_discount 可能大于 subtotal 吗？需求未限制 max_discount 与 subtotal 关系，若 max_discount > subtotal 且 raw 被封顶为 max_discount，则 discount 可能大于 subtotal，payable 为负。例如 subtotal=100，percent 券 value=50，max_discount=200，raw=50，raw < max_discount 返回 50，payable=50 正常。需构造 raw > max_discount 且 max_discount > subtotal：subtotal=100，value=10，raw=90，max_discount=150，raw < max_discount 返回 90，payable=10。要 discount > subtotal 需 max_discount > subtotal 且 raw > max_discount，即 subtotal*(100-value)//100 > max_discount > subtotal，但 raw <= subtotal，矛盾。因此该路径不会产生负 payable。实际可检测计算错误：calculate_discount 中折扣券 raw 使用 (100 - value) // 100，当 value=85，subtotal=1000，raw=1000*15//100=150，正确。未发现计算错误。",
+      "expected_assertion": "待替换。",
+      "detectable_by": "assertion"
+    }
+  ],
+  "notes": "出题协议：缺陷全部为可通过 pytest 断言暴露的行为缺陷。当前草稿中 D2、D3、D4 描述不成立，需重新设计至少 4 个真实可检测缺陷。"
+}

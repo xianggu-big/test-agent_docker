@@ -252,6 +252,11 @@ def make_nodes(deps: GraphDeps) -> dict:
             raise RuntimeError("run_tests 被确认门拒绝：主流程不应在未确认时到达此节点")
         if res.status == "timeout":
             out = json.dumps({"exit": -1, "stdout": "", "stderr": res.error}, ensure_ascii=False)
+        elif res.status != "ok":
+            # skill 层失败（如容器瞬态消失/守护进程重启）：转成 env 失败走 repair_env 重建，
+            # 而不是 json.loads 空输出把整个任务炸掉（实测踩坑：docker 守护进程中途重启）
+            out = json.dumps({"exit": -1, "stdout": "",
+                              "stderr": f"run_tests {res.status}: {res.error}"}, ensure_ascii=False)
         else:
             out = res.output
         r = json.loads(out)
@@ -395,19 +400,15 @@ def make_nodes(deps: GraphDeps) -> dict:
                     msg(state["session_id"], "assistant",
                         f"[review·charts] {len(paths)} 张图 → data/reports/charts/")
 
-        # 回炉语义（vision §1.6）：仅 pass 判定可被审查推翻；stop（product_defect）是
-        # 证人冻结的上报，审查只修叙述不改判——否则等于把真缺陷审没了。
-        # 回炉吃同一轮次预算与指纹熔断，不另开无限循环（§3.4）。
-        if rev["status"] == "reject" and verdict == "pass":
-            if state.get("round_no", 0) >= config.MAX_REPAIR_ROUNDS:
-                msg(state["session_id"], "assistant",
-                    "[review] 审查未过但轮次预算耗尽，如实落报告（诚实上报审查结论）")
-                return {}
+        # 回炉语义（vision §1.6）：stop（product_defect）是证人冻结的上报，审查不可推翻。
+        # v1 收口（run46 实锤：reject 回炉与快照时点漂移叠加造成 14 轮死循环）——
+        # 审查 reject 一律**不回炉**，如实标记 review_status=rejected 放行（结论+原因已落报告）；
+        # "reject → 重写报告一次"的受控回炉列为下一轮工作（需先修叙述快照时点）。
+        if rev["status"] == "reject":
             msg(state["session_id"], "assistant",
-                "[review] 报告审查未过 → verdict=repair_gen 回炉（吃同一轮次预算）")
-            return {"verdict": "repair_gen",
-                    "stop_reason": f"报告审查未过：{'; '.join(rev['reasons'])[:200]}"}
-        return {}
+                "[review] 审查未过：如实标记 rejected 放行（不回炉——防叙述时点漂移死循环）")
+            return {"review_status": "rejected"}
+        return {"review_status": "pass"}
 
     return {"clone": clone, "analyze": analyze, "plan": plan, "provision": provision,
             "generate": generate, "run": run, "evaluate": evaluate, "report": report,

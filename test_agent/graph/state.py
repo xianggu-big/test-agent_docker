@@ -34,4 +34,6 @@ class TaskState(TypedDict, total=False):
     # 判定
     verdict: str             # pass / repair_env / repair_gen / stop
     stop_reason: str
+    review_rejects: int      # 报告审查拒绝次数（硬停止计数器，与轮次预算解耦，§3.4）
+    review_status: str       # pass / rejected（终态如实呈现报告审查结论）
     done: bool

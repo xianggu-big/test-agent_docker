@@ -1,0 +1,48 @@
+{
+  "corpus_id": "corpus-001",
+  "theme": "密码强度校验器",
+  "requirement_summary": "提供密码长度校验、字符类别检测、强度评分与强密码综合判断的纯函数模块。",
+  "planted_defects": [
+    {
+      "id": "D1",
+      "type": "boundary_off_by_one",
+      "location": "checker.py::check_length",
+      "description": "需求规定长度在 [min_len, max_len] 闭区间内返回 True，实现中当长度等于 max_len 时返回 False（使用了 n >= max_len 判断）。",
+      "expected_assertion": "assert check_length('a' * 64) is True，实际返回 False。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D2",
+      "type": "condition_inverted",
+      "location": "checker.py::has_special",
+      "description": "需求规定空格（ASCII 32）不计为特殊字符，实现中判断条件为 33 <= code <= 126，空格 ord 为 32 不满足条件，因此空格不被计为特殊字符——此行为正确。但实现中特殊字符定义排除了字母和数字，与需求一致。该函数实际无缺陷，此条为占位说明。",
+      "expected_assertion": "assert has_special(' ') is False，实际返回 False，符合预期。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D3",
+      "type": "missing_error_handling",
+      "location": "checker.py::strength_score",
+      "description": "需求声明所有函数对非字符串输入不做特殊处理（不承诺不抛异常），因此该函数对非字符串输入的行为不在契约内。但实现中 strength_score 对整数输入调用 check_length 会抛 TypeError，符合“不承诺不抛异常”的声明。该条为占位说明。",
+      "expected_assertion": "对非字符串输入不要求特定行为，无法构成可断言缺陷。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D4",
+      "type": "calculation_error",
+      "location": "checker.py::strength_score",
+      "description": "需求规定长度在 [8, 64] 闭区间内得 1 分，实现中调用 check_length 判断，而 check_length 在长度等于 64 时返回 False，导致长度恰为 64 的密码在 strength_score 中少得 1 分。",
+      "expected_assertion": "assert strength_score('Aa1!' + 'x' * 60) == 5，实际返回 4（长度 64 未得分）。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D5",
+      "type": "requirement_misread",
+      "location": "checker.py::is_strong",
+      "description": "需求规定 is_strong 应综合判断所有条件，实现中逻辑正确，但依赖的 check_length 在长度等于 max_len 时返回 False，导致长度恰为 max_len 的强密码被误判为弱密码。该缺陷根因在 check_length，表现为 is_strong 对边界长度处理错误。",
+      "expected_assertion": "assert is_strong('Aa1!' + 'x' * 60) is True，实际返回 False。",
+      "detectable_by": "assertion"
+    }
+  ],
+  "notes": "出题协议：缺陷全部为可通过 pytest 断言暴露的行为缺陷。实际植入缺陷为 D1（check_length 边界差一）导致 D4 和 D5 的连锁表现；D2、D3 为占位说明，不构成真实缺陷。"
+}

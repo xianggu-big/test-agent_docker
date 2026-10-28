@@ -62,27 +62,26 @@ def test_pass_叙述自洽_审查通过不回炉(env):
     rid = _add_report(c, tid, sid, 10, 0, 0.9)
     _set_narrative(c, rid, "本轮通过 10、失败 0、跳过 0，覆盖率 90%。全部达标。")
     out = review(_state(tid, ses, "pass"))
-    assert out == {}                                    # 不回炉
+    assert out == {"review_status": "pass"}             # 审查通过
     rev = json.loads(c.execute("SELECT review FROM test_reports WHERE id=?",
                                (rid,)).fetchone()["review"])
     assert rev["status"] == "pass"
 
 
-def test_pass_叙述数字失真_审查reject回炉(env):
+def test_pass_叙述数字失真_审查reject标记不回炉(env):
     c, review, tid, ses, sid = env
     rid = _add_report(c, tid, sid, 10, 0, 0.9)
     _set_narrative(c, rid, "本轮通过 9、失败 0，覆盖率 90%。")   # 通过数与数据不符
     out = review(_state(tid, ses, "pass", round_no=1))
-    assert out["verdict"] == "repair_gen"               # 回炉吃轮次预算
-    assert "不符" in out["stop_reason"]
+    assert out == {"review_status": "rejected"}   # v1 收口：不回炉，如实标记
 
 
-def test_pass_审查reject但预算耗尽_如实落报告(env):
+def test_pass_审查reject_如实标记放行(env):
     c, review, tid, ses, sid = env
     rid = _add_report(c, tid, sid, 10, 0, 0.9)
     _set_narrative(c, rid, "本轮通过 9，覆盖率 90%。")
     out = review(_state(tid, ses, "pass", round_no=config.MAX_REPAIR_ROUNDS))
-    assert out == {}                                    # 不回炉：预算兜底
+    assert out == {"review_status": "rejected"}   # v1 收口：不回炉，如实标记
 
 
 def test_stop_产品缺陷_审查不可推翻(env):
@@ -91,7 +90,7 @@ def test_stop_产品缺陷_审查不可推翻(env):
     rid = _add_report(c, tid, sid, 8, 1, 0.85, kind="product_defect")
     _set_narrative(c, rid, "缺陷已解决，全部修复。通过 8、失败 1。")
     out = review(_state(tid, ses, "stop"))
-    assert out == {}
+    assert out == {"review_status": "rejected"}   # 谎报"缺陷已解决"→ 如实标记（不改判判定）
     rev = json.loads(c.execute("SELECT review FROM test_reports WHERE id=?",
                                (rid,)).fetchone()["review"])
     assert rev["status"] == "reject"                    # 违规留痕，但判定不改
