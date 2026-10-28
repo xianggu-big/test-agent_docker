@@ -15,6 +15,35 @@ PLAN_SYSTEM = (
     "（需求追踪矩阵 RTM 的条件层）。只输出 JSON。"
 )
 
+REPORT_SYSTEM = (
+    "你是测试报告撰写员（测试评估阶段）。报告的数字只能来自输入数据，禁止出现输入之外的任何数字；"
+    "提及通过数、失败数、覆盖率时使用固定表述「通过 N」「失败 N」「跳过 N」「覆盖率 P%」。只输出 JSON。"
+)
+
+REVIEW_SYSTEM = (
+    "你是测试报告审查员（报告的二次审查）。对照原始数据审查报告叙述是否一致、结论是否有证据。"
+    "只输出 JSON。"
+)
+
+
+def build_map_prompt(conditions: list[dict], cases: list[dict]) -> str:
+    """map_requirements 的 LLM 辅助映射：条件 ↔ 用例 关联判定。"""
+    cond_rows = "\n".join(f"{c['id']}. {c['condition']}" for c in conditions)
+    case_rows = "\n".join(f"- {c['name']}（预期：{(c.get('expected') or '')[:60]}）"
+                          for c in cases)
+    return f"""## 测试条件（RTM 条件层）
+{cond_rows}
+
+## 已生成的测试用例
+{case_rows}
+
+## 任务
+判断每条测试条件被哪些用例覆盖（用例名精确匹配上面列表）。某条件没有任何用例覆盖即为缺口（gap）。
+只依据行为语义对应关系判断，不要发明用例名。
+
+## 输出格式
+{{"mappings": [{{"condition_id": 1, "cases": ["test_xxx"]}}]}}"""
+
 
 def build_plan_prompt(requirement: str) -> str:
     return f"""## 用户需求
@@ -54,17 +83,19 @@ METHODS = [
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
                       coverage_target: float | None = None,
-                      conditions: list[dict] | None = None) -> str:
+                      conditions: list[dict] | None = None,
+                      include_methods: bool = True) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
     有缺口时优先生成命中缺口行的用例，这是"补测轮次知道该往哪补"的信息通道。
     conditions: plan 节点拆解的测试条件（RTM）——用例逐条对准条件设计。
+    include_methods: 五方法骨架开关（实验变量 V2；False=自由发挥对照组）。
     """
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
     method_text = "\n".join(f"{i}.【{m['name']}】{m['skeleton']}"
-                            for i, m in enumerate(METHODS, 1))
+                            for i, m in enumerate(METHODS, 1)) if include_methods else ""
     cond_text = ""
     if conditions:
         rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
@@ -93,7 +124,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
 {requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
-{method_text}
+{method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}
 
 ## 输出格式
 只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。

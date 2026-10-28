@@ -17,6 +17,7 @@ from pathlib import Path
 from .. import config
 from ..sandbox.runner import SandboxRunner
 from ..skills.builtin import build_skills
+from ..skills.evaluate import build_eval_skills
 from ..skills.repair_strategy import make_deepseek_fn, run_repair_strategy
 from ..skills.prompt_library import PLAN_SYSTEM, build_plan_prompt
 from ..skills.registry import SkillRegistry
@@ -41,8 +42,13 @@ class GraphDeps:
 def make_deps() -> GraphDeps:
     conn = get_conn()
     runner = SandboxRunner()
-    return GraphDeps(conn=conn, runner=runner,
-                     registry=SkillRegistry(conn), skills=build_skills(runner))
+    registry = SkillRegistry(conn)
+    # 注册表幂等 upsert（A13）：skills 表缺行会让审计台账的 INSERT..SELECT 插 0 行，
+    # 论文"工具调用成功率"指标就只剩 run_tests 一个工具——全部 skills 必须注册
+    skills = {**build_skills(runner), **build_eval_skills()}
+    for s in skills.values():
+        registry.register(s)
+    return GraphDeps(conn=conn, runner=runner, registry=registry, skills=skills)
 
 
 def set_status(conn, task_id: int, status: str) -> None:
@@ -223,7 +229,8 @@ def make_nodes(deps: GraphDeps) -> dict:
             "module_hint": state.get("primary_language", ""),
             "container_name": state["container_name"],
             "module_id": state.get("module_id"),
-            "coverage_gaps": state.get("per_file") or [],   # ①覆盖缺口回灌（CoverUp 模式）
+            "coverage_gaps": (state.get("per_file") or [])
+                             if config.COVERAGE_FEEDBACK_ENABLED else [],  # ①缺口回灌（V4 开关）
             "coverage_target": state.get("coverage_target"),
             "round_no": next_round})
         msg(state["session_id"], "assistant", f"[generate 第{next_round}轮] {res.output[:400]}")
@@ -311,6 +318,9 @@ def make_nodes(deps: GraphDeps) -> dict:
         set_status(conn, tid, "analyzing")  # 测试条件制定属测试分析阶段（理论章口径）
         requirement = (state.get("requirement") or "").strip()
         api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not config.PLAN_ENABLED:   # 实验变量 V3：plan 对照组
+            msg(state["session_id"], "assistant", "[plan] 实验开关关闭（对照组）：跳过测试条件拆解")
+            return {}
         if not requirement or not api_key:
             why = "无需求文本" if not requirement else "未配置 DEEPSEEK_API_KEY"
             msg(state["session_id"], "assistant", f"[plan] {why}：跳过测试条件拆解（诚实降级）")
@@ -338,5 +348,64 @@ def make_nodes(deps: GraphDeps) -> dict:
                       for c in conds)[:400])
         return {}
 
+    # ---------- 8. 评估阶段：五工具编排 + 报告二次审查（vision §1.6 双闸回炉） ----------
+    def review(state: TaskState) -> dict:
+        tid = state["task_id"]
+        set_status(conn, tid, "reporting")   # 评估属报告阶段；状态机 CHECK 枚举不扩（老库无 CHECK 迁移）
+        verdict = state.get("verdict", "")
+        res_m = registry.invoke(tid, skills["collect_metrics"], {})
+        if res_m.status != "ok" or "no_report" in (res_m.output or "{}"):
+            msg(state["session_id"], "assistant",
+                "[review] 无报告数据（static_only/诚实短路链路），跳过评估五工具")
+            return {}
+        metrics = json.loads(res_m.output)
+
+        res_r = registry.invoke(tid, skills["map_requirements"], {"use_llm": True})
+        rtm = json.loads(res_r.output) if res_r.status == "ok" else {"matrix": []}
+        registry.invoke(tid, skills["gen_report"], {})
+        msg(state["session_id"], "assistant",
+            f"[review·collect] 通过{metrics['passed']} 失败{metrics['failed']}"
+            f" 覆盖率{metrics['coverage_line']}｜工具成功率{metrics.get('tool_success_rate')}"
+            f"｜六要素完整率{metrics.get('six_elem_rate')}")
+        if res_r.status == "ok":
+            msg(state["session_id"], "assistant",
+                f"[review·rtm] 条件覆盖 {rtm['covered']}/{rtm['conditions_total']}"
+                f"（缺口 {rtm['gap']}，映射方式 {rtm['source']}）"
+                + (f"｜{rtm['note']}" if rtm.get("note") else ""))
+
+        res_v = registry.invoke(tid, skills["review_report"], {"verdict": verdict})
+        if res_v.status != "ok":
+            msg(state["session_id"], "assistant",
+                f"[review] 审查工具失败（{res_v.error[:120]}）：fail-open 放行，留痕备查")
+            return {}
+        rev = json.loads(res_v.output)
+        msg(state["session_id"], "assistant",
+            f"[review·审查] {rev['status']}（{rev['reviewer']}）"
+            + ("；原因：" + "; ".join(rev["reasons"])[:300] if rev["reasons"] else ""))
+
+        paths = []
+        if res_r.status == "ok":
+            res_c = registry.invoke(tid, skills["gen_charts"], {})
+            if res_c.status == "ok":
+                paths = json.loads(res_c.output).get("charts", [])
+                if paths:
+                    msg(state["session_id"], "assistant",
+                        f"[review·charts] {len(paths)} 张图 → data/reports/charts/")
+
+        # 回炉语义（vision §1.6）：仅 pass 判定可被审查推翻；stop（product_defect）是
+        # 证人冻结的上报，审查只修叙述不改判——否则等于把真缺陷审没了。
+        # 回炉吃同一轮次预算与指纹熔断，不另开无限循环（§3.4）。
+        if rev["status"] == "reject" and verdict == "pass":
+            if state.get("round_no", 0) >= config.MAX_REPAIR_ROUNDS:
+                msg(state["session_id"], "assistant",
+                    "[review] 审查未过但轮次预算耗尽，如实落报告（诚实上报审查结论）")
+                return {}
+            msg(state["session_id"], "assistant",
+                "[review] 报告审查未过 → verdict=repair_gen 回炉（吃同一轮次预算）")
+            return {"verdict": "repair_gen",
+                    "stop_reason": f"报告审查未过：{'; '.join(rev['reasons'])[:200]}"}
+        return {}
+
     return {"clone": clone, "analyze": analyze, "plan": plan, "provision": provision,
-            "generate": generate, "run": run, "evaluate": evaluate, "report": report}
+            "generate": generate, "run": run, "evaluate": evaluate, "report": report,
+            "review": review}

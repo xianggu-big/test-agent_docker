@@ -1,3 +1,4 @@
 # 开发/测试依赖（宿主侧）—— 与 requirements.txt 分离，钉版本
 pytest==8.3.4
 pytest-cov==6.0.0
+matplotlib==3.10.6

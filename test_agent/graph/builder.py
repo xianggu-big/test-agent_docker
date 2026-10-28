@@ -2,11 +2,13 @@
 
     主图（对应论文"五阶段 + 带熔断的补测循环"插图）：
 
-        clone → analyze → plan(RTM) → provision → generate → run → evaluate ─┬─ pass/stop → report → END
-                  ↑               ↑__________________________________________├─ repair_env（装依赖重跑）
+        clone → analyze → plan(RTM) → provision → generate → run → evaluate ─┬─ pass/stop → report → review ─┬─ 审查过 → END
+                  ↑               ↑__________________________________________├─ repair_env（装依赖重跑）        └─ 审查 reject → generate（回炉吃预算）
                   └───────────────(repair_gen：剪坏用例→缺口回灌→重生成)──────┘
 
 analyze 遇到非深度支持语言时短路到 report（诚实降级）。
+report 后必经 review（评估五工具 + 报告二次审查）；review 只推翻 pass 判定回炉，
+stop（product_defect 证人冻结）不被审查改判。
 """
 import logging
 
@@ -23,7 +25,8 @@ log = logging.getLogger(__name__)
 def build_graph(deps: GraphDeps):
     nodes = make_nodes(deps)
     g = StateGraph(TaskState)
-    for name in ("clone", "analyze", "plan", "provision", "generate", "run", "evaluate", "report"):
+    for name in ("clone", "analyze", "plan", "provision", "generate", "run",
+                 "evaluate", "report", "review"):
         g.add_node(name, nodes[name])
     g.set_entry_point("clone")
     g.add_edge("clone", "analyze")
@@ -41,7 +44,12 @@ def build_graph(deps: GraphDeps):
                             lambda s: "report" if s["verdict"] in ("pass", "stop")
                             else ("provision" if s["verdict"] == "repair_env" else "generate"),
                             {"report": "report", "provision": "provision", "generate": "generate"})
-    g.add_edge("report", END)
+    g.add_edge("report", "review")
+    g.add_conditional_edges("review",
+                            lambda s: "generate" if s.get("verdict") == "repair_gen" else END,
+                            # 映射 key 必须是路由返回值的字面量：END 常量内部值是 "__end__"，
+                            # 写成 "end" 会在运行时 KeyError '__end__'（实测踩坑，勿改回）
+                            {"generate": "generate", "__end__": END})
     return g.compile()
 
 

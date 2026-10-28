@@ -25,7 +25,9 @@ def get_conn(db_path: Path | None = None) -> sqlite3.Connection:
 # 轻量列迁移：老库缺列则 ALTER（新库由 schema 直接建出）。加列时同步改 schema 文件。
 _MIGRATIONS = {
     "test_tasks": {"coverage_target": "REAL"},   # A1：准出标准在分析阶段冻结进任务
-    "test_reports": {"per_file": "TEXT"},        # B2：逐文件覆盖明细（缺口回灌+趋势图数据源）
+    "test_reports": {"per_file": "TEXT",         # B2：逐文件覆盖明细（缺口回灌+趋势图数据源）
+                     "narrative": "TEXT",        # gen_report 叙述正文（E5 审查对象）
+                     "review": "TEXT"},          # 报告二次审查结论 JSON（§3.4 双闸）
     "test_cases": {"priority": "TEXT", "input": "TEXT", "steps": "TEXT",
                    "expected": "TEXT", "expected_basis": "TEXT"},  # 六要素结构化（§3.3）
 }

@@ -7,7 +7,7 @@
 --   * 时间统一 TEXT ISO8601（UTC）；比值/覆盖率用 REAL（0~1）；耗时毫秒 INTEGER
 --   * 枚举用 TEXT + CHECK，不建字典表（本科规模，简单优先）
 --   * 外键运行时开启：PRAGMA foreign_keys = ON
---   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 14 张
+--   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 15 张
 -- ============================================================================
 
 PRAGMA journal_mode = WAL;
@@ -178,6 +178,8 @@ CREATE TABLE IF NOT EXISTS test_reports (
   coverage_branch REAL,                  -- 0~1，分支覆盖率
   defects         TEXT,                  -- JSON：疑似缺陷清单（文件/行/描述/置信度/分类）
   per_file        TEXT,                  -- JSON：逐文件覆盖率与未覆盖行（B2：覆盖率趋势图与缺口回灌数据源）
+  narrative       TEXT,                  -- gen_report 叙述正文（markdown；数字只能来自指标包，E5 审查对象）
+  review          TEXT,                  -- JSON：报告二次审查结论 {status, reasons, reviewer}（§3.4 双闸）
   duration_ms     INTEGER,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -205,6 +207,17 @@ CREATE TABLE IF NOT EXISTS test_conditions (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 15) RTM 映射（map_requirements 产物：需求 → 测试条件 → 用例 → 结果 的矩阵快照，每次评估覆盖）
+CREATE TABLE IF NOT EXISTS rtm_maps (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id     INTEGER NOT NULL REFERENCES test_tasks(id),
+  report_id   INTEGER REFERENCES test_reports(id),
+  source      TEXT NOT NULL DEFAULT 'heuristic'
+              CHECK (source IN ('llm','heuristic')),
+  matrix      TEXT NOT NULL,             -- JSON：[{condition_id, condition, priority, cases, status}]
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 常用查询索引
 CREATE INDEX IF NOT EXISTS idx_tasks_status     ON test_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_project    ON test_tasks(project_id);
@@ -214,3 +227,4 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status      ON container_jobs(status, priori
 CREATE INDEX IF NOT EXISTS idx_reports_task     ON test_reports(task_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_report  ON feedback_annotations(report_id);
 CREATE INDEX IF NOT EXISTS idx_conditions_task  ON test_conditions(task_id);
+CREATE INDEX IF NOT EXISTS idx_rtm_task         ON rtm_maps(task_id);
