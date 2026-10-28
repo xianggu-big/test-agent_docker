@@ -377,6 +377,9 @@ def make_nodes(deps: GraphDeps) -> dict:
         if not conds:
             msg(state["session_id"], "assistant", "[plan] 需求拆解不可解析，跳过（诚实降级）")
             return {}
+        # delete-first：任务重跑会再次进图，裸 INSERT 会让条件翻倍（P1-①）；
+        # 以本轮拆解为准整体替换，与 analyze 的 upsert 同为重跑幂等语义
+        conn.execute("DELETE FROM test_conditions WHERE task_id=?", (tid,))
         for c in conds:
             conn.execute(
                 """INSERT INTO test_conditions(task_id, requirement_ref, condition, priority, method_hint)
