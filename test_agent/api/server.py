@@ -10,6 +10,7 @@
 启动：python -m uvicorn test_agent.api.server:app --port 8000  （禁用 --reload 跑真任务）
 """
 import hashlib
+import json
 import logging
 import re
 import threading
@@ -204,6 +205,27 @@ def api_report(tid: int, user: dict = Depends(current_user)):
         d["pass_rate"] = round(d["passed"] / total, 4) if total else None
         reports.append(d)
     return reports
+
+
+@app.get("/api/tasks/{tid}/rtm")
+def api_rtm(tid: int, user: dict = Depends(current_user)):
+    """需求追踪矩阵（RTM）：测试条件 ↔ 用例映射与覆盖状态 + 用例六要素。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    conditions = [dict(r) for r in conn.execute(
+        "SELECT id, requirement_ref, condition, priority, method_hint FROM test_conditions "
+        "WHERE task_id=? ORDER BY id", (tid,))]
+    latest = conn.execute("SELECT matrix, source, created_at FROM rtm_maps "
+                          "WHERE task_id=? ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+    cases = [dict(r) for r in conn.execute(
+        """SELECT c.name, c.method, c.priority, c.input, c.steps, c.expected,
+                  c.expected_basis, c.source, c.enabled
+           FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
+           WHERE s.task_id=? AND c.enabled=1 ORDER BY c.id""", (tid,))]
+    return {"conditions_total": len(conditions),
+            "matrix": json.loads(latest["matrix"]) if latest else [],
+            "map_source": latest["source"] if latest else None,
+            "cases": cases}
 
 
 @app.get("/api/tasks/{tid}/logs")

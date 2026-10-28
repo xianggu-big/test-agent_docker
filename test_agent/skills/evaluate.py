@@ -305,7 +305,10 @@ def review_report(conn, task_id: int, report_id: int, narrative: str,
 {json.dumps({k: v for k, v in metrics.items() if k != "matrix"}, ensure_ascii=False)}
 
 ## 任务
-审查叙述与数据是否一致、结论是否有证据支撑。只输出 JSON：
+审查叙述与数据是否一致、结论是否有证据支撑。
+审查聚焦：通过/失败/跳过数、覆盖率、终态与归因（product_defect 是否被如实上报）是否与数据一致、
+结论是否有指标证据。tool_invocations 与 duration 属评估工具运行中台账，统计时点允许自然漂移，
+不要因此判不一致。只输出 JSON：
 {{"consistent": true/false, "reasons": ["不一致点"]}}""")])
             data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
             reviewer = "rules+llm"
@@ -434,12 +437,20 @@ def build_eval_skills() -> dict[str, Skill]:
             conn.close()
 
     def _report(task_id: int, args: dict) -> str:
+        # 快照一致性（run46 实锤的坑）：gen_report 与 review_report 必须看同一份指标包——
+        # 各自现 collect 的话，评估工具自身的调用台账在两次 collect 之间会增长，
+        # LLM 叙述引用旧数字、审查拿新数字比对 → 永远可能"自审自 reject"。
+        # 所以 review 节点 collect 一次经 args 下传；独立调用本 skill 时才自取。
         conn = get_conn()
         try:
-            metrics = collect_metrics(conn, task_id)
-            latest = conn.execute("SELECT matrix FROM rtm_maps WHERE task_id=?"
-                                  " ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
-            rtm = {"matrix": json.loads(latest["matrix"]) if latest else []}
+            metrics = args.get("metrics")
+            if metrics is None:
+                metrics = collect_metrics(conn, task_id)
+            rtm = args.get("rtm")
+            if rtm is None:
+                latest = conn.execute("SELECT matrix FROM rtm_maps WHERE task_id=?"
+                                      " ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+                rtm = {"matrix": json.loads(latest["matrix"]) if latest else []}
             text = gen_report(conn, task_id, metrics, rtm,
                               os.environ.get("DEEPSEEK_API_KEY"))
             return json.dumps({"narrative_chars": len(text)}, ensure_ascii=False)
@@ -449,7 +460,9 @@ def build_eval_skills() -> dict[str, Skill]:
     def _review(task_id: int, args: dict) -> str:
         conn = get_conn()
         try:
-            metrics = collect_metrics(conn, task_id)
+            metrics = args.get("metrics")
+            if metrics is None:
+                metrics = collect_metrics(conn, task_id)
             if metrics.get("no_report"):
                 return json.dumps({"status": "pass", "reasons": ["无报告数据，审查诚实跳过"],
                                    "reviewer": "skip"}, ensure_ascii=False)

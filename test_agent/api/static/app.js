@@ -205,6 +205,7 @@ async function refreshReports() {
 
 function switchRp(which) {
   $("rp-overview").classList.toggle("hidden", which !== "overview");
+  $("rp-rtm").classList.toggle("hidden", which !== "rtm");
   $("rp-logs").classList.toggle("hidden", which !== "logs");
   $("rp-attach").classList.toggle("hidden", which !== "attach");
   document.querySelectorAll("[data-rp]").forEach(b => b.classList.toggle("active", b.dataset.rp === which));
@@ -213,7 +214,11 @@ function switchRp(which) {
 async function loadReport() {
   const tid = $("rp-task").value;
   if (!tid) return;
-  const [reports, logs] = await Promise.all([api(`/tasks/${tid}/report`).catch(() => []), api(`/tasks/${tid}/logs`).catch(() => [])]);
+  const [reports, logs, rtm] = await Promise.all([
+    api(`/tasks/${tid}/report`).catch(() => []),
+    api(`/tasks/${tid}/logs`).catch(() => []),
+    api(`/tasks/${tid}/rtm`).catch(() => null),
+  ]);
   const latest = reports[0];
   const rate = latest && latest.pass_rate != null ? Math.round(latest.pass_rate * 100) : null;
   $("rp-rate").textContent = `通过率 ${rate != null ? rate : "--"}%`;
@@ -223,13 +228,45 @@ async function loadReport() {
     ["失败", latest.failed, "fail"], ["跳过", latest.skipped, ""],
   ].map(([k, v, c]) => `<div class="metric"><div class="k">${k}</div><div class="v ${c}">${v ?? 0}</div></div>`).join("")
     : '<div class="metric"><div class="k">暂无报告</div><div class="v">--</div></div>';
+
+  // 概览：gen_report 叙述（数字来自 SQL，审查结论徽章）+ 评估摘要兜底
+  const rev = latest && latest.review ? (() => { try { return JSON.parse(latest.review); } catch { return null; } })() : null;
+  const revBadge = rev
+    ? `<div class="log-line"><span class="badge ${rev.status === "pass" ? "badge-ok" : "badge-fail"}">报告二次审查：${rev.status === "pass" ? "通过" : "未过"}（${esc(rev.reviewer || "")}）</span>` +
+      (rev.reasons && rev.reasons.length ? ` ${esc(rev.reasons.join("; "))}` : "") + `</div>` : "";
+  const narr = latest && latest.narrative
+    ? `<pre class="code-view" style="white-space:pre-wrap">${esc(latest.narrative)}</pre>` : "";
+  $("rp-overview").innerHTML = revBadge + narr +
+    logs.filter(l => l.content.includes("[evaluate") || l.content.includes("[digest") || l.content.includes("[analyze") || l.content.includes("[review"))
+      .map(l => `<div class="log-line">${esc(l.content)}</div>`).join("")
+    || '<div class="hint">暂无评估摘要</div>';
+
+  // RTM 矩阵 + 用例六要素（测试分析/设计阶段的可追溯性展示）
+  if (rtm && (rtm.matrix.length || rtm.cases.length)) {
+    const covered = rtm.matrix.filter(m => m.status === "covered").length;
+    $("rp-rtm-badge").textContent = `条件覆盖 ${covered}/${rtm.conditions_total}` +
+      (rtm.map_source ? `（映射方式：${rtm.map_source === "llm" ? "LLM 辅助" : "启发式"}）` : "（任务未跑评估阶段，无映射快照）");
+    $("rp-rtm-table").innerHTML =
+      "<tr><th>测试条件</th><th>优先级</th><th>关联用例</th><th>状态</th></tr>" +
+      rtm.matrix.map(m => `<tr><td>${esc(m.condition)}</td><td>${esc(m.priority || "中")}</td>` +
+        `<td>${m.cases.length ? m.cases.map(esc).join("<br>") : '<span class="hint">无用例覆盖</span>'}</td>` +
+        `<td><span class="badge ${m.status === "covered" ? "badge-ok" : "badge-fail"}">${m.status === "covered" ? "已覆盖" : "缺口"}</span></td></tr>`).join("");
+    $("rp-cases-table").innerHTML =
+      "<tr><th>用例</th><th>方法</th><th>优先级</th><th>输入</th><th>预期（expected_basis）</th></tr>" +
+      rtm.cases.map(c => `<tr><td>${esc(c.name)}</td><td>${esc(c.method || "—")}</td><td>${esc(c.priority || "—")}</td>` +
+        `<td>${esc((c.input || "—").slice(0, 40))}</td>` +
+        `<td>${esc((c.expected || "—").slice(0, 60))}${c.expected_basis ? ` <span class="hint">〔${esc(c.expected_basis)}〕</span>` : ""}</td></tr>`).join("");
+  } else {
+    $("rp-rtm-badge").textContent = "该任务尚无测试条件数据（plan 节点需需求文本与 LLM Key）";
+    $("rp-rtm-table").innerHTML = ""; $("rp-cases-table").innerHTML = "";
+  }
+
   const lines = logs.map(l => `<div class="log-line"><b>[${l.seq}]</b> ${esc(l.content)}</div>`);
   $("rp-log-list").innerHTML = lines.join("") || '<div class="hint">暂无日志</div>';
-  $("rp-overview").innerHTML = logs.filter(l => l.content.includes("[evaluate") || l.content.includes("[digest") || l.content.includes("[analyze"))
-    .map(l => `<div class="log-line">${esc(l.content)}</div>`).join("") || '<div class="hint">暂无评估摘要</div>';
   $("rp-export").onclick = () => {
-    const md = `# 测试报告 · 任务 ${tid}\n\n通过率：${rate ?? "--"}%\n\n## 指标\n\n- 总数 ${latest?.total ?? 0} / 通过 ${latest?.passed ?? 0} / 失败 ${latest?.failed ?? 0} / 跳过 ${latest?.skipped ?? 0}\n\n## 轨迹\n\n` +
-      logs.map(l => `- [${l.seq}] ${l.content}`).join("\n");
+    const md = `# 测试报告 · 任务 ${tid}\n\n通过率：${rate ?? "--"}%\n\n## 指标\n\n- 总数 ${latest?.total ?? 0} / 通过 ${latest?.passed ?? 0} / 失败 ${latest?.failed ?? 0} / 跳过 ${latest?.skipped ?? 0}\n\n## 报告叙述\n\n${latest?.narrative ?? "（无）"}\n\n## 需求追踪\n\n` +
+      (rtm?.matrix || []).map(m => `- [${m.status === "covered" ? "x" : " "}] ${m.condition} → ${m.cases.join(", ") || "缺口"}`).join("\n") +
+      `\n\n## 轨迹\n\n` + logs.map(l => `- [${l.seq}] ${l.content}`).join("\n");
     $("rp-export-view").textContent = md; $("rp-export-view").classList.remove("hidden");
   };
 }

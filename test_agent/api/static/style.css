@@ -110,3 +110,5 @@ textarea { resize: vertical; }
 .kv-list .k { color: var(--muted); }
 .img-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f1f3f6; font-size: 13px; }
 .code-view { background: #0f172a; color: #dbe4f0; border-radius: 8px; padding: 14px; font-size: 12px; font-family: Consolas, monospace; overflow: auto; max-height: 360px; white-space: pre-wrap; }
+
+.table-wrap { overflow-x: auto; }

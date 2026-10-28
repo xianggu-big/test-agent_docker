@@ -353,6 +353,8 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "reporting")   # 评估属报告阶段；状态机 CHECK 枚举不扩（老库无 CHECK 迁移）
         verdict = state.get("verdict", "")
+        # 快照一致性：指标包只 collect 一次，gen_report / review_report 经 args 共用同一份——
+        # 各自现 collect 会让"评估工具自身台账"在两次采集间漂移，LLM 闸永远可能自审自 reject
         res_m = registry.invoke(tid, skills["collect_metrics"], {})
         if res_m.status != "ok" or "no_report" in (res_m.output or "{}"):
             msg(state["session_id"], "assistant",
@@ -362,7 +364,7 @@ def make_nodes(deps: GraphDeps) -> dict:
 
         res_r = registry.invoke(tid, skills["map_requirements"], {"use_llm": True})
         rtm = json.loads(res_r.output) if res_r.status == "ok" else {"matrix": []}
-        registry.invoke(tid, skills["gen_report"], {})
+        registry.invoke(tid, skills["gen_report"], {"metrics": metrics, "rtm": rtm})
         msg(state["session_id"], "assistant",
             f"[review·collect] 通过{metrics['passed']} 失败{metrics['failed']}"
             f" 覆盖率{metrics['coverage_line']}｜工具成功率{metrics.get('tool_success_rate')}"
@@ -373,7 +375,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                 f"（缺口 {rtm['gap']}，映射方式 {rtm['source']}）"
                 + (f"｜{rtm['note']}" if rtm.get("note") else ""))
 
-        res_v = registry.invoke(tid, skills["review_report"], {"verdict": verdict})
+        res_v = registry.invoke(tid, skills["review_report"],
+                                {"metrics": metrics, "verdict": verdict})
         if res_v.status != "ok":
             msg(state["session_id"], "assistant",
                 f"[review] 审查工具失败（{res_v.error[:120]}）：fail-open 放行，留痕备查")
