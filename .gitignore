@@ -1,8 +1,10 @@
 # 运行产物与缓存（工作区快照与数据库不进库；data/demo/ 演示数据集保留）
 data/workspaces/
+data/reports/          # 每任务运行产物（报告页+图表），复跑可再生
 data/*.db
 data/*.db-wal
 data/*.db-shm
+*.log
 __pycache__/
 *.pyc
 .pytest_cache/
