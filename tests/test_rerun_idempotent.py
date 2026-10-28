@@ -63,3 +63,46 @@ def test_plan_rerun_does_not_double_conditions(env):
     rows = c.execute("SELECT condition FROM test_conditions WHERE task_id=? ORDER BY id",
                      (tid,)).fetchall()
     assert [r["condition"] for r in rows] == ["加法交换律", "零元加法", "负数加法"]
+
+
+def _insert_imported_case(c, tid, name, content):
+    sid = c.execute("INSERT INTO test_scripts(task_id,framework,version,content,content_hash) "
+                    "VALUES(?,'pytest',1,'','h')", (tid,)).lastrowid
+    return c.execute(
+        "INSERT INTO test_cases(script_id,source,name,content,enabled) "
+        "VALUES(?,'imported',?,?,1)", (sid, name, content)).lastrowid
+
+
+def test_clone_rerun_rebuilds_imported_file(env, tmp_path):
+    """P1-②：clone rmtree 工作区后，imported 用例从库重建，重跑不丢执行语义。"""
+    c, nodes, tid, ses = env
+    _insert_imported_case(c, tid, "test_manual_a",
+                          "def test_manual_a():\n    assert 1 + 1 == 2\n")
+
+    src = tmp_path / "repo_src"
+    src.mkdir()
+    (src / "calc.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    ws = config.DATA_DIR / "workspaces" / f"task_{tid}"
+    ws.mkdir(parents=True)
+    (ws / "test_imported.py").write_text("# 上一轮遗留\n", encoding="utf-8")  # 将被 rmtree
+
+    nodes["clone"]({"task_id": tid, "session_id": ses, "repo_url": str(src)})
+
+    rebuilt = ws / "test_imported.py"
+    assert rebuilt.exists(), "重跑后 imported 用例文件应从库重建"
+    body = rebuilt.read_text(encoding="utf-8")
+    assert "test_manual_a" in body and "assert 1 + 1 == 2" in body
+    assert (ws / "calc.py").exists()  # 快照照常
+
+
+def test_clone_rerun_no_imported_writes_nothing(env, tmp_path):
+    """无 imported 用例的任务重跑：不生成空 test_imported.py（不污染容器快照）。"""
+    c, nodes, tid, ses = env
+    src = tmp_path / "repo_src2"
+    src.mkdir()
+    (src / "a.py").write_text("x = 1\n", encoding="utf-8")
+
+    nodes["clone"]({"task_id": tid, "session_id": ses, "repo_url": str(src)})
+
+    ws = config.DATA_DIR / "workspaces" / f"task_{tid}"
+    assert not (ws / "test_imported.py").exists()

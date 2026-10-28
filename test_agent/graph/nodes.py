@@ -134,6 +134,17 @@ def make_nodes(deps: GraphDeps) -> dict:
             if r.returncode != 0:
                 raise RuntimeError(f"git clone 失败: {r.stderr[:400]}")
             how = "git clone --depth 1"
+        # P1-②：重跑 rmtree 后 imported 用例文件无人重建（DB 指标仍统计）——
+        # 以库为准重放 test_imported.py，仅当库里确有 enabled=1 的 imported 用例
+        from ..skills.gen_tests import _rebuild_imported_file
+        n_imported = conn.execute(
+            """SELECT COUNT(*) FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
+               WHERE s.task_id=? AND c.source='imported' AND c.enabled=1""",
+            (tid,)).fetchone()[0]
+        if n_imported:
+            _rebuild_imported_file(conn, tid, ws)
+            msg(state["session_id"], "assistant",
+                f"[clone] 从库重建 test_imported.py（imported 用例 {n_imported} 条，重跑语义恢复）")
         msg(state["session_id"], "assistant", f"[clone] {how} → {ws}")
         return {"workspace": str(ws)}
 
