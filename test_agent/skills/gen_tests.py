@@ -19,6 +19,7 @@ from langchain_openai import ChatOpenAI
 from .. import config
 from ..graph.repair import CASE_OWN_DEFECT_ERRORS
 from ..store.db import get_conn
+from .llm_usage import log_llm_call
 from .prompt_library import MAX_SOURCE_CHARS, SYSTEM_PROMPT, build_user_prompt
 from .test_templates import expand_template_cases
 
@@ -264,7 +265,8 @@ def prune_failing_cases(ws: Path, pairs: list[tuple[str, str]],
 
 def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
                           conditions: list[dict], cases: list[dict], ws: Path,
-                          used_names: set[str], include_methods: bool, pbt: bool
+                          used_names: set[str], include_methods: bool, pbt: bool,
+                          task_id: int | None = None
                           ) -> tuple[list[dict], str, dict]:
     """方案C 核心（llm 注入可单测）：查条件缺口 → 定向补生成恰 1 次 → 返回 (新用例, imports, 信息)。"""
     gaps = _condition_gaps(conditions, cases)
@@ -278,6 +280,7 @@ def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
                            include_methods=include_methods, pbt=pbt, cond_forced=True,
                            templates=False,   # 补生成轮保持自由通道（定向补缺不做结构先验）
                            existing_cases=[c["name"] for c in cases]))])
+    log_llm_call(task_id, "refill", resp)
     data = _parse_cases(resp.content)
     if not data:
         info["note"] = "补生成轮 LLM 输出不可解析（诚实放弃）"
@@ -345,6 +348,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   templates=config.TEMPLATES_ENABLED,
                                                   state_transition=config.STATE_TRANSITION_ENABLED,
                                                   metamorphic=config.METAMORPHIC_ENABLED))])
+    log_llm_call(task_id, "gen_tests", resp)
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,
@@ -383,7 +387,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     if config.COND_FEEDBACK_ENABLED and conditions:
         new_cases, extra_imports, cond_feedback = refill_condition_gaps(
             llm, sources, args.get("requirement", ""), conditions, data["cases"], ws,
-            used_names, config.GEN_METHODS_ENABLED, config.PBT_ENABLED)
+            used_names, config.GEN_METHODS_ENABLED, config.PBT_ENABLED,
+            task_id=task_id)
         if new_cases:
             data["cases"] += new_cases
             if extra_imports:

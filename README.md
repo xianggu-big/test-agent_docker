@@ -13,7 +13,7 @@ L2 编排    graph/ LangGraph 固定图（9 节点）：
 L3 技能    skills/ 注册表：schema / 风险分级 / 超时 / 审计台账 / fail-closed 确认门
            内置：install_deps / run_tests(high,需确认) / gen_tests + 评估五工具（evaluate.py）
 L4 沙箱    sandbox/ Docker 容器执行（mta-test:py312 镜像，非 root tester + 资源限额）
-L5 数据    store/ 17 张表 SQLite（WAL + 外键 + 幂等迁移）：docs/layer5-data-schema.sql
+L5 数据    store/ 18 张表 SQLite（WAL + 外键 + 幂等迁移）：docs/layer5-data-schema.sql
 ```
 
 ## 核心机制
@@ -71,7 +71,7 @@ API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/ap
 - `docs/vision-and-gaps.md` —— 愿景六步流程权威记录 + 设计定稿（归因 §7、评估 §3）
 - `docs/build-plan.md` —— 阶段 0-4 搭建计划（已全部完成）
 - `docs/experiment-design.md` —— 实验设计定稿（RQ1-5 ↔ E1-E5 映射）
-- `docs/layer5-data-schema.sql` —— 数据层 17 表 DDL（单一真源，建库幂等）
+- `docs/layer5-data-schema.sql` —— 数据层 18 表 DDL（单一真源，建库幂等）
 - `docs/testing-theory.md` —— 测试理论 ↔ 系统机制映射
 - `docs/industry-testing-research.md` —— 主流软测流程调研（33 信源逐条核验）
 - `docs/audit-findings.md` —— 全量审计清单（A1-A13 已清零）

@@ -18,6 +18,7 @@ from .. import config
 from ..sandbox.runner import SandboxRunner
 from ..skills.builtin import build_skills, probe_deps_manifest
 from ..skills.evaluate import build_eval_skills
+from ..skills.llm_usage import log_llm_call
 from ..skills.repair_strategy import make_deepseek_fn, run_repair_strategy
 from ..skills.prompt_library import PLAN_SYSTEM, build_plan_prompt
 from ..skills.registry import SkillRegistry
@@ -264,7 +265,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                 info = run_repair_strategy(
                     config.REPAIR_STRATEGY, Path(state["workspace"]), pairs, tid, conn,
                     round_no=next_round,
-                    llm_fn=make_deepseek_fn(os.environ.get("DEEPSEEK_API_KEY")),
+                    llm_fn=make_deepseek_fn(os.environ.get("DEEPSEEK_API_KEY"),
+                                            task_id=tid),
                     runner=runner, container_name=state["container_name"],
                     requirement=state.get("requirement", ""),
                     fail_summary=(state.get("last_stdout", "") + state.get("last_stderr", ""))[-1500:])
@@ -420,6 +422,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         resp = llm.invoke([("system", PLAN_SYSTEM),
                            ("user", build_plan_prompt(requirement,
                                                       hotspots=state.get("complexity_hotspots")))])
+        log_llm_call(tid, "plan", resp)
         conds = parse_conditions(resp.content)
         if not conds:
             msg(state["session_id"], "assistant", "[plan] 需求拆解不可解析，跳过（诚实降级）")

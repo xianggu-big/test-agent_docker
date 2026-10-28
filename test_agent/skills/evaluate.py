@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .. import config
 from ..store.db import get_conn
+from .llm_usage import log_llm_call
 from .prompt_library import REPORT_SYSTEM, REVIEW_SYSTEM, build_map_prompt
 from .registry import Skill
 
@@ -162,6 +163,18 @@ def collect_metrics(conn, task_id: int, report_id: int | None = None) -> dict:
         metrics["hotspots_total"] = cross["total"]
         metrics["hotspots_uncovered"] = cross["uncovered"]
         metrics["hotspots_uncovered_list"] = cross["uncovered_list"]
+
+    # LLM 调用成本（P1-E 台账，全链路 7 个调用点）：老任务无行（建表前实验数据 /
+    # 全程无 Key 的确定性降级链路）→ 四字段整体不出现，叙述如实说无数据
+    lc = conn.execute(
+        """SELECT COUNT(*) AS calls, SUM(prompt_tokens) AS p,
+                  SUM(completion_tokens) AS c, SUM(total_tokens) AS t
+           FROM llm_calls WHERE task_id=?""", (task_id,)).fetchone()
+    if lc and lc["calls"]:
+        metrics["llm_call_count"] = lc["calls"]
+        metrics["llm_prompt_tokens"] = lc["p"]
+        metrics["llm_completion_tokens"] = lc["c"]
+        metrics["llm_total_tokens"] = lc["t"]
     return metrics
 
 
@@ -215,6 +228,7 @@ def map_requirements(conn, task_id: int, api_key: str | None = None) -> dict:
             resp = llm.invoke([("system",
                                 "你是测试分析员。只依据语义对应关系建立映射。只输出 JSON。"),
                                ("user", build_map_prompt(conditions, cases))])
+            log_llm_call(task_id, "map_rtm", resp)
             data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
             valid_names = {c["name"] for c in cases}
             mapping = {c["id"]: [n for n in (m.get("cases") or []) if n in valid_names]
@@ -278,6 +292,10 @@ def fallback_report(metrics: dict, rtm: dict) -> str:
         lines.append(f"- 复杂度热点未覆盖 {u}/{t}：" +
                      ("; ".join(metrics["hotspots_uncovered_list"][:3])
                       if u else "热点所在行均已覆盖"))
+    if metrics.get("llm_total_tokens") is not None:
+        lines.append(f"- LLM 调用 {metrics['llm_call_count']} 次、token 消耗 "
+                     f"{metrics['llm_prompt_tokens']}/{metrics['llm_completion_tokens']}"
+                     f"/{metrics['llm_total_tokens']}（输入/输出/合计）")
     if not lines[-1].startswith(("  -", "-")):
         lines.append("- 无。")
     return "\n".join(lines) + "\n"
@@ -303,10 +321,13 @@ def gen_report(conn, task_id: int, metrics: dict, rtm: dict,
 按固定模板写 markdown 测试报告：①结论（通过率/覆盖率/终态）②四阶段回溯（分析→设计→执行→评估，
 引用 trace 轨迹与 tool_invocations 耗时）③缺陷清单（failure_kind=product_defect 时如实列出，
 不得写成已解决）④风险与建议（RTM gap 条件、复杂度热点未覆盖、未达标原因；指标包无
-hotspots_total 字段时写"无复杂度热点数据"，不得编造）。
-提及数字时用固定表述：通过 N、失败 N、跳过 N、覆盖率 P%、复杂度热点未覆盖 M/N。
+hotspots_total 字段时写"无复杂度热点数据"，不得编造；无 llm_total_tokens 字段时
+写"无 LLM 成本数据"，同样不得编造）。
+提及数字时用固定表述：通过 N、失败 N、跳过 N、覆盖率 P%、复杂度热点未覆盖 M/N、
+token 消耗 输入P/输出C/合计T。
 只输出 JSON：{{"report": "markdown 全文"}}"""
             resp = llm.invoke([("system", REPORT_SYSTEM), ("user", prompt)])
+            log_llm_call(task_id, "gen_report", resp)
             text = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))["report"]
         except Exception as e:              # noqa: BLE001
             log.warning("gen_report LLM 失败，降级确定性模板: %s", e)
@@ -350,6 +371,18 @@ def review_rules(narrative: str, metrics: dict, verdict: str) -> list[str]:
             if (int(m[0]), int(m[1])) != (hs_u, hs_t):
                 reasons.append(f"叙述热点未覆盖 {m[0]}/{m[1]} 与数据 {hs_u}/{hs_t} 不符")
                 break
+    # LLM token 消耗 输入/输出/合计（P1-E 成本口径，同款"出现即比对"）
+    llm_p, llm_c, llm_t = (metrics.get("llm_prompt_tokens"),
+                           metrics.get("llm_completion_tokens"),
+                           metrics.get("llm_total_tokens"))
+    if llm_t is not None:
+        for m in re.findall(r"token\s*消耗\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)",
+                            narrative or ""):
+            if (int(m[0]), int(m[1]), int(m[2])) != (llm_p, llm_c, llm_t):
+                reasons.append(
+                    f"叙述 token 消耗 {m[0]}/{m[1]}/{m[2]} 与数据 "
+                    f"{llm_p}/{llm_c}/{llm_t} 不符")
+            break
     if (verdict == "stop" or metrics.get("failure_kind") == "product_defect") \
             and re.search(r"已解决|全部通过|全部修复|无缺陷|未发现缺陷", narrative or ""):
         reasons.append("归因为疑似产品缺陷，报告却称已解决/无缺陷（防造假红线）")
@@ -381,6 +414,7 @@ def review_report(conn, task_id: int, report_id: int, narrative: str,
 结论是否有指标证据。tool_invocations 与 duration 属评估工具运行中台账，统计时点允许自然漂移，
 不要因此判不一致。只输出 JSON：
 {{"consistent": true/false, "reasons": ["不一致点"]}}""")])
+            log_llm_call(task_id, "review_report", resp)
             data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
             reviewer = "rules+llm"
             if not data.get("consistent"):

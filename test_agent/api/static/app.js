@@ -227,7 +227,8 @@ async function loadReport() {
   const rate = latest && latest.pass_rate != null ? Math.round(latest.pass_rate * 100) : null;
   $("rp-rate").textContent = `通过率 ${rate != null ? rate : "--"}%`;
   $("rp-rate").className = "badge " + (rate >= 70 ? "badge-ok" : rate == null ? "badge-queued" : "badge-fail");
-  // 指标条：五格 = 总数/通过/失败/跳过 + W4 复杂度热点未覆盖（有热点快照的任务才出这格）
+  // 指标条：六格 = 总数/通过/失败/跳过 + W4 复杂度热点未覆盖（有热点快照才出）+
+  // LLM token 合计（P1-E 成本台账有行才出）
   const cells = latest ? [
     ["总数", latest.total, ""], ["通过", latest.passed, "ok"],
     ["失败", latest.failed, "fail"], ["跳过", latest.skipped, ""],
@@ -235,6 +236,8 @@ async function loadReport() {
   if (latest && latest.hotspots) cells.push(
     ["热点未覆盖", `${latest.hotspots.uncovered}/${latest.hotspots.total}`,
      latest.hotspots.uncovered > 0 ? "fail" : "ok"]);
+  if (latest && latest.llm) cells.push(
+    ["LLM token", (latest.llm.total ?? 0).toLocaleString("zh-CN"), ""]);
   $("rp-metrics").innerHTML = latest
     ? cells.map(([k, v, c]) => `<div class="metric"><div class="k">${k}</div><div class="v ${c}">${v ?? 0}</div></div>`).join("")
     : '<div class="metric"><div class="k">暂无报告</div><div class="v">--</div></div>';

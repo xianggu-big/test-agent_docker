@@ -252,6 +252,22 @@ CREATE TABLE IF NOT EXISTS complexity_hotspots (
   UNIQUE(task_id, file, name)
 );
 
+-- 18) LLM 调用成本台账（P1-E：每次真实 LLM 调用一行，token 用量落库。覆盖全部
+--     7 个调用点——节点直调（plan）与 skill func 内调用（gen_tests 主生成/方案C
+--     补生成/rewrite 重写/RTM 映射/报告叙述/报告审查）；论文成本-质量曲线、
+--     "每检出 1 个缺陷的 token 成本"的数据源。usage 缺失（fake-LLM/降级链路）
+--     不落行——诚实不记 0；追加行不 delete-first：跨轮次/回炉的成本累积即口径）
+CREATE TABLE IF NOT EXISTS llm_calls (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id           INTEGER NOT NULL REFERENCES test_tasks(id) ON DELETE CASCADE,
+  phase             TEXT NOT NULL,           -- plan / gen_tests / refill / rewrite / map_rtm / gen_report / review_report
+  prompt_tokens     INTEGER NOT NULL,
+  completion_tokens INTEGER NOT NULL,
+  total_tokens      INTEGER NOT NULL,        -- = prompt + completion（langchain usage_metadata 原值，缺失时按和补）
+  model             TEXT,                    -- config.DEEPSEEK_MODEL 快照（成本换算需按模型计价）
+  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 常用查询索引
 CREATE INDEX IF NOT EXISTS idx_tasks_status     ON test_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_project    ON test_tasks(project_id);
@@ -263,3 +279,4 @@ CREATE INDEX IF NOT EXISTS idx_feedback_report  ON feedback_annotations(report_i
 CREATE INDEX IF NOT EXISTS idx_conditions_task  ON test_conditions(task_id);
 CREATE INDEX IF NOT EXISTS idx_rtm_task         ON rtm_maps(task_id);
 CREATE INDEX IF NOT EXISTS idx_eval_rounds_task ON evaluation_rounds(task_id);
+CREATE INDEX IF NOT EXISTS idx_llm_calls_task   ON llm_calls(task_id);

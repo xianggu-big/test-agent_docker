@@ -20,6 +20,7 @@ from .. import config
 from ..graph.repair import CASE_OWN_DEFECT_ERRORS
 from .gen_tests import _collect_sources, _parse_cases, _sanitize_name, _static_filter, \
     prune_failing_cases
+from .llm_usage import log_llm_call
 
 log = logging.getLogger(__name__)
 
@@ -53,8 +54,11 @@ def build_rewrite_prompt(sources: list[tuple[str, str]], requirement: str,
 {{"imports": "所需的全部 import 语句", "cases": [{{"name": "原名", "code": "def 原名():\\n    ..."}}]}}"""
 
 
-def make_deepseek_fn(api_key: str | None):
-    """生产 LLM 注入器；无 Key 返回 None（策略自动降级为纯剪除，诚实）。"""
+def make_deepseek_fn(api_key: str | None, task_id: int | None = None):
+    """生产 LLM 注入器；无 Key 返回 None（策略自动降级为纯剪除，诚实）。
+
+    task_id 供 llm_calls 成本记账（P1-E）；None 时调用不记账（离线脚本注入场景）。
+    """
     if not api_key:
         return None
     from langchain_openai import ChatOpenAI
@@ -63,7 +67,9 @@ def make_deepseek_fn(api_key: str | None):
                      timeout=90, max_retries=2)
 
     def fn(prompt: str) -> str:
-        return llm.invoke([("system", REWRITE_SYSTEM), ("user", prompt)]).content
+        resp = llm.invoke([("system", REWRITE_SYSTEM), ("user", prompt)])
+        log_llm_call(task_id, "rewrite", resp)
+        return resp.content
 
     return fn
 

@@ -261,6 +261,11 @@ def api_report(tid: int, user: dict = Depends(current_user)):
     hotspots = [dict(r) for r in conn.execute(
         """SELECT file, name, complexity, rank, lineno FROM complexity_hotspots
            WHERE task_id=? ORDER BY complexity DESC""", (tid,))]
+    # LLM 成本台账（P1-E）同为任务级累积口径（跨轮次/回炉调用全计入），历史报告行同值
+    lc = conn.execute(
+        """SELECT COUNT(*) AS calls, SUM(total_tokens) AS total FROM llm_calls
+           WHERE task_id=?""", (tid,)).fetchone()
+    llm = {"calls": lc["calls"], "total": lc["total"]} if lc and lc["calls"] else None
     reports = []
     for r in rows:
         d = dict(r)
@@ -271,6 +276,8 @@ def api_report(tid: int, user: dict = Depends(current_user)):
             cross = hotspot_coverage(hotspots,
                                      json.loads(d["per_file"]) if d["per_file"] else [])
             d["hotspots"] = {"total": cross["total"], "uncovered": cross["uncovered"]}
+        if llm:
+            d["llm"] = llm
         reports.append(d)
     return reports
 
