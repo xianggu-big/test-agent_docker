@@ -14,6 +14,7 @@ import json
 import logging
 import re
 import threading
+import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -21,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import config
 from ..graph.builder import run_task
+from ..sandbox import preflight
 from ..sandbox.runner import SandboxRunner
 from ..skills.gen_tests import _rebuild_imported_file, _sanitize_name
 from ..store import db
@@ -44,6 +46,52 @@ def get_runner() -> SandboxRunner:
     if _runner is None:
         _runner = SandboxRunner()
     return _runner
+
+
+# ---------- 运行环境自检 / 自动补齐（L1 守卫，见 sandbox/preflight.py） ----------
+_ENV_LOCK = threading.Lock()
+_ENV_STATE: dict = {"state": "idle", "message": "尚未检测", "result": None,
+                    "started_at": None, "finished_at": None}
+
+
+def _env_worker() -> None:
+    try:
+        result = preflight.ensure(auto_repair=True)
+    except Exception as e:  # noqa: BLE001 —— 自检自身失败也不能炸服务
+        log.error("环境自检异常: %s: %s", type(e).__name__, e)
+        result = {"ready": False, "items": [], "repaired": [], "failed": ["internal"],
+                  "elapsed_s": 0.0}
+    with _ENV_LOCK:
+        _ENV_STATE.update({
+            "state": "ready" if result.get("ready") else "failed",
+            "message": preflight.summary(result),
+            "result": result,
+            "finished_at": time.time(),
+        })
+
+
+def trigger_env_prepare() -> dict:
+    """触发一次异步环境补齐；已在跑则直接返回当前状态。"""
+    with _ENV_LOCK:
+        if _ENV_STATE["state"] == "running":
+            return dict(_ENV_STATE)
+        _ENV_STATE.update({"state": "running", "message": "正在检测并自动补齐运行环境…",
+                           "result": None, "started_at": time.time(), "finished_at": None})
+    threading.Thread(target=_env_worker, daemon=True).start()
+    return dict(_ENV_STATE)
+
+
+def env_gate() -> None:
+    """L1 环境守卫：不就绪则触发自动补齐并拒绝下发（409），不把环境问题留到图里炸。"""
+    env = preflight.probe()
+    if env["ready"]:
+        return
+    trigger_env_prepare()
+    missing = "、".join(i["label"] for i in env["items"]
+                        if i["blocking"] and i["status"] != "ok")
+    raise HTTPException(
+        409, f"运行环境未就绪（{missing}），已自动开始补齐；"
+             f"进度见环境状态栏，完成后可再次下发")
 
 
 # ---------- 鉴权依赖 ----------
@@ -143,6 +191,8 @@ def api_run(tid: int, user: dict = Depends(staff)):
         raise HTTPException(409, "任务正在执行中")
     if row["confirmed"] != 1:
         raise HTTPException(409, "任务未确认（fail-closed 确认门），禁止下发")
+    # L1 环境守卫：缺 Docker/镜像/工作区时自动开始补齐，不把"环境没准备"留到图里炸
+    env_gate()
     threading.Thread(target=_run_worker, args=(tid,), daemon=True).start()
     return {"task_id": tid, "started": True}
 
@@ -361,6 +411,20 @@ def api_build_image(image: str, user: dict = Depends(admin)):
     if not ok:
         raise HTTPException(500, f"镜像 {image} 构建失败，详见服务端日志")
     return {"image": image, "ready": True}
+
+
+@app.get("/api/env/status")
+def api_env_status(user: dict = Depends(staff)):
+    """环境自检快照（只检测不修复）+ 最近一次自动补齐状态。"""
+    with _ENV_LOCK:
+        state = dict(_ENV_STATE)
+    return {"probe": preflight.probe(), "prepare": state}
+
+
+@app.post("/api/env/prepare")
+def api_env_prepare(user: dict = Depends(staff)):
+    """一键准备：异步启动 Docker / 构建缺失镜像，前端轮询 /api/env/status 看进度。"""
+    return trigger_env_prepare()
 
 
 # ---------- 静态界面（置于 API 路由之后） ----------

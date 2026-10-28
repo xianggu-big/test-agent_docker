@@ -42,6 +42,7 @@ async function doLogin() {
     $("login-mask").classList.add("hidden");
     applyRole();
     route();
+    loadEnv();
   } catch (e) { $("login-err").textContent = e.message; }
 }
 
@@ -291,7 +292,47 @@ async function buildImage(image) {
   catch (e) { alert(e.message); }
 }
 
+/* ---------- 运行环境自检（L1 守卫） ---------- */
+let ENV_TIMER = null;
+async function loadEnv() {
+  try {
+    renderEnv(await api("/env/status"));
+  } catch (e) {
+    $("env-dot").className = "env-dot bad";
+    $("env-text").textContent = "环境检测失败：" + e.message;
+  }
+}
+function renderEnv(b) {
+  const items = (b.probe && b.probe.items) || [];
+  const prep = b.prepare || {};
+  const blocking = items.filter(i => i.blocking && i.status !== "ok");
+  const warn = items.filter(i => !i.blocking && i.status !== "ok");
+  let cls = "ok", text = "环境就绪";
+  if (prep.state === "running") { cls = "busy"; text = prep.message || "环境补齐中…"; }
+  else if (blocking.length) { cls = "bad"; text = "环境未就绪：" + blocking.map(i => i.label).join("、"); }
+  else if (warn.length) { cls = "warn"; text = "环境就绪（" + warn[0].label + "未配置，将诚实降级）"; }
+  $("env-dot").className = "env-dot " + cls;
+  $("env-text").textContent = text;
+  $("env-strip").title = items.map(i => `${i.label}：${i.detail}`).join("\n") +
+    (prep.finished_at ? `\n最近补齐：${prep.message}` : "");
+  $("env-btn").disabled = prep.state === "running";
+  clearTimeout(ENV_TIMER);
+  if (prep.state === "running") ENV_TIMER = setTimeout(loadEnv, 2500);
+}
+async function prepareEnv() {
+  try {
+    $("env-btn").disabled = true;
+    $("env-text").textContent = "已开始自动补齐…";
+    await api("/env/prepare", { method: "POST" });
+    await loadEnv();
+  } catch (e) {
+    $("env-text").textContent = "补齐启动失败：" + e.message;
+    $("env-btn").disabled = false;
+  }
+}
+
 /* ---------- 绑定与启动 ---------- */
+$("env-btn").onclick = prepareEnv;
 $("login-btn").onclick = doLogin;
 $("login-pass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
 $("new-submit").onclick = createTask;
@@ -309,6 +350,6 @@ window.addEventListener("hashchange", route);
   renderStepper("stepper-new", 0);
   renderStepper("stepper-wb", 2);
   if (!localStorage.getItem("token")) { showLogin(); return; }
-  try { ME = await api("/me"); applyRole(); route(); }
+  try { ME = await api("/me"); applyRole(); route(); loadEnv(); }
   catch (_) { /* 401 已弹出登录 */ }
 })();
