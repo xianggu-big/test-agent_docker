@@ -268,14 +268,28 @@ def test_prepare_task_image_auto_mode_build_failure_is_honest():
     assert ok is False and "构建失败" in how
 
 
-def test_auto_prepare_column_migrated():
-    """老库自动补列：init_db 迁移后 test_tasks.auto_prepare 存在且默认 0。"""
+def test_auto_prepare_column_migrated(tmp_path):
+    """老库自动补列：先造缺列的老骨架表，init_db 迁移后 auto_prepare 存在且默认 0。
+
+    原版无参 init_db() 直连真实生产库——测试不得改生产状态（本轮实锤：新表就是
+    被 pytest 静默写进真实库的），且真实库早已新 schema，ALTER 分支根本没测到；
+    改走 tmp 老库，才真正覆盖 _MIGRATIONS 的补列路径。
+    """
+    import sqlite3
+
     from test_agent.store import db as store_db
-    store_db.init_db()                  # 迁移入口（get_conn 本身不跑 ALTER）
-    conn = store_db.get_conn()
+    p = tmp_path / "old.db"
+    old = sqlite3.connect(p)
+    old.execute("CREATE TABLE test_tasks (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                " project_id INTEGER NOT NULL, user_id INTEGER NOT NULL,"
+                " status TEXT)")  # 老骨架：无新列（status 保留——schema 索引引用它）
+    old.commit()
+    old.close()
+    store_db.init_db(p)                  # 迁移入口（get_conn 本身不跑 ALTER）
+    conn = store_db.get_conn(p)
     try:
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(test_tasks)")}
-        assert "auto_prepare" in cols
+        assert "auto_prepare" in cols and "coverage_target" in cols
         row = conn.execute("SELECT auto_prepare FROM test_tasks LIMIT 1").fetchone()
         assert row is None or row["auto_prepare"] in (0, 1)
     finally:
