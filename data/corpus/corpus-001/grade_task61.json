@@ -1,0 +1,47 @@
+{
+ "task_id": 61,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 5,
+ "detected": 1,
+ "uncertain": 2,
+ "not": 2,
+ "recall": 0.2,
+ "extra_suspect": 0,
+ "expected_miss_performance": 0,
+ "witness_note": "宿主重放工作区：1 个失败 nodeid，命中证人 1 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_exact_max_边界值分析",
+    "reason": "该用例断言 check_length('a'*64) is True，恰好落在长度等于 max_len 的边界缺陷上。"
+   },
+   {
+    "id": "D2",
+    "verdict": "not",
+    "by": "",
+    "reason": "该条为占位说明，且证人用例只测长度边界，未触及 has_special 的空格判断。"
+   },
+   {
+    "id": "D3",
+    "verdict": "not",
+    "by": "",
+    "reason": "该条为占位说明，且证人用例未涉及非字符串输入。"
+   },
+   {
+    "id": "D4",
+    "verdict": "uncertain",
+    "by": "test_check_length_exact_max_边界值分析",
+    "reason": "证人用例只直接测 check_length 边界，未断言 strength_score 长度 64 得 5 分，仅间接沾边。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_check_length_exact_max_边界值分析",
+    "reason": "证人用例未调用 is_strong，仅通过 check_length 边界间接关联该表现。"
+   }
+  ],
+  "extra_suspect": []
+ }
+}

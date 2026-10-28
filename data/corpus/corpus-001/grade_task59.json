@@ -1,0 +1,52 @@
+{
+ "task_id": 59,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 5,
+ "detected": 1,
+ "uncertain": 2,
+ "not": 2,
+ "recall": 0.2,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "witness_note": "宿主重放工作区：2 个失败 nodeid，命中证人 2 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_max_boundary_边界值分析",
+    "reason": "该用例断言 check_length('A'*64, 8, 64) is True，恰好落在 max_len 闭区间边界上，直接命中 n >= max_len 的 off-by-one。"
+   },
+   {
+    "id": "D2",
+    "verdict": "not",
+    "by": "",
+    "reason": "答案键自述该函数无缺陷，且证人用例均未涉及 has_special 或空格输入。"
+   },
+   {
+    "id": "D3",
+    "verdict": "not",
+    "by": "",
+    "reason": "答案键自述非字符串输入不在契约内、不可断言，证人用例也未涉及非字符串输入。"
+   },
+   {
+    "id": "D4",
+    "verdict": "uncertain",
+    "by": "test_check_length_max_boundary_边界值分析",
+    "reason": "证人用例只直接测 check_length 的 64 边界，未测 strength_score 长度 64 的计分，仅通过根因间接沾边。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_custom_bounds_判定表",
+    "reason": "该用例测 is_strong 但用的是自定义边界 (4,8) 且长度 8 恰为 max_len，可能触发同类边界缺陷，但输入与答案键的默认边界 64 场景不同，证据不足。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_custom_bounds_判定表",
+    "reason": "若 is_strong 正确转发自定义 min/max 给 check_length，则长度 8 等于 max_len=8 会因同一 off-by-one 返回 False，可暴露 check_length 缺陷在自定义边界下的传播，答案键未覆盖自定义边界场景。"
+   }
+  ]
+ }
+}

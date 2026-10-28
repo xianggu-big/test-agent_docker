@@ -1,0 +1,52 @@
+{
+ "task_id": 57,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 5,
+ "detected": 2,
+ "uncertain": 1,
+ "not": 2,
+ "recall": 0.4,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_default_exact_max_边界值分析",
+    "reason": "该用例断言 check_length('A' * 64) is True，恰好落在 max_len=64 的闭区间边界上，直接命中 check_length 的 off-by-one 缺陷。"
+   },
+   {
+    "id": "D2",
+    "verdict": "not",
+    "by": "",
+    "reason": "答案键自述该函数无缺陷，且没有任何证人用例涉及空格或特殊字符判断。"
+   },
+   {
+    "id": "D3",
+    "verdict": "not",
+    "by": "",
+    "reason": "答案键自述非字符串输入不在契约内、无法构成可断言缺陷，证人用例也全部使用字符串输入。"
+   },
+   {
+    "id": "D4",
+    "verdict": "uncertain",
+    "by": "test_check_length_default_exact_max_边界值分析",
+    "reason": "证人用例只直接断言 check_length 的边界，未断言 strength_score 在长度 64 时的得分，故对 D4 仅间接沾边、证据不足。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_custom_exact_max_边界值分析",
+    "reason": "该用例断言 is_strong('Ab1!xxxxxx', 5, 10) is True，长度恰为 max_len=10 的强密码，直接命中 is_strong 边界误判。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_custom_exact_max_边界值分析",
+    "reason": "断言 check_length('abcdefghij', 5, 10) is True，同样落在自定义 max_len 边界，与 D1 同源，可视为 D1 的补充证据而非新缺陷。"
+   }
+  ]
+ }
+}

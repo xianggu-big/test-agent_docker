@@ -1,0 +1,47 @@
+{
+ "task_id": 58,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 5,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 4,
+ "recall": 0.2,
+ "extra_suspect": 0,
+ "expected_miss_performance": 0,
+ "witness_note": "宿主重放工作区：1 个失败 nodeid，命中证人 1 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_max_boundary_边界值分析",
+    "reason": "该用例断言 check_length('A'*64, 8, 64) is True，恰好落在 max_len 边界上，直接命中 n >= max_len 的差一错误。"
+   },
+   {
+    "id": "D2",
+    "verdict": "not",
+    "by": "",
+    "reason": "该条为占位说明，且证人用例只测长度边界，未触及 has_special 的空格行为。"
+   },
+   {
+    "id": "D3",
+    "verdict": "not",
+    "by": "",
+    "reason": "该条为占位说明，证人用例未涉及非字符串输入。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只测 check_length，未调用 strength_score，未覆盖长度 64 少得 1 分的计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例未调用 is_strong，未覆盖边界长度强密码被误判为弱密码的表现。"
+   }
+  ],
+  "extra_suspect": []
+ }
+}
