@@ -9,6 +9,7 @@
 
 启动：python -m uvicorn test_agent.api.server:app --port 8000  （禁用 --reload 跑真任务）
 """
+import base64
 import hashlib
 import json
 import logging
@@ -263,6 +264,27 @@ def api_report(tid: int, user: dict = Depends(current_user)):
         d["pass_rate"] = round(d["passed"] / total, 4) if total else None
         reports.append(d)
     return reports
+
+
+@app.get("/api/tasks/{tid}/charts")
+def api_charts(tid: int, user: dict = Depends(current_user)):
+    """报告图表内嵌（gen_charts 产物）：base64 data URL 返回，随报告页一起看。
+
+    图文件在 data/reports/charts/task_{tid}_*.png，任务未跑评估阶段时为空数组。
+    """
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    titles = {"rtm": "RTM 需求覆盖", "coverage_trend": "覆盖率趋势（R-Loop 轮次）",
+              "verdicts": "R-Loop 判定分布", "tools": "评估工具耗时"}
+    out = []
+    charts_dir = config.DATA_DIR / "reports" / "charts"
+    if charts_dir.exists():
+        for p in sorted(charts_dir.glob(f"task_{tid}_*.png")):
+            key = p.stem.replace(f"task_{tid}_", "")
+            out.append({"name": p.name, "title": titles.get(key, key),
+                        "data_url": "data:image/png;base64,"
+                                    + base64.b64encode(p.read_bytes()).decode()})
+    return out
 
 
 @app.get("/api/tasks/{tid}/rtm")

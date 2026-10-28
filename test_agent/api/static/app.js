@@ -217,10 +217,11 @@ function switchRp(which) {
 async function loadReport() {
   const tid = $("rp-task").value;
   if (!tid) return;
-  const [reports, logs, rtm] = await Promise.all([
+  const [reports, logs, rtm, charts] = await Promise.all([
     api(`/tasks/${tid}/report`).catch(() => []),
     api(`/tasks/${tid}/logs`).catch(() => []),
     api(`/tasks/${tid}/rtm`).catch(() => null),
+    api(`/tasks/${tid}/charts`).catch(() => []),
   ]);
   const latest = reports[0];
   const rate = latest && latest.pass_rate != null ? Math.round(latest.pass_rate * 100) : null;
@@ -239,10 +240,18 @@ async function loadReport() {
       (rev.reasons && rev.reasons.length ? ` ${esc(rev.reasons.join("; "))}` : "") + `</div>` : "";
   const narr = latest && latest.narrative
     ? `<pre class="code-view" style="white-space:pre-wrap">${esc(latest.narrative)}</pre>` : "";
-  $("rp-overview").innerHTML = revBadge + narr +
+  const summaryHtml = revBadge + narr +
     logs.filter(l => l.content.includes("[evaluate") || l.content.includes("[digest") || l.content.includes("[analyze") || l.content.includes("[review"))
       .map(l => `<div class="log-line">${esc(l.content)}</div>`).join("")
     || '<div class="hint">暂无评估摘要</div>';
+  // 图表内嵌（gen_charts 产物经 /charts 端点转 base64 data URL）——先拼摘要再加图，
+  // 避免 `+` 与 `||` 优先级把图接进"暂无"分支
+  const chartsHtml = charts && charts.length
+    ? '<div class="charts-grid">' + charts.map(c =>
+        `<figure class="chart-fig"><figcaption>${esc(c.title)}</figcaption>` +
+        `<img src="${c.data_url}" alt="${esc(c.title)}" loading="lazy"></figure>`).join("") + "</div>"
+    : "";
+  $("rp-overview").innerHTML = summaryHtml + chartsHtml;
 
   // RTM 矩阵 + 用例六要素（测试分析/设计阶段的可追溯性展示）
   if (rtm && (rtm.matrix.length || rtm.cases.length)) {
