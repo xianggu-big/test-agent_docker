@@ -1,13 +1,15 @@
 {
  "task_id": 71,
  "corpus_id": "corpus-001",
- "planted_assertion": 5,
+ "planted_assertion": 3,
  "detected": 1,
  "uncertain": 2,
- "not": 2,
- "recall": 0.2,
+ "not": 0,
+ "recall": 0.33,
  "extra_suspect": 2,
  "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "recompute_note": "2026-10-29 decoy 分母修正重算（仲裁判决沿用原明细，未重调 LLM）",
  "witness_note": "宿主重放工作区：5 个失败 nodeid，命中证人 5 条",
  "detail": {
   "matches": [

@@ -1,11 +1,15 @@
 """盲测语料阅卷 —— 答题人的缺陷报告 ↔ 出题人 answer key 对齐（三方盲测协议第三角色）。
 
-用法：python scripts/grade_corpus.py <task_id> <corpus_id> [--dry]
+用法：python scripts/grade_corpus.py <task_id> <corpus_id> [--dry] [label]
+      python scripts/grade_corpus.py --recompute <corpus_id> [--dry]   # 协议修正离线重算
 阅卷对象 = 该任务证人用例（最新一轮 run 中断言失败且被冻结的用例，即"疑似缺陷报告"单元）。
 证人名单来源：宿主本地重放工作区（run_task 每次 clone 重建 data/workspaces/task_<id>，
 该目录即最后一轮的确切文件集；语料为纯标准库项目，宿主重放与容器执行语义等价）。
 输出 = 每条 planted_defect 的 detected/not/uncertain + extra_suspect 清单 + 指标；
 明细落 data/corpus/<corpus_id>/grade_task<task_id>.json，摘要追加 docs/链路方法测试文档.md §5。
+recall 分母 = 答案键中 detectable_by=assertion 且非 decoy 的真实缺陷（占位说明条目
+ground_truth 标 decoy:true，出题人自述无真实缺陷，判它 not 是正确行为不算漏检——
+协议见链路方法测试文档 §2；--recompute 沿用已落盘的仲裁判决按新分母离线重算，不调 LLM）。
 
 诚实边界：对齐仲裁用 LLM（DeepSeek），结果需人工抽查（spot_check.py 抽 20%）；
 证人用例可能只是"撞上缺陷的输入"，LLM 负责判断其断言意图与哪个植入缺陷对应；
@@ -73,12 +77,51 @@ def witnesses_of(task_id: int) -> tuple[list[dict], str]:
     return out, note
 
 
+def split_planted(gt: dict) -> tuple[list[dict], list[dict], list[dict]]:
+    """答案键三分类：(可断言真实缺陷, decoy 占位说明, 预期漏检)。
+    decoy=true 且 detectable_by=assertion → 占位：出题人自述无真实缺陷，
+    不进 recall 分母（判它 not 是正确行为不算漏检）。
+    老 ground_truth 无 decoy 字段时行为与旧口径逐字节一致（全进第一类）。"""
+    planted, decoys, expected_miss = [], [], []
+    for d in gt["planted_defects"]:
+        if d.get("detectable_by") != "assertion":
+            expected_miss.append(d)
+        elif d.get("decoy"):
+            decoys.append(d)
+        else:
+            planted.append(d)
+    return planted, decoys, expected_miss
+
+
+def compute_metrics(task_id: int, corpus_id: str, matches: list[dict],
+                    planted: list[dict], extra_count: int,
+                    expected_miss_count: int) -> dict:
+    """从仲裁判决算指标（纯函数，grade 与 recompute 共用同一口径）。
+    只认 planted 内 id 的判决——decoy 与幻觉 id 一律不计入任何计数；
+    planted 为空时 recall=None（不除零）。"""
+    planted_ids = {d["id"] for d in planted}
+    valid = [x for x in matches if x.get("id") in planted_ids]
+    detected = [x for x in valid if x["verdict"] == "detected"]
+    uncertain = [x for x in valid if x["verdict"] == "uncertain"]
+    # 缺判决的 planted 条目也计 not（没有任何用例触及），保指标自洽
+    not_n = len(planted_ids - {x["id"] for x in valid}) + sum(
+        1 for x in valid if x["verdict"] == "not")
+    return {
+        "task_id": task_id, "corpus_id": corpus_id,
+        "planted_assertion": len(planted), "detected": len(detected),
+        "uncertain": len(uncertain),
+        "not": not_n,
+        "recall": round(len(detected) / len(planted), 2) if planted else None,
+        "extra_suspect": extra_count,
+        "expected_miss_performance": expected_miss_count,
+    }
+
+
 def grade(task_id: int, corpus_id: str, dry: bool = False,
           label: str = "默认组 V2-V4=True, V1=prune") -> dict:
     gt_path = ROOT / "data" / "corpus" / corpus_id / "ground_truth.json"
     gt = json.loads(gt_path.read_text(encoding="utf-8"))
-    planted = [d for d in gt["planted_defects"] if d.get("detectable_by") == "assertion"]
-    expected_miss = [d for d in gt["planted_defects"] if d.get("detectable_by") != "assertion"]
+    planted, decoys, expected_miss = split_planted(gt)
     witnesses, witness_note = witnesses_of(task_id)
     if not witnesses:
         err = {"error": "该任务无证人用例（可能全过/未跑完/重放名单与用例库无交集），无法阅卷",
@@ -117,18 +160,11 @@ def grade(task_id: int, corpus_id: str, dry: bool = False,
         return {"error": "仲裁 LLM 输出不可解析", "raw": raw[-300:]}
     verdict = json.loads(m.group(0))
 
-    detected = [x for x in verdict["matches"] if x["verdict"] == "detected"]
-    uncertain = [x for x in verdict["matches"] if x["verdict"] == "uncertain"]
-    metrics = {
-        "task_id": task_id, "corpus_id": corpus_id,
-        "planted_assertion": len(planted), "detected": len(detected),
-        "uncertain": len(uncertain), "not": len(verdict["matches"]) - len(detected) - len(uncertain),
-        "recall": round(len(detected) / len(planted), 2) if planted else None,
-        "extra_suspect": len(verdict.get("extra_suspect", [])),
-        "expected_miss_performance": len(expected_miss),
-        "witness_note": witness_note,
-        "detail": verdict,
-    }
+    metrics = compute_metrics(task_id, corpus_id, verdict["matches"], planted,
+                              len(verdict.get("extra_suspect", [])), len(expected_miss))
+    metrics["decoy_excluded"] = len(decoys)
+    metrics["witness_note"] = witness_note
+    metrics["detail"] = verdict
     print(json.dumps(metrics, ensure_ascii=False, indent=1))
     if not dry:
         # 明细落盘（20% 人工抽查与论文复现的数据源）
@@ -144,7 +180,45 @@ def grade(task_id: int, corpus_id: str, dry: bool = False,
     return metrics
 
 
+def recompute(corpus_id: str, dry: bool = False) -> list[dict]:
+    """协议修正离线重算：复用已落盘明细的仲裁判决（detail.matches，不调 LLM），
+    按当前 ground_truth 三分类重算全部指标并写回。幂等：重算两遍结果一致。
+    保留字段：witness_note / detail / extra_suspect（顶层计数）；新增
+    decoy_excluded 与 recompute_note 溯源。无证人/出错的明细文件跳过并如实报告。"""
+    cdir = ROOT / "data" / "corpus" / corpus_id
+    gt = json.loads((cdir / "ground_truth.json").read_text(encoding="utf-8"))
+    planted, decoys, expected_miss = split_planted(gt)
+    out = []
+    for gf in sorted(cdir.glob("grade_task*.json")):
+        tid = int(re.search(r"grade_task(\d+)", gf.name).group(1))
+        m = json.loads(gf.read_text(encoding="utf-8"))
+        matches = m.get("detail", {}).get("matches")
+        if matches is None:
+            print(f"跳过 {gf.name}：无 detail.matches（可能是出错占位明细）")
+            continue
+        new = compute_metrics(tid, corpus_id, matches, planted,
+                              m.get("extra_suspect", 0), len(expected_miss))
+        new["decoy_excluded"] = len(decoys)
+        new["recompute_note"] = "2026-10-29 decoy 分母修正重算（仲裁判决沿用原明细，未重调 LLM）"
+        new["witness_note"] = m.get("witness_note", "")
+        new["detail"] = m["detail"]
+        out.append(new)
+        if not dry:
+            gf.write_text(json.dumps(new, ensure_ascii=False, indent=1) + "\n",
+                          encoding="utf-8")
+        print(f"{gf.name}: planted={new['planted_assertion']} detected={new['detected']} "
+              f"recall={new['recall']} (decoy_excluded={new['decoy_excluded']})")
+    return out
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == "--recompute":
+        # 用法：grade_corpus.py --recompute <corpus_id> [--dry]
+        if len(sys.argv) < 3:
+            print(__doc__)
+            sys.exit(1)
+        recompute(sys.argv[2], dry="--dry" in sys.argv)
+        sys.exit(0)
     if len(sys.argv) < 3:
         print(__doc__)
         sys.exit(1)

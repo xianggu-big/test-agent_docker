@@ -25,7 +25,8 @@
       "location": "discount_engine.py::settle_order",
       "description": "需求规定应先按原样累加所有项得到 subtotal，再检查 qty；实现先累加再检查，顺序正确。但需求规定 qty <= 0 视为非法订单返回 (subtotal, 0, subtotal, \"invalid_quantity\")；实现使用 item.get(\"qty\", 0) <= 0 判断，当 qty 为 0 时返回 invalid_quantity，符合需求。此处实际缺陷：需求规定空列表返回 empty_order，实现先累加再判断 not items，顺序正确。未发现缺失错误处理。",
       "expected_assertion": "待替换。",
-      "detectable_by": "assertion"
+      "detectable_by": "assertion",
+      "decoy": true
     },
     {
       "id": "D4",

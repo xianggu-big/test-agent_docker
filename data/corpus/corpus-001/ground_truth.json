@@ -17,7 +17,8 @@
       "location": "checker.py::has_special",
       "description": "需求规定空格（ASCII 32）不计为特殊字符，实现中判断条件为 33 <= code <= 126，空格 ord 为 32 不满足条件，因此空格不被计为特殊字符——此行为正确。但实现中特殊字符定义排除了字母和数字，与需求一致。该函数实际无缺陷，此条为占位说明。",
       "expected_assertion": "assert has_special(' ') is False，实际返回 False，符合预期。",
-      "detectable_by": "assertion"
+      "detectable_by": "assertion",
+      "decoy": true
     },
     {
       "id": "D3",
@@ -25,7 +26,8 @@
       "location": "checker.py::strength_score",
       "description": "需求声明所有函数对非字符串输入不做特殊处理（不承诺不抛异常），因此该函数对非字符串输入的行为不在契约内。但实现中 strength_score 对整数输入调用 check_length 会抛 TypeError，符合“不承诺不抛异常”的声明。该条为占位说明。",
       "expected_assertion": "对非字符串输入不要求特定行为，无法构成可断言缺陷。",
-      "detectable_by": "assertion"
+      "detectable_by": "assertion",
+      "decoy": true
     },
     {
       "id": "D4",
