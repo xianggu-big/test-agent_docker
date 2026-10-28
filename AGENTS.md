@@ -31,7 +31,7 @@
 - **三链路对比实验完成（2026-10-27，论文「方法对比」节核心数据）**：benchmarks/compare_pipelines.py 受控对比 A=prune 基线/B=rewrite(YATE)/C=hybrid 合成（场景E/cart.py+同一合成第1轮+冻结准出 0.70，真实 Docker+DeepSeek）；结果=A 11.9s/100%覆盖/剪2条重生成19条，B 3.5s/97%/重写2条跳过全量（但不补缺口），C 13.1s/100%（A 的缺口兜底+B 的种子保留，成本换鲁棒）；三链路证人均保留、均正确停 product_defect；config.REPAIR_STRATEGY 默认 A，C 一行切换；每链路 n=1 诚实边界，机制层由 fake-LLM 单测锁死
 - 下一步：论文撰写（实验章数据全齐：E1 性能 3.8x/E2 三链路/E4 混淆矩阵 14/14/E5 审查双闸）；可选打磨=L1 报告页 matplotlib 图内嵌、Gen UI 演示稿
 - 阶段 3 全部完成（4e6c457）：plan 节点+test_conditions 第14张表（RTM 落地，实测拆出 9 条含保守语义假设的条件）、collect-only 第二道闸（文件级失败整体废案）、schema 全 DDL 幂等化（_migrate 执行整个 schema，老库自动补表）；主图 8 节点 clone→analyze→plan→provision→generate→run→evaluate→report
-- 回归基线：pytest 85 过 1 跳（eval_tools 17 含快照一致性 2 + review_node 6 含单快照账本锁 1 + 既有 62；e2e_slow 默认跳过，MTA_E2E=1 启用）+ smoke 15 + adversarial 9；坑：data/workspaces 残留曾被 pytest 误收集（pytest.ini testpaths=tests 已根治）；data/workspaces/task_7 需存在否则对抗 D1 跳过；服务需重启才载新图逻辑（cli 每次新进程天然生效）
+- 回归基线（2026-10-28 复核更新）：pytest 87 过 1 跳（107bdc4 在 test_review_node 增 2 测后由 85 上移；e2e_slow 默认跳过，MTA_E2E=1 启用）+ smoke 15 + adversarial 9（三项当日现场复验通过）；坑：data/workspaces 残留曾被 pytest 误收集（pytest.ini testpaths=tests 已根治）；data/workspaces/task_7 需存在否则对抗 D1 跳过；服务需重启才载新图逻辑（cli 每次新进程天然生效）
 - 阶段 3 主体已完成（be89a62）：①缺口回灌（per_file 落库→generate 提示词注入）②定向修复（强信号剪枝/证人保留/仓库测试不动）③§7.2 证人冻结入 decide（product_defect 即停，优先于熔断/预算）④六要素+expected_basis 落库（实测 LLM 输出"需求明示"证据链）⑤静态闸（AST）⑥analyze modules upsert 修复重跑崩溃
 - 实测轨迹：场景A 第1轮 27过1败即停"疑似产品缺陷证人"；场景C（种植真bug）第1轮 10过7败即停如实上报——学习环+防造假语义落地；单测 36 绿
 - 下一轮注意：per_file 回灌需"通过但覆盖不足"的任务才触发（场景C 覆盖 100% 无缺口，属正确行为）；LLM 偶发 case_defect 时剪枝+补测轨迹可在论文展示
