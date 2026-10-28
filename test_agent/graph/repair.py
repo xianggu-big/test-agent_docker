@@ -30,6 +30,24 @@ def failing_nodeids(stdout: str) -> list[str]:
     return out
 
 
+def assertion_failure_nodeids(stdout: str) -> list[str]:
+    """断言失败用例 nodeid —— §7.2 缺陷证人候选（V8：冻结后继续补测）。
+
+    只认 FAILED 行且错误消息含 assert 断言失败；ImportError 等用例自身坏掉
+    的强信号不算证人（那些走定向修复剪枝，不是产品缺陷证据）。
+    """
+    out = []
+    for l in stdout.splitlines():
+        l = l.strip()
+        if not l.startswith("FAILED") or " - " not in l:
+            continue
+        parts = l.split(" - ", 1)
+        head = parts[0].split(None, 1)
+        if len(head) > 1 and "::" in head[1] and "assert" in parts[1].lower():
+            out.append(head[1].strip())
+    return out
+
+
 def error_class_of(stdout: str, nodeid: str) -> str:
     """提取某 nodeid 的错误类名；找不到返回空串（未知 → 不剪，保守）。"""
     for l in stdout.splitlines():
@@ -41,13 +59,21 @@ def error_class_of(stdout: str, nodeid: str) -> str:
     return ""
 
 
-def fingerprint_of(stdout: str, stderr: str) -> str:
+def fingerprint_of(stdout: str, stderr: str,
+                   exclude_nodeids: tuple[str, ...] = ()) -> str:
     """失败指纹 = pytest 短摘要（-rfE 的 FAILED/ERROR 行）规整后哈希。
 
     只保留 用例定位 + 错误类型，去掉具体数值消息 —— 断言值变了但错在同一个
     地方仍算同指纹（Agent 换个预期值再撞一次墙，就该熔断）。
+    exclude_nodeids：冻结证人（V8）的失败行不进指纹——有意保留的证人每轮
+    必失败，算进指纹会在 FINGERPRINT_BREAKER 内误触熔断（打转≠挂账）。
     """
     lines = [l.strip() for l in stdout.splitlines() if l.startswith(("FAILED", "ERROR"))]
+    if exclude_nodeids:
+        lines = [l for l in lines
+                 if not any(nid in l.split(" - ", 1)[0] for nid in exclude_nodeids)]
+        if not lines:
+            return ""   # 冻结证人之外无失败行：空指纹，不参与熔断（区别于下面的输出崩溃兜底）
     if not lines:
         # 无短摘要的失败（收集错误/崩溃等）：退化为输出尾部哈希
         tail = "\n".join((stderr or stdout).strip().splitlines()[-5:])
@@ -93,12 +119,15 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
 
 def decide(exit_code: int, stdout: str, stderr: str, fingerprints: list[str],
            fingerprint: str, round_no: int, coverage_line: float | None,
-           coverage_target: float | None = None) -> tuple[str, str, str]:
+           coverage_target: float | None = None,
+           witness_nodeids: list[str] | None = None) -> tuple[str, str, str]:
     """R-Loop 判定。返回 (verdict, failure_kind, stop_reason)。
 
     verdict ∈ pass / repair_env / repair_gen / stop
     coverage_target 用任务行冻结的准出标准（A1），不传时退回全局配置。
     覆盖率解析失败（None）按"未知"处理：不算达标，走补测获取数据（A8）。
+    witness_nodeids：V8（证人冻结+继续补测）开启时由 evaluate 传入累积证人
+    列表；None=开关关，product_defect 首轮即停（既有口径，逐字节不变）。
     """
     kind = classify_failure(exit_code, stdout, stderr)
     target = coverage_target if coverage_target is not None else config.COVERAGE_TARGET
@@ -111,7 +140,22 @@ def decide(exit_code: int, stdout: str, stderr: str, fingerprints: list[str],
     # 1.5) 疑似产品缺陷（vision-and-gaps §7.2）：断言失败=缺陷证人，冻结并如实上报，
     #      不重造用例迁就（防造假）。宁可误报不可造假——误判由人工标注与变异标定纠偏。
     if exit_code != 0 and kind == "product_defect":
-        return "stop", kind, "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+        if witness_nodeids is None:
+            return "stop", kind, "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+        # V8：证人已冻结挂账，不再首轮停——非证人失败照常分流，只剩证人则按覆盖率决定
+        witness_set = set(witness_nodeids)
+        others = [n for n in failing_nodeids(stdout) if n not in witness_set]
+        if not others:
+            if coverage_ok:
+                return "stop", kind, (f"补测完成：非证人用例全部通过且覆盖率 {coverage_line:.0%} 达标，"
+                                      f"冻结证人 {len(witness_set)} 条如实上报疑似产品缺陷（V8）")
+            cov_desc = "未知（解析失败）" if coverage_line is None else f"{coverage_line:.0%}"
+            if round_no >= config.MAX_REPAIR_ROUNDS:
+                return "stop", kind, (f"冻结证人 {len(witness_set)} 条如实上报疑似产品缺陷，"
+                                      f"覆盖率 {cov_desc} 未达标且补测预算耗尽（V8）")
+            return "repair_gen", kind, (f"证人 {len(witness_set)} 条已冻结挂账，"
+                                        f"覆盖率 {cov_desc} 未达准出标准，继续补测（V8）")
+        # 还有非证人失败 → 落到 2)/3)/4) 常规分流（熔断/预算只看排除证人后的指纹）
 
     # 2) 指纹熔断（空指纹不参与）
     if fingerprint:

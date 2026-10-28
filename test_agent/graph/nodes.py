@@ -323,12 +323,23 @@ def make_nodes(deps: GraphDeps) -> dict:
         if m := re.search(r"TOTAL.*?\s(\d+)%", stdout):
             coverage = int(m.group(1)) / 100
 
-        fp = repair.fingerprint_of(stdout, stderr)
+        # V8 证人冻结+继续补测：断言失败用例累积为冻结证人（当轮产生当轮生效），
+        # 证人的失败指纹不参与熔断——有意保留≠原地打转；开关关时下面三处与
+        # 既有口径逐字节一致（witness 恒空、fp 不排除、decide 不传证人）。
+        witness = list(state.get("witness_nodeids") or [])
+        if config.WITNESS_CONTINUE_ENABLED:
+            for nid in repair.assertion_failure_nodeids(stdout):
+                if nid not in witness:
+                    witness.append(nid)
+        fp = repair.fingerprint_of(
+            stdout, stderr,
+            exclude_nodeids=tuple(witness) if config.WITNESS_CONTINUE_ENABLED else ())
         verdict, kind, reason = repair.decide(
             state.get("last_exit", 1), stdout, stderr,
             state.get("fingerprints", []), fp,
             state.get("round_no", 0), coverage,
-            state.get("coverage_target"))
+            state.get("coverage_target"),
+            witness_nodeids=witness if config.WITNESS_CONTINUE_ENABLED else None)
         round_no = state.get("round_no", 0)
         # P1-③：每轮评估结构化落库（evaluation_rounds，轨迹唯一真源）——此前只写
         # 叙述消息，collect_metrics 靠正则解析散文取轨迹，措辞一变即静默清空。
@@ -349,6 +360,7 @@ def make_nodes(deps: GraphDeps) -> dict:
                 "coverage_line": coverage, "per_file": _parse_per_file_coverage(stdout),
                 "fingerprint": fp, "failure_kind": kind,
                 "verdict": verdict, "stop_reason": reason,
+                "witness_nodeids": witness,
                 "fingerprints": state.get("fingerprints", []) + [fp]}
 
     # ---------- 7. 报告落库 + 诚实复盘 ----------

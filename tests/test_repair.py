@@ -184,3 +184,82 @@ def test_decide_budget_with_low_coverage():
     verdict, _, reason = _decide(coverage_line=0.5, round_no=config.MAX_REPAIR_ROUNDS)
     assert verdict == "stop"
     assert "预算" in reason
+
+
+# —— V8：证人冻结 + 继续补测（witness_nodeids 传入即开关开） ——
+
+def test_fingerprint_excludes_frozen_witness():
+    """V8：冻结证人的失败行不进指纹——只剩证人失败时指纹为空（不熔断）。"""
+    only_witness = repair.fingerprint_of(
+        "FAILED t.py::test_w - AssertionError: assert 2.0 == 5\n", "",
+        exclude_nodeids=("t.py::test_w",))
+    assert only_witness == ""
+    with_other = repair.fingerprint_of(
+        "FAILED t.py::test_w - AssertionError: assert 2.0 == 5\n"
+        "FAILED t.py::test_x - TypeError: boom\n", "",
+        exclude_nodeids=("t.py::test_w",))
+    assert with_other == repair.fingerprint_of("FAILED t.py::test_x - TypeError: boom\n", "")
+
+
+def test_assertion_failure_nodeids_picks_assertion_only():
+    """证人候选只认断言失败；ImportError 等用例自身坏掉的强信号不算证人。"""
+    out = repair.assertion_failure_nodeids(
+        "FAILED t.py::test_a - AssertionError: assert 1 == 2\n"
+        "FAILED t.py::test_b - ImportError: No module named 'x'\n"
+        "some other line\n")
+    assert out == ["t.py::test_a"]
+
+
+def test_decide_v8_continues_when_only_witness_fails_and_coverage_low():
+    verdict, kind, reason = _decide(
+        exit_code=1, stdout=FAIL_STDOUT, fingerprint="",
+        coverage_line=0.5, witness_nodeids=["test_calc.py::test_div_wrong_expectation"])
+    assert verdict == "repair_gen" and kind == "product_defect"
+    assert "继续补测" in reason
+
+
+def test_decide_v8_stops_with_witness_report_when_coverage_met():
+    """V8 终态：非证人全过+覆盖达标 → stop，证人如实上报（不叫 pass）。"""
+    verdict, kind, reason = _decide(
+        exit_code=1, stdout=FAIL_STDOUT, fingerprint="",
+        coverage_line=1.0, witness_nodeids=["test_calc.py::test_div_wrong_expectation"])
+    assert verdict == "stop" and kind == "product_defect"
+    assert "证人" in reason and "如实上报" in reason
+
+
+def test_decide_v8_coverage_unknown_continues():
+    verdict, _, reason = _decide(
+        exit_code=1, stdout=FAIL_STDOUT, fingerprint="",
+        coverage_line=None, witness_nodeids=["test_calc.py::test_div_wrong_expectation"])
+    assert verdict == "repair_gen" and "继续补测" in reason
+
+
+def test_decide_v8_budget_exhausted_stops_with_witness():
+    """V8 的继续补测不绕过预算：耗尽即停，证人照常如实上报。"""
+    verdict, _, reason = _decide(
+        exit_code=1, stdout=FAIL_STDOUT, fingerprint="",
+        round_no=config.MAX_REPAIR_ROUNDS, coverage_line=0.5,
+        witness_nodeids=["test_calc.py::test_div_wrong_expectation"])
+    assert verdict == "stop" and "预算" in reason and "证人" in reason
+
+
+def test_decide_v8_new_non_witness_failure_breaks_normally():
+    """证人不豁免新失败：非证人同指纹重复仍熔断（防真打转被 V8 掩护）。"""
+    stdout = ("FAILED test_calc.py::test_div_wrong_expectation - AssertionError: assert 2.0 == 5\n"
+              "FAILED t.py::test_new - TypeError: boom\n")
+    fp = repair.fingerprint_of(stdout, "",
+                               exclude_nodeids=("test_calc.py::test_div_wrong_expectation",))
+    verdict, _, reason = _decide(
+        exit_code=1, stdout=stdout, fingerprints=[fp], fingerprint=fp,
+        coverage_line=1.0, witness_nodeids=["test_calc.py::test_div_wrong_expectation"])
+    assert verdict == "stop" and "熔断" in reason
+
+
+def test_decide_v8_witness_birth_round_with_other_failure_routes_repair():
+    """证人产生当轮（evaluate 先累积再判定）+非证人失败 → 常规 repair_gen 分流。"""
+    stdout = ("FAILED test_calc.py::test_div_wrong_expectation - AssertionError: assert 2.0 == 5\n"
+              "FAILED t.py::test_x - TypeError: boom\n")
+    verdict, kind, _ = _decide(
+        exit_code=1, stdout=stdout, fingerprint="f1", coverage_line=0.5,
+        witness_nodeids=["test_calc.py::test_div_wrong_expectation"])
+    assert verdict == "repair_gen" and kind == "product_defect"

@@ -21,6 +21,7 @@ class TaskState(TypedDict, total=False):
     coverage_target: float   # 准出标准（分析阶段冻结进任务行，A1）
     fingerprints: list[str]  # 历史轮失败指纹（含当前轮之前的）
     fingerprint: str         # 当前轮指纹
+    witness_nodeids: list[str]  # 冻结证人（V8）：断言失败用例累积，指纹熔断豁免
     failure_kind: str        # none / env / case_defect / product_defect
     # 最近一轮执行
     last_exit: int
