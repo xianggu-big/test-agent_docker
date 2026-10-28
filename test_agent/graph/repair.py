@@ -83,8 +83,9 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
         return "env"
     if re.search(r"no tests ran", text, re.I):
         return "case_defect"      # 没有可跑的用例 → 用例侧问题
-    if re.search(r"(ImportError|ModuleNotFoundError|AttributeError|SyntaxError)", text):
-        return "case_defect"      # 用例引用了不存在的东西 / 写错了
+    if re.search(r"(ImportError|ModuleNotFoundError|AttributeError|SyntaxError"
+                 r"|NameError|UnboundLocalError)", text):
+        return "case_defect"      # 用例引用了不存在的东西 / 写错了（与 CASE_OWN_DEFECT_ERRORS 同口径）
     if "FAILED" in text or "AssertionError" in text:
         return "product_defect"   # 断言合理但行为不符 → 疑似产品缺陷
     return "env"                  # 其余先按环境问题处理（重装依赖重试一次）

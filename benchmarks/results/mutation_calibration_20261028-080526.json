@@ -1,0 +1,153 @@
+{
+  "samples": [
+    {
+      "name": "M1·条件取反",
+      "truth": "product",
+      "pred": "product",
+      "kind": "product_defect",
+      "verdict": "stop",
+      "expect_verdict": "stop",
+      "exit": 1
+    },
+    {
+      "name": "M2·运算符替换",
+      "truth": "product",
+      "pred": "product",
+      "kind": "product_defect",
+      "verdict": "stop",
+      "expect_verdict": "stop",
+      "exit": 1
+    },
+    {
+      "name": "M3·常量偏移",
+      "truth": "product",
+      "pred": "product",
+      "kind": "product_defect",
+      "verdict": "stop",
+      "expect_verdict": "stop",
+      "exit": 1
+    },
+    {
+      "name": "M4·舍入移除",
+      "truth": "product",
+      "pred": "product",
+      "kind": "product_defect",
+      "verdict": "stop",
+      "expect_verdict": "stop",
+      "exit": 1
+    },
+    {
+      "name": "M5·异常吞掉",
+      "truth": "product",
+      "pred": "product",
+      "kind": "product_defect",
+      "verdict": "stop",
+      "expect_verdict": "stop",
+      "exit": 1
+    },
+    {
+      "name": "M6·初值污染",
+      "truth": "product",
+      "pred": "product",
+      "kind": "product_defect",
+      "verdict": "stop",
+      "expect_verdict": "stop",
+      "exit": 1
+    },
+    {
+      "name": "M7·累加破坏",
+      "truth": "product",
+      "pred": "product",
+      "kind": "product_defect",
+      "verdict": "stop",
+      "expect_verdict": "stop",
+      "exit": 1
+    },
+    {
+      "name": "M8·求和偏移",
+      "truth": "product",
+      "pred": "product",
+      "kind": "product_defect",
+      "verdict": "stop",
+      "expect_verdict": "stop",
+      "exit": 1
+    },
+    {
+      "name": "C1·ImportError坏用例",
+      "truth": "case",
+      "pred": "case",
+      "kind": "case_defect",
+      "verdict": "repair_gen",
+      "expect_verdict": "repair_gen",
+      "exit": 1
+    },
+    {
+      "name": "C2·AttributeError坏用例",
+      "truth": "case",
+      "pred": "case",
+      "kind": "case_defect",
+      "verdict": "repair_gen",
+      "expect_verdict": "repair_gen",
+      "exit": 1
+    },
+    {
+      "name": "C3·SyntaxError坏用例",
+      "truth": "case",
+      "pred": "case",
+      "kind": "case_defect",
+      "verdict": "repair_gen",
+      "expect_verdict": "repair_gen",
+      "exit": 2
+    },
+    {
+      "name": "C4·NameError坏用例",
+      "truth": "case",
+      "pred": "case",
+      "kind": "case_defect",
+      "verdict": "repair_gen",
+      "expect_verdict": "repair_gen",
+      "exit": 1
+    },
+    {
+      "name": "C5·空套件(no tests ran)",
+      "truth": "case",
+      "pred": "case",
+      "kind": "case_defect",
+      "verdict": "repair_gen",
+      "expect_verdict": "repair_gen",
+      "exit": 5
+    },
+    {
+      "name": "V1·pytest缺失(env)",
+      "truth": "env",
+      "pred": "env",
+      "kind": "env",
+      "verdict": "repair_env",
+      "expect_verdict": "repair_env",
+      "exit": 1
+    }
+  ],
+  "matrix": {
+    "product": {
+      "product": 8,
+      "case": 0,
+      "env": 0,
+      "none": 0
+    },
+    "case": {
+      "product": 0,
+      "case": 5,
+      "env": 0,
+      "none": 0
+    },
+    "env": {
+      "product": 0,
+      "case": 0,
+      "env": 1,
+      "none": 0
+    }
+  },
+  "accuracy": 1.0,
+  "missed_stop": 0,
+  "false_stop": 0
+}
