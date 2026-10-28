@@ -1,0 +1,224 @@
+{
+ "task_id": 68,
+ "corpus_id": "corpus-002",
+ "baseline_failures": 0,
+ "mutants_total": 24,
+ "killed": 11,
+ "kill_rate": 0.458,
+ "detail": [
+  {
+   "module": "coupon_engine.py",
+   "site": 0,
+   "mutation": "cmp LtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 1,
+   "mutation": "cmp Lt",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 2,
+   "mutation": "cmp Eq",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 3,
+   "mutation": "cmp Eq",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 4,
+   "mutation": "cmp Gt",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 5,
+   "mutation": "binop Sub",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 6,
+   "mutation": "cmp Lt",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 7,
+   "mutation": "cmp LtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 8,
+   "mutation": "cmp Eq",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 9,
+   "mutation": "boolop Or",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 10,
+   "mutation": "cmp Gt",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "coupon_engine.py",
+   "site": 11,
+   "mutation": "cmp LtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_validate_equal_min_spend_边界值分析"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 1,
+   "mutation": "cmp Eq",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_apply_payable_non_negative_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_apply_valid_coupon_语句分支覆盖",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_settle_with_coupon_语句分支覆盖",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_validate_percent_value_101_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_validate_percent_value_zero_边界值分析"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 2,
+   "mutation": "cmp Eq",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_apply_payable_non_negative_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_apply_valid_coupon_语句分支覆盖",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_fixed_equal_subtotal_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_fixed_greater_than_subtotal_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_fixed_ignore_max_discount_判定表"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 3,
+   "mutation": "cmp Eq",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_floor_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_no_max_等价类划分",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_raw_equal_max_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_raw_greater_max_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_raw_less_max_等价类划分"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 4,
+   "mutation": "binop Sub",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_apply_payable_non_negative_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_apply_valid_coupon_语句分支覆盖",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_settle_with_coupon_语句分支覆盖"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 5,
+   "mutation": "boolop Or",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_validate_percent_value_101_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_validate_percent_value_zero_边界值分析"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 6,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_amount_fields_are_int_错误推测法",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_discount_non_negative_错误推测法",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_floor_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_no_max_等价类划分",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_raw_less_max_等价类划分"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 7,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_settle_mixed_invalid_subtotal_判定表",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_settle_qty_zero_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_settle_status_distinct_等价类划分"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 8,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_validate_percent_value_1_边界值分析"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 9,
+   "mutation": "cmp Gt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_validate_percent_value_100_边界值分析"
+   ]
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 10,
+   "mutation": "cmp GtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "discount_engine.py",
+   "site": 11,
+   "mutation": "binop Sub",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_floor_边界值分析",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_no_max_等价类划分",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_raw_less_max_等价类划分",
+    "data/tmp_mut/task68_ztswac3k/test_gen_r1.py::test_calc_percent_value_100_边界值分析"
+   ]
+  }
+ ]
+}

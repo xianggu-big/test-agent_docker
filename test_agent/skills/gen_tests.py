@@ -125,6 +125,80 @@ def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
     return kept, rejected
 
 
+def _audit_one_assert(test: ast.expr) -> tuple[bool, str | None]:
+    """单条断言的强弱判定：(是否强, 弱原因)。强 = 具体值/关系 oracle。"""
+    if isinstance(test, ast.Compare):
+        comps = [test.left] + list(test.comparators)
+        has_rel = any(not isinstance(op, (ast.Is, ast.IsNot)) for op in test.ops)
+        if has_rel:
+            return True, None                       # ==/!=/</>/in 等值或序关系
+        none_check = any(isinstance(c, ast.Constant) and c.value is None for c in comps)
+        bool_check = any(isinstance(c, ast.Constant) and isinstance(c.value, bool)
+                         for c in comps)
+        if bool_check:
+            return True, None                       # is True/False：显式布尔 oracle
+        if none_check:
+            return False, "is (not) None 无具体预期值"
+        return True, None
+    if isinstance(test, ast.Call):
+        fn = test.func
+        name = fn.attr if isinstance(fn, ast.Attribute) else \
+            (fn.id if isinstance(fn, ast.Name) else "")
+        if name == "raises":
+            return True, None                       # 异常类型 oracle
+        return False, f"裸调用真值断言({name or 'expr'})"
+    return False, "裸真值/常量断言"
+
+
+def assertion_audit(code: str) -> dict:
+    """断言质量审计（纯函数，方案A 的度量与闸共用）：统计用例内强/弱断言。
+
+    强 = 具体关系比较（==/!=/序关系/in）、is True/False、pytest.raises(异常类型)；
+    弱 = 裸真值断言、is (not) None、isinstance、无断言 —— 不具备证伪具体预期值的能力
+    （动机：2412.14137 实证生成器会写"为通过而设计"的断言；UW ASE'25 oracle 实证）。
+    返回 {total, strong, weak, reasons}；无断言整案计弱。
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return {"total": 0, "strong": 0, "weak": 1, "reasons": ["语法不可解析"]}
+    strong, weak, reasons = 0, 0, []
+    # raises 上下文管理器（with pytest.raises(...)）也是显式 oracle，与 assert 同权统计
+    raises_calls = []
+    for w in ast.walk(tree):
+        if isinstance(w, ast.With):
+            for item in w.items:
+                ctx = item.context_expr
+                if isinstance(ctx, ast.Call):
+                    fn = ctx.func
+                    name = fn.attr if isinstance(fn, ast.Attribute) else \
+                        (fn.id if isinstance(fn, ast.Name) else "")
+                    if name == "raises":
+                        raises_calls.append(ctx)
+    asserts = [n for n in ast.walk(tree) if isinstance(n, ast.Assert)]
+    if not asserts and not raises_calls:
+        return {"total": 0, "strong": 0, "weak": 1, "reasons": ["无断言（无 oracle）"]}
+    for a in asserts:
+        ok, why = _audit_one_assert(a.test)
+        if ok:
+            strong += 1
+        else:
+            weak += 1
+            reasons.append(why)
+    strong += len(raises_calls)
+    return {"total": strong + weak, "strong": strong, "weak": weak, "reasons": reasons}
+
+
+def _condition_gaps(conditions: list[dict], cases: list[dict]) -> list[dict]:
+    """方案C：确定性 2-gram 映射（与 map_requirements 启发式同源）找出无用例对准的条件。"""
+    from .evaluate import _heuristic_map          # 延迟导入避免环形依赖
+    pseudo = [{"id": i + 1, "condition": c["condition"]} for i, c in enumerate(conditions)]
+    rows = [{"name": c["name"], "expected": c.get("expected") or "",
+             "content": c.get("content") or c.get("code") or ""} for c in cases]
+    mapping = _heuristic_map(pseudo, rows)
+    return [c for c, p in zip(conditions, pseudo) if not mapping.get(p["id"])]
+
+
 def _rebuild_imported_file(conn, tid: int, ws: Path) -> str:
     """以库为准重建 test_imported.py（仅 enabled=1），随下次 provision 快照进容器。"""
     imported = conn.execute(
@@ -172,6 +246,63 @@ def prune_failing_cases(ws: Path, pairs: list[tuple[str, str]],
     return {"pruned": pruned, "kept": kept}
 
 
+def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
+                          conditions: list[dict], cases: list[dict], ws: Path,
+                          used_names: set[str], include_methods: bool, pbt: bool
+                          ) -> tuple[list[dict], str, dict]:
+    """方案C 核心（llm 注入可单测）：查条件缺口 → 定向补生成恰 1 次 → 返回 (新用例, imports, 信息)。"""
+    gaps = _condition_gaps(conditions, cases)
+    info: dict = {"uncovered_before": len(gaps), "refill_generated": 0,
+                  "uncovered_after": len(gaps)}
+    if not gaps:
+        return [], "", info
+    resp = llm.invoke([("system", SYSTEM_PROMPT),
+                       ("user", build_user_prompt(
+                           sources, requirement, None, None, gaps,
+                           include_methods=include_methods, pbt=pbt, cond_forced=True,
+                           existing_cases=[c["name"] for c in cases]))])
+    data = _parse_cases(resp.content)
+    if not data:
+        info["note"] = "补生成轮 LLM 输出不可解析（诚实放弃）"
+        return [], "", info
+    data["cases"], rejected = _static_filter(data["cases"], ws)
+    info["static_rejected"] = rejected
+    out = []
+    for c in data["cases"]:
+        def_name = _sanitize_name(c.get("name"), len(used_names), used_names)
+        code = c["code"].strip()
+        m = re.search(r"def\s+\w+", code)
+        if m:
+            code = code[:m.start()] + f"def {def_name}" + code[m.end():]
+        c["code"], c["name"] = code, def_name
+        out.append(c)
+    info["refill_generated"] = len(out)
+    info["uncovered_after"] = len(_condition_gaps(conditions, cases + out))
+    return out, (data.get("imports") or "").strip(), info
+
+
+def apply_assertion_gate(cases: list[dict], gate: bool = False
+                         ) -> tuple[list[dict], list[str], dict]:
+    """方案A 核心（纯函数）：断言质量审计恒算；gate=True 时剔除全弱断言用例（无证伪能力）。
+    返回 (保留用例, 剔除理由列表, 统计)。混合断言（含 ≥1 强）的用例保留。"""
+    audits = [assertion_audit(c["code"]) for c in cases]
+    stats = {"cases": len(audits),
+             "weak_cases": sum(1 for a in audits if a["strong"] == 0),
+             "assert_total": sum(a["total"] for a in audits),
+             "assert_weak": sum(a["weak"] for a in audits)}
+    rejected: list[str] = []
+    if not gate:
+        return cases, rejected, stats
+    kept = []
+    for c, a in zip(cases, audits):
+        if a["strong"] == 0:
+            rejected.append(f"{c.get('name')}: {a['reasons'][0]}")
+        else:
+            kept.append(c)
+    stats["gate_rejected"] = len(rejected)
+    return kept, rejected, stats
+
+
 def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     ws = Path(args["workspace"])
     sources = _collect_sources(ws)
@@ -192,7 +323,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   args.get("coverage_target"),
                                                   conditions,
                                                   include_methods=config.GEN_METHODS_ENABLED,
-                                                  boundary_attack=config.GEN_BOUNDARY_ATTACK))])
+                                                  boundary_attack=config.GEN_BOUNDARY_ATTACK,
+                                                  pbt=config.PBT_ENABLED))])
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,
@@ -214,6 +346,31 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         if m:
             code = code[:m.start()] + f"def {def_name}" + code[m.end():]
         c["code"], c["name"] = code, def_name
+
+    # —— 方案C·条件缺口回灌（Gotel&Finkelstein post-traceability 的生成侧闭环）：
+    # 确定性 2-gram 映射查无用例对准的条件 → 定向补生成恰 1 轮（预算纪律）——
+    # 与 V4 行覆盖回灌不同层：这里是 RTM 条件层的"覆盖了≠测到了"信号。 ——
+    cond_feedback: dict | None = None
+    if config.COND_FEEDBACK_ENABLED and conditions:
+        new_cases, extra_imports, cond_feedback = refill_condition_gaps(
+            llm, sources, args.get("requirement", ""), conditions, data["cases"], ws,
+            used_names, config.GEN_METHODS_ENABLED, config.PBT_ENABLED)
+        if new_cases:
+            data["cases"] += new_cases
+            if extra_imports:
+                old = (data.get("imports") or "").strip()
+                data["imports"] = (old + "\n" + extra_imports).strip()
+
+    # —— 方案A·断言质量审计（度量恒算）+ 可选闸：全弱断言用例 = 无证伪能力 ——
+    data["cases"], gate_rejected, assertion_stats = apply_assertion_gate(
+        data["cases"], gate=config.ASSERTION_GATE_ENABLED)
+    if gate_rejected:
+        rejected += gate_rejected
+    if not data["cases"]:
+        return json.dumps({"generated": 0,
+                           "reason": "全部用例未过断言质量闸（全弱断言，诚实降级）",
+                           "rejected": rejected, "assertion": assertion_stats,
+                           "cond_feedback": cond_feedback}, ensure_ascii=False)
 
     # —— 写入工作区 ——
     round_no = args.get("round_no", 1)
@@ -263,6 +420,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
 
     summary = {"generated": len(data["cases"]), "file": fname, "script_id": script_id,
                "static_rejected": rejected,
-               "methods": [c.get("method") for c in data["cases"]]}
+               "methods": [c.get("method") for c in data["cases"]],
+               "assertion": assertion_stats, "cond_feedback": cond_feedback}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)

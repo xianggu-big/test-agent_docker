@@ -1,0 +1,68 @@
+{
+ "task_id": 69,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 4,
+ "mutants_total": 5,
+ "killed": 4,
+ "kill_rate": 0.8,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_branch_语句分支覆盖",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_custom_exact_max_边界值分析",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_custom_exact_min_边界值分析",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_default_in_range_等价类划分",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_exact_max_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_branch_语句分支覆盖",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_custom_exact_max_边界值分析",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_exact_max_边界值分析",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_has_special_branch_语句分支覆盖",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_has_special_positive_等价类划分"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_branch_语句分支覆盖",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_custom_exact_max_边界值分析",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_exact_max_边界值分析",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_is_strong_custom_exact_max_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_branch_语句分支覆盖",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_custom_exact_max_边界值分析",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_check_length_exact_max_边界值分析",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_has_special_alnum_only_等价类划分",
+    "data/tmp_mut/task69_qshj946c/test_gen_r1.py::test_has_special_alnum_with_space_等价类划分"
+   ]
+  }
+ ]
+}

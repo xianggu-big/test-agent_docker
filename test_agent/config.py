@@ -45,6 +45,11 @@ COVERAGE_FEEDBACK_ENABLED = True     # 缺口回灌 generate 提示词（变量 
 GEN_BOUNDARY_ATTACK = False          # 边界攻击纪律（变量 V6：True=强制每函数至少 1 条边界外输入；
                                      # corpus-002 recall=0 的改进实验，默认关）
 
+# —— 三方案改造开关（docs/设计方案对比实验.md：同基线同语料，各改一层，各带一个独有指标） ——
+ASSERTION_GATE_ENABLED = False       # 方案A·断言质量闸：全弱断言用例在静态闸后剔除（锚点 2412.14137）
+PBT_ENABLED = False                  # 方案B·属性测试第七法：PBT 骨架注入 + 容器/宿主装 hypothesis（锚点 Tanaka 2510.25297）
+COND_FEEDBACK_ENABLED = False        # 方案C·条件缺口回灌：生成后 2-gram 查 RTM 缺口 → 定向补生成 1 轮（锚点 Gotel&Finkelstein）
+
 # —— LLM 配置（第 3~4 步启用；密钥走环境变量 DEEPSEEK_API_KEY，不进代码库） ——
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-chat"

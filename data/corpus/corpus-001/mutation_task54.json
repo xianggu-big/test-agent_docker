@@ -1,0 +1,65 @@
+{
+ "task_id": 54,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 1,
+ "mutants_total": 5,
+ "killed": 4,
+ "kill_rate": 0.8,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_check_length_custom_bounds_等价类划分",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_check_length_default_callable_语句分支覆盖",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_check_length_exact_max_true_边界值分析",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_check_length_exact_min_true_边界值分析",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_is_strong_all_conditions_true_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_check_length_exact_max_true_边界值分析",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_has_special_present_true_等价类划分",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_has_special_space_plus_special_true_判定表",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_is_strong_all_conditions_true_判定表",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_is_strong_custom_bounds_等价类划分"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_check_length_exact_max_true_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_check_length_exact_max_true_边界值分析",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_has_special_absent_false_等价类划分",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_is_strong_no_special_false_判定表",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_strength_score_digit_adds_one_等价类划分",
+    "data/tmp_mut/task54_yfib_ljl/test_gen_r1.py::test_strength_score_length_in_range_adds_one_等价类划分"
+   ]
+  }
+ ]
+}

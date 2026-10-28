@@ -20,11 +20,18 @@ def build_skills(runner) -> dict[str, Skill]:
 
     def install_deps(task_id: int, args: dict) -> str:
         container = runner.client.containers.get(args["container_name"])
-        if not args.get("has_requirements"):
-            return "无 requirements.txt，跳过依赖安装"
-        r = runner.exec_in(container, ["pip", "install", "-r", "requirements.txt"],
-                           timeout_s=300)
-        return f"exit={r.exit_code}\n{r.stdout[-2000:]}{r.stderr[-2000:]}"
+        parts = []
+        if args.get("has_requirements"):
+            r = runner.exec_in(container, ["pip", "install", "-r", "requirements.txt"],
+                               timeout_s=300)
+            parts.append(f"requirements exit={r.exit_code}\n{r.stdout[-1500:]}{r.stderr[-500:]}")
+        else:
+            parts.append("无 requirements.txt，跳过项目依赖安装")
+        # 方案B：属性测试用例依赖 hypothesis——随开关装进容器（宿主侧由实验环境自备）
+        if config.PBT_ENABLED:
+            h = runner.exec_in(container, ["pip", "install", "hypothesis"], timeout_s=300)
+            parts.append(f"hypothesis exit={h.exit_code}")
+        return "\n".join(parts)
 
     def run_tests(task_id: int, args: dict) -> str:
         container = runner.client.containers.get(args["container_name"])

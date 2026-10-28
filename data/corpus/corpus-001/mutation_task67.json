@@ -1,0 +1,75 @@
+{
+ "task_id": 67,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 8,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_branch_coverage_语句分支覆盖",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_custom_max_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_custom_min_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_default_in_range_等价类划分",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_default_max_boundary_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_branch_coverage_语句分支覆盖",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_strength_score_digit_item_判定表",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_strength_score_length_item_判定表",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_strength_score_lowercase_item_判定表",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_strength_score_special_item_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_custom_max_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_default_max_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_has_special_branch_coverage_语句分支覆盖",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_has_special_true_等价类划分",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_is_strong_all_conditions_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_custom_max_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_default_max_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_is_strong_custom_max_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_strength_score_digit_item_判定表",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_strength_score_length_item_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_custom_max_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_check_length_default_max_boundary_边界值分析",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_has_special_branch_coverage_语句分支覆盖",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_has_special_false_alnum_等价类划分",
+    "data/tmp_mut/task67_wknojju9/test_gen_r1.py::test_has_special_space_only_边界值分析"
+   ]
+  }
+ ]
+}

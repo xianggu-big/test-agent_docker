@@ -12,3 +12,6 @@ __pycache__/
 .venv/
 .zcode/
 requirements.lock.txt
+
+# 变异标定仪器临时目录（D 盘固定，勿用系统 Temp——C 盘 junction 坑见 docs/设计方案对比实验.md §6）
+data/tmp_mut/

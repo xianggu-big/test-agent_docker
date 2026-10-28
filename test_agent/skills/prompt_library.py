@@ -87,13 +87,29 @@ BOUNDARY_ATTACK_SECTION = """
 超长输入等越界值，断言其行为符合需求契约——预期值必须来自需求而非实际输出，
 禁止"实现返回什么就断言什么"。"""
 
+PBT_SECTION = """
+
+## 属性测试（第七法，实验变量 PBT）
+除常规示例外，再生成至少 1 条基于 hypothesis 的属性测试：用 @given(st...) 把输入域声明为
+策略而非手选样例，属性函数表述"对任意合法输入都应成立的不变量"（如幂等/往返一致、
+单调性、输出格式不变量、与朴素参照实现等价），settings(max_examples=20) 限制采样数。
+属性与预期同样必须先于执行确定（来自需求或数学性质，禁止从实际输出反推）。
+断言用具体关系比较（==、数值/格式恒等式），禁止 is not None / 裸真值这类弱断言。骨架：
+@given(st.integers(min_value=0, max_value=10**6))
+def test_xxx_属性测试(cents):
+    text = format_amount(cents)
+    assert len(text.split(".")[1]) == 2   # 不变量示例：小数部分恒两位"""
+
 
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
                       coverage_target: float | None = None,
                       conditions: list[dict] | None = None,
                       include_methods: bool = True,
-                      boundary_attack: bool = False) -> str:
+                      boundary_attack: bool = False,
+                      pbt: bool = False,
+                      cond_forced: bool = False,
+                      existing_cases: list[str] | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -101,18 +117,33 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     conditions: plan 节点拆解的测试条件（RTM）——用例逐条对准条件设计。
     include_methods: 五方法骨架开关（实验变量 V2；False=自由发挥对照组）。
     boundary_attack: 边界攻击纪律开关（实验变量 V6；True=强制边界外输入用例）。
+    pbt: 属性测试第七法开关（方案B；True=追加 hypothesis 属性测试骨架段）。
+    cond_forced: 条件缺口回灌模式（方案C；True=conditions 段改为"强制逐条覆盖"措辞）。
     """
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
     method_text = "\n".join(f"{i}.【{m['name']}】{m['skeleton']}"
                             for i, m in enumerate(METHODS, 1)) if include_methods else ""
     boundary_text = BOUNDARY_ATTACK_SECTION if boundary_attack else ""
+    pbt_text = PBT_SECTION if pbt else ""
     cond_text = ""
     if conditions:
         rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
                          f"（建议方法：{c.get('method_hint') or '不限'}）"
                          for i, c in enumerate(conditions, 1))
-        cond_text = f"""
+        if cond_forced:
+            have = ""
+            if existing_cases:
+                have = "\n已有用例（禁止重复，可直接跳过这些已覆盖行为）：" + \
+                       "、".join(existing_cases[:40])
+            cond_text = f"""
+
+## 未覆盖测试条件（强制逐条覆盖）
+以下条件经确定性映射确认尚无用例对准，每条至少生成 1 条对准用例（name 中注明条件序号），
+不得与已有用例重复：
+{rows}{have}"""
+        else:
+            cond_text = f"""
 
 ## 测试条件（RTM，逐条设计用例对准覆盖）
 {rows}"""
@@ -132,7 +163,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}{boundary_text}
+{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}{boundary_text}{pbt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}

@@ -1,0 +1,75 @@
+{
+ "task_id": 45,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 10,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_at_max_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_at_min_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_custom_bounds_等价类划分",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_default_boundaries_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_is_strong_all_conditions_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_strength_score_length_64_only_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_strength_score_length_65_only_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_strength_score_length_7_only_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_strength_score_length_8_only_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_strength_score_none_conditions_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_at_max_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_custom_bounds_等价类划分",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_default_boundaries_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_has_special_ascii33_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_has_special_branch_coverage_语句分支覆盖"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_at_max_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_custom_bounds_等价类划分",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_default_boundaries_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_has_special_ascii126_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_is_strong_custom_bounds_等价类划分"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_at_max_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_custom_bounds_等价类划分",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_check_length_default_boundaries_边界值分析",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_has_special_alnum_only_等价类划分",
+    "data/tmp_mut/task45_yy306qkw/test_gen_r1.py::test_has_special_branch_coverage_语句分支覆盖"
+   ]
+  }
+ ]
+}

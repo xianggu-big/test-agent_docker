@@ -26,6 +26,10 @@ GRID = {
     "X3": {"PLAN_ENABLED": False},              # V3=False：跳过 plan/RTM 测试条件
     "X4": {"COVERAGE_FEEDBACK_ENABLED": False}, # V4=False：无覆盖缺口回灌（盲补）
     "X5": {"GEN_BOUNDARY_ATTACK": True},        # V6=True：边界攻击纪律（corpus-002 改进实验）
+    # 三方案改造格（docs/设计方案对比实验.md）：同基线同语料，各改一层
+    "A1": {"ASSERTION_GATE_ENABLED": True},     # 方案A：断言质量闸（独有指标=弱断言率）
+    "B1": {"PBT_ENABLED": True},                # 方案B：属性测试第七法（独有指标=变异杀死率）
+    "C1": {"COND_FEEDBACK_ENABLED": True},      # 方案C：条件缺口回灌（独有指标=RTM条件覆盖）
 }
 
 
