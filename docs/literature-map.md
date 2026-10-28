@@ -186,3 +186,23 @@ ReAct=ICLR 2023；Reflexion/Self-Refine/Toolformer/MT-Bench=NeurIPS 2023；SWE-b
 3. **IEEE 829 ↔ ISO 29119-3 承接关系**：iso.org 403（旧底稿已标注），定稿前校园网/IEEE Xplore 复核。
 4. 本表各条目的**会议 venue**（§4 所列）：DBLP 一遍复核，5 分钟工作量。
 5. MCP 生态数字（registry 4.7 万 server、SDK 月下载、安全分）：来自 2026-10-28 网络调研（P2 级信源），进论文需换算成当时可复核的一手来源或标注"截至 2026-10 的行业报告口径"。
+6. **radon/PICT/Hypothesis-target()**（方法组合设计引入的工具与技法）：用前人工核验（见 docs/黑盒白盒方法组合与沙箱自适应设计.md §9）。
+
+---
+
+## 7. 方法组合设计新增文献（2026-10-29，Crossref bibliographic 检索实测）
+
+> 服务于 docs/黑盒白盒方法组合与沙箱自适应设计.md 的方法出处。本轮再次实锤"记忆 DOI 必错"：8 条中 3 条记忆值错误（Rapps-Weyuker 232177→232226、Chow 231384→231496、Felter 式教训再现），检索 8/8 全中。
+
+| # | 文献 | DOI（✅Crossref） | 方案落点 |
+|---|---|---|---|
+| 25 | McCabe《A Complexity Measure》 | 10.1109/TSE.1976.233837 | 白盒-基路径/圈复杂度（W4） |
+| 26 | Rapps & Weyuker《Selecting Software Test Data Using Data Flow Information》 | 10.1109/TSE.1985.232226 | 白盒-数据流（W7，未来工作） |
+| 27 | Chow《Testing Software Design Modeled by Finite-State Machines》 | 10.1109/TSE.1978.231496 | 黑盒-状态迁移 N-switch（B4） |
+| 28 | Claessen & Hughes《QuickCheck》 | 10.1145/351240.351266（ICFP 2000；再版 10.1145/1988042.1988046） | 黑盒-属性测试谱系起点（B7） |
+| 29 | Godefroid/Klarlund/Sen《DART: Directed Automated Random Testing》 | 10.1145/1065010.1065036（PLDI 2005） | 黑盒-随机测试谱系（B6） |
+| 30 | Manès 等《The Art, Science, and Engineering of Fuzzing: A Survey》 | 10.1109/TSE.2019.2946563（TSE） | 白盒-模糊测试边界条目（W8） |
+| 31 | Ostrand & Balcer《The category-partition method for specifying and generating functional tests》 | 10.1145/62959.62964（CACM 1988） | 黑盒-等价类的学术形式化（B1） |
+| 32 | Kuhn 等《Software fault interactions and implications for software testing》 | 10.1109/TSE.2004.24 | 黑盒-组合测试实证（B9） |
+
+书籍类（无 DOI 需核，出版社+年份准确即可）：Myers《The Art of Software Testing》1979（B2）、Beizer 1990（tests wear out 概念源）、Winters 等《Software Engineering at Google》O'Reilly 2020（大厂维度）。
