@@ -181,6 +181,9 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 准出标准冻结进任务行（A1）：此后 decide 只认这个值，实验中途改 config 不影响在途任务
         conn.execute("UPDATE test_tasks SET coverage_target=? WHERE id=?",
                      (config.COVERAGE_TARGET, tid))
+        # W4 热点快照 delete-first（与 plan/test_conditions 同款重跑幂等语义）：
+        # 无条件清旧——重跑时主语言判定可能变化，残留行会让"热点未覆盖"指标失真
+        conn.execute("DELETE FROM complexity_hotspots WHERE task_id=?", (tid,))
         conn.commit()
         msg(state["session_id"], "assistant",
             f"[analyze] 语言占比 {ratios} → 主语言 {primary}，分级 {strategy}，"
@@ -188,12 +191,20 @@ def make_nodes(deps: GraphDeps) -> dict:
         out = {"primary_language": primary, "module_id": cur.lastrowid,
                "coverage_target": config.COVERAGE_TARGET,
                "image": config.IMAGE_PY if primary == "python" else config.IMAGE_JAVA}
-        # W4 圈复杂度热点（radon 宿主侧确定性扫描）：注入 plan 提示词做风险分级倾斜
+        # W4 圈复杂度热点（radon 宿主侧确定性扫描）：注入 plan 提示词做风险分级倾斜；
+        # 落库 complexity_hotspots（报告"热点未覆盖"指标的数据源，第 17 张表）
         if primary == "python":
             from ..skills.complexity import complexity_hotspots
             hotspots = complexity_hotspots(ws)
             if hotspots:
                 out["complexity_hotspots"] = hotspots
+                for h in hotspots:
+                    conn.execute(
+                        """INSERT INTO complexity_hotspots(task_id, file, name,
+                                                          complexity, rank, lineno)
+                           VALUES (?,?,?,?,?,?)""",
+                        (tid, h["file"], h["name"], h["complexity"], h["rank"], h["lineno"]))
+                conn.commit()
                 msg(state["session_id"], "assistant",
                     "[analyze] W4 复杂度热点：" +
                     "; ".join(f"{h['file']}::{h['name']}={h['complexity']}({h['rank']})"

@@ -7,7 +7,7 @@
 --   * 时间统一 TEXT ISO8601（UTC）；比值/覆盖率用 REAL（0~1）；耗时毫秒 INTEGER
 --   * 枚举用 TEXT + CHECK，不建字典表（本科规模，简单优先）
 --   * 外键运行时开启：PRAGMA foreign_keys = ON
---   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 16 张
+--   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 17 张
 -- ============================================================================
 
 PRAGMA journal_mode = WAL;
@@ -235,6 +235,21 @@ CREATE TABLE IF NOT EXISTS evaluation_rounds (
   stop_reason   TEXT,
   fingerprint   TEXT,                     -- 失败指纹（熔断判定的输入，留档可复现）
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 17) 复杂度热点快照（W4：analyze 阶段 radon 确定性扫描落库，报告指标"复杂度热点
+--     未覆盖"由本表 × test_reports.per_file 在读取时确定性求值——覆盖状态随每份
+--     报告的覆盖数据而变，属派生量不回写本表；任务重跑 delete-first 整体替换）
+CREATE TABLE IF NOT EXISTS complexity_hotspots (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    INTEGER NOT NULL REFERENCES test_tasks(id) ON DELETE CASCADE,
+  file       TEXT NOT NULL,               -- workspace 相对路径（POSIX 风格，与 per_file 同口径）
+  name       TEXT NOT NULL,               -- 函数/方法名
+  complexity INTEGER NOT NULL,            -- V(G) 圈复杂度（radon）
+  rank       TEXT NOT NULL,               -- radon 六级制 A-F（入库均为热点 rank≥C）
+  lineno     INTEGER NOT NULL,            -- 函数起始行（与 per_file.missing 交叉判覆盖）
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(task_id, file, name)
 );
 
 -- 常用查询索引

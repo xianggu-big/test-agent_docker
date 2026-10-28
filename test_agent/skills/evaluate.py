@@ -31,6 +31,41 @@ _STOPWORDS = "的了在与是和或对为中断将把被个及其"
 # 1. collect_metrics —— 测试数据汇总（确定性，LLM 禁止自己算数）
 # ---------------------------------------------------------------------------
 
+def _missing_lines(spec: str) -> set[int]:
+    """term-missing 的 missing 列（如 "12, 15-18, 30"）展开为行号集合。"""
+    out: set[int] = set()
+    for tok in (spec or "").replace(" ", "").split(","):
+        if not tok:
+            continue
+        if "-" in tok:
+            a, _, b = tok.partition("-")
+            if a.isdigit() and b.isdigit():
+                out.update(range(int(a), int(b) + 1))
+        elif tok.isdigit():
+            out.add(int(tok))
+    return out
+
+
+def hotspot_coverage(hotspots: list[dict], per_file: list[dict]) -> dict:
+    """W4 报告指标「复杂度热点未覆盖」（设计文档 §3-W4 ②，纯确定性求值）。
+
+    交叉规则（per_file 只收有缺口的文件，B2 口径）：
+    - 热点文件不在 per_file → 整文件已覆盖（无缺口证据即覆盖，只认正向证据）
+    - 文件在列但热点起始行不在 missing 行集 → 已覆盖
+    - 行命中 missing → 未覆盖
+    返回 {total, uncovered, uncovered_list}；hotspots 为空时 total=0。
+    """
+    missing_by_file = {r["file"]: _missing_lines(r.get("missing") or "")
+                       for r in per_file or []}
+    uncovered: list[str] = []
+    for h in hotspots or []:
+        lines = missing_by_file.get(h["file"])
+        if lines and h["lineno"] in lines:
+            uncovered.append(f"{h['file']}::{h['name']}(V(G)={h['complexity']})")
+    return {"total": len(hotspots or []), "uncovered": len(uncovered),
+            "uncovered_list": uncovered}
+
+
 def collect_metrics(conn, task_id: int, report_id: int | None = None) -> dict:
     """从 SQL 汇总结构化指标包。无报告行时返回 no_report=True（诚实短路）。"""
     rep_sql = ("SELECT * FROM test_reports WHERE task_id=?"
@@ -116,6 +151,17 @@ def collect_metrics(conn, task_id: int, report_id: int | None = None) -> dict:
     metrics["six_elem_rate"] = (
         round(sum(r["with_exp"] or 0 for r in case_rows) / metrics["cases_total"], 4)
         if metrics["cases_total"] else None)
+
+    # W4 复杂度热点 × 覆盖交叉（读取时确定性求值，不回写表）：老任务无热点行
+    # （建表前的实验数据 / 非 python 链路）→ 三字段整体不出现，叙述如实说无数据
+    hs_rows = [dict(r) for r in conn.execute(
+        """SELECT file, name, complexity, rank, lineno FROM complexity_hotspots
+           WHERE task_id=? ORDER BY complexity DESC""", (task_id,))]
+    if hs_rows:
+        cross = hotspot_coverage(hs_rows, json.loads(rep["per_file"]) if rep["per_file"] else [])
+        metrics["hotspots_total"] = cross["total"]
+        metrics["hotspots_uncovered"] = cross["uncovered"]
+        metrics["hotspots_uncovered_list"] = cross["uncovered_list"]
     return metrics
 
 
@@ -227,6 +273,11 @@ def fallback_report(metrics: dict, rtm: dict) -> str:
     if gap_rows:
         lines.append("- RTM 覆盖缺口（需求拆解出的条件尚无用例覆盖）：")
         lines += [f"  - {m['condition'][:60]}" for m in gap_rows[:5]]
+    if metrics.get("hotspots_total"):
+        u, t = metrics["hotspots_uncovered"], metrics["hotspots_total"]
+        lines.append(f"- 复杂度热点未覆盖 {u}/{t}：" +
+                     ("; ".join(metrics["hotspots_uncovered_list"][:3])
+                      if u else "热点所在行均已覆盖"))
     if not lines[-1].startswith(("  -", "-")):
         lines.append("- 无。")
     return "\n".join(lines) + "\n"
@@ -251,8 +302,9 @@ def gen_report(conn, task_id: int, metrics: dict, rtm: dict,
 ## 任务
 按固定模板写 markdown 测试报告：①结论（通过率/覆盖率/终态）②四阶段回溯（分析→设计→执行→评估，
 引用 trace 轨迹与 tool_invocations 耗时）③缺陷清单（failure_kind=product_defect 时如实列出，
-不得写成已解决）④风险与建议（RTM gap 条件、未达标原因）。
-提及数字时用固定表述：通过 N、失败 N、跳过 N、覆盖率 P%。
+不得写成已解决）④风险与建议（RTM gap 条件、复杂度热点未覆盖、未达标原因；指标包无
+hotspots_total 字段时写"无复杂度热点数据"，不得编造）。
+提及数字时用固定表述：通过 N、失败 N、跳过 N、覆盖率 P%、复杂度热点未覆盖 M/N。
 只输出 JSON：{{"report": "markdown 全文"}}"""
             resp = llm.invoke([("system", REPORT_SYSTEM), ("user", prompt)])
             text = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))["report"]
@@ -290,6 +342,13 @@ def review_rules(narrative: str, metrics: dict, verdict: str) -> list[str]:
         for m in re.findall(r"覆盖率\s*([\d.]+)\s*%", narrative or ""):
             if abs(float(m) - round(cov * 100)) > 0.5:
                 reasons.append(f"叙述覆盖率 {m}% 与数据 {cov:.0%} 不符")
+                break
+    # W4 热点未覆盖 M/N（叙述提及才校验，与通过/失败数同款"出现即比对"语义）
+    hs_u, hs_t = metrics.get("hotspots_uncovered"), metrics.get("hotspots_total")
+    if hs_u is not None and hs_t:
+        for m in re.findall(r"热点未覆盖\s*(\d+)\s*/\s*(\d+)", narrative or ""):
+            if (int(m[0]), int(m[1])) != (hs_u, hs_t):
+                reasons.append(f"叙述热点未覆盖 {m[0]}/{m[1]} 与数据 {hs_u}/{hs_t} 不符")
                 break
     if (verdict == "stop" or metrics.get("failure_kind") == "product_defect") \
             and re.search(r"已解决|全部通过|全部修复|无缺陷|未发现缺陷", narrative or ""):

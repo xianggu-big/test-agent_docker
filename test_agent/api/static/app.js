@@ -227,10 +227,16 @@ async function loadReport() {
   const rate = latest && latest.pass_rate != null ? Math.round(latest.pass_rate * 100) : null;
   $("rp-rate").textContent = `通过率 ${rate != null ? rate : "--"}%`;
   $("rp-rate").className = "badge " + (rate >= 70 ? "badge-ok" : rate == null ? "badge-queued" : "badge-fail");
-  $("rp-metrics").innerHTML = latest ? [
+  // 指标条：五格 = 总数/通过/失败/跳过 + W4 复杂度热点未覆盖（有热点快照的任务才出这格）
+  const cells = latest ? [
     ["总数", latest.total, ""], ["通过", latest.passed, "ok"],
     ["失败", latest.failed, "fail"], ["跳过", latest.skipped, ""],
-  ].map(([k, v, c]) => `<div class="metric"><div class="k">${k}</div><div class="v ${c}">${v ?? 0}</div></div>`).join("")
+  ] : [];
+  if (latest && latest.hotspots) cells.push(
+    ["热点未覆盖", `${latest.hotspots.uncovered}/${latest.hotspots.total}`,
+     latest.hotspots.uncovered > 0 ? "fail" : "ok"]);
+  $("rp-metrics").innerHTML = latest
+    ? cells.map(([k, v, c]) => `<div class="metric"><div class="k">${k}</div><div class="v ${c}">${v ?? 0}</div></div>`).join("")
     : '<div class="metric"><div class="k">暂无报告</div><div class="v">--</div></div>';
 
   // 概览：gen_report 叙述（数字来自 SQL，审查结论徽章）+ 评估摘要兜底

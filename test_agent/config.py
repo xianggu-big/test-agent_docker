@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent          # 项目根目录
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "test_agent.db"                   # 第 5 层数据库
-SCHEMA_PATH = ROOT / "docs" / "layer5-data-schema.sql"  # 建库脚本（16 张表）
+SCHEMA_PATH = ROOT / "docs" / "layer5-data-schema.sql"  # 建库脚本（17 张表）
 
 # —— L4 执行镜像（与 docker/ 下 Dockerfile 对应；注册表供镜像管理/自动补齐用） ——
 IMAGE_PY = "mta-test:py312"

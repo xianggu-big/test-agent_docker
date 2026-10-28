@@ -25,6 +25,7 @@ from .. import config
 from ..graph.builder import run_task
 from ..sandbox import preflight
 from ..sandbox.runner import SandboxRunner
+from ..skills.evaluate import hotspot_coverage
 from ..skills.gen_tests import _rebuild_imported_file, _sanitize_name
 from ..store import db
 from ..store.db import get_conn
@@ -256,12 +257,20 @@ def api_report(tid: int, user: dict = Depends(current_user)):
     _task_or_404(conn, tid)
     rows = conn.execute(
         "SELECT * FROM test_reports WHERE task_id=? ORDER BY id DESC", (tid,)).fetchall()
+    # W4 热点快照是任务级（重跑整体替换），与各历史报告的 per_file 交叉求值
+    hotspots = [dict(r) for r in conn.execute(
+        """SELECT file, name, complexity, rank, lineno FROM complexity_hotspots
+           WHERE task_id=? ORDER BY complexity DESC""", (tid,))]
     reports = []
     for r in rows:
         d = dict(r)
         total = (d["passed"] or 0) + (d["failed"] or 0) + (d["skipped"] or 0)
         d["total"] = total
         d["pass_rate"] = round(d["passed"] / total, 4) if total else None
+        if hotspots:
+            cross = hotspot_coverage(hotspots,
+                                     json.loads(d["per_file"]) if d["per_file"] else [])
+            d["hotspots"] = {"total": cross["total"], "uncovered": cross["uncovered"]}
         reports.append(d)
     return reports
 
