@@ -115,7 +115,7 @@ def part1_completion() -> list[Item]:
 def part2_pytest(extra: list[str] | None = None) -> list[Item]:
     """单测回归：机制 12 条必查；--full 时全量。"""
     out: list[Item] = []
-    runs = [("三方案机制单测", ["tests/test_design_proposals.py"], 12),
+    runs = [("三方案机制单测", ["tests/test_design_proposals.py"], 13),
             ("review 节点单测（今日终态恢复）", ["tests/test_review_node.py"], None)]
     if extra:
         runs.append(("全量回归", extra, None))
@@ -175,9 +175,12 @@ def part3_probes() -> list[Item]:
     check("A·语法坏码不炸且计弱", a["weak"] == 1 and "语法" in a["reasons"][0], f"{a}")
 
     a = assertion_audit("def t():\n    assert a == 1 and b == 2\n")
-    check("A·BoolOp 联接强比较被判弱（FINDING：闸开启时全弱即剔→可能误杀）",
-          a["weak"] == 1 and a["strong"] == 0, f"{a}——两臂皆具体比较但顶层是 BoolOp",
-          finding=True)
+    check("A·BoolOp 联接逐臂审计（两臂皆强比较=强，e908213 修复后回归守卫）",
+          a["strong"] == 1 and a["weak"] == 0, f"{a}——两臂皆具体比较，逐臂审计不再误杀")
+
+    a = assertion_audit("def t():\n    assert a == 1 and flag\n")
+    check("A·BoolOp 含弱臂（裸真值）仍判弱", a["weak"] == 1 and "第2臂" in a["reasons"][0],
+          f"{a}")
 
     a = assertion_audit("def t():\n    assert (a, b) == (1, 2)\n")
     check("A·元组整体比较=强（BoolOp 的正确写法对照组）", a["strong"] == 1, f"{a}")
