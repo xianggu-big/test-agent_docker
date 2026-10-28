@@ -20,7 +20,7 @@ from .registry import Skill
 
 log = logging.getLogger(__name__)
 
-# agent_messages 中 evaluate 节点结构化消息的解析（覆盖率缺失时写作 N/A）
+# 兼容路径：老任务（evaluation_rounds 建表前）的轨迹解析自叙述消息（新数据走表，勿再依赖此格式）
 _EVAL_MSG = re.compile(
     r"\[evaluate 第(\d+)轮\] 通过(\d+) 失败(\d+) 跳过(\d+) 覆盖率(\S+) 指纹\S* → (\w+)（")
 _STOPWORDS = "的了在与是和或对为中断将把被个及其"
@@ -58,19 +58,31 @@ def collect_metrics(conn, task_id: int, report_id: int | None = None) -> dict:
                        if rep["defects"] else None,
     }
 
-    # R-Loop 轮次轨迹（evaluate 节点结构化消息 → 覆盖率趋势/归因分布数据源）
+    # R-Loop 轮次轨迹（P1-③ 根修）：结构化表 evaluation_rounds 为唯一真源；
+    # 老任务（建表前跑的实验数据）无表行时回退解析叙述消息，兼容历史数据。
     trace = []
-    rows = conn.execute("""SELECT m.content FROM agent_messages m
-                           JOIN agent_sessions s ON s.id = m.session_id
-                           WHERE s.task_id = ? AND m.content LIKE '[evaluate 第%'
-                           ORDER BY s.id, m.seq""", (task_id,))
-    for r in rows:
-        if m := _EVAL_MSG.match(r["content"]):
-            cov = m.group(5)
-            trace.append({"round": int(m.group(1)), "passed": int(m.group(2)),
-                          "failed": int(m.group(3)), "skipped": int(m.group(4)),
-                          "coverage": None if cov in ("N/A", "None") else float(cov),
-                          "verdict": m.group(6)})
+    rows = conn.execute("""SELECT round_no, passed, failed, skipped, coverage_line, verdict
+                           FROM evaluation_rounds WHERE task_id=? ORDER BY id""",
+                        (task_id,)).fetchall()
+    if rows:
+        metrics["trace_source"] = "evaluation_rounds"
+        for r in rows:
+            trace.append({"round": r["round_no"], "passed": r["passed"],
+                          "failed": r["failed"], "skipped": r["skipped"],
+                          "coverage": r["coverage_line"], "verdict": r["verdict"]})
+    else:
+        metrics["trace_source"] = "legacy_messages"
+        mrows = conn.execute("""SELECT m.content FROM agent_messages m
+                                JOIN agent_sessions s ON s.id = m.session_id
+                                WHERE s.task_id = ? AND m.content LIKE '[evaluate 第%'
+                                ORDER BY s.id, m.seq""", (task_id,))
+        for r in mrows:
+            if m := _EVAL_MSG.match(r["content"]):
+                cov = m.group(5)
+                trace.append({"round": int(m.group(1)), "passed": int(m.group(2)),
+                              "failed": int(m.group(3)), "skipped": int(m.group(4)),
+                              "coverage": None if cov in ("N/A", "None") else float(cov),
+                              "verdict": m.group(6)})
     metrics["trace"] = trace
     metrics["verdict_counts"] = dict(Counter(t["verdict"] for t in trace))
 

@@ -80,11 +80,34 @@ class TestCollectMetrics:
         assert m["failure_kind"] == "product_defect"
 
     def test_轨迹解析与归因分布(self, conn):
+        """老数据兼容路径：任务无 evaluation_rounds 表行（建表前的实验数据），
+        轨迹回退解析叙述消息——措辞耦合的旧机制仅为历史数据保留。"""
         tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]
         m = collect_metrics(conn, tid)
+        assert m["trace_source"] == "legacy_messages"
         assert [t["round"] for t in m["trace"]] == [1, 2]
         assert m["trace"][0]["coverage"] == 0.60 and m["trace"][1]["verdict"] == "stop"
         assert m["verdict_counts"] == {"repair_gen": 1, "stop": 1}
+
+    def test_轨迹优先读结构化表_与消息解耦(self, conn):
+        """P1-③：有表行时轨迹只认 evaluation_rounds——叙述消息措辞再变（甚至为垃圾）
+        也不影响轨迹，评估节点与指标包从此解耦。"""
+        tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]
+        for r, p, f, s, cov, v in ((1, 3, 2, 0, 0.5, "repair_gen"),
+                                   (2, 9, 0, 1, 0.92, "pass")):
+            conn.execute(
+                """INSERT INTO evaluation_rounds(task_id, round_no, passed, failed,
+                                                skipped, coverage_line, verdict)
+                   VALUES(?,?,?,?,?,?,?)""", (tid, r, p, f, s, cov, v))
+        # 叙述消息全部改成不可解析的垃圾：表优先，垃圾不影响轨迹
+        conn.execute("UPDATE agent_messages SET content='evaluate 内部措辞已改版 xx'")
+        conn.commit()
+        m = collect_metrics(conn, tid)
+        assert m["trace_source"] == "evaluation_rounds"
+        assert [t["round"] for t in m["trace"]] == [1, 2]
+        assert m["trace"][1] == {"round": 2, "passed": 9, "failed": 0,
+                                 "skipped": 1, "coverage": 0.92, "verdict": "pass"}
+        assert m["verdict_counts"] == {"repair_gen": 1, "pass": 1}
 
     def test_工具调用成功率与耗时(self, conn):
         tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]

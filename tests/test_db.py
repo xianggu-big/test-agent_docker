@@ -1,19 +1,20 @@
 """数据层回归：建库幂等、表数量、确认门默认值（fail-closed 的根基）。
 
-表数量当前为 15：14 张业务表 + rtm_maps（map_requirements 产物，阶段 4 E5 接线中）。
+表数量当前为 16：14 张业务表 + rtm_maps（map_requirements 产物）+
+evaluation_rounds（P1-③：R-Loop 每轮评估结构化落库，轨迹唯一真源）。
 """
 from test_agent import config
 from test_agent.store import db
 
 
 def test_init_db_creates_all_tables(tmp_path):
-    assert db.init_db(tmp_path / "t.db") == 15
+    assert db.init_db(tmp_path / "t.db") == 16
 
 
 def test_init_db_idempotent(tmp_path):
     p = tmp_path / "t.db"
     db.init_db(p)
-    assert db.init_db(p) == 15  # 第二次不炸也不重建
+    assert db.init_db(p) == 16  # 第二次不炸也不重建
 
 
 def test_rtm_conditions_table_exists(tmp_path):

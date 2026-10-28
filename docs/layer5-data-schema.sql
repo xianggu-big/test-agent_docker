@@ -7,7 +7,7 @@
 --   * 时间统一 TEXT ISO8601（UTC）；比值/覆盖率用 REAL（0~1）；耗时毫秒 INTEGER
 --   * 枚举用 TEXT + CHECK，不建字典表（本科规模，简单优先）
 --   * 外键运行时开启：PRAGMA foreign_keys = ON
---   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 15 张
+--   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 16 张
 -- ============================================================================
 
 PRAGMA journal_mode = WAL;
@@ -219,6 +219,24 @@ CREATE TABLE IF NOT EXISTS rtm_maps (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 16) 评估轮次台账（P1-③ 根修：R-Loop 每轮评估的结构化落库。此前每轮 passed/failed/
+--     覆盖率/判定只存 agent_messages 叙述消息，collect_metrics 靠正则解析散文取轨迹，
+--     措辞一变轨迹即静默清空；本表为轨迹唯一真源，叙述消息仅留人读）
+CREATE TABLE IF NOT EXISTS evaluation_rounds (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id       INTEGER NOT NULL REFERENCES test_tasks(id),
+  round_no      INTEGER NOT NULL,         -- 本轮编号（重跑从 1 重新计，delete-first 整体替换）
+  passed        INTEGER NOT NULL DEFAULT 0,
+  failed        INTEGER NOT NULL DEFAULT 0,
+  skipped       INTEGER NOT NULL DEFAULT 0,
+  coverage_line REAL,                     -- 0~1，行覆盖率（无覆盖率数据时 NULL）
+  verdict       TEXT,                     -- R-Loop 判定：pass / repair_gen / repair_env / stop
+  failure_kind  TEXT,                     -- 归因分类：use_case / env / product / none
+  stop_reason   TEXT,
+  fingerprint   TEXT,                     -- 失败指纹（熔断判定的输入，留档可复现）
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 常用查询索引
 CREATE INDEX IF NOT EXISTS idx_tasks_status     ON test_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_project    ON test_tasks(project_id);
@@ -229,3 +247,4 @@ CREATE INDEX IF NOT EXISTS idx_reports_task     ON test_reports(task_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_report  ON feedback_annotations(report_id);
 CREATE INDEX IF NOT EXISTS idx_conditions_task  ON test_conditions(task_id);
 CREATE INDEX IF NOT EXISTS idx_rtm_task         ON rtm_maps(task_id);
+CREATE INDEX IF NOT EXISTS idx_eval_rounds_task ON evaluation_rounds(task_id);

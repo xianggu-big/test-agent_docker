@@ -106,3 +106,59 @@ def test_clone_rerun_no_imported_writes_nothing(env, tmp_path):
 
     ws = config.DATA_DIR / "workspaces" / f"task_{tid}"
     assert not (ws / "test_imported.py").exists()
+
+
+def test_evaluate_writes_structured_round_rows(env):
+    """P1-③：evaluate 每轮把结构化指标落 evaluation_rounds（轨迹唯一真源），
+    落库值与 decide 判定一致；叙述消息照写（留人读）。"""
+    from test_agent.graph import repair as _repair
+
+    c, nodes, tid, ses = env
+    stdout = ("ERROR test_a.py::test_import - ImportError: cannot import name 'calc'\n"
+              "---------- coverage: python  ----------\n"
+              "TOTAL          20           4           80%\n"
+              "=== 3 passed, 2 failed, 1 skipped in 0.5s ===")
+    state = {"task_id": tid, "session_id": ses, "last_exit": 1,
+             "last_stdout": stdout, "last_stderr": "", "fingerprints": [],
+             "round_no": 1, "coverage_target": 0.7}
+    out = nodes["evaluate"](state)
+
+    row = c.execute("SELECT * FROM evaluation_rounds WHERE task_id=?", (tid,)).fetchone()
+    assert row["round_no"] == 1 and row["passed"] == 3
+    assert row["failed"] == 2 and row["skipped"] == 1
+    assert row["coverage_line"] == 0.8
+    assert row["verdict"] == out["verdict"] == "repair_gen"  # 2 失败未达标 → 补测
+    assert row["failure_kind"] == out["failure_kind"]
+    # 落库判定与 decide 纯函数对同一输入的判定一致（表内容可复现）
+    verdict, kind, _ = _repair.decide(1, stdout, "", [], row["fingerprint"], 1, 0.8, 0.7)
+    assert (row["verdict"], row["failure_kind"]) == (verdict, kind)
+    # 叙述消息照写（人读通道保留，但轨迹不再依赖它）
+    n_msg = c.execute("SELECT COUNT(*) FROM agent_messages WHERE content LIKE '[evaluate 第%'"
+                      " AND session_id=?", (ses,)).fetchone()[0]
+    assert n_msg == 1
+
+
+def test_evaluate_rerun_replaces_round_rows(env):
+    """P1-③ 重跑幂等：任务重跑再进图（round 从 1 重新计），
+    旧轮次表行被整体替换而非追加——轨迹以本轮为准，不翻倍。"""
+    c, nodes, tid, ses = env
+    stdout_r1 = ("TOTAL    10    5    50%\n"
+                 "=== 3 passed, 2 failed, 0 skipped in 0.5s ===")
+    stdout_r2 = ("TOTAL    10    1    90%\n"
+                 "=== 8 passed, 1 failed, 0 skipped in 0.5s ===")
+
+    def run_round(round_no, stdout):
+        nodes["evaluate"]({"task_id": tid, "session_id": ses, "last_exit": 1,
+                           "last_stdout": stdout, "last_stderr": "",
+                           "fingerprints": [], "round_no": round_no,
+                           "coverage_target": 0.7})
+
+    run_round(1, stdout_r1)
+    run_round(2, stdout_r2)
+    assert c.execute("SELECT COUNT(*) FROM evaluation_rounds WHERE task_id=?",
+                     (tid,)).fetchone()[0] == 2
+
+    run_round(1, stdout_r2)  # 重跑：第 1 轮重新开始
+    rows = c.execute("SELECT round_no, passed FROM evaluation_rounds"
+                     " WHERE task_id=? ORDER BY id", (tid,)).fetchall()
+    assert [(r["round_no"], r["passed"]) for r in rows] == [(1, 8)]  # 整体替换，非追加成 3 行

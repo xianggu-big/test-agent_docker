@@ -329,8 +329,21 @@ def make_nodes(deps: GraphDeps) -> dict:
             state.get("fingerprints", []), fp,
             state.get("round_no", 0), coverage,
             state.get("coverage_target"))
+        round_no = state.get("round_no", 0)
+        # P1-③：每轮评估结构化落库（evaluation_rounds，轨迹唯一真源）——此前只写
+        # 叙述消息，collect_metrics 靠正则解析散文取轨迹，措辞一变即静默清空。
+        # 重跑再进图 round 从 1 重新计：delete-first 以本轮为准（与 plan 同幂等语义）
+        if round_no <= 1:
+            conn.execute("DELETE FROM evaluation_rounds WHERE task_id=?", (tid,))
+        conn.execute(
+            """INSERT INTO evaluation_rounds(task_id, round_no, passed, failed, skipped,
+                                            coverage_line, verdict, failure_kind,
+                                            stop_reason, fingerprint)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (tid, round_no, passed, failed, skipped, coverage, verdict, kind, reason, fp))
+        conn.commit()
         msg(state["session_id"], "assistant",
-            f"[evaluate 第{state.get('round_no', 0)}轮] 通过{passed} 失败{failed} 跳过{skipped} "
+            f"[evaluate 第{round_no}轮] 通过{passed} 失败{failed} 跳过{skipped} "
             f"覆盖率{coverage if coverage is not None else 'N/A'} 指纹{fp[:8] or '无'} → {verdict}（{reason}）")
         return {"passed": passed, "failed": failed, "skipped": skipped,
                 "coverage_line": coverage, "per_file": _parse_per_file_coverage(stdout),
