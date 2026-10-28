@@ -331,7 +331,9 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   include_methods=config.GEN_METHODS_ENABLED,
                                                   boundary_attack=config.GEN_BOUNDARY_ATTACK,
                                                   pbt=config.PBT_ENABLED,
-                                                  templates=config.TEMPLATES_ENABLED))])
+                                                  templates=config.TEMPLATES_ENABLED,
+                                                  state_transition=config.STATE_TRANSITION_ENABLED,
+                                                  metamorphic=config.METAMORPHIC_ENABLED))])
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,

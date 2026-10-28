@@ -9,7 +9,7 @@
   静态闸/collect-only 闸/落库，与自由生成通道可比（消融时关 TEMPLATES_ENABLED）。
 
 A5 对齐纪律：一次展开只产出一个 def test_ 函数（nodeid ↔ test_cases.name 一一对应），
-无效/异常路径由 LLM 以 mode="invalid" 另发一条模板用例。
+无效/异常路径由 LLM 以 mode="invalid" 另发一条模板用例（T4 的非法迁移是函数内 raises 段）。
 """
 import builtins
 import re
@@ -18,8 +18,8 @@ import re
 _ALLOWED_ERRORS = {name for name, obj in vars(builtins).items()
                    if isinstance(obj, type) and issubclass(obj, BaseException)}
 
-KIND_METHOD = {"T1": "等价类划分", "T2": "边界值分析", "T5": "错误推测法"}
-KIND_SUFFIX = {"T1": "等价类", "T2": "边界值", "T5": "错误推测"}
+KIND_METHOD = {"T1": "等价类划分", "T2": "边界值分析", "T5": "错误推测法", "T4": "状态迁移法"}
+KIND_SUFFIX = {"T1": "等价类", "T2": "边界值", "T5": "错误推测", "T4": "状态迁移"}
 
 
 class SlotError(ValueError):
@@ -45,6 +45,40 @@ def _check_rows(rows, mode: str, kind: str) -> None:
                      f"error 必须是内置异常名，收到 {r.get('error')!r}")
 
 
+def _render_transition(slots: dict, fname: str) -> str:
+    """T4 状态迁移（Chow TSE 1978 迁移覆盖思想的模板化）：
+
+    setup 建初始状态 → 逐迁移 step{call, assert} 走合法路径（迁移全覆盖）→
+    可选 invalid[{call, error}] 在终态上拒绝非法迁移（0-switch 语义）。
+    """
+    setup = slots.get("setup")
+    steps = slots.get("steps")
+    invalid = slots.get("invalid") or []
+    _require(isinstance(setup, str) and setup.strip(), "setup 必须是非空初始化表达式")
+    _require(isinstance(steps, list) and len(steps) >= 2,
+             f"状态迁移至少 2 条合法迁移（迁移全覆盖语义），收到 {len(steps) if isinstance(steps, list) else 0}")
+    lines = [setup.strip()]
+    for s in steps:
+        _require(isinstance(s, dict) and isinstance(s.get("call"), str) and s["call"].strip(),
+                 "steps 元素缺少 call（迁移调用表达式）")
+        _require(isinstance(s.get("assert"), str) and s["assert"].strip(),
+                 "steps 元素缺少 assert（迁移后的状态断言）")
+        lines.append(s["call"].strip())
+        lines.append(f"assert {s['assert'].strip()}")
+    for s in invalid:
+        _require(isinstance(s, dict) and isinstance(s.get("call"), str) and s["call"].strip()
+                 and s.get("error") in _ALLOWED_ERRORS,
+                 f"invalid 元素需 call + 内置异常名，收到 {s!r}")
+        lines.append("with pytest.raises(" + s["error"] + "):")
+        lines.append("    " + s["call"].strip())
+    imp_lines = slots.get("imports")
+    _require(isinstance(imp_lines, str) and imp_lines.strip(), "imports 必须是非空字符串")
+    if not re.search(r"^\s*import pytest\s*$", imp_lines, re.M):
+        imp_lines = "import pytest\n" + imp_lines
+    body = "\n    ".join(lines)
+    return f"{imp_lines}\n\n\ndef {fname}():\n    {body}\n"
+
+
 def render_slot_template(kind: str, slots: dict, base_name: str = "case") -> str:
     """把模板槽位渲染成单个 pytest 参数化测试函数（A5：恰一个 def）。
 
@@ -53,6 +87,9 @@ def render_slot_template(kind: str, slots: dict, base_name: str = "case") -> str
     """
     _require(kind in KIND_METHOD, f"未知模板 {kind!r}")
     _require(isinstance(slots, dict), "slots 必须是对象")
+    if kind == "T4":
+        base = re.sub(r"\W+", "_", (base_name or "case").strip("_")) or "case"
+        return _render_transition(slots, f"test_{base}_{KIND_SUFFIX[kind]}")
     imports = slots.get("imports")
     target = slots.get("target")
     mode = slots.get("mode")

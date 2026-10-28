@@ -120,3 +120,55 @@ def test_build_user_prompt_template_section_gate():
     off = build_user_prompt(src, "需求", templates=False)
     assert "槽位模板通道" in on
     assert "槽位模板通道" not in off        # 对照组不泄漏模板示例（消融效度）
+
+
+# ---------- T4 状态迁移（B4）与蜕变/状态迁移提示词开关（B8） ----------
+
+T4_SLOTS = {
+    "imports": "from order import Order",
+    "setup": "order = Order('pending')",
+    "steps": [{"call": "order.pay()", "assert": "order.status == 'paid'"},
+              {"call": "order.ship()", "assert": "order.status == 'shipped'"}],
+    "invalid": [{"call": "order.pay()", "error": "RuntimeError"}],
+}
+
+
+def test_t4_transition_render():
+    code = _render("T4", T4_SLOTS, name="test_order")
+    assert "def test_test_order_状态迁移():" in code
+    assert "order = Order('pending')" in code
+    assert "order.pay()" in code and "assert order.status == 'paid'" in code
+    assert "with pytest.raises(RuntimeError):" in code   # 非法迁移段
+    # 函数体顺序：setup → 迁移1 → 断言1 → 迁移2 → 断言2 → raises
+    body = code[code.index("():"):]
+    assert body.index("order.pay()") < body.index("assert order.status == 'paid'") \
+        < body.index("order.ship()") < body.index("pytest.raises")
+
+
+def test_t4_validation():
+    with pytest.raises(SlotError, match="至少 2 条合法迁移"):
+        render_slot_template("T4", {**T4_SLOTS, "steps": T4_SLOTS["steps"][:1]})
+    with pytest.raises(SlotError, match="setup"):
+        render_slot_template("T4", {**T4_SLOTS, "setup": "  "})
+    with pytest.raises(SlotError, match="assert"):
+        render_slot_template("T4", {**T4_SLOTS,
+                                    "steps": T4_SLOTS["steps"] + [{"call": "order.deliver()"}]})
+
+
+def test_expand_t4_and_method_tag():
+    good = {"name": "test_order_walk", "template": "T4", "slots": T4_SLOTS}
+    out, rejected = expand_template_cases([good])
+    assert not rejected
+    assert out[0]["method"] == KIND_METHOD["T4"]
+    assert "def test_test_order_walk_状态迁移():" in out[0]["code"]
+
+
+def test_prompt_sections_gated():
+    from test_agent.skills.prompt_library import build_user_prompt
+    src = [("m.py", "def f():\n    pass\n")]
+    st_on = build_user_prompt(src, "需求", state_transition=True)
+    mt_on = build_user_prompt(src, "需求", metamorphic=True)
+    both_off = build_user_prompt(src, "需求")
+    assert "状态迁移法" in st_on and "模板 T4" in st_on
+    assert "蜕变关系" in mt_on and "CSUR" in mt_on
+    assert "状态迁移法" not in both_off and "蜕变关系" not in both_off

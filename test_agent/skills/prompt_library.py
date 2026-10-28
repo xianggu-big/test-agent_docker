@@ -132,6 +132,34 @@ expected/expected_basis）照常填写。两种形态可混用：
   T1 等价类有效与无效各至少 2 行（无效走 mode=invalid 单发）；T5 至少 2 条攻击用例。
 - 预期值同样必须先于执行确定、标注 expected_basis；槽位非法的用例会被整案剔除。"""
 
+STATE_TRANSITION_SECTION = """
+
+## 状态迁移法（扩展方法，实验开关）
+若需求描述了状态机语义（状态/事件/迁移，如订单、会话、审批流），用模板 T4 生成迁移覆盖用例：
+{"name": "test_order_状态迁移", "method": "状态迁移法", "priority": "高",
+ "input": "订单状态机", "steps": "走合法迁移并拒绝非法迁移", "expected": "状态按迁移表变化",
+ "expected_basis": "需求明示", "template": "T4",
+ "slots": {"imports": "from order import Order",
+   "setup": "order = Order('pending')",
+   "steps": [{"call": "order.pay()", "assert": "order.status == 'paid'"},
+              {"call": "order.ship()", "assert": "order.status == 'shipped'"}],
+   "invalid": [{"call": "order.pay()", "error": "RuntimeError"}]}}
+- 合法迁移必须全覆盖（每条迁移一个 call+assert 对）；非法迁移写入 invalid（须被拒绝）。
+- 断言的是需求声明的状态语义，禁止从实际输出反推；与需求无关的状态机不要发明。"""
+
+METAMORPHIC_SECTION = """
+
+## 蜕变测试（扩展方法，实验开关；Chen et al., ACM CSUR 2018）
+对预期值难以显式给出（无明确 oracle）的行为，先从需求/数学性质提炼蜕变关系（MR），
+再生成"源输入 + 跟随输入 + 关系断言"用例。常见 MR 模式（按需选用，禁止硬凑）：
+- 幂等：f(f(x)) == f(x)（归一化/格式化类）
+- 对称/交换：f(a, b) == f(b, a)（无序比较类）
+- 单调：a <= b ⟹ f(a) <= f(b)（排序/评分类）
+- 往返：g(f(x)) == x，f 为编码 g 为解码（编解码/序列化类）
+- 无关变换不变：f(x) == f(transform(x))，transform 为空白/顺序/大小写等无关扰动
+断言的是关系而非具体值；MR 必须来自需求语义或数学性质并标注 expected_basis，
+禁止"实现两次调用恰好相等"这类从实现反推的伪 MR。"""
+
 
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
@@ -141,6 +169,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       boundary_attack: bool = False,
                       pbt: bool = False,
                       templates: bool = False,
+                      state_transition: bool = False,
+                      metamorphic: bool = False,
                       cond_forced: bool = False,
                       existing_cases: list[str] | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
@@ -154,6 +184,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     templates: 槽位模板通道开关（方法组合 T1/T2/T5；True=基础方法优先槽位填充）。
     注意消融效度：做"模板 vs 自由生成"对照时对照组必须 templates=False，
     且本函数不向自由通道泄漏任何模板示例（writing-for-agents 教训）。
+    state_transition: B4 状态迁移法开关（T4 迁移清单模板；True=追加状态机段）。
+    metamorphic: B8 蜕变法开关（MR 模式库提示词；True=追加蜕变关系段）。
     cond_forced: 条件缺口回灌模式（方案C；True=conditions 段改为"强制逐条覆盖"措辞）。
     """
     src_text = "\n\n".join(
@@ -163,6 +195,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     boundary_text = BOUNDARY_ATTACK_SECTION if boundary_attack else ""
     pbt_text = PBT_SECTION if pbt else ""
     template_text = TEMPLATE_SECTION if templates else ""
+    st_text = STATE_TRANSITION_SECTION if state_transition else ""
+    mt_text = METAMORPHIC_SECTION if metamorphic else ""
     cond_text = ""
     if conditions:
         rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
@@ -200,7 +234,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}{boundary_text}{pbt_text}{template_text}
+{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}
