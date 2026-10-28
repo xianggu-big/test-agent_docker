@@ -3,12 +3,14 @@
 ## 当前状态
 - 目标：Test Agent 端到端自动化测试系统（LangGraph 编排 + Docker 沙箱 + SQLite 落库），服务论文与答辩
 - 愿景六步流程（2026-10-26 用户定稿）权威记录在 docs/vision-and-gaps.md：repo+需求→语言占比→预构建镜像→生成用例+二次审查→R-Loop(3轮)→评估工具集出报告→报告二次审查回炉；总纲=四阶段（分析/设计/执行/评估）
-- 愿景↔现状：主链路/确认门/归因三分类/指纹熔断/预构建镜像已通；缺口=plan节点+test_conditions(RTM)、用例六要素结构化、语义二次审查、评估五工具(collect_metrics/map_requirements/gen_report/review_report/gen_charts)、人工插用例(依赖L1)
-- 已定口径：固定 LangGraph 图做骨架，LLM 的 plan 是节点产物(plan节点+gen_tests)；不承诺"直到成功"，product_defect 如实报缺陷不回炉用例；评估数字全由确定性代码从 SQL 算、LLM 只叙述；二次审查规则闸(AST/collect-only)先行、LLM 审为辅
-- 五层架构：L1 界面（未建，cli.py 暂代）｜L2 graph/ 编排｜L3 skills/ 注册表（审计+确认门）｜L4 sandbox/ 容器执行｜L5 store/ 13 表 SQLite（拟加 test_conditions →14）
-- 关键文件：docs/layer5-data-schema.sql（13 表）、docs/testing-theory.md（理论↔系统映射）、docs/vision-and-gaps.md、docker/ 两 Dockerfile（mta-test:py312 / jdk17-maven）、skills/prompt_library.py（五方法骨架）、docs/industry-testing-research.md（主流软测流程调研·信源逐条核验）
-- 已知口径风险：container_jobs 台账非真队列；analyze 单 module(path='.')；install_deps 只认根 requirements
-- 坑/缺口：无 tests/ 目录（repair.py 标注"可单测"未落地）；非 git 仓库（未 git init）
+- 愿景↔现状：**全部落地（2026-10-28）**——主链路/确认门/归因三分类/指纹熔断/预构建镜像/plan+RTM/六要素结构化/评估五工具/报告二次审查回炉均已实现；v1 未做仅=生成用例的 LLM 交叉语义审（静态闸+collect-only 闸已生效）与多模块拆分（口径 b 整仓 static_only）
+- 已定口径：固定 LangGraph 图做骨架，LLM 的 plan 是节点产物(plan节点+gen_tests)；不承诺"直到成功"，product_defect 如实报缺陷不回炉用例；评估数字全由确定性代码从 SQL 算、LLM 只叙述；二次审查规则闸(AST/collect-only/数字比对)先行、LLM 审为辅
+- 五层架构：L1 界面（FastAPI+原生前端 :8000，报告页含 RTM 矩阵+六要素表+叙述/审查徽章）｜L2 graph/ 9 节点编排（clone→analyze→plan→provision→generate→run→evaluate→report→review，评估回炉闭环）｜L3 skills/ 注册表（执行 3 + 评估 5 全量审计台账）｜L4 sandbox/ 容器执行｜L5 store/ 15 表 SQLite（rtm_maps 第15张=RTM 矩阵快照）
+- 关键文件：README.md（快速开始+实验复现表）、docs/layer5-data-schema.sql（15 表 DDL 单一真源）、docs/experiment-design.md（实验设计定稿 RQ1-5↔E1-E5）、docs/vision-and-gaps.md、docs/testing-theory.md、docs/industry-testing-research.md、scripts/demo.py（一键演示）
+- 已知口径风险：container_jobs 台账非真队列；analyze 单 module(path='.')；install_deps 只认根 requirements；生成用例的 LLM 交叉语义审 v1 未做
+- **阶段 4 全部完成（2026-10-28，E1-E5 实验数据齐备，论文实验章可写）**：E5 评估五工具+review 节点（1de9b5e）——指标包全 SQL 确定性、RTM 矩阵 LLM 辅助+2gram 兜底（rtm_maps 快照）、报告叙述数字禁造、审查规则闸先行（数字比对/防造假红线）+LLM 闸收窄聚焦、matplotlib 四图；A13 修复 skills 注册缺口（此前审计台账只覆盖 run_tests）；单测 20 个锁死回炉语义（reject 仅推翻 pass，stop 不可被审查改判）
+- **快照一致性坑（run46 实锤）**：gen_report 与 review_report 各自 collect_metrics 会因评估工具自身台账增长而数字漂移 → LLM 闸自审自 reject 误回炉；已改 review 节点 collect 一次经 args 下传；skill func 在注册表线程池执行，sqlite3 连接禁止闭包跨线程复用（func 内自建）
+- 下一步：论文撰写（实验章数据全齐：E1 性能 3.8x/E2 三链路/E4 混淆矩阵 14/14/E5 审查双闸）；可选打磨=L1 报告页 matplotlib 图内嵌、Gen UI 演示稿
 - 2026-10-26 全量审计（清单=docs/audit-findings.md）：代码层 A1-A10，3 个高危=准出标准未真冻结（repair 读全局 config 非任务行）/超时后复用容器违反 runner 自定约定/provision 无干净容器保证（重跑残留旧用例）；构思层最大空洞 B1=实验设计方案缺位且 demo 缺 product_defect、env 两类场景
 - 2026-10-26 loop 构思结论：loop 金标准=每轮有信息增量（学习环≠重试环）；升级点①②是实现用户"回炉重造"愿景的前提（否则指纹熔断第 2 轮必触发），建议直接纳入 v1
 - ①覆盖缺口回灌：evaluate 只取 TOTAL（nodes.py:194），term-missing 缺口行被丢弃；应灌回 generate 提示词（CoverUp 模式）
@@ -19,9 +21,9 @@
 - 2026-10-27 搭建计划获批（docs/build-plan.md）：阶段0已提交（21adace：A1-A12 清零、单测 24 绿、双场景冒烟过）；阶段1已提交（1166e0d：镜像自动构建闭环+性能对比实验，结果在 benchmarks/results/，复跑两次数据吻合）
 - **实验核心结论（论文引用）**：容器热运行 0.8s vs Windows 宿主 3.1s（约3.8x），冷启动一次性 ~1.3s——容器化无性能 penalty 反而更快，L4 选型的量化依据；诚实边界=单机/n=5/微型项目/Linux 宿主上差距预计收窄
 - **三链路对比实验完成（2026-10-27，论文「方法对比」节核心数据）**：benchmarks/compare_pipelines.py 受控对比 A=prune 基线/B=rewrite(YATE)/C=hybrid 合成（场景E/cart.py+同一合成第1轮+冻结准出 0.70，真实 Docker+DeepSeek）；结果=A 11.9s/100%覆盖/剪2条重生成19条，B 3.5s/97%/重写2条跳过全量（但不补缺口），C 13.1s/100%（A 的缺口兜底+B 的种子保留，成本换鲁棒）；三链路证人均保留、均正确停 product_defect；config.REPAIR_STRATEGY 默认 A，C 一行切换；每链路 n=1 诚实边界，机制层由 fake-LLM 单测锁死
-- 下一步：阶段 4（B1 实验设计定稿→评估五工具 collect_metrics/map_requirements/gen_report/review_report/gen_charts→变异标定实验）→ L1 打磨（报告页展示 RTM/六要素）
+- 下一步：论文撰写（实验章数据全齐：E1 性能 3.8x/E2 三链路/E4 混淆矩阵 14/14/E5 审查双闸）；可选打磨=L1 报告页 matplotlib 图内嵌、Gen UI 演示稿
 - 阶段 3 全部完成（4e6c457）：plan 节点+test_conditions 第14张表（RTM 落地，实测拆出 9 条含保守语义假设的条件）、collect-only 第二道闸（文件级失败整体废案）、schema 全 DDL 幂等化（_migrate 执行整个 schema，老库自动补表）；主图 8 节点 clone→analyze→plan→provision→generate→run→evaluate→report
-- 回归基线：pytest 62 过 1 跳（新增 db/parse_cases/prompt_library/repair_strategy 四个测试模块+e2e_slow 默认跳过，MTA_E2E=1 启用）+ smoke 15 + adversarial 9（2026-10-28 全量复验通过）；坑：data/workspaces/task_7 目录被清后对抗 D1 会跳过，mkdir 即恢复；服务需重启才载新图逻辑（cli 每次新进程天然生效）
+- 回归基线：pytest 82 过 1 跳（eval_tools 15 + review_node 5 + 既有 62；e2e_slow 默认跳过，MTA_E2E=1 启用）+ smoke 15 + adversarial 9；坑：data/workspaces 残留曾被 pytest 误收集（pytest.ini testpaths=tests 已根治）；data/workspaces/task_7 需存在否则对抗 D1 跳过；服务需重启才载新图逻辑（cli 每次新进程天然生效）
 - 阶段 3 主体已完成（be89a62）：①缺口回灌（per_file 落库→generate 提示词注入）②定向修复（强信号剪枝/证人保留/仓库测试不动）③§7.2 证人冻结入 decide（product_defect 即停，优先于熔断/预算）④六要素+expected_basis 落库（实测 LLM 输出"需求明示"证据链）⑤静态闸（AST）⑥analyze modules upsert 修复重跑崩溃
 - 实测轨迹：场景A 第1轮 27过1败即停"疑似产品缺陷证人"；场景C（种植真bug）第1轮 10过7败即停如实上报——学习环+防造假语义落地；单测 36 绿
 - 下一轮注意：per_file 回灌需"通过但覆盖不足"的任务才触发（场景C 覆盖 100% 无缺口，属正确行为）；LLM 偶发 case_defect 时剪枝+补测轨迹可在论文展示
