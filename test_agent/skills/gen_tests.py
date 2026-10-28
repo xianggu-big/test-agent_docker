@@ -131,7 +131,17 @@ def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
 
 
 def _audit_one_assert(test: ast.expr) -> tuple[bool, str | None]:
-    """单条断言的强弱判定：(是否强, 弱原因)。强 = 具体值/关系 oracle。"""
+    """单条断言的强弱判定：(是否强, 弱原因)。强 = 具体值/关系 oracle。
+
+    BoolOp 联接（assert a==1 and b==2）逐臂审计：全部臂强才判强——
+    整体落"裸真值"会把两臂皆具体比较的好断言误杀（module_check FINDING）。
+    """
+    if isinstance(test, ast.BoolOp):
+        for i, arm in enumerate(test.values, 1):
+            ok, why = _audit_one_assert(arm)      # 递归：嵌套联接同样逐臂
+            if not ok:
+                return False, f"联接第{i}臂弱({why})"
+        return True, None
     if isinstance(test, ast.Compare):
         comps = [test.left] + list(test.comparators)
         has_rel = any(not isinstance(op, (ast.Is, ast.IsNot)) for op in test.ops)
@@ -158,8 +168,9 @@ def _audit_one_assert(test: ast.expr) -> tuple[bool, str | None]:
 def assertion_audit(code: str) -> dict:
     """断言质量审计（纯函数，方案A 的度量与闸共用）：统计用例内强/弱断言。
 
-    强 = 具体关系比较（==/!=/序关系/in）、is True/False、pytest.raises(异常类型)；
-    弱 = 裸真值断言、is (not) None、isinstance、无断言 —— 不具备证伪具体预期值的能力
+    强 = 具体关系比较（==/!=/序关系/in）、is True/False、pytest.raises(异常类型)、
+    联接断言逐臂皆强（assert a==1 and b==2）；
+    弱 = 裸真值断言、is (not) None、isinstance、无断言、联接断言含弱臂 —— 不具备证伪具体预期值的能力
     （动机：2412.14137 实证生成器会写"为通过而设计"的断言；UW ASE'25 oracle 实证）。
     返回 {total, strong, weak, reasons}；无断言整案计弱。
     """

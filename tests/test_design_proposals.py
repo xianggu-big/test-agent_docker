@@ -44,6 +44,18 @@ def test_audit_is_true_is_strong_is_none_is_weak():
     assert b["strong"] == 0 and b["weak"] == 1
 
 
+def test_audit_boolop_joined_asserts_audit_per_arm():
+    """module_check FINDING：两臂皆具体比较的联接断言不再整体误判弱。"""
+    a = assertion_audit("def test_x():\n    assert a == 1 and b == 2\n")
+    assert a["strong"] == 1 and a["weak"] == 0
+    # 嵌套联接：内层两臂强、外层与具体比较联接 → 整体强
+    b = assertion_audit("def test_x():\n    assert (a == 1 and b == 2) and c == 3\n")
+    assert b["strong"] == 1 and b["weak"] == 0
+    # 含弱臂（裸真值）→ 整体弱，reason 指明第几臂
+    c = assertion_audit("def test_x():\n    assert a == 1 and flag\n")
+    assert c["strong"] == 0 and c["weak"] == 1 and "第2臂" in c["reasons"][0]
+
+
 def test_gate_keeps_mixed_drops_all_weak():
     cases = [{"name": "t_strong", "code": "def t_strong():\n    assert f() == 1\n"},
              {"name": "t_weak", "code": "def t_weak():\n    assert f()\n"}]
