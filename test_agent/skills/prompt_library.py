@@ -45,10 +45,21 @@ def build_map_prompt(conditions: list[dict], cases: list[dict]) -> str:
 {{"mappings": [{{"condition_id": 1, "cases": ["test_xxx"]}}]}}"""
 
 
-def build_plan_prompt(requirement: str) -> str:
+def build_plan_prompt(requirement: str, hotspots: list[dict] | None = None) -> str:
+    """hotspots: W4 圈复杂度热点（radon 实测）——控制流密集函数提示设计方法倾斜。"""
+    hot_text = ""
+    if hotspots:
+        rows = "\n".join(f"- {h['file']}::{h['name']}（圈复杂度 {h['complexity']}，rank {h['rank']}）"
+                         for h in hotspots)
+        hot_text = f"""
+
+## 圈复杂度热点（W4 实测，优先覆盖）
+以下函数控制流密集（基路径多、缺陷高发），为其拆解的条件建议标注方法"语句分支覆盖"，
+并保证真假分支方向都有条件覆盖：
+{rows}"""
     return f"""## 用户需求
 {requirement}
-
+{hot_text}
 ## 任务
 把需求拆解为可验证的测试条件：每条是单一行为陈述、可通过测试证伪；标注优先级（高/中/低）
 与建议的用例设计方法（等价类划分/边界值分析/判定表/语句分支覆盖/错误推测法）。

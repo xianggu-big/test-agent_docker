@@ -177,6 +177,16 @@ def make_nodes(deps: GraphDeps) -> dict:
         out = {"primary_language": primary, "module_id": cur.lastrowid,
                "coverage_target": config.COVERAGE_TARGET,
                "image": config.IMAGE_PY if primary == "python" else config.IMAGE_JAVA}
+        # W4 圈复杂度热点（radon 宿主侧确定性扫描）：注入 plan 提示词做风险分级倾斜
+        if primary == "python":
+            from ..skills.complexity import complexity_hotspots
+            hotspots = complexity_hotspots(ws)
+            if hotspots:
+                out["complexity_hotspots"] = hotspots
+                msg(state["session_id"], "assistant",
+                    "[analyze] W4 复杂度热点：" +
+                    "; ".join(f"{h['file']}::{h['name']}={h['complexity']}({h['rank']})"
+                              for h in hotspots)[:300])
         if strategy != "full":
             return {**out, "done": True, "verdict": "stop",
                     "stop_reason": f"主语言 {primary} 不在深度支持范围，v1 诚实降级（Tier2 静态扫描属后续工作）"}
@@ -361,7 +371,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                          base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
                          timeout=60, max_retries=2)
         resp = llm.invoke([("system", PLAN_SYSTEM),
-                           ("user", build_plan_prompt(requirement))])
+                           ("user", build_plan_prompt(requirement,
+                                                      hotspots=state.get("complexity_hotspots")))])
         conds = parse_conditions(resp.content)
         if not conds:
             msg(state["session_id"], "assistant", "[plan] 需求拆解不可解析，跳过（诚实降级）")
