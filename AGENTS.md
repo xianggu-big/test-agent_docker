@@ -10,7 +10,9 @@
 - 已知口径风险：container_jobs 台账非真队列；analyze 单 module(path='.')；install_deps 只认根 requirements；生成用例的 LLM 交叉语义审 v1 未做
 - **阶段 4 全部完成（2026-10-28，E1-E5 实验数据齐备，论文实验章可写）**：E5 评估五工具+review 节点（1de9b5e）——指标包全 SQL 确定性、RTM 矩阵 LLM 辅助+2gram 兜底（rtm_maps 快照）、报告叙述数字禁造、审查规则闸先行（数字比对/防造假红线）+LLM 闸收窄聚焦、matplotlib 四图；A13 修复 skills 注册缺口（此前审计台账只覆盖 run_tests）；单测 20 个锁死回炉语义（reject 仅推翻 pass，stop 不可被审查改判）
 - **快照一致性坑（run46 实锤）**：gen_report 与 review_report 各自 collect_metrics 会因评估工具自身台账增长而数字漂移 → LLM 闸自审自 reject 误回炉；已改 review 节点 collect 一次经 args 下传；skill func 在注册表线程池执行，sqlite3 连接禁止闭包跨线程复用（func 内自建）
-- 下一步：论文撰写（实验章数据全齐：E1 性能 3.8x/E2 三链路/E4 混淆矩阵 14/14/E5 审查双闸）；可选打磨=L1 报告页 matplotlib 图内嵌、Gen UI 演示稿
+- 下一步：①grade_corpus 对 corpus-002 的 LLM 仲裁两次网络瞬断待重跑（任务46已收敛：1轮36过1败证人保留）②语料对照格 X2-X4（开关已就位，改一个 config 跑）③阅卷仲裁 20% 人工抽查 ④E5 gen_report 自引用数字 bug 根修（快照时点，run46 实锤）
+- 2026-10-28 盲测语料实验落地（64c7648）：docs/链路方法测试文档.md（三方盲测协议：出题人/答题人/阅卷人 + 控制变量矩阵 V1-V5）+ gen_corpus_llm/build_corpus/grade_corpus 三脚本 + 语料001（5 缺陷，X1 实测 recall 0.80=4/5，0 漏检 1 存疑，11 条 extra_suspect 待人工复核）+ 语料002（4 缺陷）；出题人=DeepSeek 无状态调用（子代理并发配额受限，核心隔离性质保持：answer key 不进工作区，同源模型边界已声明）
+- 2026-10-28 收口中断会话遗留（64c7648）：E5 review 条件边 KeyError '__end__' 实修（映射 key 必须用 END 字面量）；reject 回炉死循环 14 轮实锤（叙述快照时点漂移+回炉绕过预算）→ v1 语义收口：review reject 一律不回炉、如实标记 review_status=rejected（受控重写回炉列下一轮）；run 节点补 skill failed 兜底（容器瞬态丢失转 env 走 repair_env 不再炸任务）
 - 2026-10-26 全量审计（清单=docs/audit-findings.md）：代码层 A1-A10，3 个高危=准出标准未真冻结（repair 读全局 config 非任务行）/超时后复用容器违反 runner 自定约定/provision 无干净容器保证（重跑残留旧用例）；构思层最大空洞 B1=实验设计方案缺位且 demo 缺 product_defect、env 两类场景
 - 2026-10-26 loop 构思结论：loop 金标准=每轮有信息增量（学习环≠重试环）；升级点①②是实现用户"回炉重造"愿景的前提（否则指纹熔断第 2 轮必触发），建议直接纳入 v1
 - ①覆盖缺口回灌：evaluate 只取 TOTAL（nodes.py:194），term-missing 缺口行被丢弃；应灌回 generate 提示词（CoverUp 模式）
