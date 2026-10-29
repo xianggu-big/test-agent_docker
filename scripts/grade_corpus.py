@@ -65,12 +65,16 @@ def witnesses_of(task_id: int) -> tuple[list[dict], str]:
         note = "工作区缺失无法重放，证人集退化为全量用例（extra_suspect 必然虚高，指标仅供参考）"
         sel = rows
     else:
-        failed_set = set(failed)
+        # 参数化用例的 nodeid 带 [参数] 后缀（LLM 会生成 @pytest.mark.parametrize），
+        # 库里存基函数名——剥离后缀再匹配，否则参数化证人全部丢失（n>=3 复跑实锤）
+        failed_set = {n.split("[", 1)[0] for n in failed}
         sel = []
+        seen: set[str] = set()
         for r in rows:
             fname = ("test_imported.py" if r["framework"] == "imported"
                      else f"test_gen_r{r['version']}.py")
-            if f"{fname}::{r['name']}" in failed_set:
+            if f"{fname}::{r['name']}" in failed_set and r["name"] not in seen:
+                seen.add(r["name"])
                 sel.append(r)
         note = f"宿主重放工作区：{len(failed_set)} 个失败 nodeid，命中证人 {len(sel)} 条"
     out = [{"name": r["name"], "content": r["content"][:400]} for r in sel]
