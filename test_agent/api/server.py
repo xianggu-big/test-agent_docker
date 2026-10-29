@@ -209,7 +209,11 @@ def api_run(tid: int, user: dict = Depends(staff)):
 
 def _run_worker(tid: int) -> None:
     try:
-        run_task(tid)
+        if config.LEVELS_ENABLED:      # D9 串行任务接力：L1 后自动接力 L2 leg（默认关，向后兼容）
+            from ..graph.levels import run_task_levels
+            run_task_levels(tid)
+        else:
+            run_task(tid)
     except Exception as e:  # run_task 已把失败落库，这里只防线程栈崩溃噪音
         log.error("后台执行任务 %s 异常: %s: %s", tid, type(e).__name__, e)
 

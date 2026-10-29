@@ -46,7 +46,8 @@ def make_deps() -> GraphDeps:
     registry = SkillRegistry(conn)
     # 注册表幂等 upsert（A13）：skills 表缺行会让审计台账的 INSERT..SELECT 插 0 行，
     # 论文"工具调用成功率"指标就只剩 run_tests 一个工具——全部 skills 必须注册
-    skills = {**build_skills(runner), **build_eval_skills()}
+    from .l2 import build_l2_skills
+    skills = {**build_skills(runner), **build_eval_skills(), **build_l2_skills(runner)}
     for s in skills.values():
         registry.register(s)
     return GraphDeps(conn=conn, runner=runner, registry=registry, skills=skills)

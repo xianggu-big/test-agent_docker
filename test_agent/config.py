@@ -70,3 +70,8 @@ AUTO_PREPARE_ENV = False             # 模式③一条龙：True=provision 缺�
 # —— LLM 配置（第 3~4 步启用；密钥走环境变量 DEEPSEEK_API_KEY，不进代码库） ——
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-chat"
+
+# —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
+LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg
+L2_SERVICE_PORT = 8000       # v0 单容器：被测服务与测试执行同容器，localhost 端口
+L2_SERVICE_WAIT_S = 30       # 服务健康检查等待上限（秒）

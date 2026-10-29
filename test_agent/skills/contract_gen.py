@@ -258,6 +258,44 @@ def render_sequence_module(scenarios: list[dict], happy: dict, base_url: str
     return "\n".join(lines) + "\n", cases
 
 
+_REQ_SYSTEM = (
+    "你是接口测试工程师。依据用户需求为指定接口生成业务语义断言（需求断言）。"
+    '只输出 JSON：{"asserts": [{"name": "英文蛇形名", "exprs": ["单行python布尔表达式"]}] }。'
+    "表达式可用变量：r=响应对象（r.status_code / r.json()），payload=请求体 dict；"
+    "只断言需求声明过的行为，禁止从实现猜测。"
+)
+
+
+def build_requirement_asserts(requirement: str, endpoints: list[dict], happy: dict,
+                              llm, task_id: int | None = None) -> dict[str, list[dict]]:
+    """按端点生成需求断言（D7 第二级，LLM 注入可单测）：返回 {route_key: asserts}。
+    任何失败 → 该端点缺席（fail-open，契约轨照跑）；LLM 记账 phase='L2.gen_requirement'。"""
+    from .llm_usage import log_llm_call
+    if llm is None or not requirement or not endpoints:
+        return {}
+    out: dict[str, list[dict]] = {}
+    for ep in endpoints[:3]:                              # 预算：只给前 3 个写端点
+        route_key = f"{ep['method']} {ep['path']}"
+        summary = {"method": ep["method"], "path": ep["path"],
+                   "params": ep.get("params"), "request_schema": ep.get("request_schema"),
+                   "response_schema": ep.get("response_schema")}
+        prompt = (f"## 用户需求\n{requirement}\n\n## 接口\n"
+                  f"{json.dumps(summary, ensure_ascii=False)}\n\n"
+                  f"## happy path 请求体\n{json.dumps(happy.get(route_key), ensure_ascii=False)}\n\n"
+                  "为该接口生成 1-2 条需求断言用例（业务语义，非 schema 校验）。")
+        try:
+            resp = llm.invoke([("system", _REQ_SYSTEM), ("user", prompt)])
+            log_llm_call(task_id, "L2.gen_requirement", resp)
+            data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
+            got = [a for a in (data.get("asserts") or [])
+                   if isinstance(a, dict) and isinstance(a.get("exprs"), list) and a.get("exprs")]
+            if got:
+                out[route_key] = got
+        except Exception as e:                            # noqa: BLE001 —— fail-open
+            log.warning("需求断言 LLM 失败（fail-open，契约轨照跑）: %s", e)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 3) 需求断言（可选 LLM，fail-open）+ 表达式静态闸
 # ---------------------------------------------------------------------------
