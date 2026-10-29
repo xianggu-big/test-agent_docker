@@ -100,17 +100,15 @@ def handler_of(endpoint: dict, funcs) -> str | None:
 
 def handler_edges(endpoints: list[dict], call_graph: dict[str, list[str]]
                   ) -> list[tuple[str, str, int]]:
-    """端点为根的调用边展平：[(caller, callee, depth)]，caller='route:METHOD /path'。"""
-    qual_by_tail: dict[str, list[str]] = {}
-    for caller, callees in call_graph.items():
-        for c in callees:
-            qual_by_tail.setdefault(c, []).append(caller)
-    tails = set(qual_by_tail)
+    """端点为根的调用边展平：[(caller, callee, depth)]，caller='route:METHOD /path'。
+    handler 是调用图的根（无人调用它），匹配域 = caller ∪ callee 全体函数名。"""
+    all_funcs = set(call_graph) | {c for cs in call_graph.values() for c in cs}
+    tails = {q.rpartition(".")[2] for q in all_funcs}
     out: list[tuple[str, str, int]] = []
     for ep in endpoints:
         route = f"route:{ep['method']} {ep['path']}"
         name = handler_name(ep, tails)
-        roots = qual_by_tail.get(name, []) if name else []
+        roots = sorted(q for q in all_funcs if q.rpartition(".")[2] == name) if name else []
         seen: set[str] = set()
         frontier = list(roots)
         depth = 1
