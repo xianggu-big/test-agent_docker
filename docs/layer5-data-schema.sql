@@ -7,7 +7,8 @@
 --   * 时间统一 TEXT ISO8601（UTC）；比值/覆盖率用 REAL（0~1）；耗时毫秒 INTEGER
 --   * 枚举用 TEXT + CHECK，不建字典表（本科规模，简单优先）
 --   * 外键运行时开启：PRAGMA foreign_keys = ON
---   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 17 张
+--   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 21 张
+--     （18 张 L1 全链路 + 19-21 张四级双轨 P1：test_levels / interface_endpoints / call_edges）
 -- ============================================================================
 
 PRAGMA journal_mode = WAL;
@@ -225,6 +226,7 @@ CREATE TABLE IF NOT EXISTS rtm_maps (
 CREATE TABLE IF NOT EXISTS evaluation_rounds (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id       INTEGER NOT NULL REFERENCES test_tasks(id),
+  level         TEXT NOT NULL DEFAULT 'L1', -- 级别维度（四级双轨）：L1 存量行为不变（默认 L1），L2 评估写 'L2'
   round_no      INTEGER NOT NULL,         -- 本轮编号（重跑从 1 重新计，delete-first 整体替换）
   passed        INTEGER NOT NULL DEFAULT 0,
   failed        INTEGER NOT NULL DEFAULT 0,
@@ -268,6 +270,53 @@ CREATE TABLE IF NOT EXISTS llm_calls (
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 19) 测试级别台账（四级双轨 D9：level_supervisor 串行接力的账本——每任务×级别一行，
+--     上一级 leg 的 id 经 trace_from 串成追溯链头；summary 由确定性代码写本级指标摘要）
+CREATE TABLE IF NOT EXISTS test_levels (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id     INTEGER NOT NULL REFERENCES test_tasks(id) ON DELETE CASCADE,
+  level       TEXT NOT NULL CHECK (level IN ('L1','L2','L3','L4')),
+  strategy    TEXT NOT NULL DEFAULT 'full',   -- full / semi_auto / assist / degraded（D4 降级时如实标）
+  status      TEXT NOT NULL DEFAULT 'queued'
+              CHECK (status IN ('queued','running','done','failed','skipped','cancelled')),
+  verdict     TEXT,                           -- 本级终判（pass/stop/...，不跨级改判）
+  stop_reason TEXT,
+  trace_from  INTEGER REFERENCES test_levels(id),  -- 接力来源（上一级 leg id），跨级 RTM 溯源链头
+  summary     TEXT,                           -- JSON：本级指标摘要（端点覆盖/契约违背/场景通过率…）
+  started_at  TEXT,
+  finished_at TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (task_id, level)
+);
+
+-- 20) 接口端点清单（L2 黑盒轨输入：D4 降级链产物——①自带 OpenAPI spec 解析（P1）
+--     ②框架路由 AST 提取（P2）③诚实降级不入行；source 记录提取路径供归因与消融）
+CREATE TABLE IF NOT EXISTS interface_endpoints (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id         INTEGER NOT NULL REFERENCES test_tasks(id) ON DELETE CASCADE,
+  method          TEXT NOT NULL,              -- GET/POST/PUT/DELETE/PATCH
+  path            TEXT NOT NULL,              -- /orders/{id}
+  operation_id    TEXT,                       -- spec 的 operationId（FastAPI 默认值可反查 handler 函数名）
+  params          TEXT,                       -- JSON：path/query 参数表（含 schema）
+  request_schema  TEXT,                       -- JSON：requestBody schema（$ref 已确定性展开）
+  response_schema TEXT,                       -- JSON：首个 2xx 响应 schema（$ref 已展开）
+  source          TEXT NOT NULL DEFAULT 'spec'
+                  CHECK (source IN ('spec','ast','llm')),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (task_id, method, path)
+);
+
+-- 21) 调用边快照（L2 白盒轨：AST 确定性调用图——端点 handler 为根（caller 记 route:METHOD /path），
+--     callee 为被调函数，depth 为距 handler 的调用深度；接口顺序约束场景的生成依据）
+CREATE TABLE IF NOT EXISTS call_edges (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    INTEGER NOT NULL REFERENCES test_tasks(id) ON DELETE CASCADE,
+  caller     TEXT NOT NULL,                   -- 'route:POST /orders' 或 'module.func'
+  callee     TEXT NOT NULL,
+  depth      INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 常用查询索引
 CREATE INDEX IF NOT EXISTS idx_tasks_status     ON test_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_project    ON test_tasks(project_id);
@@ -280,3 +329,6 @@ CREATE INDEX IF NOT EXISTS idx_conditions_task  ON test_conditions(task_id);
 CREATE INDEX IF NOT EXISTS idx_rtm_task         ON rtm_maps(task_id);
 CREATE INDEX IF NOT EXISTS idx_eval_rounds_task ON evaluation_rounds(task_id);
 CREATE INDEX IF NOT EXISTS idx_llm_calls_task   ON llm_calls(task_id);
+CREATE INDEX IF NOT EXISTS idx_levels_task      ON test_levels(task_id);
+CREATE INDEX IF NOT EXISTS idx_endpoints_task   ON interface_endpoints(task_id);
+CREATE INDEX IF NOT EXISTS idx_call_edges_task  ON call_edges(task_id);

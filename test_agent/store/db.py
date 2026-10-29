@@ -31,6 +31,7 @@ _MIGRATIONS = {
                      "review": "TEXT"},          # 报告二次审查结论 JSON（§3.4 双闸）
     "test_cases": {"priority": "TEXT", "input": "TEXT", "steps": "TEXT",
                    "expected": "TEXT", "expected_basis": "TEXT"},  # 六要素结构化（§3.3）
+    "evaluation_rounds": {"level": "TEXT DEFAULT 'L1'"},  # 四级双轨：老库补级别维度，存量行=L1
 }
 
 
