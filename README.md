@@ -67,8 +67,11 @@ python scripts/demo.py                            # 一键演示：建任务→�
 | 阅卷协议修正重算 | `python scripts/grade_corpus.py --recompute <corpus_id>` | 沿用原仲裁判决离线重算（幂等） |
 | 仲裁人工抽查 | `python scripts/spot_check.py [--rate 0.2]` | 固定种子 20% 复核清单（stdout） |
 | 机制面完成度巡检 | `python scripts/module_check.py [--full]` | data/reports/module_check_*.json |
+| 三方案独有指标（弱断率/杀死率/RTM覆盖） | `python scripts/mutation_kill.py <tid> <corpus>` → `python scripts/compare_proposals.py` | data/corpus/*/mutation_task*.json；跨格聚合表 stdout |
+| L2 集成层冒烟（四级双轨 P1） | `python scripts/smoke_l2.py [demo_dir] [--keep-ws]` | 真机 11 过/1 败（埋的缺陷被顺序场景如实抓到）；leg 台账 test_levels |
+| L2 全链路接力（L1→L2） | `python -c "from test_agent.graph.levels import run_task_levels; run_task_levels(<tid>)"`（需 LEVELS 场景自建任务） | test_levels 两行 + trace_from 链 + evaluation_rounds 按级 |
 
-回归：`python -m pytest`（223 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
+回归：`python -m pytest`（249 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
 API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/api_adversarial.py`（9 项）。
 
 ## 文档索引
