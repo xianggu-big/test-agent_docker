@@ -30,7 +30,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from test_agent import config  # noqa: E402
-from test_agent.skills import builtin, gen_tests, llm_usage, prompt_library  # noqa: E402
+from test_agent.skills import (builtin, callgraph, contract_gen, endpoint_extract,
+                               gen_tests, llm_usage, prompt_library)  # noqa: E402
 
 PASS, FAIL, FINDING = "PASS", "FAIL", "FINDING"
 
@@ -115,24 +116,29 @@ def part1_completion() -> list[Item]:
 
     # —— 第十一轮补齐：以下为第四至十轮新机制的静态契约（此前契约集合停在 2026-10-28 三方案轮）——
 
-    # 10) L5 表契约：18 表齐备（第 15-18 张 rtm_maps/evaluation_rounds/complexity_hotspots/
-    #     llm_calls 为 RTM 快照/轮次轨迹/W4 热点/token 成本台账，多轮口径的落库根基）
+    # 10) L5 表契约：21 表齐备（15-18 rtm_maps/evaluation_rounds/complexity_hotspots/llm_calls
+    #     + 19-21 四级双轨 P1：test_levels/interface_endpoints/call_edges）
     ddl = config.SCHEMA_PATH.read_text(encoding="utf-8")
     created = set(re.findall(r"CREATE TABLE IF NOT EXISTS\s+(\w+)", ddl))
     expected_tables = {
         "users", "projects", "modules", "test_tasks", "agent_sessions", "agent_messages",
         "skills", "skill_invocations", "container_jobs", "test_scripts", "test_cases",
         "test_conditions", "test_reports", "feedback_annotations", "rtm_maps",
-        "evaluation_rounds", "complexity_hotspots", "llm_calls"}
+        "evaluation_rounds", "complexity_hotspots", "llm_calls",
+        "test_levels", "interface_endpoints", "call_edges"}
     (ok if created == expected_tables else miss)(
-        "L5 schema 18 表契约",
-        "18 表齐备" if created == expected_tables else
+        "L5 schema 21 表契约",
+        "21 表齐备" if created == expected_tables else
         f"缺失={sorted(expected_tables - created)} 多余={sorted(created - expected_tables)}")
+    lvl_col = re.search(r"CREATE TABLE IF NOT EXISTS evaluation_rounds\s*\(.*?\n\)", ddl, re.S)
+    (ok if lvl_col and "level" in lvl_col.group(0) else miss)(
+        "evaluation_rounds.level 列", "级别维度在位" if lvl_col else "DDL 缺失")
 
     # 11) 消融开关默认值契约：新机制默认关（基线格零污染、老口径逐字节不变）；
     #     骨架四开关默认开（系统默认行为）。A/B/C 三开关默认值见上方第 1 组。
     for key in ("GEN_BOUNDARY_ATTACK", "WITNESS_CONTINUE_ENABLED", "GEN_CROSS_REVIEW_ENABLED",
-                "STATE_TRANSITION_ENABLED", "METAMORPHIC_ENABLED", "AUTO_PREPARE_ENV"):
+                "STATE_TRANSITION_ENABLED", "METAMORPHIC_ENABLED", "AUTO_PREPARE_ENV",
+                "LEVELS_ENABLED"):
         v = getattr(config, key, None)
         (ok if v is False else miss)(f"config.{key}", f"默认值={v}（应为 False）")
     for key in ("GEN_METHODS_ENABLED", "PLAN_ENABLED", "COVERAGE_FEEDBACK_ENABLED",
@@ -142,9 +148,20 @@ def part1_completion() -> list[Item]:
 
     # 12) 第四至九轮机制函数 + V9 角色分离锚点（审查者 ≠ 生成器提示词）
     for mod, fn in ((llm_usage, "extract_usage"), (llm_usage, "log_llm_call"),
-                    (gen_tests, "cross_review_gate"), (builtin, "probe_deps_manifest")):
+                    (gen_tests, "cross_review_gate"), (builtin, "probe_deps_manifest"),
+                    (endpoint_extract, "probe_endpoint_source"), (endpoint_extract, "parse_openapi"),
+                    (callgraph, "build_call_edges"), (callgraph, "sequence_scenarios"),
+                    (contract_gen, "render_contract_module"), (contract_gen, "_safe_expr")):
         (ok if callable(getattr(mod, fn, None)) else miss)(
             f"{fn}（{mod.__name__}）", "缺失")
+    # 四级双轨 P1 锚点：L2 skill 注册 + level_supervisor 接力 + demo 项目可提取
+    src_nodes = inspect.getsource(__import__("test_agent.graph.nodes", fromlist=["make_deps"]).make_deps)
+    (ok if "build_l2_skills" in src_nodes else miss)(
+        "L2 skill 注册（make_deps 引 build_l2_skills）", "未注册")
+    (ok if (config.ROOT / "test_agent" / "graph" / "levels.py").exists() else miss)(
+        "level_supervisor（graph/levels.py）", "缺失")
+    demo_spec = config.ROOT / "data" / "demo" / "L2场景-coupon-api" / "openapi.json"
+    (ok if demo_spec.exists() else miss)("L2 冒烟 demo 项目（openapi.json）", "缺失")
     sys_gen = getattr(prompt_library, "SYSTEM_PROMPT", None)
     sys_cross = getattr(prompt_library, "CROSS_REVIEW_SYSTEM", None)
     (ok if (sys_gen and sys_cross and sys_gen != sys_cross) else miss)(

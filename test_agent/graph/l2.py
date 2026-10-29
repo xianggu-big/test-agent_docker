@@ -128,7 +128,8 @@ def build_l2_skills(runner) -> dict[str, Skill]:
                 endpoints, f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}")
             seq_code, seq_cases = cg.render_sequence_module(
                 args.get("scenarios") or [], happy,
-                f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}")
+                f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}",
+                endpoints=endpoints)
             req_code, req_cases = "", []
             api_key = os.environ.get("DEEPSEEK_API_KEY")
             requirement = args.get("requirement") or ""
@@ -145,7 +146,8 @@ def build_l2_skills(runner) -> dict[str, Skill]:
                     if ep:
                         rc, rcs = cg.render_requirement_module(
                             alist, ep, happy.get(route_key),
-                            f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}")
+                            f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}",
+                            endpoints=endpoints, happy=happy)
                         req_code += rc
                         req_cases += rcs
 

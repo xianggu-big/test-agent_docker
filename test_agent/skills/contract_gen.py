@@ -25,13 +25,6 @@ MAX_NEG_PER_ENDPOINT = 4          # 预算纪律：每端点负例封顶
 MAX_REQUIREMENT_ASSERTS = 6       # 需求断言条数封顶
 MAX_SEQ_SCENARIOS = 3             # 顺序场景封顶
 
-_REQ_SYSTEM = (
-    "你是接口测试工程师。依据用户需求为指定接口生成业务语义断言（需求断言）。"
-    '只输出 JSON：{"asserts": [{"name": "英文蛇形名", "exprs": ["单行python布尔表达式"]}] }。'
-    "表达式可用变量：r=响应对象（r.status_code / r.json()），payload=请求体 dict；"
-    "只断言需求声明过的行为，禁止从实现猜测。"
-)
-
 
 # ---------------------------------------------------------------------------
 # 1) schema → 确定性示例值
@@ -143,6 +136,39 @@ def _required_path_params(endpoint: dict) -> list[dict]:
             if p.get("in") == "path" and p.get("required")]
 
 
+def _fk_setup(ep: dict, payload, endpoints: list[dict], happy: dict,
+              used: set) -> tuple[list[str], dict]:
+    """外键前置数据（v0.1）：payload 里 *_id 字段 → 找对应资源的 POST 创建端点，
+    先创建并从响应取 id。返回 (setup 代码行, {fk字段: 变量名})；找不到创建端点 → 空配置
+    （此时用例可能撞 404，被如实报为契约违背——诚实语义不掩盖测试数据缺口）。"""
+    if not isinstance(payload, dict):
+        return [], {}
+    lines: list[str] = []
+    assign: dict[str, str] = {}
+    for k in payload:
+        if not k.endswith("_id") or not isinstance(payload[k], int):
+            continue
+        res = k[:-3]
+        create = next((e for e in endpoints if e["method"] == "POST"
+                       and e["path"].rstrip("/") in (f"/{res}", f"/{res}s")), None)
+        if create is None:
+            continue
+        route_key = f"{create['method']} {create['path']}"
+        setup_payload = happy.get(route_key)
+        if setup_payload is None:
+            continue
+        var = f"{_py_ident(res)}_id_{len(used)}"
+        used.add(var)
+        lines.append("    r_setup = requests.post(BASE + " + repr(create["path"])
+                     + ", json=" + json.dumps(setup_payload, ensure_ascii=False, default=str)
+                     + ", timeout=10)\n")
+        lines.append(f"    assert r_setup.status_code == {create.get('success_code', 200)}, "
+                     f"r_setup.text   # 前置数据[接口契约]：{res} 不存在则用例无意义\n")
+        lines.append(f"    {var} = r_setup.json().get('id')\n")
+        assign[k] = var
+    return lines, assign
+
+
 # ---------------------------------------------------------------------------
 # 2) 代码渲染（契约轨 / 顺序场景轨）
 # ---------------------------------------------------------------------------
@@ -176,6 +202,29 @@ def render_contract_module(endpoints: list[dict], base_url: str
     cases: list[dict] = []
     happy: dict = {}
     skipped: list[str] = []
+    used_vars: set = set()
+    # happy 池预计算：外键前置数据（_fk_setup）需要引用其它端点的合法创建体
+    for e in endpoints:
+        if e["method"] in ("POST", "PUT", "PATCH") and isinstance(e.get("request_schema"), dict):
+            happy[f"{e['method']} {e['path']}"] = example_from_schema(e["request_schema"])
+
+    def _emit(ep: dict, url_expr: str, case_payload, fname_base: str, kind: str,
+              method_label: str, expect_line: str, record_extra: dict) -> None:
+        """统一用例发射器：外键前置数据 → payload 组装（fk 变量化）→ 请求 → 断言。"""
+        setup_lines, assign = _fk_setup(ep, case_payload, endpoints, happy, used_vars)
+        fname = _sanitize_name(fname_base, len(cases), set())
+        body = f"def {fname}():\n" + "".join(setup_lines)
+        if case_payload is not None:
+            lit = {k: v for k, v in case_payload.items() if k not in assign}
+            body += f"    payload = {_payload_literal(lit)}\n"
+            for k, var in assign.items():
+                body += f"    payload[{k!r}] = {var}\n"
+        body += _request_expr(ep, url_expr)
+        body += expect_line
+        lines.append(body)
+        lines.append("")
+        cases.append({"name": fname, "method": method_label, "kind": kind,
+                      "input": case_payload, **record_extra})
 
     for ep in endpoints:
         method, path = ep["method"], ep["path"]
@@ -184,47 +233,37 @@ def render_contract_module(endpoints: list[dict], base_url: str
         if _required_path_params(ep):
             skipped.append(route_key)            # 路径参数端点：无确定 id，交给顺序场景
             continue
-        url_expr = repr(path)
-        payload = example_from_schema(ep["request_schema"]) if has_body else None
-        fname = _sanitize_name(f"test_{_py_ident(method + path)}_happy_契约黑盒",
-                               len(cases), set())
-        body = f"def {fname}():\n"
-        if payload is not None:
-            body += f"    payload = {_payload_literal(payload)}\n"
-        body += _request_expr(ep, url_expr)
-        body += (f"    assert r.status_code == {ep.get('success_code', 200)}, r.text"
-                 f"   # 契约断言[接口契约]\n")
+        url_expr = f"BASE + {path!r}"
+        payload = happy.get(route_key) if has_body else None
+        expect = (f"    assert r.status_code == {ep.get('success_code', 200)}, r.text"
+                  f"   # 契约断言[接口契约]\n")
         if ep.get("response_schema"):
-            body += (f"    jsonschema.validate(r.json(), _RESP_SCHEMAS[{json.dumps(route_key)}])"
-                     f"   # 契约断言[接口契约]\n")
-        lines += [body, ""]
-        if payload is not None:
-            happy[route_key] = payload
-        cases.append({"name": fname, "method": "契约黑盒-happy", "kind": "happy",
-                      "input": payload, "expected": f"{ep.get('success_code', 200)} 且响应符合 schema",
-                      "expected_basis": "接口契约", "route": route_key})
+            expect += (f"    jsonschema.validate(r.json(), _RESP_SCHEMAS[{json.dumps(route_key)}])"
+                       f"   # 契约断言[接口契约]\n")
+        _emit(ep, url_expr, payload, f"test_{_py_ident(method + path)}_happy_契约黑盒",
+              "happy", "契约黑盒-happy", expect,
+              {"expected": f"{ep.get('success_code', 200)} 且响应符合 schema",
+               "expected_basis": "接口契约", "route": route_key})
 
         for neg in negative_variants(ep):
-            nname = _sanitize_name(f"test_{_py_ident(method + path)}_{_py_ident(neg['kind'])}_契约黑盒",
-                                   len(cases), set())
-            nbody = f"def {nname}():\n    payload = {_payload_literal(neg['payload'])}\n"
-            nbody += _request_expr(ep, url_expr)
-            nbody += (f"    assert r.status_code == {neg['expected_status']}, r.text"
-                      f"   # 契约断言[{neg['basis']}] {neg['reason']}\n")
-            lines += [nbody, ""]
-            cases.append({"name": nname, "method": f"契约黑盒-{neg['kind']}", "kind": "negative",
-                          "input": neg["payload"],
-                          "expected": f"{neg['expected_status']}（{neg['reason']}）",
-                          "expected_basis": neg["basis"], "route": route_key})
+            _emit(ep, url_expr, neg["payload"],
+                  f"test_{_py_ident(method + path)}_{_py_ident(neg['kind'])}_契约黑盒",
+                  "negative", f"契约黑盒-{neg['kind']}",
+                  f"    assert r.status_code == {neg['expected_status']}, r.text"
+                  f"   # 契约断言[{neg['basis']}] {neg['reason']}\n",
+                  {"expected": f"{neg['expected_status']}（{neg['reason']}）",
+                   "expected_basis": neg["basis"], "route": route_key})
     return "\n".join(lines) + "\n", cases, happy, skipped
 
 
-def render_sequence_module(scenarios: list[dict], happy: dict, base_url: str
-                           ) -> tuple[str, list[dict]]:
-    """渲染顺序场景用例：POST 创建 → GET /res/{id_param} 读回一致（先创建后查询，白盒联动）。"""
+def render_sequence_module(scenarios: list[dict], happy: dict, base_url: str,
+                           endpoints: list[dict] | None = None) -> tuple[str, list[dict]]:
+    """渲染顺序场景用例：POST 创建 → GET /res/{id_param} 读回一致（先创建后查询，白盒联动）。
+    创建体若含外键（如订单引用优惠券），先走 _fk_setup 前置创建。"""
     lines = ['"""AI 顺序场景用例（L2 · 调用链白盒联动）"""', "import requests", "",
              f'BASE = "{base_url}"', ""]
     cases: list[dict] = []
+    used_vars: set = set()
     for sc in scenarios[:MAX_SEQ_SCENARIOS]:
         create, read = sc["create"], sc["read"]
         route_key = f"{create['method']} {create['path']}"
@@ -235,18 +274,23 @@ def render_sequence_module(scenarios: list[dict], happy: dict, base_url: str
         read_path_py = read["path"].replace("{" + sc["id_param"] + "}", "{" + idp + "}")
         fname = _sanitize_name(f"test_{_py_ident(create['path'])}_create_then_read_顺序场景",
                                len(cases), set())
-        body = (f"def {fname}():\n"
-                f"    payload = {_payload_literal(payload)}\n"
-                f"    r = requests.post(BASE + {create['path']!r}, json=payload, timeout=10)\n"
-                f"    assert r.status_code == {create.get('success_code', 200)}, r.text"
-                f"   # 契约断言[接口契约]\n"
-                f"    body = r.json()\n"
-                f"    {idp} = body.get({_py_ident(sc['id_param'])!r}) or body.get('id')\n"
-                f"    assert {idp}, '创建响应未返回 id（需求断言[需求明示]：创建应可被按 id 读回）'\n"
-                f"    r2 = requests.get(BASE + f\"{read_path_py}\", timeout=10)\n"
-                f"    assert r2.status_code == {read.get('success_code', 200)}, r2.text"
-                f"   # 契约断言[接口契约]\n")
-        fields = [k for k in payload if isinstance(payload[k], (str, int, float, bool))]
+        setup_lines, assign = _fk_setup(create, payload, endpoints or [], happy, used_vars)
+        lit = {k: v for k, v in payload.items() if k not in assign}
+        body = (f"def {fname}():\n" + "".join(setup_lines) +
+                f"    payload = {_payload_literal(lit)}\n")
+        for k, var in assign.items():
+            body += f"    payload[{k!r}] = {var}\n"
+        body += (f"    r = requests.post(BASE + {create['path']!r}, json=payload, timeout=10)\n"
+                 f"    assert r.status_code == {create.get('success_code', 200)}, r.text"
+                 f"   # 契约断言[接口契约]\n"
+                 f"    body = r.json()\n"
+                 f"    {idp} = body.get({_py_ident(sc['id_param'])!r}) or body.get('id')\n"
+                 f"    assert {idp}, '创建响应未返回 id（需求断言[需求明示]：创建应可被按 id 读回）'\n"
+                 f"    r2 = requests.get(BASE + f\"{read_path_py}\", timeout=10)\n"
+                 f"    assert r2.status_code == {read.get('success_code', 200)}, r2.text"
+                 f"   # 契约断言[接口契约]\n")
+        fields = [k for k in payload if isinstance(payload[k], (str, int, float, bool))
+                  and k not in assign]
         for k in fields[:3]:
             body += (f"    assert r2.json().get({k!r}) == payload[{k!r}], "
                      f"'字段 {k} 创建后读回不一致'   # 需求断言[需求明示]\n")
@@ -261,8 +305,9 @@ def render_sequence_module(scenarios: list[dict], happy: dict, base_url: str
 _REQ_SYSTEM = (
     "你是接口测试工程师。依据用户需求为指定接口生成业务语义断言（需求断言）。"
     '只输出 JSON：{"asserts": [{"name": "英文蛇形名", "exprs": ["单行python布尔表达式"]}] }。'
-    "表达式可用变量：r=响应对象（r.status_code / r.json()），payload=请求体 dict；"
-    "只断言需求声明过的行为，禁止从实现猜测。"
+    "表达式可用变量：r=响应对象（r.json() 等），payload=请求体 dict；"
+    "禁止断言 r.status_code（状态码属契约断言层，系统已另行保证）；"
+    "只断言需求声明过的业务行为，禁止从实现猜测。"
 )
 
 
@@ -282,13 +327,19 @@ def build_requirement_asserts(requirement: str, endpoints: list[dict], happy: di
         prompt = (f"## 用户需求\n{requirement}\n\n## 接口\n"
                   f"{json.dumps(summary, ensure_ascii=False)}\n\n"
                   f"## happy path 请求体\n{json.dumps(happy.get(route_key), ensure_ascii=False)}\n\n"
-                  "为该接口生成 1-2 条需求断言用例（业务语义，非 schema 校验）。")
+                  "为该接口生成 1-2 条需求断言用例（业务语义，非 schema 校验）。"
+                  "注意：禁止断言 r.status_code（状态码由契约层保证）；"
+                  "响应字段名必须严格取自 response_schema 已定义的字段，禁止自拟字段名。")
         try:
             resp = llm.invoke([("system", _REQ_SYSTEM), ("user", prompt)])
             log_llm_call(task_id, "L2.gen_requirement", resp)
             data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
             got = [a for a in (data.get("asserts") or [])
                    if isinstance(a, dict) and isinstance(a.get("exprs"), list) and a.get("exprs")]
+            # 确定性双保险：状态码断言整条剔除（契约层职责，LLM 猜状态码=假阳性源头）
+            for a in got:
+                a["exprs"] = [e for e in a["exprs"] if "status_code" not in e]
+            got = [a for a in got if a["exprs"]]
             if got:
                 out[route_key] = got
         except Exception as e:                            # noqa: BLE001 —— fail-open
@@ -317,24 +368,30 @@ def _safe_expr(e: str) -> bool:
 
 
 def render_requirement_module(asserts: list[dict], endpoint: dict, payload,
-                              base_url: str) -> tuple[str, list[dict]]:
+                              base_url: str, endpoints: list[dict] | None = None,
+                              happy: dict | None = None) -> tuple[str, list[dict]]:
     """渲染需求断言用例（D7 第二级）：表达式包进独立用例（变量 r/payload 可用）。
-    payload 为该端点 happy path 请求体；无 body 的端点不发 json。"""
+    payload 为该端点 happy path 请求体；无 body 的端点不发 json；外键走 _fk_setup 前置。"""
     method, path = endpoint["method"], endpoint["path"]
     route_key = f"{method} {path}"
     lines = ['"""AI 需求断言用例（L2 · 需求语义级）"""', "import requests", "",
              f'BASE = "{base_url}"', ""]
     cases: list[dict] = []
+    used_vars: set = set()
     for a in asserts[:MAX_REQUIREMENT_ASSERTS]:
         exprs = [e.strip() for e in (a.get("exprs") or []) if _safe_expr(e)]
         if not exprs:
             continue
         fname = _sanitize_name(f"test_{_py_ident(method + path)}_{a.get('name', 'requirement')}_需求断言",
                                len(cases), set())
-        body = f"def {fname}():\n"
+        setup_lines, assign = _fk_setup(endpoint, payload, endpoints or [], happy or {}, used_vars)
+        body = f"def {fname}():\n" + "".join(setup_lines)
         if payload is not None:
-            body += f"    payload = {_payload_literal(payload)}\n"
-        body += _request_expr(endpoint, repr(path))
+            lit = {k: v for k, v in payload.items() if k not in assign}
+            body += f"    payload = {_payload_literal(lit)}\n"
+            for k, var in assign.items():
+                body += f"    payload[{k!r}] = {var}\n"
+        body += _request_expr(endpoint, f"BASE + {path!r}")
         body += (f"    assert r.status_code == {endpoint.get('success_code', 200)}, r.text"
                  f"   # 契约断言[接口契约]（需求断言前置）\n")
         for e in exprs:
