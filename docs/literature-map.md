@@ -206,3 +206,25 @@ ReAct=ICLR 2023；Reflexion/Self-Refine/Toolformer/MT-Bench=NeurIPS 2023；SWE-b
 | 32 | Kuhn 等《Software fault interactions and implications for software testing》 | 10.1109/TSE.2004.24 | 黑盒-组合测试实证（B9） |
 
 书籍类（无 DOI 需核，出版社+年份准确即可）：Myers《The Art of Software Testing》1979（B2）、Beizer 1990（tests wear out 概念源）、Winters 等《Software Engineering at Google》O'Reilly 2020（大厂维度）。
+
+---
+
+## 8. 四级双轨方向借鉴清单核验（2026-10-29，arXiv API + Crossref + GitHub API 实测）
+
+> 服务于 docs/四级双轨测试框架研究规划.md §6 借鉴策略清单的 ⚠️ 项清零（§10.4 待办兑现）。
+> 背景：用户提供的 DeepSeek 生成框架清单 10 条（Schemathesis/Hypothesis/SAINT/AutoRestTest/MASTEST/Keploy/Pynguin/EvoSuite/ChatUniTest/Agent Q±Langfuse）全数核验——**无一幻觉，但纠出 4 处引用级错误**（见 §8 纠错行）。star 数为 2026-10-29 快照。
+
+| # | 文献/工具 | 编号/DOI/仓库（核验方式） | 实测要点与落点 |
+|---|---|---|---|
+| 33 | Schemathesis | github.com/schemathesis/schemathesis（✅GitHub API：3729★，v4.32.7 2026-10-27，当天有 push，OS Independent） | 基于 Hypothesis 的 OpenAPI 属性化测试：schema 生成随机+边界+畸形输入、契约断言 `call_and_validate()`、500 检出、状态化工作流；支持 OpenAPI 2.0—3.2+GraphQL。L2 契约黑盒生成器思路挂靠（自研 skill 保审计台账一致，不嵌其 CLI） |
+| 34 | SAINT（Pan 等，Georgia Tech 等） | arXiv:2511.13305 + DOI 10.1145/3744916.3773185（✅arXiv+✅Crossref，ICSE 2026） | 服务级**白盒**集成测试：静态分析构建端点模型+操作依赖图，LLM Agent planning/action/reflection 循环合成端点测试与场景测试，企业 Java 应用实测。L2 白盒轨（调用链/顺序约束）设计思路直接挂靠 |
+| 35 | AutoRestTest（Kim/Stennett/Sinha/Orso，Georgia Tech） | 主会 arXiv:2411.07098 + DOI 10.1109/ICSE55347.2025.00179；Demo 轨 arXiv:2501.08600（✅arXiv+✅Crossref） | **标题陷阱**：ICSE 2025 主会论文标题是 "A Multi-Agent Approach for REST API Testing with Semantic Graphs and LLM-Driven Inputs"，AutoRestTest 是文中**工具名**；标题以 AutoRestTest 开头的是 ICSE-Companion 2025 Demo 短文——引用时按需二选一，勿把主会论文标题写成 AutoRestTest。SPDG 语义属性依赖图+多 Agent 强化学习+LLM 输入。L2 黑盒轨多 Agent 分工叙事（只借提示词分工，不借多 Agent 框架，D9 口径） |
+| 36 | MASTEST（Han & Zhu） | arXiv:2511.18038 + DOI 10.1109/AITest70988.2026.00043（✅arXiv+✅Crossref，IEEE AITest 2026，pp. 235-248） | LLM Agent+编程 Agent 混合测 RESTful API，OpenAPI/Swagger 输入，人工审校 LLM 产物，单元+系统两级覆盖（GPT-4o/DeepSeek 实测单元 94%/98%、系统 79%/78%）。**venue 注意**：IEEE AITest 是 AI 测试专门会，非 ICSE/FSE/ASE 核心，引用时如实标注。L4 人机协同确认门设计佐证 |
+| 37 | Keploy | github.com/keploy/keploy（✅GitHub API：18892★，当天有 push，Go/Apache-2.0） | 流量录制回放→自动生成测试+Mock。**纠错（重要）**：旧口径"Windows 需 WSL2"已过时——现行官方文档明确 x86-64 Windows **原生运行（no WSL, no Docker, no Administrator）**，仅 Windows on ARM 必须 WSL。v1 仍不采用（对微型语料过重），但展望章 Windows 限制表述以此为准 |
+| 38 | Pynguin（Lukasczyk/Kroiß/Fraser，帕绍大学 se2p） | 原始论文 SSBSE 2020：DOI 10.1007/978-3-030-59762-7_2（arXiv:2007.14049）；实证长文 EMSE 2023：DOI 10.1007/s10664-022-10248-w；工具演示 ICSE 2022 Companion（arXiv:2202.05218）；GitHub se2p/pynguin 1395★ 活跃（✅Crossref+✅GitHub） | SBST Python 基线（谱系旧底稿已核验，本轮补齐精确 DOI 与活跃度）。相关工作对比叙事：搜索式生成 vs 本项目 LLM 生成+覆盖率反馈闭环 |
+| 39 | EvoSuite（Fraser & Arcuri） | 工具论文 ESEC/FSE 2011：DOI 10.1145/2025113.2025179；whole-suite 算法长文 IEEE TSE 39(2) 2013：DOI 10.1109/TSE.2012.14（✅Crossref；无 arXiv，2011 会议论文未上 arXiv 勿编造）；GitHub EvoSuite/evosuite 920★ 低维护（2025-02 最后 push） | Java SBST 事实基准；仅相关工作引用（本项目被测对象是 Python，无工程落点） |
+| 40 | ChatUniTest（Chen 等，浙江大学 ZJU-ACES-ISE） | arXiv:2305.04764 + DOI 10.1145/3663529.3663801（FSE 2024 Demonstrations Track，✅arXiv+✅Crossref）；GitHub ZJU-ACES-ISE/ChatUniTest 175★（生态仓 chatunitest-core/-maven-plugin 活跃至 2026-03） | **纠错**：记忆编号 2404.03219 实为 3D 分割论文（iSeg，SIGGRAPH Asia 2024）；记忆仓库 ChiChengHub/ChatUniTest 不存在（404）。生成-验证-修复三阶段+自适应聚焦上下文；注意是 Demo track 短文非主会长文。R-Loop 同路线学术佐证 |
+| 41 | Agent Q（Putta 等，MultiOn+Stanford） | arXiv:2408.07199（✅arXiv，**无官方开源**） | **不采纳（错位引用）**：它是 MCTS+自我批评+off-policy DPO 训练 web 决策 agent 的研究，"固化"的是**模型权重**不是可执行测试脚本——"探索一次→固化为传统脚本"的正当谱系是 record/replay 工具（API 侧=Keploy，UI 侧=Playwright codegen）。若表述受其启发，只能写"agent 探索式轨迹收集"最抽象一层 |
+| 42 | Langfuse | github.com/langfuse/langfuse（✅GitHub API：36700★，当天有 push，YC） | 定位=LLM tracing/observability/evals 平台，**非软件测试工具**——其 evals 是 LLM 输出质量评估。展望素材：Agent 测试过程可追踪可审计（本项目以 SQLite 审计台账+skill_invocations+llm_calls 自研实现同等能力） |
+
+**§8 纠错小结**（延续"凭记忆写编号必错"教训，累计第 4 次实锤）：ChatUniTest 编号 2404.03219→**2305.04764**、组织 ChiChengHub→**ZJU-ACES-ISE**；Keploy"Windows 需 WSL2"为过时口径（x86-64 已原生）；Agent Q 挂"UI 脚本固化"属错位引用；AutoRestTest 主会论文标题不含该词（工具名 vs 论文标题陷阱）。
