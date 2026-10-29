@@ -186,6 +186,8 @@ expected/expected_basis）照常填写。两种形态可混用：
 - target 是含 {v} 占位符的调用表达式；T2 的 valid 槽位至少 4 个点
   （min-1/min/min+1/max-1/max/max+1 语义，边界是缺陷高发区，禁止省略）；
   T1 等价类有效与无效各至少 2 行（无效走 mode=invalid 单发）；T5 至少 2 条攻击用例。
+- 【格式铁律】整体响应永远是最外层 {"imports": ..., "cases": [元素...]}；
+  template+slots 只是 cases 元素内部的字段，严禁把槽位对象直接作为顶层响应。
 - 预期值同样必须先于执行确定、标注 expected_basis；槽位非法的用例会被整案剔除。"""
 
 STATE_TRANSITION_SECTION = """

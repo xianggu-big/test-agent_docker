@@ -64,6 +64,25 @@ def _collect_sources(ws: Path) -> list[tuple[str, str]]:
     return srcs
 
 
+def _loads_tolerant(s: str):
+    """JSON 宽容解析：DeepSeek 模型更新后偶发在 JSON 里输出 Python 字面量
+    True/False/None（2026-10-30 D8 补跑实锤，响应其余部分完全合法）。
+    只在解析器报错位置做字面量替换——报错点必然在字符串外，因此 code 字符串里
+    的 "assert x is True" 不会被误伤；替换后重试，至多 50 次防病态输入。"""
+    for _ in range(50):
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError as e:
+            seg = s[e.pos:e.pos + 5]
+            for lit, js in (("True", "true"), ("False", "false"), ("None", "null")):
+                if seg.startswith(lit):
+                    s = s[:e.pos] + js + s[e.pos + len(lit):]
+                    break
+            else:
+                raise
+    raise ValueError("tolerant parse loop limit")
+
+
 def _parse_cases(text: str) -> dict | None:
     """从 LLM 回复中鲁棒提取 JSON；解析失败返回 None（诚实降级，不硬造用例）。
 
@@ -74,8 +93,11 @@ def _parse_cases(text: str) -> dict | None:
     if not m:
         return None
     try:
-        data = json.loads(m.group(0))
-    except json.JSONDecodeError:
+        try:
+            data = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            data = _loads_tolerant(m.group(0))   # Python 字面量宽容重试（模型 JSON 合规性漂移）
+    except (json.JSONDecodeError, ValueError):
         return None
     cases = data.get("cases")
     if not isinstance(cases, list):
@@ -84,6 +106,17 @@ def _parse_cases(text: str) -> dict | None:
         (isinstance(c.get("code"), str) and re.search(r"def\s+test_\w+", c["code"]))
         or (isinstance(c.get("template"), str) and isinstance(c.get("slots"), dict)))]
     if not cleaned:
+        # 顶层槽位形态容错（D8 补跑实锤）：LLM 偶尔把整个响应用 T2 槽位格式返回
+        # （顶层 target + 全 value/error 行，无标准 cases 包装）——包一层成单条
+        # 模板用例交渲染器展开，不再整批判 None。
+        if isinstance(data.get("target"), str) and cases and all(
+                isinstance(c, dict) and ("value" in c or "error" in c) for c in cases):
+            kind = "T1" if "classes" in data else "T2"
+            func = data["target"].split("(", 1)[0].strip() or "case"
+            data = {"imports": data.get("imports", ""),
+                    "cases": [{"name": f"test_{func}_模板", "method": None,
+                               "template": kind, "slots": dict(data)}]}
+            return data
         return None
     data["cases"] = cleaned
     return data

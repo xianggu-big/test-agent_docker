@@ -128,7 +128,29 @@ def grade(task_id: int, corpus_id: str, dry: bool = False,
     planted, decoys, expected_miss = split_planted(gt)
     witnesses, witness_note = witnesses_of(task_id)
     if not witnesses:
-        err = {"error": "该任务无证人用例（可能全过/未跑完/重放名单与用例库无交集），无法阅卷",
+        # 语义修正（n>=3 复跑实锤）：套件全过 = 植入缺陷全部未暴露 = recall 0.0 可测，
+        # 不再当"无法阅卷"——否则通过率假象格子会从聚合中消失（幸存者偏差）。
+        # 仅 0 用例退化任务（生成失败/熔断）仍不可阅：那不是测量，是没测。
+        _gconn = get_conn()
+        case_n = _gconn.execute(
+            """SELECT COUNT(*) AS n FROM test_cases c
+               JOIN test_scripts st ON st.id = c.script_id
+               WHERE st.task_id=? AND c.enabled=1 AND c.source='ai'""", (task_id,)).fetchone()["n"]
+        _gconn.close()
+        if case_n > 0:
+            metrics = {"task_id": task_id, "corpus_id": corpus_id,
+                       "planted_assertion": len(planted), "detected": 0, "uncertain": 0,
+                       "not": len(planted), "recall": 0.0, "extra_suspect": 0,
+                       "expected_miss_performance": len(expected_miss),
+                       "witness_note": witness_note + "；套件全过=植入缺陷未暴露，recall=0.0（全量漏检）",
+                       "detail": {"matches": [], "extra_suspect": []}}
+            print(json.dumps(metrics, ensure_ascii=False, indent=1))
+            if not dry:
+                detail_path = ROOT / "data" / "corpus" / corpus_id / f"grade_task{task_id}.json"
+                detail_path.write_text(json.dumps(metrics, ensure_ascii=False, indent=1),
+                                       encoding="utf-8")
+            return metrics
+        err = {"error": "该任务 0 用例退化（生成失败/熔断），不可阅卷（那不是测量，是没测）",
                "witness_note": witness_note}
         print(json.dumps(err, ensure_ascii=False))
         return err
