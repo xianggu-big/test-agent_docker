@@ -386,8 +386,9 @@ def make_l2_nodes(deps):
     def report(state: L2State) -> dict:
         tid = state["task_id"]
         verdict = state.get("verdict", "stop")
-        ok = verdict == "pass"
-        _leg_update(tid, status="done" if ok else "failed", finished_at=_now())
+        # 三态终写：pass→done / skipped（D4 诚实降级）→skipped / 其余→failed
+        status = "done" if verdict == "pass" else ("skipped" if verdict == "skipped" else "failed")
+        _leg_update(tid, status=status, finished_at=_now())
         conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?",
                      (state["session_id"],))
         conn.commit()

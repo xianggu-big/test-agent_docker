@@ -96,7 +96,9 @@ def _bound_violation(schema):
 
 
 def negative_variants(endpoint: dict) -> list[dict]:
-    """负例变体（确定性）：必填缺失 ×2 → 类型违背 ×1 → 越界 ×1，总预算封顶。
+    """负例变体（确定性）：必填缺失（逐字段，封顶2）→ 边界越界（逐有界字段）→ 类型违背×1，
+    总预算封顶。边界覆盖所有有界必填字段——只测第一个会漏掉其余字段的越界缺陷
+    （mini-E6 实锤：percent 上限失效因 code 先占坑而漏检）。
     返回 [{kind, payload, expected_status, basis, reason}]。"""
     schema = endpoint.get("request_schema")
     if not isinstance(schema, dict) or schema.get("type") != "object":
@@ -108,10 +110,18 @@ def negative_variants(endpoint: dict) -> list[dict]:
     neg_status = int(doc_codes[0]) if doc_codes else 422
     basis = "接口契约" if doc_codes else "常识"
     out: list[dict] = []
-    for k in required[:2]:                                   # 必填缺失（最多 2 条）
+    for k in required[:2]:                                   # 必填缺失（逐字段，最多 2 条）
         p = dict(happy); p.pop(k, None)
         out.append({"kind": "必填缺失", "payload": p, "expected_status": neg_status,
                     "basis": basis, "reason": f"缺少必填字段 {k}"})
+    for k in required:                                       # 边界越界（逐有界字段）
+        if len(out) >= MAX_NEG_PER_ENDPOINT:
+            break
+        v = _bound_violation(props.get(k) or {})
+        if v is not None:
+            p = dict(happy); p[k] = v[0]
+            out.append({"kind": "边界越界", "payload": p, "expected_status": neg_status,
+                        "basis": basis, "reason": v[1]})
     if len(out) < MAX_NEG_PER_ENDPOINT:
         for k in required:                                   # 类型违背（首个非字符串必填）
             t = (props.get(k) or {}).get("type")
@@ -119,14 +129,6 @@ def negative_variants(endpoint: dict) -> list[dict]:
                 p = dict(happy); p[k] = {"__wrong__": "type"}
                 out.append({"kind": "类型违背", "payload": p, "expected_status": neg_status,
                             "basis": basis, "reason": f"{k} 应为 {t} 却传对象"})
-                break
-    if len(out) < MAX_NEG_PER_ENDPOINT:
-        for k in required:                                   # 越界（首个有边界的必填）
-            v = _bound_violation(props.get(k) or {})
-            if v is not None:
-                p = dict(happy); p[k] = v[0]
-                out.append({"kind": "边界越界", "payload": p, "expected_status": neg_status,
-                            "basis": basis, "reason": v[1]})
                 break
     return out[:MAX_NEG_PER_ENDPOINT]
 
@@ -203,6 +205,7 @@ def render_contract_module(endpoints: list[dict], base_url: str
     happy: dict = {}
     skipped: list[str] = []
     used_vars: set = set()
+    used_names: set = set()          # 全模块持久去重——同名 def 会静默覆盖（mini-E6 实锤）
     # happy 池预计算：外键前置数据（_fk_setup）需要引用其它端点的合法创建体
     for e in endpoints:
         if e["method"] in ("POST", "PUT", "PATCH") and isinstance(e.get("request_schema"), dict):
@@ -212,7 +215,7 @@ def render_contract_module(endpoints: list[dict], base_url: str
               method_label: str, expect_line: str, record_extra: dict) -> None:
         """统一用例发射器：外键前置数据 → payload 组装（fk 变量化）→ 请求 → 断言。"""
         setup_lines, assign = _fk_setup(ep, case_payload, endpoints, happy, used_vars)
-        fname = _sanitize_name(fname_base, len(cases), set())
+        fname = _sanitize_name(fname_base, len(cases), used_names)
         body = f"def {fname}():\n" + "".join(setup_lines)
         if case_payload is not None:
             lit = {k: v for k, v in case_payload.items() if k not in assign}
@@ -264,6 +267,7 @@ def render_sequence_module(scenarios: list[dict], happy: dict, base_url: str,
              f'BASE = "{base_url}"', ""]
     cases: list[dict] = []
     used_vars: set = set()
+    used_names: set = set()
     for sc in scenarios[:MAX_SEQ_SCENARIOS]:
         create, read = sc["create"], sc["read"]
         route_key = f"{create['method']} {create['path']}"
@@ -273,7 +277,7 @@ def render_sequence_module(scenarios: list[dict], happy: dict, base_url: str,
         idp = _py_ident(sc["id_param"])
         read_path_py = read["path"].replace("{" + sc["id_param"] + "}", "{" + idp + "}")
         fname = _sanitize_name(f"test_{_py_ident(create['path'])}_create_then_read_顺序场景",
-                               len(cases), set())
+                               len(cases), used_names)
         setup_lines, assign = _fk_setup(create, payload, endpoints or [], happy, used_vars)
         lit = {k: v for k, v in payload.items() if k not in assign}
         body = (f"def {fname}():\n" + "".join(setup_lines) +
@@ -378,12 +382,13 @@ def render_requirement_module(asserts: list[dict], endpoint: dict, payload,
              f'BASE = "{base_url}"', ""]
     cases: list[dict] = []
     used_vars: set = set()
+    used_names: set = set()
     for a in asserts[:MAX_REQUIREMENT_ASSERTS]:
         exprs = [e.strip() for e in (a.get("exprs") or []) if _safe_expr(e)]
         if not exprs:
             continue
         fname = _sanitize_name(f"test_{_py_ident(method + path)}_{a.get('name', 'requirement')}_需求断言",
-                               len(cases), set())
+                               len(cases), used_names)
         setup_lines, assign = _fk_setup(endpoint, payload, endpoints or [], happy or {}, used_vars)
         body = f"def {fname}():\n" + "".join(setup_lines)
         if payload is not None:

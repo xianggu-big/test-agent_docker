@@ -35,10 +35,14 @@ def resolve_refs(schema, components: dict, depth: int = 0):
 
 
 def parse_openapi(spec: dict) -> list[dict]:
-    """OpenAPI 3.x/Swagger 2 端点清单。只收 5 个 HTTP 方法；2xx 响应 schema 作契约 oracle。"""
+    """OpenAPI 3.x/Swagger 2 端点清单。只收 5 个 HTTP 方法；2xx 响应 schema 作契约 oracle。
+    paths 非字典 / 无 JSON 响应体（如 204）→ schema 置空但 success_code 如实取文档值。"""
     components = spec.get("components") or {}
     out: list[dict] = []
-    for path, item in (spec.get("paths") or {}).items():
+    paths = spec.get("paths")
+    if not isinstance(paths, dict):
+        return out
+    for path, item in paths.items():
         if not isinstance(item, dict):
             continue
         shared_params = [p for p in (item.get("parameters") or []) if isinstance(p, dict)]
@@ -59,10 +63,11 @@ def parse_openapi(spec: dict) -> list[dict]:
             documented = [str(c) for c in (op.get("responses") or {})]
             for code, resp in (op.get("responses") or {}).items():
                 if str(code).startswith("2") and isinstance(resp, dict):
+                    if resp_code is None and str(code).isdigit():
+                        resp_code = int(code)            # 首个 2xx 即成功码（含 204 无响应体）
                     c2 = resp.get("content") or {}
                     if isinstance(c2.get("application/json"), dict):
                         resp_schema = resolve_refs(c2["application/json"].get("schema"), components)
-                        resp_code = int(code) if str(code).isdigit() else 200
                         break
             out.append({"method": method.upper(), "path": path,
                         "operation_id": op.get("operationId"),
