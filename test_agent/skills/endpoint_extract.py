@@ -55,16 +55,21 @@ def parse_openapi(spec: dict) -> list[dict]:
             if isinstance(content.get("application/json"), dict):
                 req_schema = resolve_refs(content["application/json"].get("schema"), components)
             resp_schema = None
+            resp_code: int | None = None
+            documented = [str(c) for c in (op.get("responses") or {})]
             for code, resp in (op.get("responses") or {}).items():
                 if str(code).startswith("2") and isinstance(resp, dict):
                     c2 = resp.get("content") or {}
                     if isinstance(c2.get("application/json"), dict):
                         resp_schema = resolve_refs(c2["application/json"].get("schema"), components)
+                        resp_code = int(code) if str(code).isdigit() else 200
                         break
             out.append({"method": method.upper(), "path": path,
                         "operation_id": op.get("operationId"),
                         "params": params, "request_schema": req_schema,
-                        "response_schema": resp_schema, "source": "spec"})
+                        "response_schema": resp_schema, "source": "spec",
+                        "success_code": resp_code or 200,
+                        "documented_codes": documented})
     out.sort(key=lambda e: (e["path"], e["method"]))
     return out
 
