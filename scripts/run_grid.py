@@ -1,8 +1,8 @@
 """控制变量对照格驱动（docs/链路方法测试文档.md §5，协议见同文档 §1-§3）。
 
-用法：python scripts/run_grid.py X1|X2|X3|X4|X5 [corpus_id]
+用法：python scripts/run_grid.py X1|X2|X3|X4|X5|X6|X7|A1|B1|C1 [corpus_id]
 每格 = 默认配置上只改一个开关（§3 矩阵）→ 新建语料任务 → run_task 端到端 →
-打印摘要行。阅卷再跑：python scripts/grade_corpus.py <task_id> <corpus_id> "<格标签>"。
+打印摘要行 + LLM token 成本行。阅卷再跑：python scripts/grade_corpus.py <task_id> <corpus_id> "<格标签>"。
 
 纪律：每次只动一格；跑之前先在文档 §5/§6 登记；结果如实记录（含 stop）。
 确认门说明：实验任务由本脚本代确认（confirmed=1）——跑格指令本身即用户下达的实验授权。
@@ -27,9 +27,12 @@ GRID = {
     "X4": {"COVERAGE_FEEDBACK_ENABLED": False}, # V4=False：无覆盖缺口回灌（盲补）
     "X5": {"GEN_BOUNDARY_ATTACK": True},        # V6=True：边界攻击纪律（corpus-002 改进实验）
     # 三方案改造格（docs/设计方案对比实验.md）：同基线同语料，各改一层
-    "A1": {"ASSERTION_GATE_ENABLED": True},     # 方案A：断言质量闸（独有指标=弱断言率）
+    "A1": {"ASSERTION_GATE_ENABLED": True},     # 方案A：断言质量闸（独有指标=弱断率）
     "B1": {"PBT_ENABLED": True},                # 方案B：属性测试第七法（独有指标=变异杀死率）
     "C1": {"COND_FEEDBACK_ENABLED": True},      # 方案C：条件缺口回灌（独有指标=RTM条件覆盖）
+    # 消融延伸格（入口 2026-10-29 补齐，待 DeepSeek 余额复跑；沿 X5=V6 先例：格名 X 系、变量 V 系）
+    "X6": {"WITNESS_CONTINUE_ENABLED": True},   # V8=True：证人冻结+继续补测（X2/X4 循环类机制的表达前提）
+    "X7": {"GEN_CROSS_REVIEW_ENABLED": True},   # V9=True：生成用例 LLM 交叉语义审（§3.6 第 3 道闸真机消融）
 }
 
 
@@ -72,6 +75,10 @@ def main() -> int:
                "passed": final.get("passed"), "failed": final.get("failed"),
                "coverage": final.get("coverage_line")}
     print(json.dumps(summary, ensure_ascii=False, indent=1))
+    usage = conn.execute(  # llm_calls 台账按任务聚合（任务级累积口径，跨轮次/回炉成本都在内）
+        "SELECT COUNT(*) c, COALESCE(SUM(total_tokens), 0) t FROM llm_calls WHERE task_id=?",
+        (tid,)).fetchone()
+    print(f"LLM 成本：{usage['c']} 次调用 / {usage['t']} tokens（llm_calls 台账）")
     print(f"阅卷：python scripts/grade_corpus.py {tid} {corpus} \"{cell} 对照格\"")
     return 0
 
