@@ -153,6 +153,16 @@ def collect_metrics(conn, task_id: int, report_id: int | None = None) -> dict:
         round(sum(r["with_exp"] or 0 for r in case_rows) / metrics["cases_total"], 4)
         if metrics["cases_total"] else None)
 
+    # 四级双轨（蓝图 §3.4 指标契约）：任务带 L2 leg 时并入本级指标——端点覆盖/契约违背/
+    # 需求级失败全来自确定性台账（test_levels.summary 由 L2 evaluate 节点写）；无 leg 整体缺席
+    leg = conn.execute("SELECT status, verdict, summary FROM test_levels"
+                       " WHERE task_id=? AND level='L2'", (task_id,)).fetchone()
+    if leg:
+        l2 = {"status": leg["status"], "verdict": leg["verdict"]}
+        if leg["summary"]:
+            l2.update(json.loads(leg["summary"]))
+        metrics["l2"] = l2
+
     # W4 复杂度热点 × 覆盖交叉（读取时确定性求值，不回写表）：老任务无热点行
     # （建表前的实验数据 / 非 python 链路）→ 三字段整体不出现，叙述如实说无数据
     hs_rows = [dict(r) for r in conn.execute(
