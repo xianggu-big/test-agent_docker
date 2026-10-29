@@ -62,8 +62,13 @@ python scripts/demo.py                            # 一键演示：建任务→�
 | E3 R-Loop 轮次轨迹 | 跑任意任务后 `python cli.py report <tid>` | gen_charts 趋势图 data/reports/charts/ |
 | E4 归因变异标定 | `python benchmarks/mutation_calibration.py` | benchmarks/results/mutation_calibration_*.md（14/14） |
 | E5 报告审查双闸 | `pytest tests/test_review_node.py tests/test_eval_tools.py` | 机制锁死 + 端到端轨迹 |
+| X 格消融（X1-X7/A1-C1） | `python scripts/run_grid.py <格名> [corpus_id]` | 摘要 stdout + token 成本行 |
+| 语料阅卷 + 聚合 | `python scripts/grade_corpus.py <tid> <corpus>` → `python scripts/aggregate_grid.py` | data/corpus/*/grade_task*.json；聚合表含 recall±std + token 成本 |
+| 阅卷协议修正重算 | `python scripts/grade_corpus.py --recompute <corpus_id>` | 沿用原仲裁判决离线重算（幂等） |
+| 仲裁人工抽查 | `python scripts/spot_check.py [--rate 0.2]` | 固定种子 20% 复核清单（stdout） |
+| 机制面完成度巡检 | `python scripts/module_check.py [--full]` | data/reports/module_check_*.json |
 
-回归：`python -m pytest`（99 绿 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
+回归：`python -m pytest`（223 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
 API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/api_adversarial.py`（9 项）。
 
 ## 文档索引

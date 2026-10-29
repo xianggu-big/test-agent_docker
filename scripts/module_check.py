@@ -1,13 +1,15 @@
-"""今日模块（2026-10-28，提交 61e0894 三方案 + 变异仪器 + 对照格）完成度巡检与缺陷探针。
+"""全系统机制面完成度巡检与边界探针（2026-10-28 三方案轮创建；第十一轮起契约扩至全机制面）。
 
 用法：python scripts/module_check.py [--full]
 三段式：
-  PART1 完成度 = 静态契约检查（开关/函数/提示词段/集成点/仪器锚点逐一核对）；
-  PART2 单测回归 = pytest tests/test_design_proposals.py（12 条机制单测）+ test_review_node.py；
+  PART1 完成度 = 静态契约检查（开关/函数/提示词段/集成点/仪器锚点逐一核对；
+       第十一轮补 L5 18 表/消融开关默认值/V8V9 机制函数/重跑幂等与台账语义/
+       评估链单快照/X 格消融入口/阅卷 decoy 协议/新机制单测文件）；
+  PART2 单测回归 = 三方案机制单测 + review 节点 + 四轮新机制单测文件；
   PART3 边界探针 = 单测未覆盖的边界输入逐个喂给方案A/B/C核心函数与变异算子，
        每条探针结论三态：PASS（符合契约）/ FAIL（契约违约，exit 1）/ FINDING（可辩护的
        边界行为，记录不动死刑，留给 v2 决策）。
---full 额外跑全量 pytest 回归（99 绿基线）。
+--full 额外跑全量 pytest 回归（223 过 1 跳基线）。
 
 诚实边界：本脚本离线确定性（不触网/不依赖 Docker/不调 LLM）；方案B 的容器侧
 hypothesis 安装只做源码契约检查（真容器行为由 run_grid B1 格真机实验覆盖）。
@@ -17,6 +19,7 @@ import ast
 import importlib.util
 import inspect
 import json
+import re
 import subprocess
 import sys
 import time
@@ -27,7 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from test_agent import config  # noqa: E402
-from test_agent.skills import builtin, gen_tests, prompt_library  # noqa: E402
+from test_agent.skills import builtin, gen_tests, llm_usage, prompt_library  # noqa: E402
 
 PASS, FAIL, FINDING = "PASS", "FAIL", "FINDING"
 
@@ -109,14 +112,98 @@ def part1_completion() -> list[Item]:
     # 9) 机制单测文件在位
     (ok if (ROOT / "tests/test_design_proposals.py").exists()
      else miss)("tests/test_design_proposals.py", "文件缺失")
+
+    # —— 第十一轮补齐：以下为第四至十轮新机制的静态契约（此前契约集合停在 2026-10-28 三方案轮）——
+
+    # 10) L5 表契约：18 表齐备（第 15-18 张 rtm_maps/evaluation_rounds/complexity_hotspots/
+    #     llm_calls 为 RTM 快照/轮次轨迹/W4 热点/token 成本台账，多轮口径的落库根基）
+    ddl = config.SCHEMA_PATH.read_text(encoding="utf-8")
+    created = set(re.findall(r"CREATE TABLE IF NOT EXISTS\s+(\w+)", ddl))
+    expected_tables = {
+        "users", "projects", "modules", "test_tasks", "agent_sessions", "agent_messages",
+        "skills", "skill_invocations", "container_jobs", "test_scripts", "test_cases",
+        "test_conditions", "test_reports", "feedback_annotations", "rtm_maps",
+        "evaluation_rounds", "complexity_hotspots", "llm_calls"}
+    (ok if created == expected_tables else miss)(
+        "L5 schema 18 表契约",
+        "18 表齐备" if created == expected_tables else
+        f"缺失={sorted(expected_tables - created)} 多余={sorted(created - expected_tables)}")
+
+    # 11) 消融开关默认值契约：新机制默认关（基线格零污染、老口径逐字节不变）；
+    #     骨架四开关默认开（系统默认行为）。A/B/C 三开关默认值见上方第 1 组。
+    for key in ("GEN_BOUNDARY_ATTACK", "WITNESS_CONTINUE_ENABLED", "GEN_CROSS_REVIEW_ENABLED",
+                "STATE_TRANSITION_ENABLED", "METAMORPHIC_ENABLED", "AUTO_PREPARE_ENV"):
+        v = getattr(config, key, None)
+        (ok if v is False else miss)(f"config.{key}", f"默认值={v}（应为 False）")
+    for key in ("GEN_METHODS_ENABLED", "PLAN_ENABLED", "COVERAGE_FEEDBACK_ENABLED",
+                "TEMPLATES_ENABLED"):
+        v = getattr(config, key, None)
+        (ok if v is True else miss)(f"config.{key}", f"默认值={v}（应为 True）")
+
+    # 12) 第四至九轮机制函数 + V9 角色分离锚点（审查者 ≠ 生成器提示词）
+    for mod, fn in ((llm_usage, "extract_usage"), (llm_usage, "log_llm_call"),
+                    (gen_tests, "cross_review_gate"), (builtin, "probe_deps_manifest")):
+        (ok if callable(getattr(mod, fn, None)) else miss)(
+            f"{fn}（{mod.__name__}）", "缺失")
+    sys_gen = getattr(prompt_library, "SYSTEM_PROMPT", None)
+    sys_cross = getattr(prompt_library, "CROSS_REVIEW_SYSTEM", None)
+    (ok if (sys_gen and sys_cross and sys_gen != sys_cross) else miss)(
+        "V9 角色分离（SYSTEM_PROMPT ≠ CROSS_REVIEW_SYSTEM）",
+        "生成器与交叉审必须是两份不同系统提示词（同模型角色分离口径的根基）")
+
+    # 13) 重跑幂等与台账语义锚点：轨迹/热点表 delete-first（重跑以本轮为准）；
+    #     llm_calls 反向契约=追加不删（跨轮次/回炉成本累积即口径）
+    nodes_src = (ROOT / "test_agent" / "graph" / "nodes.py").read_text(encoding="utf-8")
+    (ok if "DELETE FROM evaluation_rounds WHERE task_id" in nodes_src else miss)(
+        "evaluation_rounds 重跑 delete-first", "P1-③ 幂等语义不在位（重跑轨迹会翻倍）")
+    (ok if "DELETE FROM complexity_hotspots WHERE task_id" in nodes_src else miss)(
+        "complexity_hotspots 重跑 delete-first", "W4 幂等语义不在位（主语言变化会残留旧热点）")
+    all_src = "\n".join(p.read_text(encoding="utf-8")
+                        for p in (ROOT / "test_agent").rglob("*.py") if "__pycache__" not in str(p))
+    (ok if "DELETE FROM llm_calls" not in all_src else miss)(
+        "llm_calls 追加不删", "出现 delete-first，违反跨轮累积成本口径")
+
+    # 14) 评估链单快照语义（run46 根修）：叙述/审查/图表同源零漂移，
+    #     gen_charts 的 metrics/rtm 必须从 args 收（签名锚点），不得自 collect
+    ev_src = (ROOT / "test_agent" / "skills" / "evaluate.py").read_text(encoding="utf-8")
+    (ok if "def gen_charts(task_id: int, metrics: dict, rtm: dict" in ev_src else miss)(
+        "gen_charts 从 args 收 metrics/rtm", "签名漂移：图表可能回到自取指标（快照漂移回归）")
+
+    # 15) run_grid X 格消融入口全表（第十轮 X6/X7 补齐后 10 格齐；A1/B1/C1 见上方第 7 组）
+    for cell, anchor in (
+            ("X1", '"X1": {}'),
+            ("X2", '"X2": {"GEN_METHODS_ENABLED": False}'),
+            ("X3", '"X3": {"PLAN_ENABLED": False}'),
+            ("X4", '"X4": {"COVERAGE_FEEDBACK_ENABLED": False}'),
+            ("X5", '"X5": {"GEN_BOUNDARY_ATTACK": True}'),
+            ("X6", '"X6": {"WITNESS_CONTINUE_ENABLED": True}'),
+            ("X7", '"X7": {"GEN_CROSS_REVIEW_ENABLED": True}')):
+        (ok if anchor in rg else miss)(f"run_grid.GRID[{cell}]", f"锚点缺失：{anchor}")
+
+    # 16) 第四至十轮机制单测文件在位（机制行为锁，PART2 逐文件回归）
+    for p in ("tests/test_witness_continue.py", "tests/test_cross_review.py",
+              "tests/test_llm_usage.py", "tests/test_hotspot_metrics.py",
+              "tests/test_grade_corpus.py", "tests/test_install_deps.py",
+              "tests/test_run_grid_grid.py", "tests/test_rerun_idempotent.py"):
+        (ok if (ROOT / p).exists() else miss)(p, "文件缺失")
+
+    # 17) 阅卷协议 decoy 根修锚点（第七轮：占位缺陷不计 recall 分母 + 离线重算入口）
+    gc_src = (ROOT / "scripts" / "grade_corpus.py").read_text(encoding="utf-8")
+    for anchor in ("def split_planted", "def compute_metrics", "--recompute"):
+        (ok if anchor in gc_src else miss)(f"grade_corpus『{anchor}』", "decoy 协议锚点缺失")
     return out
 
 
 def part2_pytest(extra: list[str] | None = None) -> list[Item]:
-    """单测回归：机制 12 条必查；--full 时全量。"""
+    """单测回归：三方案+review+四轮新机制单测必查；--full 时全量。"""
     out: list[Item] = []
     runs = [("三方案机制单测", ["tests/test_design_proposals.py"], 13),
-            ("review 节点单测（今日终态恢复）", ["tests/test_review_node.py"], None)]
+            ("review 节点单测（终态恢复+受控重写）", ["tests/test_review_node.py"], None),
+            ("四轮新机制单测（V8证人/V9交叉审/token台账/W4热点/阅卷decoy/依赖清单/消融入口/重跑幂等）",
+             ["tests/test_witness_continue.py", "tests/test_cross_review.py",
+              "tests/test_llm_usage.py", "tests/test_hotspot_metrics.py",
+              "tests/test_grade_corpus.py", "tests/test_install_deps.py",
+              "tests/test_run_grid_grid.py", "tests/test_rerun_idempotent.py"], None)]
     if extra:
         runs.append(("全量回归", extra, None))
     for name, paths, expect in runs:
