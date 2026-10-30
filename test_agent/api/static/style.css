@@ -24,6 +24,11 @@ body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(-
 /* 顶栏 */
 .topbar { height: 52px; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: sticky; top: 0; z-index: 10; }
 .brand { font-weight: 700; font-size: 15px; }
+/* R3/F13 顶导航（设计图：测试任务/报告中心/镜像管理/执行环境） */
+.topnav { display: flex; gap: 28px; margin-left: 32px; }
+.tnav-item { color: #374151; text-decoration: none; font-size: 14px; font-weight: 600; }
+.tnav-item:hover { color: var(--primary); }
+@media (max-width: 1023px) { .topnav { display: none; } }
 .brand-logo { color: var(--primary); margin-right: 4px; }
 .user-chip { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 

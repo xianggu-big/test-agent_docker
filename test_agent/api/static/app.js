@@ -438,7 +438,10 @@ function renderLevelCards(levels) {
     const rows = lvRows(l).map(([k, v]) =>
       `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13.5px">` +
       `<span style="color:#374151">${esc(k)}</span><b>${esc(String(v))}</b></div>`).join("");
-    const link = l.level === "L1" ? `<a href="#/reports" onclick="viewReport(${l.task_id || 0})" style="color:var(--info);font-size:13.5px;font-weight:700">查看报告 →</a>` : "";
+    let link = "";
+    if (l.level === "L1") link = `<a href="#/reports" onclick="viewReport(${l.task_id || 0})" style="color:var(--info);font-size:13.5px;font-weight:700">查看报告 →</a>`;
+    if (l.level === "L3") link = `<a href="javascript:confirmScenarioPrompt(${l.task_id || 0})" style="color:var(--ok2);font-size:13.5px;font-weight:700">确认场景 →</a>`;
+    if (l.level === "L4") link = `<a href="javascript:convertL4Prompt(${l.task_id || 0})" style="color:var(--info);font-size:13.5px;font-weight:700">审阅清单 →</a>`;
     return `<div style="background:#fff;border:1px solid var(--line);border-top:4px solid ${color};` +
       `border-radius:12px;padding:14px 18px;box-shadow:var(--shadow)">` +
       `<div style="display:flex;justify-content:space-between;align-items:center">` +
@@ -563,6 +566,33 @@ async function loadTaskDetail(tid) {
   $("td-levels").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "测试级别计划（黑盒 + 白盒双轨）</div>" +
     (renderLevelCards(lv && lv.levels) || '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>');
+}
+
+// R4/F15：L3 确认/L4 转化动作（最小可用版：prompt 交互；正式弹层列 F 线后续）
+async function confirmScenarioPrompt(tid) {
+  const sc = await api(`/tasks/${tid}/scenarios`).catch(() => null);
+  const rows = (sc && sc.scenarios) || [];
+  const pend = rows.filter(x => x.status === "pending_confirm");
+  if (!pend.length) { alert("无待人工确认场景"); return; }
+  const idx = prompt("待确认场景（输入序号）：\n" +
+    pend.map((x, i) => `${i + 1}. [${x.id}] ${x.title}`).join("\n"));
+  const pick = pend[parseInt(idx, 10) - 1];
+  if (!pick) return;
+  const verdict = prompt("结论（confirmed_pass / confirmed_defect / confirmed_scenario）：", "confirmed_pass");
+  if (!verdict) return;
+  try {
+    await api(`/scenarios/${pick.id}/confirm`, { method: "POST",
+      body: JSON.stringify({ result: verdict, note: "" }) });
+    alert("已确认：" + pick.title);
+    loadTaskDetail(tid);
+  } catch (e) { alert(e.message); }
+}
+async function convertL4Prompt(tid) {
+  if (!confirm("将已确认的 L4 场景转化为回归 pytest 脚本？（确定性转化+AST 编译闸）")) return;
+  try {
+    await api(`/tasks/${tid}/l4/convert`, { method: "POST", body: "{}" });
+    alert("转化完成（产物入库，重复转化不重复行）");
+  } catch (e) { alert(e.message); }
 }
 
 async function buildImage(image) {
