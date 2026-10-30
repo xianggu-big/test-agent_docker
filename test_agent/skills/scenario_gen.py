@@ -5,7 +5,8 @@
 LLM 猜的接口一律剔除——端到端场景不允许虚构 API。
 人工确认语义：冒烟全步骤通过=auto_pass；任一步失败=pending_confirm（人工介入
 判断是缺陷还是场景问题），确认结论三选一（confirmed_pass/confirmed_defect/
-confirmed_scenario）回库参与评估；pending 不进通过率分母（未定不算账）。
+confirmed_scenario）回库参与评估；分母口径（P3-3 对齐）：pending（未生成）剔出
+通过率分母，pending_confirm（待人工定性）计入分母——保守方向，通过率不虚高。
 """
 import json
 import logging
