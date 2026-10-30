@@ -46,7 +46,7 @@ def _leg_update(conn, leg_id: int, **fields) -> None:
 
 
 def run_task_levels(task_id: int, levels: tuple[str, ...] = ("L1", "L2")) -> dict:
-    """串行接力入口：L1 原样跑完 → L2 接力（当前四级版先通 L1+L2，L3/L4 属 P2）。"""
+    """串行接力入口：L1 原样跑完 → L2 接力 → L3 半自动（LEVELS_L3_ENABLED 门，默认关）。"""
     init_db()
     conn = get_conn()
     try:
@@ -74,6 +74,12 @@ def run_task_levels(task_id: int, levels: tuple[str, ...] = ("L1", "L2")) -> dic
         l1_leg_row = conn.execute("SELECT id FROM test_levels WHERE task_id=? AND level='L1'",
                                   (task_id,)).fetchone()
         l2_final = run_l2_task(task_id, trace_from=l1_leg_row["id"] if l1_leg_row else None)
-        return {"L1": l1_final, "L2": l2_final}
+        if "L3" not in levels or not config.LEVELS_L3_ENABLED:
+            return {"L1": l1_final, "L2": l2_final}
+        l2_leg_row = conn.execute("SELECT id FROM test_levels WHERE task_id=? AND level='L2'",
+                                  (task_id,)).fetchone()
+        from .l3 import run_l3_task  # 延迟导入：L3 关闭时零加载
+        l3_final = run_l3_task(task_id, trace_from=l2_leg_row["id"] if l2_leg_row else None)
+        return {"L1": l1_final, "L2": l2_final, "L3": l3_final}
     finally:
         conn.close()

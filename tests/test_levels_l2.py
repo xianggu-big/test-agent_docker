@@ -157,9 +157,14 @@ def test_run_worker_dispatches_to_levels_when_enabled(tmp_db, monkeypatch):
     calls = []
     monkeypatch.setattr(config, "LEVELS_ENABLED", True)
     monkeypatch.setattr(levels_mod, "run_task_levels",
-                        lambda t: calls.append(("levels", t)) or {"L1": {}})
+                        lambda t, levels=("L1", "L2"):
+                        calls.append(("levels", t, levels)) or {"L1": {}})
+    server._run_worker(99)
+    monkeypatch.setattr(config, "LEVELS_L3_ENABLED", True)   # L3 开：接力元组带 L3
     server._run_worker(99)
     monkeypatch.setattr(config, "LEVELS_ENABLED", False)
     monkeypatch.setattr(server, "run_task", lambda t: calls.append(("l1", t)))
     server._run_worker(99)
-    assert [c[0] for c in calls] == ["levels", "l1"]
+    assert calls[0] == ("levels", 99, ("L1", "L2"))          # L3 关：接力止于 L2
+    assert calls[1] == ("levels", 99, ("L1", "L2", "L3"))    # L3 开：元组带 L3
+    assert calls[2][0] == "l1"

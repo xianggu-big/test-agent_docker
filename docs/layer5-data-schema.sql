@@ -332,3 +332,24 @@ CREATE INDEX IF NOT EXISTS idx_llm_calls_task   ON llm_calls(task_id);
 CREATE INDEX IF NOT EXISTS idx_levels_task      ON test_levels(task_id);
 CREATE INDEX IF NOT EXISTS idx_endpoints_task   ON interface_endpoints(task_id);
 CREATE INDEX IF NOT EXISTS idx_call_edges_task  ON call_edges(task_id);
+
+-- 22) L3/L4 业务流场景（半自动：冒烟自动判定 + 失败人工介入 D5；L4 预留 G/W/T）
+CREATE TABLE IF NOT EXISTS scenario_cases (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id         INTEGER NOT NULL REFERENCES test_tasks(id) ON DELETE CASCADE,
+  level           TEXT NOT NULL DEFAULT 'L3' CHECK (level IN ('L3','L4')),
+  title           TEXT NOT NULL,
+  requirement_ref TEXT,
+  steps           TEXT NOT NULL,           -- JSON: [{method,path,body?,expect_status?},...]
+  expected        TEXT,                    -- 场景预期（业务叙述）
+  gwt             TEXT,                    -- JSON: {given,when,then}（L4 预留）
+  status          TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending','auto_pass','pending_confirm',
+                                    'confirmed_pass','confirmed_defect','confirmed_scenario')),
+  last_result     TEXT,                    -- JSON: 最近一次冒烟执行结果摘要
+  actual_note     TEXT,                    -- 人工确认记录的实际表现
+  confirmed_by    INTEGER REFERENCES users(id),
+  confirmed_at    TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_scenarios_task ON scenario_cases(task_id, level);

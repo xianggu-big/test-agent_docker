@@ -29,7 +29,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from test_agent import config  # noqa: E402
+from test_agent import config
+from test_agent.skills import scenario_gen as scenario_gen_mod  # noqa: E402
 from test_agent.skills import (builtin, callgraph, contract_gen, endpoint_extract,
                                gen_tests, llm_usage, prompt_library)  # noqa: E402
 
@@ -125,9 +126,9 @@ def part1_completion() -> list[Item]:
         "skills", "skill_invocations", "container_jobs", "test_scripts", "test_cases",
         "test_conditions", "test_reports", "feedback_annotations", "rtm_maps",
         "evaluation_rounds", "complexity_hotspots", "llm_calls",
-        "test_levels", "interface_endpoints", "call_edges"}
+        "test_levels", "interface_endpoints", "call_edges", "scenario_cases"}
     (ok if created == expected_tables else miss)(
-        "L5 schema 21 表契约",
+        "L5 schema 22 表契约",
         "21 表齐备" if created == expected_tables else
         f"缺失={sorted(expected_tables - created)} 多余={sorted(created - expected_tables)}")
     lvl_col = re.search(r"CREATE TABLE IF NOT EXISTS evaluation_rounds\s*\(.*?\n\)", ddl, re.S)
@@ -138,9 +139,12 @@ def part1_completion() -> list[Item]:
     #     骨架四开关默认开（系统默认行为）。A/B/C 三开关默认值见上方第 1 组。
     for key in ("GEN_BOUNDARY_ATTACK", "WITNESS_CONTINUE_ENABLED", "GEN_CROSS_REVIEW_ENABLED",
                 "STATE_TRANSITION_ENABLED", "METAMORPHIC_ENABLED", "AUTO_PREPARE_ENV",
-                "LEVELS_ENABLED"):
+                "LEVELS_ENABLED", "LEVELS_L3_ENABLED"):
         v = getattr(config, key, None)
         (ok if v is False else miss)(f"config.{key}", f"默认值={v}（应为 False）")
+    for name in ("parse_scenarios", "confirm_scenario", "l3_metrics", "apply_smoke_results"):
+        (ok if callable(getattr(scenario_gen_mod, name, None)) else miss)(
+            f"scenario_gen.{name}", "L3 D5 纯函数在位")
     for key in ("GEN_METHODS_ENABLED", "PLAN_ENABLED", "COVERAGE_FEEDBACK_ENABLED",
                 "TEMPLATES_ENABLED"):
         v = getattr(config, key, None)

@@ -11,13 +11,13 @@ from test_agent.store import db
 
 
 def test_init_db_creates_all_tables(tmp_path):
-    assert db.init_db(tmp_path / "t.db") == 21
+    assert db.init_db(tmp_path / "t.db") == 22
 
 
 def test_init_db_idempotent(tmp_path):
     p = tmp_path / "t.db"
     db.init_db(p)
-    assert db.init_db(p) == 21  # 第二次不炸也不重建
+    assert db.init_db(p) == 22  # 第二次不炸也不重建
 
 
 def test_rtm_conditions_table_exists(tmp_path):

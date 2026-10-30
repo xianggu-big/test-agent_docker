@@ -164,6 +164,15 @@ def collect_metrics(conn, task_id: int, report_id: int | None = None) -> dict:
             l2.update(json.loads(leg["summary"]))
         metrics["l2"] = l2
 
+    # L3 场景按级指标（D5 半自动）：无场景行整体缺席，叙述如实说无数据
+    try:
+        from ..skills.scenario_gen import l3_metrics
+        l3m = l3_metrics(conn, task_id)
+    except Exception:
+        l3m = None
+    if l3m:
+        metrics["l3"] = l3m
+
     # W4 复杂度热点 × 覆盖交叉（读取时确定性求值，不回写表）：老任务无热点行
     # （建表前的实验数据 / 非 python 链路）→ 三字段整体不出现，叙述如实说无数据
     hs_rows = [dict(r) for r in conn.execute(

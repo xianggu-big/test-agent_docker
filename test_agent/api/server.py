@@ -209,9 +209,10 @@ def api_run(tid: int, user: dict = Depends(staff)):
 
 def _run_worker(tid: int) -> None:
     try:
-        if config.LEVELS_ENABLED:      # D9 串行任务接力：L1 后自动接力 L2 leg（默认关，向后兼容）
+        if config.LEVELS_ENABLED:      # D9 串行任务接力：L1 后自动接力 L2（默认关，向后兼容）
             from ..graph.levels import run_task_levels
-            run_task_levels(tid)
+            run_task_levels(tid, levels=("L1", "L2", "L3") if config.LEVELS_L3_ENABLED
+                            else ("L1", "L2"))
         else:
             run_task(tid)
     except Exception as e:  # run_task 已把失败落库，这里只防线程栈崩溃噪音
@@ -475,6 +476,33 @@ def api_env_status(user: dict = Depends(staff)):
 def api_env_prepare(user: dict = Depends(staff)):
     """一键准备：异步启动 Docker / 构建缺失镜像，前端轮询 /api/env/status 看进度。"""
     return trigger_env_prepare()
+
+
+# ---------- L3 场景（D5 半自动：失败人工介入） ----------
+
+@app.get("/api/tasks/{tid}/scenarios")
+def api_scenarios(tid: int, user: dict = Depends(current_user)):
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    rows = conn.execute(
+        """SELECT id, title, requirement_ref, steps, expected, status, last_result,
+                  actual_note, confirmed_at FROM scenario_cases
+           WHERE task_id=? AND level='L3' ORDER BY id""", (tid,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/scenarios/{sid}/confirm")
+def api_confirm_scenario(sid: int, body: dict, user: dict = Depends(staff)):
+    from ..skills.scenario_gen import confirm_scenario
+    conn = get_conn()
+    try:
+        out = confirm_scenario(conn, sid, str(body.get("result", "")),
+                               body.get("note"), user["user_id"])
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return out
 
 
 # ---------- 静态界面（置于 API 路由之后） ----------
