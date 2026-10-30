@@ -365,6 +365,30 @@ def api_levels(tid: int, user: dict = Depends(current_user)):
         except (TypeError, ValueError):
             pass
         levels.append(d)
+    if not levels:
+        # D6（2026-10-30 H1 实锤）：未走 levels 流的直接 L1 任务在四级视图是空壳——
+        # 从任务自身台账合成 L1 回退卡（只读既有数据，不写库；有级别行的任务不受影响）
+        t = conn.execute("SELECT status FROM test_tasks WHERE id=?", (tid,)).fetchone()
+        latest = conn.execute(
+            """SELECT passed, failed, coverage_line, verdict, stop_reason
+               FROM evaluation_rounds WHERE task_id=?
+               ORDER BY round_no DESC, id DESC LIMIT 1""", (tid,)).fetchone()
+        cases = conn.execute(
+            """SELECT COUNT(*) AS n FROM test_cases c
+               JOIN test_scripts s ON s.id = c.script_id WHERE s.task_id=?""",
+            (tid,)).fetchone()
+        if t and (latest or (cases and cases["n"])):
+            levels.append({
+                "level": "L1", "strategy": "full", "status": t["status"],
+                "verdict": latest["verdict"] if latest else None,
+                "stop_reason": latest["stop_reason"] if latest else None,
+                "trace_from": None, "synthetic": True,
+                "summary": {"passed": latest["passed"] if latest else None,
+                            "failed": latest["failed"] if latest else None,
+                            "coverage_line": latest["coverage_line"] if latest else None,
+                            "verdict": latest["verdict"] if latest else None,
+                            "cases_total": cases["n"] if cases else 0},
+                "started_at": None, "finished_at": None})
     from ..skills.scenario_gen import l3_metrics, l4_metrics
     scenarios = {"L3": l3_metrics(conn, tid), "L4": l4_metrics(conn, tid)}
     traces = build_task_traces(conn, tid)

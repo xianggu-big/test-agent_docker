@@ -69,3 +69,48 @@ def test_levels_不存在任务404(tmp_db):
     with pytest.raises(HTTPException) as e:
         api_levels(9999, {"user_id": 1, "role": "admin"})
     assert e.value.status_code == 404
+
+
+# ---------- D6：直接 L1 任务（未走 levels 流）的合成回退卡 ----------
+
+def test_levels_普通L1任务合成回退卡(tmp_db):
+    """有 evaluation_rounds 轨迹但无 test_levels 行的老式任务：合成 L1 卡进四级视图。"""
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO evaluation_rounds(task_id, round_no, passed, failed, skipped,
+               coverage_line, verdict, stop_reason, level)
+           VALUES(?, 1, 28, 6, 0, 0.48, 'stop', '疑似产品缺陷', 'L1')""", (tmp_db,))
+    conn.commit()
+    conn.close()
+    out = api_levels(tmp_db, {"user_id": 1, "role": "admin"})
+    assert len(out["levels"]) == 1
+    card = out["levels"][0]
+    assert card["level"] == "L1" and card["synthetic"] is True
+    assert card["summary"]["passed"] == 28 and card["summary"]["failed"] == 6
+    assert card["summary"]["coverage_line"] == 0.48
+    assert card["status"] == "queued"  # 裸任务初始态如实透传
+
+
+def test_levels_仅有用例无轮次也出卡(tmp_db):
+    """只有 test_cases 没有 rounds 的任务：cases_total 兜底，verdict 如实缺席。"""
+    conn = get_conn()
+    sid = conn.execute(
+        "INSERT INTO test_scripts(task_id, framework, version, content, content_hash)"
+        " VALUES(?, 'pytest', 1, 'x', 'h')", (tmp_db,)).lastrowid
+    conn.execute(
+        "INSERT INTO test_cases(script_id, source, name, content) VALUES(?, 'ai', 'test_a', 'x')",
+        (sid,))
+    conn.commit()
+    conn.close()
+    out = api_levels(tmp_db, {"user_id": 1, "role": "admin"})
+    assert len(out["levels"]) == 1
+    card = out["levels"][0]
+    assert card["synthetic"] is True
+    assert card["summary"]["cases_total"] == 1
+    assert card["verdict"] is None and card["summary"]["passed"] is None
+
+
+def test_levels_空任务仍如实无卡(tmp_db):
+    """既无 rounds 也无用例：不出卡（诚实缺席，不造假数据）。"""
+    out = api_levels(tmp_db, {"user_id": 1, "role": "admin"})
+    assert out["levels"] == []
