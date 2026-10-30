@@ -208,6 +208,7 @@ async function refreshReports() {
 
 function switchRp(which) {
   $("rp-overview").classList.toggle("hidden", which !== "overview");
+  $("rp-suite").classList.toggle("hidden", which !== "suite");
   $("rp-rtm").classList.toggle("hidden", which !== "rtm");
   $("rp-logs").classList.toggle("hidden", which !== "logs");
   $("rp-attach").classList.toggle("hidden", which !== "attach");
@@ -251,6 +252,50 @@ function renderLevels(d) {
     }).join("<span class=\"hint\">›</span>") + `</div>`).join("");
   return `<div class="level-grid">${cards}</div>
     <div class="trace-box">跨级溯源 ${d.trace_count || 0} 条${d.trace_count ? "（失败/待定性场景）" : ""}${chains}</div>`;
+}
+
+// D9 执行信息卡（教科书"测试执行阶段"要素：何时/谁/怎么执行——外行第一眼看的东西）
+function execCard(latest) {
+  const ex = latest && latest.exec;
+  if (!ex) return "";
+  let dur = "";
+  if (ex.started_at && latest.created_at) {
+    const ms = new Date(latest.created_at.replace(" ", "T")) - new Date(ex.started_at.replace(" ", "T"));
+    if (ms > 0 && !isNaN(ms)) dur = ` ｜ 耗时 ${ms >= 60000 ? Math.floor(ms / 60000) + " 分 " : ""}${Math.round(ms % 60000 / 1000)} 秒`;
+  }
+  return `<div class="trace-box" style="margin-bottom:10px"><b>执行信息</b> ｜ 开始 <b>${esc(ex.started_at || "—")}</b>` +
+    ` ｜ 报告生成 <b>${esc(latest.created_at || "—")}</b>${dur}` +
+    ` ｜ 执行方式：${esc(ex.mode)}（${ex.rounds} 轮）` +
+    ` ｜ 执行者：<b>系统自动</b>（${esc(ex.sandbox)} + LLM ${esc(ex.llm)}，零人工干预）</div>`;
+}
+
+// D9 测试用例库（教科书"测试设计阶段 D 基本要素"：编号/标题/级别/输入/预期结果，
+// 按测试类型分组排序——外行按"我想看哪类测试"导航，不再是一锅粥）
+const METHOD_ORDER = ["等价类划分", "边界值分析", "判定表", "错误推测法", "状态迁移", "蜕变测试", "property-based"];
+const PRIO_RANK = { "高": 0, "中": 1, "低": 2 };
+
+function renderSuite(cases) {
+  if (!cases || !cases.length) return "";
+  const groups = {};
+  cases.forEach(c => { const m = (c.method || "").trim() || "未标注方法"; (groups[m] = groups[m] || []).push(c); });
+  const names = Object.keys(groups).sort((a, b) => {
+    const ia = METHOD_ORDER.findIndex(k => a.includes(k)), ib = METHOD_ORDER.findIndex(k => b.includes(k));
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+  const pc = { "高": "badge-fail", "中": "badge-queued", "低": "badge-ok" };
+  let html = "<tr><th>#</th><th>测试标题</th><th>级别</th><th>来源</th><th>测试输入</th><th>预期结果〔依据〕</th></tr>";
+  for (const m of names) {
+    const rows = groups[m].sort((x, y) =>
+      ((PRIO_RANK[x.priority] ?? 3) - (PRIO_RANK[y.priority] ?? 3)) || (x.id - y.id));
+    html += `<tr><td colspan="6" style="background:var(--bg,#f6f7fa)"><b>${esc(m)}</b>` +
+      ` <span class="hint">· ${rows.length} 条</span></td></tr>`;
+    html += rows.map(c => `<tr><td>${c.id}</td><td>${esc(c.name)}</td>` +
+      `<td><span class="badge ${pc[c.priority] || "badge-queued"}">${esc(c.priority || "—")}</span></td>` +
+      `<td>${c.source === "ai" ? "AI 生成" : c.source === "imported" ? "人工插入" : esc(c.source || "—")}</td>` +
+      `<td>${esc((c.input || "—").slice(0, 60))}</td>` +
+      `<td>${esc((c.expected || "—").slice(0, 80))}${c.expected_basis ? ` <span class="hint">〔${esc(c.expected_basis)}〕</span>` : ""}</td></tr>`).join("");
+  }
+  return html;
 }
 
 async function loadReport() {
@@ -300,9 +345,9 @@ async function loadReport() {
         `<figure class="chart-fig"><figcaption>${esc(c.title)}</figcaption>` +
         `<img src="${c.data_url}" alt="${esc(c.title)}" loading="lazy"></figure>`).join("") + "</div>"
     : "";
-  $("rp-overview").innerHTML = renderLevels(levels) + summaryHtml + chartsHtml;
+  $("rp-overview").innerHTML = execCard(latest) + renderLevels(levels) + summaryHtml + chartsHtml;
 
-  // RTM 矩阵 + 用例六要素（测试分析/设计阶段的可追溯性展示）
+  // RTM 矩阵（测试条件 ↔ 用例映射）——用例六要素移至「测试用例库」tab（D9 分离关注点）
   if (rtm && (rtm.matrix.length || rtm.cases.length)) {
     const covered = rtm.matrix.filter(m => m.status === "covered").length;
     $("rp-rtm-badge").textContent = `条件覆盖 ${covered}/${rtm.conditions_total}` +
@@ -312,16 +357,20 @@ async function loadReport() {
       rtm.matrix.map(m => `<tr><td>${esc(m.condition)}</td><td>${esc(m.priority || "中")}</td>` +
         `<td>${m.cases.length ? m.cases.map(esc).join("<br>") : '<span class="hint">无用例覆盖</span>'}</td>` +
         `<td><span class="badge ${m.status === "covered" ? "badge-ok" : "badge-fail"}">${m.status === "covered" ? "已覆盖" : "缺口"}</span></td></tr>`).join("");
-    $("rp-cases-table").innerHTML =
-      "<tr><th>用例</th><th>方法</th><th>优先级</th><th>输入</th><th>预期（expected_basis）</th></tr>" +
-      rtm.cases.map(c => `<tr><td>${esc(c.name)}</td><td>${esc(c.method || "—")}</td><td>${esc(c.priority || "—")}</td>` +
-        `<td>${esc((c.input || "—").slice(0, 40))}</td>` +
-        `<td>${esc((c.expected || "—").slice(0, 60))}${c.expected_basis ? ` <span class="hint">〔${esc(c.expected_basis)}〕</span>` : ""}</td></tr>`).join("");
   } else {
     $("rp-rtm-badge").textContent = "该任务尚无测试条件数据（plan 节点需需求文本与 LLM Key）";
-    $("rp-rtm-table").innerHTML = ""; $("rp-cases-table").innerHTML = "";
+    $("rp-rtm-table").innerHTML = "";
   }
 
+  // D9 测试用例库：按测试类型分组 + 优先级排序 + 编号列（独立 tab，外行导航入口）
+  const suite = await api(`/tasks/${tid}/cases`).catch(() => null);
+  const suiteCases = suite && suite.cases ? suite.cases : [];
+  $("rp-suite-table").innerHTML = renderSuite(suiteCases);
+  $("rp-suite-hint").textContent = suiteCases.length
+    ? `共 ${suiteCases.length} 条用例，按测试类型分组、组内按优先级（高→低）排序；「〔依据〕」= 该预期结果的出处（需求明示/源码推导/模型推断等）`
+    : "该任务尚无用例（需先执行生成阶段）";
+
+  // 用例六要素导出同步用 suite 数据（编号+类型）
   const lines = logs.map(l => `<div class="log-line"><b>[${l.seq}]</b> ${esc(l.content)}</div>`);
   $("rp-log-list").innerHTML = lines.join("") || '<div class="hint">暂无日志</div>';
   $("rp-export").onclick = () => {

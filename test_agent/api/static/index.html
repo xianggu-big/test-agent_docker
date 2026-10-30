@@ -142,16 +142,19 @@
       <div class="metric-row" id="rp-metrics"></div>
       <div class="tabs">
         <button class="tab active" data-rp="overview">概览</button>
+        <button class="tab" data-rp="suite">测试用例库</button>
         <button class="tab" data-rp="rtm">需求追踪 RTM</button>
         <button class="tab" data-rp="logs">日志</button>
         <button class="tab" data-rp="attach">附件</button>
       </div>
       <div id="rp-overview" class="card"></div>
+      <div id="rp-suite" class="card hidden">
+        <div id="rp-suite-hint" class="hint" style="margin-bottom:8px"></div>
+        <div class="table-wrap"><table class="tbl" id="rp-suite-table"></table></div>
+      </div>
       <div id="rp-rtm" class="card hidden">
         <div id="rp-rtm-badge" class="hint" style="margin-bottom:8px"></div>
         <div class="table-wrap"><table class="tbl" id="rp-rtm-table"></table></div>
-        <h3 style="margin-top:14px">用例六要素（规格结构化落库）</h3>
-        <div class="table-wrap"><table class="tbl" id="rp-cases-table"></table></div>
       </div>
       <div id="rp-logs" class="card hidden"><div id="rp-log-list" class="log-list"></div></div>
       <div id="rp-attach" class="card hidden">

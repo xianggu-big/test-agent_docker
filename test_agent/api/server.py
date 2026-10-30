@@ -272,12 +272,28 @@ def api_report(tid: int, user: dict = Depends(current_user)):
         """SELECT COUNT(*) AS calls, SUM(total_tokens) AS total FROM llm_calls
            WHERE task_id=?""", (tid,)).fetchone()
     llm = {"calls": lc["calls"], "total": lc["total"]} if lc and lc["calls"] else None
+    # D9 执行信息（教科书"测试执行阶段"要素）：执行时间/执行方式/轮次——数据都在库里，
+    # 此前呈现层没展示，外行看报告不知道"何时、谁、怎么执行的"
+    t_row = conn.execute("SELECT status, created_at FROM test_tasks WHERE id=?", (tid,)).fetchone()
+    started = conn.execute(
+        """SELECT MIN(m.created_at) AS ts FROM agent_messages m
+           JOIN agent_sessions s ON s.id = m.session_id WHERE s.task_id=?""", (tid,)).fetchone()
+    rounds = conn.execute("SELECT COUNT(*) AS n FROM evaluation_rounds WHERE task_id=?", (tid,)).fetchone()
+    exec_meta = {
+        "started_at": started["ts"] if started else None,
+        "task_created_at": t_row["created_at"] if t_row else None,
+        "mode": "全自动（R-Loop 循环执行；缺陷如实上报不回炉迁就）",
+        "sandbox": "Docker 容器沙箱",
+        "llm": config.DEEPSEEK_MODEL,
+        "rounds": rounds["n"] if rounds else 0,
+    }
     reports = []
     for r in rows:
         d = dict(r)
         total = (d["passed"] or 0) + (d["failed"] or 0) + (d["skipped"] or 0)
         d["total"] = total
         d["pass_rate"] = round(d["passed"] / total, 4) if total else None
+        d["exec"] = exec_meta
         if hotspots:
             cross = hotspot_coverage(hotspots,
                                      json.loads(d["per_file"]) if d["per_file"] else [])
@@ -320,7 +336,7 @@ def api_rtm(tid: int, user: dict = Depends(current_user)):
     latest = conn.execute("SELECT matrix, source, created_at FROM rtm_maps "
                           "WHERE task_id=? ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
     cases = [dict(r) for r in conn.execute(
-        """SELECT c.name, c.method, c.priority, c.input, c.steps, c.expected,
+        """SELECT c.id, c.name, c.method, c.priority, c.input, c.steps, c.expected,
                   c.expected_basis, c.source, c.enabled
            FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
            WHERE s.task_id=? AND c.enabled=1 ORDER BY c.id""", (tid,))]
@@ -420,8 +436,9 @@ def api_cases(tid: int, user: dict = Depends(current_user)):
     if script is None:
         return {"script": None, "cases": []}
     cases = conn.execute(
-        "SELECT id, name, method, source, enabled, content FROM test_cases "
-        "WHERE script_id=? ORDER BY id", (script["id"],)).fetchall()
+        """SELECT id, name, method, source, enabled, priority, input, expected, expected_basis,
+                  content FROM test_cases
+           WHERE script_id=? ORDER BY id""", (script["id"],)).fetchall()
     return {"script": dict(script), "cases": [dict(c, content=c["content"][:500]) for c in cases]}
 
 
