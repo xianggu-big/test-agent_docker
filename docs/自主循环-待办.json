@@ -131,8 +131,8 @@
     "app.js"
    ],
    "acceptance": "390 下表格横滚容器或卡片化；Playwright 390 无溢出",
-   "status": "open",
-   "attempts": 0
+   "status": "done",
+   "attempts": 1
   },
   {
    "id": "TODO-11",
