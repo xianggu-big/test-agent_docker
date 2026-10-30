@@ -38,14 +38,21 @@ _GH_URL = re.compile(
     r"^https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 
 
-def build_run_cmd() -> list[str]:
-    """L1 主图 pytest 命令（Loop-8 抽出供单测）。
+def build_run_cmd(round_no: int = 1, gen_files: list[str] | None = None) -> list[str]:
+    """L1 主图 pytest 命令（Loop-8 抽出供单测；Loop-9 参数化）。
 
     --continue-on-collection-errors（Loop-8/D10 后继，三角色实验 30 轮实锤）：tenacity 案例中
     仓库自带 tests/ 缺依赖（tornado）→ 收集中断『1 error』→ 5 条生成用例根本未执行即熔断。
-    加该 flag 后收集错误单列（仍计入 failed 供归因，诚实性不变），其余测试正常执行。"""
-    return ["pytest", "-q", "--tb=short", "-rfE", "--continue-on-collection-errors",
-            "--cov=.", "--cov-report=term-missing:skip-covered"]
+    加该 flag 后收集错误单列（仍计入 failed 供归因，诚实性不变），其余测试正常执行。
+
+    Loop-9（三角色实验 30 题复核实锤）：自带 tests 的**恒定失败**混进 R-Loop 后被"补测修复"
+    （永远修不好→熔断/预算耗尽）。修复：round_no>1 起 cmd 限定生成物+imported 文件——
+    R-Loop 的 passed/failed 只衡量生成用例质量；首轮保持全目录（自带测试基线）。"""
+    cmd = ["pytest", "-q", "--tb=short", "-rfE", "--continue-on-collection-errors",
+           "--cov=.", "--cov-report=term-missing:skip-covered"]
+    if round_no > 1 and gen_files:
+        cmd += gen_files
+    return cmd
 
 
 def _validate_repo_url(src: str) -> None:
@@ -396,7 +403,12 @@ def make_nodes(deps: GraphDeps) -> dict:
             # Java 链路占位：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
             return {"done": True, "verdict": "stop",
                     "stop_reason": "Java/Maven 执行链路 v1 未接入（诚实降级），任务终止"}
-        cmd = build_run_cmd()  # Loop-8：含 --continue-on-collection-errors（收集错误不再中断全局）
+        # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
+        # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）
+        gen_files = sorted(p.name for p in Path(state["workspace"]).glob("test_gen_r*.py"))
+        if (Path(state["workspace"]) / "test_imported.py").exists():
+            gen_files.append("test_imported.py")
+        cmd = build_run_cmd(round_no=state.get("round_no", 1), gen_files=gen_files)
         res = registry.invoke(tid, skills["run_tests"],
                               {"container_name": state["container_name"], "cmd": cmd})
         if res.status == "denied":

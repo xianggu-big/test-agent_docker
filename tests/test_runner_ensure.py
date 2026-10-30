@@ -109,3 +109,18 @@ def test_build_run_cmd_continues_on_collection_errors():
     cmd = build_run_cmd()
     assert "--continue-on-collection-errors" in cmd, "收集错误不得中断全局（tenacity 30 轮熔断根因）"
     assert "--cov=." in cmd and "-rfE" in cmd  # 其余语义不变
+
+
+# ---------- Loop-9：R-Loop 起第 2 轮限定生成物文件（自带恒定失败不进补测循环） ----------
+
+def test_build_run_cmd_round2_scopes_to_generated_files():
+    from test_agent.graph.nodes import build_run_cmd
+    cmd = build_run_cmd(round_no=2, gen_files=["test_gen_r1.py", "test_imported.py"])
+    assert "test_gen_r1.py" in cmd and "test_imported.py" in cmd
+    assert "--continue-on-collection-errors" in cmd  # Loop-8 语义保持
+
+
+def test_build_run_cmd_round1_full_dir_baseline():
+    from test_agent.graph.nodes import build_run_cmd
+    cmd = build_run_cmd(round_no=1, gen_files=["test_gen_r1.py"])
+    assert not any(f.endswith(".py") for f in cmd), "首轮保持全目录基线（自带测试）"
