@@ -201,6 +201,21 @@
    "acceptance": "done",
    "status": "done",
    "attempts": 1
+  },
+  {
+   "id": "TODO-17",
+   "title": "S0 E6 三格入口实现（三开关+分流+GRID L2E1/L2E2/L2E3+守卫 113）——论文'就绪'失真已修正",
+   "severity": "P1",
+   "evidence": "S1 验证 grep+守卫 113 OK+TRACE 门控真库实测（关 0 链/开 5 链）",
+   "files": [
+    "test_agent/config.py",
+    "test_agent/graph/l2.py",
+    "test_agent/skills/traceability.py",
+    "scripts/run_grid.py"
+   ],
+   "acceptance": "done",
+   "status": "done",
+   "attempts": 1
   }
  ]
 }
