@@ -100,3 +100,12 @@ def test_clone_accepts_legal_urls_and_local_paths():
     import tempfile, os
     d = tempfile.mkdtemp()
     assert N._validate_repo_url(d) is None  # 本地存在路径放行（os.path.isdir 分支）
+
+
+# ---------- Loop-8：run 命令含收集错误容忍（三角色实验 30 轮熔断根因） ----------
+
+def test_build_run_cmd_continues_on_collection_errors():
+    from test_agent.graph.nodes import build_run_cmd
+    cmd = build_run_cmd()
+    assert "--continue-on-collection-errors" in cmd, "收集错误不得中断全局（tenacity 30 轮熔断根因）"
+    assert "--cov=." in cmd and "-rfE" in cmd  # 其余语义不变

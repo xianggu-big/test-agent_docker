@@ -38,6 +38,16 @@ _GH_URL = re.compile(
     r"^https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 
 
+def build_run_cmd() -> list[str]:
+    """L1 主图 pytest 命令（Loop-8 抽出供单测）。
+
+    --continue-on-collection-errors（Loop-8/D10 后继，三角色实验 30 轮实锤）：tenacity 案例中
+    仓库自带 tests/ 缺依赖（tornado）→ 收集中断『1 error』→ 5 条生成用例根本未执行即熔断。
+    加该 flag 后收集错误单列（仍计入 failed 供归因，诚实性不变），其余测试正常执行。"""
+    return ["pytest", "-q", "--tb=short", "-rfE", "--continue-on-collection-errors",
+            "--cov=.", "--cov-report=term-missing:skip-covered"]
+
+
 def _validate_repo_url(src: str) -> None:
     """Loop-6/TODO-13（体检红队四问降级项）：repo_url 白名单校验——git clone 的 src
     以位置参数传入，option 形态注入实测不执行但防御性收敛：只允许 http(s)/git@/ssh URL
@@ -386,8 +396,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             # Java 链路占位：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
             return {"done": True, "verdict": "stop",
                     "stop_reason": "Java/Maven 执行链路 v1 未接入（诚实降级），任务终止"}
-        cmd = ["pytest", "-q", "--tb=short", "-rfE",
-               "--cov=.", "--cov-report=term-missing:skip-covered"]
+        cmd = build_run_cmd()  # Loop-8：含 --continue-on-collection-errors（收集错误不再中断全局）
         res = registry.invoke(tid, skills["run_tests"],
                               {"container_name": state["container_name"], "cmd": cmd})
         if res.status == "denied":
