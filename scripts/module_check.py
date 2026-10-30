@@ -112,6 +112,25 @@ def part1_completion() -> list[Item]:
               "scripts/compare_proposals.py", "tests/test_review_node.py"):
         (ok if (ROOT / p).exists() else miss)(p, "文件缺失")
 
+    # 12) 2026-10-31 质检修复+自主循环新机制（loop-1/2/6/8/9：judge_l2/容器复核/URL 校验/
+    #     收集错误容忍/生成物限定）
+    _nodes_src = inspect.getsource(__import__("test_agent.graph.nodes",
+                                          fromlist=["build_run_cmd"]))
+    (ok if callable(getattr(__import__("test_agent.graph.l2", fromlist=["judge_l2"]),
+                            "judge_l2", None)) else miss)("l2.judge_l2 纯函数", "缺失")
+    (ok if "--continue-on-collection-errors" in inspect.getsource(
+        __import__("test_agent.graph.nodes", fromlist=["build_run_cmd"]).build_run_cmd)
+     else miss)("build_run_cmd 收集错误容忍", "缺 flag")
+    _nodes_mod = __import__("test_agent.graph.nodes", fromlist=["_validate_repo_url"])
+    (ok if callable(getattr(_nodes_mod, "_validate_repo_url", None))
+     else miss)("nodes._validate_repo_url", "缺失")
+    _runner_src = inspect.getsource(__import__("test_agent.sandbox.runner",
+                                               fromlist=["SandboxRunner"]).SandboxRunner)
+    (ok if "销毁重建" in _runner_src else miss)("ensure_container 死容器重建", "缺复核语义")
+    _sgen_src = inspect.getsource(__import__("test_agent.skills.scenario_gen",
+                                             fromlist=["apply_smoke_results"]).apply_smoke_results)
+    (ok if "duplicate_titles_manual" in _sgen_src else miss)("apply_smoke_results 同名转人工", "缺防线")
+
     # 9) 机制单测文件在位
     (ok if (ROOT / "tests/test_design_proposals.py").exists()
      else miss)("tests/test_design_proposals.py", "文件缺失")
