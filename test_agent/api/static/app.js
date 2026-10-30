@@ -486,6 +486,29 @@ function renderPipeline(logs, levels) {
     `<div class="hint">级别调度：${esc(legs || "（未走 levels 流）")}｜调度说明：R-Loop 失败不回炉，同指纹熔断 ≥2 次或预算耗尽诚实停机</div>`;
 }
 
+// R2/F10 缺陷归因清单（摘要态：任务级 defects 三分类+日志 FAILED 行；
+// per-case 精确归因=需后端新增 /defects API（F18），前端不编造）
+function renderDefectsPanel(latest, logs) {
+  if (!latest) return '<div class="hint">无报告</div>';
+  let defects = {};
+  try { defects = JSON.parse(latest.defects || "{}"); } catch (e) {}
+  const fk = defects.failure_kind || "none";
+  const cls = { product_defect: "background:#fee2e2;color:#dc2626",
+                case_defect: "background:#fef3c7;color:#b45309",
+                env: "background:#f3f4f6;color:#6b7280" }[fk] || "background:#f3f4f6;color:#6b7280";
+  const failedLines = (logs || []).filter(l => /FAILED/.test(l.content))
+    .map(l => esc(l.content.slice(0, 110)));
+  return `<div style="margin-bottom:10px"><span class="badge" style="${cls}">` +
+    `${{ product_defect: "疑似产品缺陷", case_defect: "用例自身缺陷", env: "环境问题", none: "无缺陷归因" }[fk]}</span>` +
+    ` <span class="hint">${esc(defects.stop_reason || "")}</span></div>` +
+    (failedLines.length
+      ? `<div style="font-size:12px;color:var(--muted);max-height:180px;overflow:auto">` +
+        failedLines.map(x => `<div class="log-line">${x}</div>`).join("") + `</div>`
+      : `<div class="hint">日志中无 FAILED 行（全部通过或尚未执行）</div>`) +
+    `<div class="hint" style="margin-top:8px">归因三分之一：env / case / product——不确定时宁可误报不可造假；` +
+    `per-case 精确归因需后端新增 /defects 接口</div>`;
+}
+
 // F08 跨级溯源面板（/trace chains：触发场景+节点链+gaps 徽章）
 function renderTracePanel(trace) {
   const chains = (trace && trace.chains) || [];
@@ -530,6 +553,9 @@ async function loadTaskDetail(tid) {
   const logs = await api(`/tasks/${tid}/logs`).catch(() => []);
   $("td-pipeline").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "执行流水线（固定图编排 · 容器沙箱）</div>" + renderPipeline(logs, lv);
+  $("td-defects").innerHTML = "<div style=\"font-size:16px;font-weight:800\">缺陷归因清单</div>" +
+    "<div class=\"hint\" style=\"margin-bottom:6px\">env / case / product 三分类 · 不确定时宁可误报不可造假</div>" +
+    renderDefectsPanel(latest, logs);
   const trace = await api(`/tasks/${tid}/trace`).catch(() => null);
   $("td-trace").innerHTML = "<div style=\"font-size:16px;font-weight:800\">跨级 RTM 溯源链</div>" +
     `<div class="hint">失败自动沿 [验收场景 → 系统场景 → 集成用例 → 单元用例 → 代码行] 反向定位｜共 ${(trace && trace.chains || []).length} 条</div>` +
