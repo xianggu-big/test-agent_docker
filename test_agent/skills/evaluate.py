@@ -385,9 +385,25 @@ def review_rules(narrative: str, metrics: dict, verdict: str) -> list[str]:
             continue
         for m in re.findall(pat, narrative or ""):
             if int(m) not in legal:
-                reasons.append(f"叙述数字与数据不符：表述“{pat[1:3]}”写了 {m}，"
+                # P3-1：显示正则字面量本身（"通过"/"失败"），不再用 pat[1:3] 截出正则碎片
+                label = pat.split("(")[0].replace("(?<!未)", "")
+                reasons.append(f"叙述数字与数据不符：表述“{label}”写了 {m}，"
                                f"数据为 {sorted(legal)}（L1/L2 均不匹配）")
                 break
+    # P1-3（2026-10-31 体检 EXP1-A 实锤）："通过率 100%"这类比率措辞可绕过计数比对——
+    # 出现即与 pass_rate 白名单比对（容忍 0.5% 舍入）；分数形式"通过率 x/y"换算后同检；
+    # pass_rate 缺席时任何具体通过率都不可信
+    pr = metrics.get("pass_rate")
+    rate_forms = re.findall(r"通过率\s*([\d.]+)\s*%", narrative or "") + [
+        f"{int(a) / int(b) * 100:.1f}"
+        for a, b in re.findall(r"通过率\s*(\d+)\s*/\s*(\d+)", narrative or "")]
+    for m in rate_forms:
+        if pr is None:
+            reasons.append("叙述给出具体通过率，但指标包无 pass_rate（无数据不得编造）")
+            break
+        if abs(float(m) - round(pr * 100)) > 0.5:
+            reasons.append(f"叙述通过率 {m}% 与数据 {round(pr * 100)}% 不符")
+            break
     if cov is not None:
         for m in re.findall(r"覆盖率\s*([\d.]+)\s*%", narrative or ""):
             if abs(float(m) - round(cov * 100)) > 0.5:
@@ -413,8 +429,9 @@ def review_rules(narrative: str, metrics: dict, verdict: str) -> list[str]:
                     f"{llm_p}/{llm_c}/{llm_t} 不符")
             break
     if (verdict == "stop" or metrics.get("failure_kind") == "product_defect") \
-            and re.search(r"已解决|全部通过|全部修复|无缺陷|未发现缺陷", narrative or ""):
-        reasons.append("归因为疑似产品缺陷，报告却称已解决/无缺陷（防造假红线）")
+            and re.search(r"已解决|全部通过|全部修复|均已修复|无缺陷|未发现缺陷|无遗留|验证完毕|均已验证",
+                          narrative or ""):
+        reasons.append("归因为疑似产品缺陷，报告却称已解决/无缺陷/无遗留（防造假红线）")
     if metrics.get("failed", 0) > 0 and re.search(r"全部通过", narrative or ""):
         reasons.append(f"数据存在 {metrics['failed']} 条失败，报告却称全部通过")
     return reasons
