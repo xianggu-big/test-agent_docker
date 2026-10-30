@@ -117,14 +117,31 @@ def test_levels_空任务仍如实无卡(tmp_db):
 
 
 def test_levels_合成卡只取L1轮次(tmp_db):
-    """P2-4（体检）：任务有 L2 轮次但无 test_levels 行时，合成卡不得拿 L2 轮次冒充 L1。"""
+    """P2-4（体检）：混合轮次任务合成卡不得拿 L2 轮次冒充 L1（旧行为 ORDER BY 轮次可取到 L2）。"""
     conn = get_conn()
-    conn.execute(
-        """INSERT INTO evaluation_rounds(task_id, round_no, passed, failed, skipped,
-               coverage_line, verdict, level) VALUES(?, 1, 99, 1, 0, 0.5, 'pass', 'L2')""")
+    for round_no, passed, level in ((1, 21, "L1"), (1, 99, "L2")):
+        conn.execute(
+            """INSERT INTO evaluation_rounds(task_id, round_no, passed, failed, skipped,
+                   coverage_line, verdict, level) VALUES(?,?,?,?,?,?,?,'X')""",
+            (tmp_db, round_no, passed, 0, 0, 0.5, "pass"))
+        conn.execute("UPDATE evaluation_rounds SET level=? WHERE task_id=? AND round_no=? AND passed=?",
+                     (level, tmp_db, round_no, passed))
     conn.commit()
     conn.close()
     out = api_levels(tmp_db, {"user_id": 1, "role": "admin"})
     card = out["levels"][0]
     assert card["synthetic"] is True
-    assert card["summary"]["passed"] is None  # 只认 level='L1' 的轮次，L2 轮次不冒充
+    assert card["summary"]["passed"] == 21  # 只认 level='L1' 的轮次，L2 的 99 不冒充
+
+
+def test_levels_仅L2轮次无L1信号不出卡(tmp_db):
+    """只有 L2 轮次（无 L1 轮次/无用例）：不出合成卡（诚实缺席）。"""
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO evaluation_rounds(task_id, round_no, passed, failed, skipped,
+               coverage_line, verdict, level) VALUES(?, 1, 99, 1, 0, 0.5, 'pass', 'L2')""",
+        (tmp_db,))
+    conn.commit()
+    conn.close()
+    out = api_levels(tmp_db, {"user_id": 1, "role": "admin"})
+    assert out["levels"] == []

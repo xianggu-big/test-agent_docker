@@ -1,0 +1,62 @@
+{
+  "task_id": 181,
+  "chains": 2,
+  "defects_real": 5,
+  "hits": 2,
+  "hit_rate": 0.4,
+  "codes": 2,
+  "details": [
+    {
+      "defect": "D1",
+      "location": "booking.py::validate_duration",
+      "matched_scenario": 66,
+      "matched_title": "预约创建、查询与取消全流程",
+      "hit": false,
+      "rank": null,
+      "candidates": 1
+    },
+    {
+      "defect": "D2",
+      "location": "booking.py::quote_total",
+      "matched_scenario": 66,
+      "matched_title": "预约创建、查询与取消全流程",
+      "hit": false,
+      "rank": null,
+      "candidates": 1
+    },
+    {
+      "defect": "D3",
+      "location": "app.py::read_booking",
+      "matched_scenario": 66,
+      "matched_title": "预约创建、查询与取消全流程",
+      "hit": true,
+      "rank": 1,
+      "candidates": 1
+    },
+    {
+      "defect": "D4",
+      "location": "booking.py::has_overlap",
+      "matched_scenario": 66,
+      "matched_title": "预约创建、查询与取消全流程",
+      "hit": false,
+      "rank": null,
+      "candidates": 1
+    },
+    {
+      "defect": "D5",
+      "location": "app.py::cancel_booking",
+      "matched_scenario": 68,
+      "matched_title": "取消后再次取消冲突",
+      "hit": true,
+      "rank": 1,
+      "candidates": 1
+    }
+  ],
+  "chain_gaps": {
+    "68": [
+      "无 L1 单元用例关联（RTM 无映射/文本不匹配）"
+    ]
+  },
+  "run": 1,
+  "status": "ok"
+}
