@@ -5,12 +5,15 @@
 - 关键动作全部经 SkillRegistry.invoke（审计台账 + 确认门）
 - 容器里只跑测试；归因判读（Evaluator）在宿主侧 —— 执行与判定分离
 """
+import io
 import json
 import logging
 import os
 import re
 import shutil
 import subprocess
+import tarfile
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +33,61 @@ log = logging.getLogger(__name__)
 
 _EXT_LANG = {".py": "python", ".java": "java", ".js": "javascript", ".ts": "typescript",
              ".jsx": "javascript", ".tsx": "typescript", ".go": "go", ".c": "c", ".cpp": "cpp"}
+
+_GH_URL = re.compile(
+    r"^https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
+
+
+def _extract_tarball_strip1(data: bytes, dest: Path) -> int:
+    """GitHub tarball（顶层 <repo>-<branch>/）解包到 dest，剥顶层目录；返回落盘文件数。
+
+    逐成员手写落盘而非 extractall：要剥前缀，且只收常规文件、拒绝路径穿越。"""
+    n = 0
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+        for member in tf.getmembers():
+            if not member.isfile():
+                continue
+            parts = member.name.split("/")
+            if len(parts) < 2:
+                continue
+            target = dest.joinpath(*parts[1:]).resolve()
+            if dest.resolve() not in target.parents:
+                continue  # 路径穿越（../ 等）直接丢弃
+            target.parent.mkdir(parents=True, exist_ok=True)
+            f = tf.extractfile(member)
+            if f is None:
+                continue
+            target.write_bytes(f.read())
+            n += 1
+    return n
+
+
+def _codeload_fallback(src: str, ws: Path) -> str | None:
+    """git clone 失败时的确定性回退：codeload tarball 直连下载（显式绕代理）。
+
+    调研结论（2026-10-30）：GitPython/dulwich/pygit2 都是 git 协议实现，同样依赖
+    网络/代理，没有现成轮子做"git→tarball 回退"，逻辑太贴场景不值得引重依赖。
+    仅支持 GitHub 仓库 URL；main/master 双分支尝试；失败返回 None 由调用方如实报错。"""
+    m = _GH_URL.match(src.strip())
+    if not m:
+        return None
+    owner, repo = m.group(1), m.group(2)
+    # 显式空 ProxyHandler：代理失效环境里 codeload 直连可达（2026-10-30 实测），
+    # 不继承系统/环境代理配置
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    for branch in ("main", "master"):
+        url = f"https://codeload.github.com/{owner}/{repo}/tar.gz/refs/heads/{branch}"
+        try:
+            with opener.open(urllib.request.Request(
+                    url, headers={"User-Agent": "test-agent"}), timeout=120) as r:
+                data = r.read()
+            n = _extract_tarball_strip1(data, ws)
+            if n:
+                return f"codeload tarball（{branch} 分支，{n} 个文件）"
+        except Exception as e:  # 网络/解包失败换下一分支，全败返回 None
+            log.warning("codeload 回退失败 %s: %s", url, e)
+            continue
+    return None
 
 
 @dataclass
@@ -134,8 +192,18 @@ def make_nodes(deps: GraphDeps) -> dict:
             r = subprocess.run(["git", "clone", "--depth", "1", src, str(ws)],
                                capture_output=True, text=True, timeout=300)
             if r.returncode != 0:
-                raise RuntimeError(f"git clone 失败: {r.stderr[:400]}")
-            how = "git clone --depth 1"
+                # D2（2026-10-30 H1 备料实锤）：git 走系统代理，代理失效时真实 GitHub URL
+                # 必炸 env 类错误；codeload tarball 直连可达 → 确定性回退，失败原因如实留痕
+                fb = _codeload_fallback(src, ws)
+                if fb:
+                    msg(state["session_id"], "assistant",
+                        f"[clone] git clone 失败（{r.stderr.strip()[-160:]}），回退 {fb}")
+                    how = fb
+                else:
+                    raise RuntimeError(
+                        f"git clone 失败且无可用回退（非 GitHub 仓库或分支不可达）: {r.stderr[:400]}")
+            else:
+                how = "git clone --depth 1"
         # P1-②：重跑 rmtree 后 imported 用例文件无人重建（DB 指标仍统计）——
         # 以库为准重放 test_imported.py，仅当库里确有 enabled=1 的 imported 用例
         from ..skills.gen_tests import _rebuild_imported_file
