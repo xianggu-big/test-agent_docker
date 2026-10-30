@@ -191,6 +191,16 @@
    "acceptance": "重跑 30 轮取有效数据",
    "status": "open",
    "attempts": 0
+  },
+  {
+   "id": "TODO-16",
+   "title": "自带 tests 恒定失败混入 R-Loop 补测循环（三角色 30 题实锤，loop-9 已修）——三角色报告需三判补注",
+   "severity": "P1",
+   "evidence": "30 题 failed 1-17 条含自带测试恒定失败；round>1 全目录收集",
+   "files": [],
+   "acceptance": "done",
+   "status": "done",
+   "attempts": 1
   }
  ]
 }
