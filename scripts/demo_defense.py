@@ -26,12 +26,13 @@ FALLBACK_TASKS = {"relay": 151, "suite": 161}  # 人工兜底复演任务（真�
 
 
 def _steps(dry: bool):
-    print("""[demo] 答辩演示流程（每步可暂停）：
+    relay, suite = FALLBACK_TASKS["relay"], FALLBACK_TASKS["suite"]
+    print(f"""[demo] 答辩演示流程（每步可暂停）：
   第 1 步 新建任务+人工确认门 —— 演示"确认门 fail-closed"（未确认下发会被拒）
   第 2 步 L1→L2 接力执行 —— 演示"固定图编排 9 节点 + Docker 容器沙箱 + R-Loop 轮次"
-  第 3 步 报告页 #/task/{tid} —— 演示"四级卡/测试用例库分组/执行信息卡"
+  第 3 步 报告页 #/task/{{tid}} —— 演示"四级卡/测试用例库分组/执行信息卡"
   第 4 步 跨级溯源链 /trace + 缺陷归因 —— 演示"RTM 反向定位 + 防造假（product_defect 不回炉）"
-  兜底：第 3/4 步可直接复演既有任务 #{relay}（接力）与 #{suite}（用例库 31 条）""".format(**FALLBACK_TASKS))
+  兜底：第 3/4 步可直接复演既有任务 #{relay}（接力）与 #{suite}（用例库 31 条）""")
     if dry:
         print("[demo] dry-run 结束：未建任务、未调 LLM")
         return False
