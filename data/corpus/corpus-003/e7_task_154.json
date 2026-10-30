@@ -1,0 +1,59 @@
+{
+  "task_id": 154,
+  "chains": 3,
+  "defects_real": 5,
+  "hits": 0,
+  "hit_rate": 0.0,
+  "codes": 5,
+  "details": [
+    {
+      "defect": "D1",
+      "location": "booking.py::validate_duration",
+      "matched_scenario": 54,
+      "matched_title": "预约创建、持久化查询与计价（3小时9折）",
+      "hit": false,
+      "rank": null,
+      "candidates": 5
+    },
+    {
+      "defect": "D2",
+      "location": "booking.py::quote_total",
+      "matched_scenario": 54,
+      "matched_title": "预约创建、持久化查询与计价（3小时9折）",
+      "hit": false,
+      "rank": null,
+      "candidates": 5
+    },
+    {
+      "defect": "D3",
+      "location": "store.py::save_booking",
+      "matched_scenario": 54,
+      "matched_title": "预约创建、持久化查询与计价（3小时9折）",
+      "hit": false,
+      "rank": null,
+      "candidates": 5
+    },
+    {
+      "defect": "D4",
+      "location": "booking.py::has_overlap",
+      "matched_scenario": 56,
+      "matched_title": "时段重叠冲突（相邻不算重叠）",
+      "hit": false,
+      "rank": null,
+      "candidates": 5
+    },
+    {
+      "defect": "D5",
+      "location": "app.py::cancel_booking",
+      "matched_scenario": 55,
+      "matched_title": "取消预约与重复取消冲突",
+      "hit": false,
+      "rank": null,
+      "candidates": 5
+    }
+  ],
+  "chain_gaps": {},
+  "run": 1,
+  "status": "invalid",
+  "note": "口径 bug 轮：当时 E7 比对未归一 qualname 且 L3 body 外键未修复（room_id=100 假失败），仅留档，不用于任何结论"
+}

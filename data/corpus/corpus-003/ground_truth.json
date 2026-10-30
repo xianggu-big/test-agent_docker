@@ -1,0 +1,101 @@
+{
+  "corpus_id": "corpus-003",
+  "theme": "会议室预约 API（FastAPI 微服务）",
+  "requirement_summary": "会议室创建/查询、预约创建/查询/取消、按房间与日期列出预约；含时长 1~4 小时闭区间、相邻时段不算重叠、≥3 小时 9 折、预约持久化与重复取消 409 等业务规则。",
+  "planted_defects": [
+    {
+      "id": "D1",
+      "type": "boundary_off_by_one",
+      "layer": "L1/L3",
+      "detectable_levels": ["L1", "L2", "L3", "L4"],
+      "location": "booking.py::validate_duration",
+      "file": "booking.py",
+      "function": "validate_duration",
+      "lineno": 6,
+      "description": "需求规定预约时长在 [1, 4] 小时闭区间内合法；实现使用 hours >= MAX_HOURS 拒绝，导致时长恰为 4 小时时抛 ValueError、接口返回 400（应为 201）。",
+      "expected_assertion": "validate_duration(8, 12) == 4；实际抛 ValueError；POST /bookings start_hour=8,end_hour=12 实际 400，应为 201。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D2",
+      "type": "calculation_error",
+      "layer": "L1/L3",
+      "detectable_levels": ["L1", "L3", "L4"],
+      "location": "booking.py::quote_total",
+      "file": "booking.py",
+      "function": "quote_total",
+      "lineno": 14,
+      "description": "需求规定时长 ≥3 小时总价打 9 折（×0.9）；实现按 0.85 计算（15% off），3 小时及以上总价偏低。",
+      "expected_assertion": "quote_total(50, 3) == 135；实际返回 127（50*3*0.85）。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D3",
+      "type": "wrong_lookup_key_type",
+      "layer": "L2/L3",
+      "detectable_levels": ["L2", "L3"],
+      "location": "app.py::read_booking",
+      "file": "app.py",
+      "function": "read_booking",
+      "lineno": 70,
+      "description": "需求规定创建预约后可按 id 查询；预约以 int 键持久化，但 read_booking 误用 str(bid) 读取，导致 POST /bookings 201 后 GET /bookings/{bid} 恒 404。",
+      "expected_assertion": "POST /bookings 成功后 GET /bookings/{id} 应 200 且字段一致；实际 404。",
+      "detectable_by": "integration"
+    },
+    {
+      "id": "D4",
+      "type": "condition_inverted",
+      "layer": "L1/L3",
+      "detectable_levels": ["L1", "L2", "L3"],
+      "location": "booking.py::has_overlap",
+      "file": "booking.py",
+      "function": "has_overlap",
+      "lineno": 21,
+      "description": "需求规定相邻时段（前场 end == 后场 start）不算重叠；实现用 <= / >=，导致 10:00-11:00 与 11:00-12:00 被判重叠、第二个预约返回 409（应为 201）。",
+      "expected_assertion": "has_overlap(10, 11, 11, 12) is False；实际 True；相邻时段预约实际 409，应为 201。",
+      "detectable_by": "assertion"
+    },
+    {
+      "id": "D5",
+      "type": "wrong_status_code",
+      "layer": "L2/L3",
+      "detectable_levels": ["L2", "L3", "L4"],
+      "location": "app.py::cancel_booking",
+      "file": "app.py",
+      "function": "cancel_booking",
+      "lineno": 79,
+      "description": "需求规定已取消预约再次取消返回 409；实现对 status=cancelled 幂等返回 200，违反显式契约。",
+      "expected_assertion": "同一预约连续 cancel 两次：第二次应 409；实际 200。",
+      "detectable_by": "integration"
+    },
+    {
+      "id": "D6",
+      "type": "decoy",
+      "layer": "L1",
+      "detectable_levels": ["L1"],
+      "location": "app.py::read_room",
+      "file": "app.py",
+      "function": "read_room",
+      "lineno": 36,
+      "description": "占位说明：需求要求不存在会议室返回 404，实现即为 404（正确行为，不构成缺陷）。",
+      "expected_assertion": "GET /rooms/999 返回 404，实际返回 404，符合预期。",
+      "detectable_by": "assertion",
+      "decoy": true
+    },
+    {
+      "id": "D7",
+      "type": "decoy",
+      "layer": "L3",
+      "detectable_levels": ["L3"],
+      "location": "app.py::list_bookings",
+      "file": "app.py",
+      "function": "list_bookings",
+      "lineno": 90,
+      "description": "占位说明：需求要求列表仅返回 active 预约，实现过滤 status=active（正确行为，不构成缺陷）。",
+      "expected_assertion": "取消预约后按房间日期列表不再出现该预约，实际符合预期。",
+      "detectable_by": "integration",
+      "decoy": true
+    }
+  ],
+  "notes": "出题协议：5 条真实可检测缺陷（D1-D5）+ 2 条 decoy（D6-D7，不计 recall 分母）。L2 可检出 D3（创建→读回顺序场景）；L3 业务流可检出 D1/D2/D4/D5；L1 纯函数测试可检出 D1/D2/D4。代码位置按 file::function 记，E7 溯源命中口径同此粒度。"
+}

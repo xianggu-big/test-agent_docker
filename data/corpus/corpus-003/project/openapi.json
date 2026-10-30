@@ -1,0 +1,371 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "meeting-room-api",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/rooms": {
+   "post": {
+    "summary": "Create Room",
+    "operationId": "create_room_rooms_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoomIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/rooms/{rid}": {
+   "get": {
+    "summary": "Read Room",
+    "operationId": "read_room_rooms__rid__get",
+    "parameters": [
+     {
+      "name": "rid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Rid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/bookings": {
+   "post": {
+    "summary": "Create Booking",
+    "operationId": "create_booking_bookings_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BookingIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "400": {
+      "description": "invalid duration"
+     },
+     "404": {
+      "description": "room not found"
+     },
+     "409": {
+      "description": "time overlap"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/bookings/{bid}": {
+   "get": {
+    "summary": "Read Booking",
+    "operationId": "read_booking_bookings__bid__get",
+    "parameters": [
+     {
+      "name": "bid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Bid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/bookings/{bid}/cancel": {
+   "post": {
+    "summary": "Cancel Booking",
+    "operationId": "cancel_booking_bookings__bid__cancel_post",
+    "parameters": [
+     {
+      "name": "bid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Bid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "404": {
+      "description": "booking not found"
+     },
+     "409": {
+      "description": "already cancelled"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/rooms/{rid}/bookings": {
+   "get": {
+    "summary": "List Bookings",
+    "operationId": "list_bookings_rooms__rid__bookings_get",
+    "parameters": [
+     {
+      "name": "rid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Rid"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Date"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "BookingIn": {
+    "properties": {
+     "room_id": {
+      "type": "integer",
+      "title": "Room Id"
+     },
+     "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "title": "Date"
+     },
+     "start_hour": {
+      "type": "integer",
+      "maximum": 20.0,
+      "minimum": 8.0,
+      "title": "Start Hour"
+     },
+     "end_hour": {
+      "type": "integer",
+      "maximum": 21.0,
+      "minimum": 9.0,
+      "title": "End Hour"
+     }
+    },
+    "type": "object",
+    "required": [
+     "room_id",
+     "date",
+     "start_hour",
+     "end_hour"
+    ],
+    "title": "BookingIn"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "RoomIn": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "maxLength": 20,
+      "minLength": 1,
+      "title": "Name"
+     },
+     "capacity": {
+      "type": "integer",
+      "maximum": 20.0,
+      "minimum": 1.0,
+      "title": "Capacity"
+     },
+     "hourly_rate": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Hourly Rate"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "capacity",
+     "hourly_rate"
+    ],
+    "title": "RoomIn"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}

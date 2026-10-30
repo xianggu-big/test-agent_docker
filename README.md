@@ -30,6 +30,10 @@ L5 数据    store/ 22 张表 SQLite（WAL + 外键 + 幂等迁移）：docs/lay
   gen_charts（matplotlib 四图：RTM/覆盖率趋势/判定分布/工具耗时）。
 - **诚实性设计**：用例六要素 + expected_basis（预期值出处）落库；需求明示的失败用例永不删、永不为它改断言；
   报告数字与指标包逐项比对（防造假红线：product_defect 却写"已解决"直接 reject）。
+- **四级双轨（测试级别）**：L1 单元（默认深做）/ L2 集成（契约+调用链双轨）/ L3 系统半自动（冒烟自动判定+
+  失败人工介入）/ L4 验收辅助（GWT 场景确认+确定性转化回归）。级别开关默认关（向后兼容），
+  由级别编排器串行接力并以 `test_levels.trace_from` 形成跨级追溯链；`GET /api/tasks/{tid}/trace`
+  输出"验收→系统→集成→单元→代码位置"确定性溯源链（零 LLM）。
 
 ## 快速开始
 
@@ -70,8 +74,13 @@ python scripts/demo.py                            # 一键演示：建任务→�
 | 三方案独有指标（弱断率/杀死率/RTM覆盖） | `python scripts/mutation_kill.py <tid> <corpus>` → `python scripts/compare_proposals.py` | data/corpus/*/mutation_task*.json；跨格聚合表 stdout |
 | L2 集成层冒烟（四级双轨 P1） | `python scripts/smoke_l2.py [demo_dir] [--keep-ws]` | 真机 11 过/1 败（埋的缺陷被顺序场景如实抓到）；leg 台账 test_levels |
 | L2 全链路接力（L1→L2） | `python -c "from test_agent.graph.levels import run_task_levels; run_task_levels(<tid>)"`（需 LEVELS 场景自建任务） | test_levels 两行 + trace_from 链 + evaluation_rounds 按级 |
+| L3 系统半自动 | 同上，`LEVELS_L3_ENABLED=True` 且 levels 含 L3 | 场景三态台账 + 冒烟结果（失败转人工确认） |
+| L4 验收辅助 + D6 转化 | 同上，`LEVELS_L4_ENABLED=True`；确认后 `POST /api/tasks/{tid}/l4/convert` | L4 21 场景→确认 2→转化 2 个 pytest 函数 |
+| 跨级溯源链 | `GET /api/tasks/{tid}/trace[?scenario_id=]`（或 `python scripts/backfill_callgraph.py <tid>` 回填调用图） | 验收→系统→集成→单元→代码位置（函数级候选） |
+| corpus-003 缺陷标定 | `python scripts/build_corpus.py validate data/corpus/corpus-003` → `python scripts/calibrate_corpus.py corpus-003` | 5 真缺陷可暴露 + 2 decoy 不暴露 |
+| E7 跨级溯源跑数 | `python scripts/run_e7_corpus003.py --n 3` | data/corpus/corpus-003/e7_task_*.json（402 时 blocked 不计均值） |
 
-回归：`python -m pytest`（279 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
+回归：`python -m pytest`（296 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
 API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/api_adversarial.py`（9 项）。
 
 ## 文档索引
@@ -84,3 +93,6 @@ API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/ap
 - `docs/industry-testing-research.md` —— 主流软测流程调研（33 信源逐条核验）
 - `docs/audit-findings.md` —— 全量审计清单（A1-A13 已清零）
 - `docs/pitfalls-python.md` —— Python 工程踩坑记录
+- `docs/四级双轨测试框架研究规划.md` —— 四级双轨方向定稿蓝图（D1-D10 决策）
+- `docs/项目进度时间表.md` —— 里程碑与周排期（学校硬节点兜底）
+- `docs/论文写作蓝图.md` / `docs/论文草稿/` —— 论文写作计划与章节草稿

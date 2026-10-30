@@ -5,8 +5,9 @@ import os
 import pytest
 
 from test_agent import config
-from test_agent.skills.scenario_gen import (apply_smoke_results, confirm_scenario,
-                                            gen_scenarios_llm, l3_metrics,
+from test_agent.skills.scenario_gen import (apply_smoke_results, build_scenario_prompt,
+                                            confirm_scenario, gen_scenarios_llm,
+                                            inject_body_refs, l3_metrics,
                                             parse_scenarios, save_scenarios)
 
 ENDPOINTS = [{"method": "POST", "path": "/users"}, {"method": "GET", "path": "/users/{id}"},
@@ -53,6 +54,47 @@ class TestStaticGate:
         assert calls == 1 and len(valid) == 1
         v2, _, calls2 = gen_scenarios_llm("需求", [], lambda p: GOOD_JSON, 1)
         assert calls2 == 0 and v2 == []          # 无端点=无静态闸基准，零调用
+
+
+class TestBodyRefs:
+    """W2③（corpus-003 实锤）：示例 body 的字面 room_id=100 被模型照抄 → 404 假失败。"""
+
+    def test_示例body外键给占位符(self):
+        prompt = build_scenario_prompt("需求", [{
+            "method": "POST", "path": "/bookings",
+            "request_schema": {"required": ["room_id", "date"], "properties": {
+                "room_id": {"type": "integer"}, "date": {"type": "string"}}}}])
+        assert '"room_id": "{room_id}"' in prompt
+
+    def test_正例外键注入占位符(self):
+        steps = inject_body_refs([
+            {"method": "POST", "path": "/rooms", "body": {"name": "R"}},
+            {"method": "POST", "path": "/bookings",
+             "body": {"room_id": 100, "date": "2026-11-01"}, "expect_status": 201}])
+        assert steps[1]["body"]["room_id"] == "{room_id}"
+        assert steps[0]["body"]["name"] == "R"
+
+    def test_负例保持字面id(self):
+        steps = inject_body_refs([
+            {"method": "POST", "path": "/rooms"},
+            {"method": "POST", "path": "/bookings",
+             "body": {"room_id": 999}, "expect_status": 404}])
+        assert steps[1]["body"]["room_id"] == 999       # 负例意图不破坏
+
+    def test_无前置创建保持字面id(self):
+        steps = inject_body_refs([
+            {"method": "POST", "path": "/bookings", "body": {"room_id": 100},
+             "expect_status": 201}])
+        assert steps[0]["body"]["room_id"] == 100
+
+    def test_嵌套body与既有占位符(self):
+        steps = inject_body_refs([
+            {"method": "POST", "path": "/coupons"},
+            {"method": "POST", "path": "/orders",
+             "body": {"coupon_id": "{cid}", "meta": {"coupon_id": 5}},
+             "expect_status": 201}])
+        assert steps[1]["body"]["coupon_id"] == "{cid}"          # 已有占位符不动
+        assert steps[1]["body"]["meta"]["coupon_id"] == "{coupon_id}"
 
 
 class TestSaveAndIdempotent:

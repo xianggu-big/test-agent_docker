@@ -45,7 +45,11 @@ def _schema_digest(ep: dict) -> str:
         for i, (k, v) in enumerate(props.items()):
             v = v or {}
             typ = v.get("type", "string")
-            if typ == "integer":
+            if k.endswith("_id") or k == "id":
+                # 外键/主键字段不能给字面示例：模型会照抄（corpus-003 实测 room_id=100
+                # 导致创建预约 404）。给占位符，冒烟执行器从 ctx/上一步响应替换。
+                example[k] = f"{{{k}}}"
+            elif typ == "integer":
                 example[k] = v.get("minimum", 0) if k == "amount" else (100 if i == 0 else 1)
             elif typ == "number":
                 example[k] = v.get("minimum", 0) or 10
@@ -80,8 +84,60 @@ def build_scenario_prompt(requirement: str, endpoints: list[dict],
 禁止用 {{占位符}}——{{占位符}} 只用于引用前一步创建的真实资源（冒烟会自动替换）。
 body 必须严格按上面标注的请求体字段构造（必填字段齐全、类型正确），
 可直接复制「示例body」并按场景微调数值。
+外键字段纪律：正例里引用前一步创建资源的 *_id（如 room_id/coupon_id）必须写
+占位符 {{room_id}}/{{coupon_id}}，禁止照抄示例里的字面 id；只有负例（期望 4xx）
+才写确切的字面非法 id。
 每一步都必须标注 expect_status（来自需求契约：正例 200/201，负例按契约写 400/404 等）。
 expected 状态码来自需求契约而非猜测。"""
+
+
+def _created_resources(path: str) -> set[str]:
+    """POST 路径的资源名（/rooms → {rooms, room}），供 *_id 外键引用判定。"""
+    seg = (path or "").strip("/").split("/")[0]
+    if not seg:
+        return set()
+    return {seg, seg[:-1]} if seg.endswith("s") else {seg}
+
+
+def inject_body_refs(steps: list[dict]) -> list[dict]:
+    """确定性外键引用注入：正例 body 的 room_id/coupon_id 等 → `{字段名}` 占位符。
+
+    背景（corpus-003 实测）：提示词示例 body 的 room_id 是字面 100，模型照抄后
+    创建预约 404，整条 L3 链路假失败。规则：仅当（a）该步骤期望 2xx/未标状态码，
+    （b）body 字段名以 `_id` 结尾，（c）前面已有 POST 创建设同名资源（单复数），
+    （d）值不是占位符——才替换。负例（期望 4xx）保持字面 id，不破坏“不存在 id”意图。
+    """
+    created: set[str] = set()
+    out: list[dict] = []
+    for st in steps:
+        body = st.get("body")
+        want = st.get("expect_status")
+        try:
+            positive = want is None or 200 <= int(want) < 300
+        except (TypeError, ValueError):
+            positive = True
+
+        def walk(obj):
+            if isinstance(obj, dict):
+                fixed = {}
+                for k, v in obj.items():
+                    if (positive and isinstance(k, str) and k.endswith("_id")
+                            and k[:-3] in created
+                            and not (isinstance(v, str) and v.startswith("{"))):
+                        fixed[k] = f"{{{k}}}"
+                    else:
+                        fixed[k] = walk(v)
+                return fixed
+            if isinstance(obj, list):
+                return [walk(v) for v in obj]
+            return obj
+
+        if positive and body is not None:
+            st = {**st, "body": walk(body)}
+        out.append(st)
+        if str(st.get("method", "")).upper() == "POST":
+            created |= _created_resources(st.get("path") or "")
+    return out
 
 
 def parse_scenarios(text: str, endpoints: list[dict]) -> tuple[list[dict], list[str]]:
@@ -114,7 +170,8 @@ def parse_scenarios(text: str, endpoints: list[dict]) -> tuple[list[dict], list[
             rejected.append(f"{sc.get('title')}: 步骤 {b.get('method')} {b.get('path')} "
                             f"不在端点清单（虚构接口）")
         else:
-            norm = [{**s, "method": str(s["method"]).upper()} for s in steps]
+            norm = inject_body_refs(
+                [{**s, "method": str(s["method"]).upper()} for s in steps])
             valid.append({"title": sc["title"],
                           "requirement_ref": sc.get("requirement_ref"),
                           "steps": norm, "expected": sc.get("expected")})
