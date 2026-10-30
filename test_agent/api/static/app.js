@@ -448,6 +448,44 @@ function renderLevelCards(levels) {
   }).join("") + "</div>";
 }
 
+// F05 流水线（设计图：9 节点胶囊三态 + 调度说明行；/logs 前缀确定性解析，无消息=排队）
+const PIPE_NODES = ["clone", "analyze", "plan", "provision", "generate", "run", "evaluate", "report", "review"];
+function parsePipeline(logs) {
+  const state = {};   // node -> done/running
+  (logs || []).forEach(l => {
+    const c = (l.content || "");
+    PIPE_NODES.forEach(n => {
+      if (c.includes(`[${n}]`)) state[n] = "done";
+    });
+    const gm = c.match(/\[generate 第(\d+)轮\]/);
+    if (gm) state.generate = "done";                       // 生成完成标记
+    if (/\[run\]|执行（容器内/.test(c)) state.run = c.includes("失败") ? state.run : "running";
+    if (/\[evaluate/.test(c) && c.includes("→")) state.evaluate = "running";
+  });
+  // 节点顺序里第一个非 done 的=running（与 LangGraph 串行语义一致）
+  let runningMarked = false;
+  const out = {};
+  PIPE_NODES.forEach(n => {
+    if (state[n] === "done") { out[n] = "done"; return; }
+    if (!runningMarked) { out[n] = "running"; runningMarked = true; } else out[n] = "queued";
+  });
+  return out;
+}
+function renderPipeline(logs, levels) {
+  const st = parsePipeline(logs);
+  const pills = PIPE_NODES.map(n => {
+    const cls = st[n] === "done" ? 'background:#e7f6ec;color:#16a34a'
+      : st[n] === "running" ? 'background:#fff;border:1.5px solid var(--info);color:var(--info)'
+      : 'background:#f3f4f6;color:#6b7280';
+    return `<span style="display:inline-block;padding:9px 18px;border-radius:10px;font-size:13.5px;` +
+      `font-weight:600;${cls}">${n}${st[n] === "done" ? " ✓" : ""}</span>`;
+  }).join('<span style="color:#d1d5db;margin:0 6px">→</span>');
+  const legs = (levels && levels.levels) ? levels.levels.map(l =>
+    `${l.level} ${l.status === "done" ? "✓" : "●"}${l.verdict ? "(" + l.verdict + ")" : ""}`).join(" → ") : "";
+  return `<div style="line-height:3">${pills}</div>` +
+    `<div class="hint">级别调度：${esc(legs || "（未走 levels 流）")}｜调度说明：R-Loop 失败不回炉，同指纹熔断 ≥2 次或预算耗尽诚实停机</div>`;
+}
+
 async function loadTaskDetail(tid) {
   const [t, reports] = await Promise.all([
     api(`/tasks/${tid}`).catch(() => null),
@@ -473,6 +511,9 @@ async function loadTaskDetail(tid) {
   $("td-req").innerHTML = `<div style="border-left:4px solid var(--ok2);padding-left:14px">` +
     `<b style="color:var(--ok2)">需求</b>　${esc((trow && trow.requirement_text) || "—")}</div>`;
   const lv = await api(`/tasks/${tid}/levels`).catch(() => null);
+  const logs = await api(`/tasks/${tid}/logs`).catch(() => []);
+  $("td-pipeline").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
+    "执行流水线（固定图编排 · 容器沙箱）</div>" + renderPipeline(logs, lv);
   $("td-levels").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "测试级别计划（黑盒 + 白盒双轨）</div>" +
     (renderLevelCards(lv && lv.levels) || '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>');
