@@ -46,7 +46,15 @@ PROJECTS = {
         "And/Or 组合条件、Regex/Use 转换、SchemaError 异常消息、空数据与嵌套结构边界。"
         "行覆盖率目标 70%。",
     ),
-    # 项目#3：T005 预检通过后填入（G-S3 降级方案=2 项目×n≥3 也可答辩）
+    # 项目#3（T005 选定，预检视野 32.9%——切片核心 Cache 类已入视野，与 schema 同形态；
+    # 三项目构成 整收100%/切片34%/切片33% 形态梯度，预检口径见 scripts/precheck_sources.py）
+    "cachetools": (
+        "https://github.com/tkem/cachetools.git",
+        ROOT / "data" / "candidates" / "cachetools",
+        "对 cachetools 库（缓存数据结构）做单元测试：LRUCache/TTLCache/RRCache 的"
+        "容量淘汰与过期语义、get/set/pop 行为、miss 与 maxsize 边界、"
+        "cached 装饰器命中与失效、keys 函数。行覆盖率目标 70%。",
+    ),
 }
 
 
