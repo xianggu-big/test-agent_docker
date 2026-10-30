@@ -359,7 +359,8 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 叙述消息，collect_metrics 靠正则解析散文取轨迹，措辞一变即静默清空。
         # 重跑再进图 round 从 1 重新计：delete-first 以本轮为准（与 plan 同幂等语义）
         if round_no <= 1:
-            conn.execute("DELETE FROM evaluation_rounds WHERE task_id=?", (tid,))
+            conn.execute("DELETE FROM evaluation_rounds WHERE task_id=? AND level='L1'",
+                         (tid,))   # 级别过滤：L1 重跑不得清掉 L2 leg 的轮次行
         conn.execute(
             """INSERT INTO evaluation_rounds(task_id, round_no, passed, failed, skipped,
                                             coverage_line, verdict, failure_kind,

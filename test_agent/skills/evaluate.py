@@ -98,7 +98,8 @@ def collect_metrics(conn, task_id: int, report_id: int | None = None) -> dict:
     # 老任务（建表前跑的实验数据）无表行时回退解析叙述消息，兼容历史数据。
     trace = []
     rows = conn.execute("""SELECT round_no, passed, failed, skipped, coverage_line, verdict
-                           FROM evaluation_rounds WHERE task_id=? ORDER BY id""",
+                           FROM evaluation_rounds WHERE task_id=? AND level='L1'
+                           ORDER BY id""",   # 级别过滤：L2 轮次不混入 L1 轨迹/趋势图
                         (task_id,)).fetchall()
     if rows:
         metrics["trace_source"] = "evaluation_rounds"
@@ -359,15 +360,24 @@ def review_rules(narrative: str, metrics: dict, verdict: str) -> list[str]:
     cov = metrics.get("coverage_line")
     if cov is not None and not (0 <= cov <= 1):
         reasons.append(f"覆盖率越界：{cov} 不在 [0,1]")
-    # 数字逐项比对：只校验叙述中实际出现的固定表述（(?<!未)防"未通过"误抓）
-    for pat, actual in ((r"(?<!未)通过\s*(\d+)", metrics.get("passed")),
-                        (r"失败\s*(\d+)", metrics.get("failed")),
-                        (r"跳过\s*(\d+)", metrics.get("skipped"))):
-        if actual is None:
+    # 数字逐项比对：只校验叙述中实际出现的固定表述（(?<!未)防"未通过"误抓）。
+    # L2 感知：指标包含 l2 按级指标（蓝图 §3.4）时，叙述可能引用本级数字——
+    # L1/L2 两级的通过/失败/跳过都算合法数据源，避免"L2 层通过 11"被误判造假。
+    l2 = metrics.get("l2") or {}
+
+    def _legal(*vals) -> set:
+        return {v for v in (metrics.get(vals[0]), l2.get(vals[0])) if v is not None}
+
+    for pat, key in ((r"(?<!未)通过\s*(\d+)", "passed"),
+                     (r"失败\s*(\d+)", "failed"),
+                     (r"跳过\s*(\d+)", "skipped")):
+        legal = _legal(key)
+        if not legal:
             continue
         for m in re.findall(pat, narrative or ""):
-            if int(m) != actual:
-                reasons.append(f"叙述数字与数据不符：表述“{pat[1:3]}”写了 {m}，数据为 {actual}")
+            if int(m) not in legal:
+                reasons.append(f"叙述数字与数据不符：表述“{pat[1:3]}”写了 {m}，"
+                               f"数据为 {sorted(legal)}（L1/L2 均不匹配）")
                 break
     if cov is not None:
         for m in re.findall(r"覆盖率\s*([\d.]+)\s*%", narrative or ""):

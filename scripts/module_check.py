@@ -160,6 +160,25 @@ def part1_completion() -> list[Item]:
         "L2 skill 注册（make_deps 引 build_l2_skills）", "未注册")
     (ok if (config.ROOT / "test_agent" / "graph" / "levels.py").exists() else miss)(
         "level_supervisor（graph/levels.py）", "缺失")
+
+    # D8 轮机制锚点（2026-10-30）：模型漂移容错解析 / 阅卷语义修正 / 级别过滤
+    (ok if callable(getattr(gen_tests, "_loads_tolerant", None)) else miss)(
+        "gen_tests._loads_tolerant（JSON 内 Python 字面量宽容解析）", "缺失")
+    _gc = __import__("scripts.grade_corpus", fromlist=["witnesses_of"])         if (config.ROOT / "scripts" / "grade_corpus.py").exists() else None
+    src_wit = inspect.getsource(_gc.witnesses_of) if _gc else ""
+    (ok if 'split("[", 1)' in src_wit else miss)(
+        "grade_corpus 参数化 nodeid 剥后缀（witnesses_of）", "缺失")
+    src_grade = inspect.getsource(_gc.grade) if _gc else ""
+    (ok if "套件全过" in src_grade and "recall\": 0.0" in src_grade or 'recall": 0.0' in src_grade
+        or "recall=0.0" in src_grade else miss)(
+        "grade_corpus 套件全过=recall 0.0 语义", "缺失")
+    (ok if "recall\": 0.0" in src_grade or "recall=0.0" in src_grade
+        or 'recall": 0.0' in src_grade else miss)(
+        "grade_corpus 套件全过=recall 0.0 语义", "缺失")
+    src_nodes_lvl = inspect.getsource(__import__("test_agent.graph.nodes",
+                                                 fromlist=["make_nodes"]).make_nodes)
+    (ok if "AND level='L1'" in src_nodes_lvl else miss)(
+        "L1 evaluate 轮次删除级别过滤", "缺失")
     demo_spec = config.ROOT / "data" / "demo" / "L2场景-coupon-api" / "openapi.json"
     (ok if demo_spec.exists() else miss)("L2 冒烟 demo 项目（openapi.json）", "缺失")
     sys_gen = getattr(prompt_library, "SYSTEM_PROMPT", None)

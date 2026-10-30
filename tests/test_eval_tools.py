@@ -238,3 +238,19 @@ class TestSnapshotConsistency:
         monkeypatch.setattr(ev, "collect_metrics", _spy)
         build_eval_skills()["gen_charts"].func(tid, {})   # 独立调用：允许自取
         assert calls == [tid]
+
+
+def test_review_rules_l2_aware_numbers():
+    """叙述引用 L1 或 L2 任一级的通过/失败数都合法（collect_metrics 现含 l2 按级指标）。"""
+    metrics = {"passed": 30, "failed": 0, "skipped": 0,
+               "l2": {"passed": 11, "failed": 1, "skipped": 0}}
+    narrative = "L1 通过 30；L2 层通过 11，失败 1。"
+    assert review_rules(narrative, metrics, "pass") == []
+    bad = review_rules("L1 通过 99", metrics, "pass")
+    assert any("99" in r for r in bad)          # 两级都不匹配的数字仍拦截
+
+
+def test_review_rules_l2_absent_unchanged():
+    metrics = {"passed": 30, "failed": 0, "skipped": 0}
+    assert review_rules("通过 30", metrics, "pass") == []
+    assert review_rules("通过 31", metrics, "pass")

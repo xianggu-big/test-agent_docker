@@ -49,3 +49,18 @@ def test_collect_metrics_no_l2_key_for_legacy_tasks(tmp_db):
     tid = _mk_task(tmp_db)
     m = collect_metrics(get_conn(tmp_db), tid)      # 无报告行也应有 no_report 且无 l2 键
     assert "l2" not in m and m.get("no_report") is True
+
+
+def test_trace_excludes_l2_rows(tmp_db):
+    """G2 回归锁：L2 leg 的轮次行不得混入 L1 轨迹（趋势图/判定分布纯度）。"""
+    tid = _mk_task(tmp_db)
+    conn = get_conn(tmp_db)
+    conn.execute("INSERT INTO test_reports(task_id, passed, failed) VALUES (?, 30, 0)", (tid,))
+    conn.execute("INSERT INTO evaluation_rounds(task_id, level, round_no, passed, failed,"
+                 " verdict) VALUES (?, 'L1', 1, 30, 0, 'pass')", (tid,))
+    conn.execute("INSERT INTO evaluation_rounds(task_id, level, round_no, passed, failed,"
+                 " verdict) VALUES (?, 'L2', 1, 11, 1, 'stop')", (tid,))
+    conn.commit()
+    m = collect_metrics(conn, tid)
+    assert len(m["trace"]) == 1 and m["trace"][0]["verdict"] == "pass"
+    assert m["verdict_counts"] == {"pass": 1}          # L2 的 stop 不进判定分布
