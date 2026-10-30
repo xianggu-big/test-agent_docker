@@ -1,0 +1,41 @@
+{
+ "task_id": 186,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 0,
+ "not": 1,
+ "recall": 0.67,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_默认边界点_边界值分析",
+    "reason": "参数化用例包含 (64, True)，恰好断言长度等于 max_len 时 check_length 返回 True，直接命中 n >= max_len 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用 strength_score 或断言其分值，长度 64 少得 1 分的计算错误未被触及。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_长度恰好64_边界值分析",
+    "reason": "用例构造长度恰为 64 的强密码并断言 is_strong 为 True，正好落在 check_length 边界导致 is_strong 误判的缺陷上。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_自定义区间内_等价类划分",
+    "reason": "断言 check_length('Abcdefghij', 4, 10) 为 True，即长度等于自定义 max_len=10 时应通过，若实现同样使用 n >= max_len 判断，该用例会失败，属于答案键未列出的自定义区间边界缺陷。"
+   }
+  ]
+ }
+}

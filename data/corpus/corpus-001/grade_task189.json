@@ -1,0 +1,41 @@
+{
+ "task_id": 189,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例断言 check_length('a'*64) 为 True，恰好命中 max_len 边界处 n>=max_len 的 off-by-one 缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用 strength_score 或断言长度 64 的密码得分为 5。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义参数_边界值分析",
+    "reason": "该用例只覆盖自定义 min=5/max=10 的边界，未触及默认 max_len=64 的强密码边界，无法证明 is_strong 在 64 长度处误判。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义参数_边界值分析",
+    "reason": "断言 'Ab1!xxxxxx'（长度 10，恰为 max）为 True，若 is_strong 依赖 check_length 的 n>=max_len 缺陷，该断言会失败，可能暴露自定义参数下的同类边界缺陷。"
+   }
+  ]
+ }
+}

@@ -1,0 +1,41 @@
+{
+ "task_id": 190,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例断言 check_length('a'*64) 为 True（max 边界），恰好命中 n >= max_len 的 off-by-one 缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只测 check_length，没有任何用例调用 strength_score 或断言长度 64 的密码得 5 分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只测 check_length，没有用例调用 is_strong 或断言边界长度强密码为 True。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_自定义参数_边界值分析",
+    "reason": "自定义 min=5,max=10 时断言长度 10 为 True，若实现用 n >= max_len 判断，该用例同样会失败，可作为 D1 的额外佐证。"
+   }
+  ]
+ }
+}

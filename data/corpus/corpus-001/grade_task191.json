@@ -1,0 +1,61 @@
+{
+ "task_id": 191,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 6,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：6 个失败 nodeid，命中证人 6 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例断言 check_length('a'*64) 为 True，恰好命中 max_len 边界处 n>=max_len 的 off-by-one 缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例中没有任何 strength_score 输入长度恰为 64，无法暴露长度 64 少得 1 分的计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例未构造长度恰为 max_len(64) 的强密码，is_strong 边界误判未被触及。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义参数_等价类划分",
+    "reason": "参数值被写成带引号的字符串字面量 \"'Ab1!'\"，实际传入的是含引号的字符串而非 Ab1!，且 is_strong 是否接受 min_len/max_len 参数存疑，用例本身可能引用/签名错误。"
+   },
+   {
+    "case": "test_is_strong_缺项_判定表",
+    "reason": "参数值同样被写成带引号的字符串字面量，实际输入含引号字符，断言预期与真实输入不符，属用例书写错误而非被测缺陷。"
+   },
+   {
+    "case": "test_strength_score_长度项_等价类划分",
+    "reason": "参数值被写成带引号的字符串字面量，实际输入含引号，可能使 has_special 等判定偏移，断言失败未必反映被测缺陷。"
+   },
+   {
+    "case": "test_has_special_等价类划分",
+    "reason": "参数值被写成带引号的字符串字面量，实际输入含引号字符，'abc123' 等用例的真实输入与意图不符。"
+   },
+   {
+    "case": "test_check_length_自定义参数_边界值分析",
+    "reason": "参数值被写成带引号的字符串字面量，'a'*value 实际为含引号字符串，长度比预期多 2，边界断言整体偏移。"
+   },
+   {
+    "case": "test_check_length_边界值分析",
+    "reason": "参数值被写成带引号的字符串字面量，'a'*value 实际长度多 2，导致 min/max 边界断言全部错位。"
+   }
+  ]
+ }
+}

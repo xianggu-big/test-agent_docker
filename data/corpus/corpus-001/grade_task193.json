@@ -1,0 +1,45 @@
+{
+ "task_id": 193,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：5 个失败 nodeid，命中证人 5 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析_长度等于max_len",
+    "reason": "该用例断言 check_length('a'*64) is True，恰好落在长度等于 max_len 的边界缺陷上。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用 strength_score 或断言长度 64 的密码得 5 分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_条件4_自定义区间_等价类划分",
+    "reason": "该用例只测 min_len=max_len=8 的边界，未覆盖默认 max_len=64 的强密码边界，证据不足。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义区间_等价类划分",
+    "reason": "断言 is_strong('Abcdefgh1!', 6, 10) is True，长度 10 等于 max_len，若实现复用 check_length 的 >= 判断会失败，可能暴露同类边界缺陷。"
+   },
+   {
+    "case": "test_check_length_自定义区间_等价类划分",
+    "reason": "断言 check_length('abcde', 3, 5) is True，长度 5 等于 max_len，直接检验闭区间上界，可能暴露边界缺陷。"
+   }
+  ]
+ }
+}

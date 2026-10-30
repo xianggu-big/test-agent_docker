@@ -1,0 +1,41 @@
+{
+ "task_id": 188,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 0,
+ "not": 1,
+ "recall": 0.67,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：5 个失败 nodeid，命中证人 5 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "参数化用例包含长度 64（'a'*64）期望 True，恰好落在 check_length 的 max_len 边界缺陷上。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "strength_score 用例只测了长度 8 和 3，没有长度恰为 64 的密码来触发长度项少得 1 分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_长度64边界_边界值分析",
+    "reason": "该用例构造长度 64 的强密码并断言 is_strong 为 True，恰好命中边界长度被误判为弱的缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_strength_score_长度项_判定表",
+    "reason": "断言 strength_score('abcdefgh')==2 与 'abc'==0，若实现中长度 8 得分逻辑或其它项计分与需求不符，可能暴露答案键未列出的计分缺陷。"
+   }
+  ]
+ }
+}

@@ -1,0 +1,45 @@
+{
+ "task_id": 194,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 0,
+ "not": 1,
+ "recall": 0.67,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：5 个失败 nodeid，命中证人 5 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_分支覆盖_语句分支覆盖",
+    "reason": "该用例断言 check_length('a' * 64) is True，恰好命中长度等于 max_len 时返回 False 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用 strength_score 或断言其得分为 5，长度 64 少得 1 分的计算错误未被触及。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_长度等于max_边界值分析",
+    "reason": "该用例构造长度 64 的强密码并断言 is_strong 为 True，恰好命中边界长度被误判为弱密码的表现。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义区间_等价类划分",
+    "reason": "断言 is_strong('Aa1!', 4, 6) 为 True，但长度 4 的密码是否满足全部强度条件（如长度下限、字符种类）存疑，可能暴露自定义区间下强度判断的真缺陷。"
+   },
+   {
+    "case": "test_check_length_自定义区间_等价类划分",
+    "reason": "断言 check_length('abcde', 3, 5) 为 True，若实现沿用 n >= max_len 判断则长度等于 5 会返回 False，可能暴露自定义区间上界同样的边界缺陷。"
+   }
+  ]
+ }
+}
