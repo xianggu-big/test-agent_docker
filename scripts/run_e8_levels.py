@@ -24,16 +24,22 @@ from test_agent.graph.levels import run_task_levels  # noqa: E402
 from test_agent.store.db import get_conn  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-DEMO = ROOT / "data" / "demo" / "场景A"
+# 被测对象默认=corpus-003（有 OpenAPI spec，L2 才能真接力；demo 场景A 无 spec 会被 D4
+# 降级链诚实跳过——2026-10-31 n=1 实测 L1:done→L2:skipped，接力数据无意义，故改默认）
+TARGETS = {
+    "corpus003": ROOT / "data" / "corpus" / "corpus-003" / "project",
+    "demo": ROOT / "data" / "demo" / "场景A",
+}
+DEFAULT_TARGET = "corpus003"
 OUT = ROOT / "data" / "reports"
-REQUIREMENT = ("对被测项目做功能测试：输入校验（空值/越界）、正常路径、边界值；"
-               "行覆盖率目标 70%。")
+REQUIREMENT = ("对被测项目做功能测试：接口契约与业务流程（添加/查询/取消，边界与非法输入），"
+               "顺序场景约束（创建→按 id 读回）；行覆盖率目标 70%。")
 
 
-def _create_task(conn) -> int:
+def _create_task(conn, target: str) -> int:
     uid = conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()["id"]
     pid = conn.execute("INSERT INTO projects(user_id,repo_url,name) VALUES(?,?,?)",
-                       (uid, str(DEMO), "e8-relay-demo")).lastrowid
+                       (uid, str(TARGETS[target]), f"e8-relay-{target}")).lastrowid
     return conn.execute(
         "INSERT INTO test_tasks(project_id,user_id,requirement_text,confirmed,confirmed_by)"
         " VALUES(?,?,?,?,1)", (pid, uid, REQUIREMENT, uid)).lastrowid
@@ -62,11 +68,12 @@ def main() -> int:
     n = int(args[args.index("--n") + 1]) if "--n" in args else 1
     full = "--full" in args
     levels = ("L1", "L2", "L3", "L4") if full else ("L1", "L2")
-    if not DEMO.exists():
-        print(f"[e8] demo 目录不存在：{DEMO}")
+    target = args[args.index("--target") + 1] if "--target" in args else DEFAULT_TARGET
+    if target not in TARGETS or not TARGETS[target].exists():
+        print(f"[e8] 被测对象不可用：{target}（可选 {list(TARGETS)}）")
         return 2
 
-    print(f"[e8] 跑次矩阵：{n} 轮接力（levels={levels}，被测 {DEMO.name}）")
+    print(f"[e8] 跑次矩阵：{n} 轮接力（levels={levels}，被测 {target}）")
     if dry:
         # 成本预估：任务151（L1→L2 接力同口径）实测 11,000-15,000 token 级（未精确复核，标注）
         print(f"[e8] dry-run 预估：单轮 ≈ 12k-25k token（未验证，以 --n 1 实测为准）；"
@@ -83,7 +90,7 @@ def main() -> int:
     conn = get_conn()
     rows = []
     for i in range(1, n + 1):
-        tid = _create_task(conn)
+        tid = _create_task(conn, target)
         conn.commit()
         print(f"[e8] r{i} → 任务 #{tid} 接力开始 ...")
         t0 = time.time()
