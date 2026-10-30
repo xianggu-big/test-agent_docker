@@ -278,10 +278,25 @@ def build_smoke_script(scenarios: list[dict], base_url: str) -> str:
 
 def apply_smoke_results(conn, task_id: int, results: list[dict], level: str = "L3") -> dict:
     """D5 分流：全步骤通过=auto_pass；任一步失败=pending_confirm（人工介入）。
-    已确认行不受冒烟重跑影响（人工结论优先）。"""
+    已确认行不受冒烟重跑影响（人工结论优先）。
+    P3-2（2026-10-31 体检）：冒烟脚本只携带 title——同名场景多行时按 title 匹配会状态
+    串写。同名（结果内重复或库内重复）一律不自动套用，全部转人工（D5 语义的保守面）。"""
     auto_pass = pending = 0
+    titles_in_results = [r.get("title") for r in results]
+    dup_titles = {t for t in titles_in_results if titles_in_results.count(t) > 1}
+    if titles_in_results:
+        ph = ",".join("?" * len(set(titles_in_results)))
+        for t, in conn.execute(
+                f"""SELECT title FROM scenario_cases
+                    WHERE task_id=? AND level=? AND title IN ({ph})
+                    GROUP BY title HAVING COUNT(*) > 1""",
+                (task_id, level, *set(titles_in_results))):
+            dup_titles.add(t)
     for r in results:
         status = "auto_pass" if r.get("ok") else "pending_confirm"
+        if r.get("title") in dup_titles:
+            # 同名场景：自动判定不可信 → 全部转人工（已确认行仍由 status 过滤保护）
+            status = "pending_confirm"
         conn.execute(
             """UPDATE scenario_cases SET status=?, last_result=? 
                WHERE task_id=? AND level=? AND title=? AND status IN
@@ -292,7 +307,8 @@ def apply_smoke_results(conn, task_id: int, results: list[dict], level: str = "L
         else:
             pending += 1
     conn.commit()
-    return {"auto_pass": auto_pass, "pending_confirm": pending}
+    return {"auto_pass": auto_pass, "pending_confirm": pending,
+            "duplicate_titles_manual": len(dup_titles)}
 
 
 def confirm_scenario(conn, scenario_id: int, result: str, note: str | None,

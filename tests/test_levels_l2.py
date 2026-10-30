@@ -201,3 +201,29 @@ def test_judge_l2_pass_semantics_kept(tmp_db):
         stdout="3 passed in 0.1s", last_exit=0,
         endpoints=[{"path": "/x", "method": "GET"}], skipped_routes=[])
     assert verdict == "pass"
+
+
+# ---------- Loop-3（TODO-04/P3-2）：同名场景 title 匹配串写防线 ----------
+
+def test_apply_smoke_duplicate_title_goes_manual_not_crosswrite(tmp_db):
+    """同名场景多行：冒烟结果不得自动套用（转人工），单行场景照旧自动判定。"""
+    from test_agent.skills.scenario_gen import apply_smoke_results
+    tid = _mk_task(tmp_db)
+    conn = get_conn(tmp_db)
+    for title in ("重复场景", "重复场景", "唯一场景"):
+        conn.execute(
+            """INSERT INTO scenario_cases(task_id, level, title, steps, status)
+               VALUES(?, 'L3', ?, '[{"method":"GET","path":"/x"}]', 'pending')""",
+            (tid, title))
+    conn.commit()
+    out = apply_smoke_results(conn, tid, [
+        {"title": "重复场景", "ok": True, "steps": []},
+        {"title": "唯一场景", "ok": True, "steps": [],
+         }], level="L3")
+    rows = {(r["id"], r["title"], r["status"]) for r in conn.execute(
+        "SELECT id, title, status FROM scenario_cases WHERE task_id=?", (tid,))}
+    conn.close()
+    dup = [s for (_i, t, s) in rows if t == "重复场景"]
+    assert all(s == "pending_confirm" for s in dup), f"同名行必须转人工，实际 {dup}"
+    single = [s for (_i, t, s) in rows if t == "唯一场景"]
+    assert single == ["auto_pass"], "单行场景不误伤"
