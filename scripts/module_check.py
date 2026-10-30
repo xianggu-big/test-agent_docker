@@ -32,7 +32,8 @@ sys.path.insert(0, str(ROOT))
 from test_agent import config
 from test_agent.skills import scenario_gen as scenario_gen_mod  # noqa: E402
 from test_agent.skills import (builtin, callgraph, contract_gen, endpoint_extract,
-                               gen_tests, llm_usage, prompt_library)  # noqa: E402
+                               gen_tests, llm_usage, prompt_library,
+                               traceability)  # noqa: E402
 
 PASS, FAIL, FINDING = "PASS", "FAIL", "FINDING"
 
@@ -192,7 +193,28 @@ def part1_completion() -> list[Item]:
         "V9 角色分离（SYSTEM_PROMPT ≠ CROSS_REVIEW_SYSTEM）",
         "生成器与交叉审必须是两份不同系统提示词（同模型角色分离口径的根基）")
 
-    # 13) 重跑幂等与台账语义锚点：轨迹/热点表 delete-first（重跑以本轮为准）；
+    # 13) 跨级 RTM 溯源链（P2，2026-10-30）：链函数/DDL 位置列/API 入口/语料与标定入口
+    for fn in ("build_trace_chain", "build_task_traces", "route_key", "script_level"):
+        (ok if callable(getattr(traceability, fn, None)) else miss)(
+            f"traceability.{fn}", "缺失")
+    (ok if callable(getattr(scenario_gen_mod, "inject_body_refs", None)) else miss)(
+        "scenario_gen.inject_body_refs（正例外键占位符注入）", "缺失")
+    ce_cols = re.search(r"CREATE TABLE IF NOT EXISTS call_edges\s*\(.*?\n\)", ddl, re.S)
+    (ok if ce_cols and "file" in ce_cols.group(0) and "lineno" in ce_cols.group(0) else miss)(
+        "call_edges.file/lineno（溯源代码位置列）", "DDL 缺失")
+    src_server = (config.ROOT / "test_agent" / "api" / "server.py").read_text(encoding="utf-8")
+    (ok if '"/api/tasks/{tid}/trace"' in src_server and "build_task_traces" in src_server
+        else miss)("GET /api/tasks/{tid}/trace 入口", "缺失")
+    (ok if (config.ROOT / "tests" / "test_traceability.py").exists() else miss)(
+        "tests/test_traceability.py", "缺失")
+    c3 = config.ROOT / "data" / "corpus" / "corpus-003"
+    (ok if (c3 / "ground_truth.json").exists() and (c3 / "project" / "openapi.json").exists()
+        else miss)("corpus-003 语料（ground_truth+openapi）", "缺失")
+    (ok if (config.ROOT / "scripts" / "calibrate_corpus.py").exists()
+        and (config.ROOT / "scripts" / "run_e7_corpus003.py").exists() else miss)(
+        "corpus 标定 + E7 跑数入口", "缺失")
+
+    # 14) 重跑幂等与台账语义锚点：轨迹/热点表 delete-first（重跑以本轮为准）；
     #     llm_calls 反向契约=追加不删（跨轮次/回炉成本累积即口径）
     nodes_src = (ROOT / "test_agent" / "graph" / "nodes.py").read_text(encoding="utf-8")
     (ok if "DELETE FROM evaluation_rounds WHERE task_id" in nodes_src else miss)(
@@ -225,7 +247,8 @@ def part1_completion() -> list[Item]:
     for p in ("tests/test_witness_continue.py", "tests/test_cross_review.py",
               "tests/test_llm_usage.py", "tests/test_hotspot_metrics.py",
               "tests/test_grade_corpus.py", "tests/test_install_deps.py",
-              "tests/test_run_grid_grid.py", "tests/test_rerun_idempotent.py"):
+              "tests/test_run_grid_grid.py", "tests/test_rerun_idempotent.py",
+              "tests/test_traceability.py"):
         (ok if (ROOT / p).exists() else miss)(p, "文件缺失")
 
     # 17) 阅卷协议 decoy 根修锚点（第七轮：占位缺陷不计 recall 分母 + 离线重算入口）
@@ -240,11 +263,12 @@ def part2_pytest(extra: list[str] | None = None) -> list[Item]:
     out: list[Item] = []
     runs = [("三方案机制单测", ["tests/test_design_proposals.py"], 13),
             ("review 节点单测（终态恢复+受控重写）", ["tests/test_review_node.py"], None),
-            ("四轮新机制单测（V8证人/V9交叉审/token台账/W4热点/阅卷decoy/依赖清单/消融入口/重跑幂等）",
+            ("多轮新机制单测（V8证人/V9交叉审/token台账/W4热点/阅卷decoy/依赖清单/消融入口/重跑幂等/跨级溯源）",
              ["tests/test_witness_continue.py", "tests/test_cross_review.py",
               "tests/test_llm_usage.py", "tests/test_hotspot_metrics.py",
               "tests/test_grade_corpus.py", "tests/test_install_deps.py",
-              "tests/test_run_grid_grid.py", "tests/test_rerun_idempotent.py"], None)]
+              "tests/test_run_grid_grid.py", "tests/test_rerun_idempotent.py",
+              "tests/test_traceability.py"], None)]
     if extra:
         runs.append(("全量回归", extra, None))
     for name, paths, expect in runs:

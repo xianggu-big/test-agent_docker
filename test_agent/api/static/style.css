@@ -130,5 +130,15 @@ textarea { resize: vertical; }
 /* 报告页图表内嵌（gen_charts 四图，自适配两列/单列） */
 .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin-top: 12px; }
 .chart-fig { margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--card); }
+.level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 4px; }
+.level-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fff; }
+.level-card.ok { border-color: #bbf7d0; background: #f7fff9; }
+.level-card.fail { border-color: #fecaca; background: #fff7f7; }
+.level-card .lv { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.level-card .st { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.trace-box { font-size: 12px; color: var(--muted); margin: 8px 0 14px; }
+.trace-chain { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+.trace-node { background: var(--primary-weak); color: var(--primary); border-radius: 6px; padding: 3px 8px; font-size: 12px; }
+.trace-node.fail { background: #fee2e2; color: var(--fail); }
 .chart-fig figcaption { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .chart-fig img { width: 100%; height: auto; display: block; border-radius: 4px; }

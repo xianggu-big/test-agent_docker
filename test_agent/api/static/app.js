@@ -214,14 +214,54 @@ function switchRp(which) {
   document.querySelectorAll("[data-rp]").forEach(b => b.classList.toggle("active", b.dataset.rp === which));
 }
 
+const LV_NAME = { L1: "单元", L2: "集成", L3: "系统", L4: "验收" };
+
+function levelMetric(l) {
+  const s = l.summary || {};
+  if (l.level === "L1") {
+    const cov = s.coverage_line != null ? Math.round(s.coverage_line * 100) + "%" : "--";
+    return `覆盖 ${cov} · 通过 ${s.passed ?? "--"}`;
+  }
+  if (l.level === "L2") {
+    return `端点 ${s.endpoints_covered ?? "--"}/${s.endpoints_total ?? "--"} · 契约违背 ${s.contract_violations ?? "--"}`;
+  }
+  if (l.level === "L3") {
+    return `场景 ${s.total ?? "--"} · 自动过 ${s.auto_pass ?? "--"} · 待确认 ${s.pending_confirm ?? "--"}`;
+  }
+  return `场景 ${s.total ?? "--"} · 已确认 ${s.confirmed ?? "--"} · 转化 ${s.converted ?? "--"}`;
+}
+
+// D10 四级卡 + 溯源链（真数据：/levels 端点；无级别行时不出块，L1-only 兼容）
+function renderLevels(d) {
+  if (!d || !d.levels || !d.levels.length) return "";
+  const cards = d.levels.map(l => {
+    const bad = l.status === "failed" || l.verdict === "stop";
+    return `<div class="level-card ${bad ? "fail" : "ok"}">
+      <div class="lv">${l.level} ${LV_NAME[l.level] || ""} <span class="badge ${bad ? "badge-fail" : "badge-ok"}">${esc(l.status)}</span></div>
+      <div class="st">判定 ${esc(l.verdict || "--")}</div>
+      <div class="st">${esc(levelMetric(l))}</div>
+      <div class="st">${esc((l.stop_reason || "").slice(0, 80))}</div>
+    </div>`;
+  }).join("");
+  const chains = (d.trace_chains || []).slice(0, 2).map(c =>
+    `<div class="trace-chain">` + c.nodes.map(n => {
+      const cls = ["pending_confirm", "confirmed_defect"].includes(n.status) ? " fail" : "";
+      const title = n.title || n.name || n.function || "";
+      return `<span class="trace-node${cls}">${n.level} ${esc(title.slice(0, 42))}</span>`;
+    }).join("<span class=\"hint\">›</span>") + `</div>`).join("");
+  return `<div class="level-grid">${cards}</div>
+    <div class="trace-box">跨级溯源 ${d.trace_count || 0} 条${d.trace_count ? "（失败/待定性场景）" : ""}${chains}</div>`;
+}
+
 async function loadReport() {
   const tid = $("rp-task").value;
   if (!tid) return;
-  const [reports, logs, rtm, charts] = await Promise.all([
+  const [reports, logs, rtm, charts, levels] = await Promise.all([
     api(`/tasks/${tid}/report`).catch(() => []),
     api(`/tasks/${tid}/logs`).catch(() => []),
     api(`/tasks/${tid}/rtm`).catch(() => null),
     api(`/tasks/${tid}/charts`).catch(() => []),
+    api(`/tasks/${tid}/levels`).catch(() => null),
   ]);
   const latest = reports[0];
   const rate = latest && latest.pass_rate != null ? Math.round(latest.pass_rate * 100) : null;
@@ -260,7 +300,7 @@ async function loadReport() {
         `<figure class="chart-fig"><figcaption>${esc(c.title)}</figcaption>` +
         `<img src="${c.data_url}" alt="${esc(c.title)}" loading="lazy"></figure>`).join("") + "</div>"
     : "";
-  $("rp-overview").innerHTML = summaryHtml + chartsHtml;
+  $("rp-overview").innerHTML = renderLevels(levels) + summaryHtml + chartsHtml;
 
   // RTM 矩阵 + 用例六要素（测试分析/设计阶段的可追溯性展示）
   if (rtm && (rtm.matrix.length || rtm.cases.length)) {

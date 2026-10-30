@@ -348,6 +348,31 @@ def api_trace(tid: int, scenario_id: int | None = None,
         raise HTTPException(404, str(e))
 
 
+@app.get("/api/tasks/{tid}/levels")
+def api_levels(tid: int, user: dict = Depends(current_user)):
+    """D10 后端：四级卡片数据（级别台账 + 按级场景指标 + 失败场景溯源链摘要）。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    levels = []
+    for r in conn.execute(
+            "SELECT id, level, strategy, status, verdict, stop_reason, trace_from,"
+            " summary, started_at, finished_at FROM test_levels WHERE task_id=?"
+            " ORDER BY CASE level WHEN 'L1' THEN 1 WHEN 'L2' THEN 2"
+            " WHEN 'L3' THEN 3 ELSE 4 END, id", (tid,)):
+        d = dict(r)
+        try:
+            d["summary"] = json.loads(d["summary"]) if d["summary"] else None
+        except (TypeError, ValueError):
+            pass
+        levels.append(d)
+    from ..skills.scenario_gen import l3_metrics, l4_metrics
+    scenarios = {"L3": l3_metrics(conn, tid), "L4": l4_metrics(conn, tid)}
+    traces = build_task_traces(conn, tid)
+    return {"task_id": tid, "levels": levels, "scenarios": scenarios,
+            "trace_count": len(traces),
+            "trace_chains": traces}
+
+
 @app.get("/api/tasks/{tid}/logs")
 def api_logs(tid: int, user: dict = Depends(current_user)):
     conn = get_conn()
