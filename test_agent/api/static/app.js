@@ -407,6 +407,47 @@ async function refreshSettings() {
 }
 
 // ---------- F03 任务详情页（设计图主页面） ----------
+// F04 级别卡（设计图规格：顶边色条+LEVEL 标签+四态徽章+指标行+动作链接）
+const LV_META = { L1: ["单元测试", "var(--ok2)"], L2: ["集成测试", "var(--info)"],
+                  L3: ["系统测试", "var(--warn2)"], L4: ["验收测试", "var(--idle)"] };
+function lvBadge(l) {
+  if (l.status === "done" && l.verdict === "pass") return '<span class="badge" style="background:#d9f2e5;color:#16a34a">已完成 ✓</span>';
+  if (["running", "cloning", "generating", "provisioning", "analyzing", "reporting"].includes(l.status))
+    return '<span class="badge" style="background:#dbeafe;color:#2563eb">● 运行中</span>';
+  if (l.level === "L3" && (l.summary ? (l.summary.pending_confirm > 0) : false))
+    return '<span class="badge" style="background:#fde9c8;color:#b45309">待人工确认</span>';
+  if (l.level === "L4" && l.verdict !== "pass") return '<span class="badge" style="background:#f3f4f6;color:#9ca3af">清单待审</span>';
+  if (l.status === "failed") return '<span class="badge" style="background:#fee2e2;color:#dc2626">失败</span>';
+  return '<span class="badge" style="background:#f3f4f6;color:#6b7280">' + esc(l.status || "—") + '</span>';
+}
+function lvRows(l) {
+  const s = l.summary || {};
+  if (l.level === "L1") return [["通过率", `${s.passed ?? "--"} / ${(s.passed ?? 0) + (s.failed ?? 0)}`],
+    ["行覆盖率", s.coverage_line != null ? Math.round(s.coverage_line * 100) + "%" : "--"]];
+  if (l.level === "L2") return [["端点解析", `${s.endpoints_covered ?? "--"}/${s.endpoints_total ?? "--"}`],
+    ["契约违背检出", s.contract_violations ?? "--"], ["需求断言失败", s.requirement_failures ?? "--"]];
+  if (l.level === "L3") return [["业务流场景", s.total ?? "--"], ["自动通过", s.auto_pass ?? "--"],
+    ["待人工确认", s.pending_confirm ?? "--"]];
+  return [["GWT 场景清单", (s.total ?? "--") + " 条"], ["已确认", s.confirmed ?? s.rejected ?? "--"]];
+}
+function renderLevelCards(levels) {
+  if (!levels || !levels.length) return "";
+  return '<div class="level-grid">' + levels.map(l => {
+    const [cn, color] = LV_META[l.level] || [l.level, "var(--idle)"];
+    const bad = l.status === "failed" || l.verdict === "stop";
+    const rows = lvRows(l).map(([k, v]) =>
+      `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13.5px">` +
+      `<span style="color:#374151">${esc(k)}</span><b>${esc(String(v))}</b></div>`).join("");
+    const link = l.level === "L1" ? `<a href="#/reports" onclick="viewReport(${l.task_id || 0})" style="color:var(--info);font-size:13.5px;font-weight:700">查看报告 →</a>` : "";
+    return `<div style="background:#fff;border:1px solid var(--line);border-top:4px solid ${color};` +
+      `border-radius:12px;padding:14px 18px;box-shadow:var(--shadow)">` +
+      `<div style="display:flex;justify-content:space-between;align-items:center">` +
+      `<span style="font-size:11px;font-weight:700;color:var(--idle);letter-spacing:1px">LEVEL ${l.level.slice(1)}</span>${lvBadge(l)}</div>` +
+      `<div style="font-size:18px;font-weight:800;margin:4px 0 8px">${cn}</div>${rows}` +
+      `<div style="margin-top:10px">${link}</div></div>`;
+  }).join("") + "</div>";
+}
+
 async function loadTaskDetail(tid) {
   const [t, reports] = await Promise.all([
     api(`/tasks/${tid}`).catch(() => null),
@@ -431,8 +472,10 @@ async function loadTaskDetail(tid) {
   $("td-req").classList.remove("hidden");
   $("td-req").innerHTML = `<div style="border-left:4px solid var(--ok2);padding-left:14px">` +
     `<b style="color:var(--ok2)">需求</b>　${esc((trow && trow.requirement_text) || "—")}</div>`;
-  $("td-levels").innerHTML = renderLevels(latest ? latest : null) ||
-    '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>';
+  const lv = await api(`/tasks/${tid}/levels`).catch(() => null);
+  $("td-levels").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
+    "测试级别计划（黑盒 + 白盒双轨）</div>" +
+    (renderLevelCards(lv && lv.levels) || '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>');
 }
 
 async function buildImage(image) {
