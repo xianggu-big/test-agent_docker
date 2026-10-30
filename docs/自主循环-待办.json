@@ -181,6 +181,16 @@
    "acceptance": "grep pat[1:3] 归零",
    "status": "done",
    "attempts": 1
+  },
+  {
+   "id": "TODO-15",
+   "title": "三角色实验 30 轮全熔断根因：自带 tests 缺依赖→收集中断（loop-8 已修），十acity 批次需修复后重跑",
+   "severity": "P1",
+   "evidence": "容器重放 Interrupted vs 192 passed；roleexp_*.json 30 轮全『同指纹熔断』",
+   "files": [],
+   "acceptance": "重跑 30 轮取有效数据",
+   "status": "open",
+   "attempts": 0
   }
  ]
 }
