@@ -63,10 +63,22 @@ class SandboxRunner:
             else:
                 if c.status != "running":
                     c.start()
+                    # Loop-2/D10（E7 任务167 实锤 exec 409）：start 后仍非 running
+                    # （OOM/崩溃秒死）→ 销毁重建，绝不返回死容器
+                    if hasattr(c, "reload"):
+                        c.reload()
+                    if getattr(c, "status", "running") != "running":
+                        log.warning("容器 %s start 后仍为 %s，销毁重建", name, c.status)
+                        c.remove(force=True)
+                        return self._run_sandbox(image, name, cpu_limit, mem_mb)
                 return c
         except NotFound:
             pass
         log.info("启动沙箱容器 %s (image=%s, cpu=%s, mem=%sm)", name, image, cpu_limit, mem_mb)
+        return self._run_sandbox(image, name, cpu_limit, mem_mb)
+
+    def _run_sandbox(self, image: str, name: str, cpu_limit: float, mem_mb: int):
+        """新建沙箱容器（幂等规格集中一处，Loop-2 抽出）。"""
         return self.client.containers.run(
             image,
             name=name,
