@@ -21,13 +21,52 @@ SCENARIO_SYSTEM = (
 )
 
 
+def _schema_digest(ep: dict) -> str:
+    """请求体 schema 的紧凑摘要 + 具体示例 body。
+
+    模型抄示例远比遵循字段清单忠实（POST /orders 三连 422 的实锤修法）：
+    示例值确定性生成——integer 取 minimum（无则 100/1 按 id 类区分），string 取短字面值。
+    """
+    schema = ep.get("request_schema")
+    if not schema:
+        return "（无请求体）"
+    try:
+        if isinstance(schema, str):
+            schema = json.loads(schema)
+        props = schema.get("properties") or {}
+        required = set(schema.get("required") or [])
+        if not props:
+            return "（无请求体字段）"
+        fields = ", ".join(
+            f"{k}:{(v or {}).get('type', '?')}" + ("*" if k in required else "")
+            for k, v in list(props.items())[:8])
+        example = {}
+        for i, (k, v) in enumerate(props.items()):
+            v = v or {}
+            typ = v.get("type", "string")
+            if typ == "integer":
+                example[k] = v.get("minimum", 0) if k == "amount" else (100 if i == 0 else 1)
+            elif typ == "number":
+                example[k] = v.get("minimum", 0) or 10
+            elif typ == "boolean":
+                example[k] = True
+            else:
+                example[k] = f"{k[:8]}{i + 1}"
+        ordered = {k: example[k] for k in example if k in required} or example
+        return (f"请求体字段: {fields}（* =必填）｜"
+                f"示例body: {json.dumps(ordered, ensure_ascii=False)}")
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return "（schema 不可解析）"
+
+
 def build_scenario_prompt(requirement: str, endpoints: list[dict],
                           max_scenarios: int = 5) -> str:
-    eps = "\n".join(f"- {e['method']} {e['path']}" for e in endpoints)
+    eps = "\n".join(
+        f"- {e['method']} {e['path']}｜{_schema_digest(e)}" for e in endpoints)
     return f"""## 需求
 {requirement}
 
-## 可用接口清单（steps 中的 method+path 只能取自这里）
+## 可用接口清单（steps 中的 method+path 只能取自这里；body 必须满足请求体字段）
 {eps}
 
 ## 任务
@@ -35,11 +74,13 @@ def build_scenario_prompt(requirement: str, endpoints: list[dict],
 有序 API 调用（前一步的输出可作为后一步的输入），说明场景预期（业务叙述）。
 需求含糊处按最保守业务语义设计并在 expected 注明假设。
 
-## 输出格式
-只输出一个 JSON 对象：
-{{"scenarios": [{{"title": "场景名", "requirement_ref": "需求关键句",
-  "steps": [{{"method": "POST", "path": "/orders", "body": {{}}, "expect_status": 200}}],
-  "expected": "业务预期叙述"}}]}}"""
+## 负例纪律（强制）
+期望 4xx/拒绝 的负例场景：path 直接写字面上不存在/非法的字面值（如 /coupons/999999），
+禁止用 {{占位符}}——{{占位符}} 只用于引用前一步创建的真实资源（冒烟会自动替换）。
+body 必须严格按上面标注的请求体字段构造（必填字段齐全、类型正确），
+可直接复制「示例body」并按场景微调数值。
+每一步都必须标注 expect_status（来自需求契约：正例 200/201，负例按契约写 400/404 等）。
+expected 状态码来自需求契约而非猜测。"""
 
 
 def parse_scenarios(text: str, endpoints: list[dict]) -> tuple[list[dict], list[str]]:
@@ -55,7 +96,11 @@ def parse_scenarios(text: str, endpoints: list[dict]) -> tuple[list[dict], list[
     allowed = {f"{e['method'].upper()} {e['path']}" for e in endpoints}
     valid, rejected = [], []
     for sc in data.get("scenarios", []):
-        if not isinstance(sc, dict) or not sc.get("title"):
+        if not isinstance(sc, dict):
+            continue
+        # 模型漂移容错（D8 同款教训）：title/name 双键兼容，格式规约约束不住漂移
+        sc = {**sc, "title": (sc.get("title") or sc.get("name") or "").strip()}
+        if not sc["title"]:
             continue
         steps = sc.get("steps") or []
         bad = [s for s in steps
@@ -116,6 +161,14 @@ def build_smoke_script(scenarios: list[dict], base_url: str) -> str:
         "                return str(v)\n"
         "        return m.group(0)\n"
         "    return re.sub(r'\\{([^}]+)\\}', rep, path)\n"
+        "def sub_body(b):\n"
+        "    if isinstance(b, str):\n"
+        "        return sub(b)\n"
+        "    if isinstance(b, dict):\n"
+        "        return {k: sub_body(v) for k, v in b.items()}\n"
+        "    if isinstance(b, list):\n"
+        "        return [sub_body(v) for v in b]\n"
+        "    return b\n"
         f"SCENARIOS = json.loads({json.dumps(json.dumps(scenarios, ensure_ascii=False))})\n"
         "out = []\n"
         "for sc in SCENARIOS:\n"
@@ -124,7 +177,7 @@ def build_smoke_script(scenarios: list[dict], base_url: str) -> str:
         "    for st in sc['steps']:\n"
         "        url = BASE + sub(st['path'])\n"
         "        try:\n"
-        "            r = requests.request(st['method'], url, json=st.get('body') or None,\n"
+        "            r = requests.request(st['method'], url, json=sub_body(st.get('body')),\n"
         "                                 timeout=15)\n"
         "            want = st.get('expect_status')\n"
         "            good = (r.status_code // 100 == 2) if not want else r.status_code == want\n"
@@ -140,7 +193,9 @@ def build_smoke_script(scenarios: list[dict], base_url: str) -> str:
         "            steps_r.append({'step': (sub(f\"{st['method']} {st['path']}\")\n"
         "                                     if '{' in st['path']\n"
         "                                     else f\"{st['method']} {st['path']}\"),\n"
-        "                            'status': r.status_code, 'ok': bool(good)})\n"
+        "                            'status': r.status_code, 'ok': bool(good),\n"
+        "                            'body': st.get('body'),\n"
+        "                            'resp': r.text[:150]})\n"
         "            if not good:\n"
         "                ok = False\n"
         "                break\n"

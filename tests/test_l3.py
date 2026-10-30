@@ -121,3 +121,32 @@ def test_冒烟脚本含引用链与语法合法():
     assert "def sub" in s and "ctx.update" in s      # 引用链：前步响应→后步路径替换
     assert 'last_obj.get(' in s                       # {xxx_id} 兜底
     compile(s, "smoke", "exec")                       # 生成物语法合法
+
+
+def test_提示词含schema摘要与负例纪律():
+    from test_agent.skills.scenario_gen import build_scenario_prompt
+    eps = [{"method": "POST", "path": "/coupons",
+            "request_schema": {"type": "object",
+                               "properties": {"code": {"type": "string"},
+                                              "percent": {"type": "integer"}},
+                               "required": ["code", "percent"]}}]
+    p = build_scenario_prompt("需求", eps)
+    assert "code:string*" in p and "percent:integer" in p   # 必填*标记与类型摘要
+    assert "负例纪律" in p and "999999" in p                # 负例字面值指导
+    assert "禁止用 {占位符}" in p                           # 占位符仅限真实资源引用
+
+
+def test_模型漂移name键容错():
+    drifted = json.dumps({"scenarios": [{"name": "漂移场景", "steps": [
+        {"method": "POST", "path": "/users"}]}]})
+    valid, rej = parse_scenarios(drifted, ENDPOINTS)
+    assert len(valid) == 1 and valid[0]["title"] == "漂移场景" and not rej
+
+
+def test_冒烟脚本body引用链():
+    from test_agent.skills.scenario_gen import build_smoke_script
+    s = build_smoke_script([{"title": "t", "steps": [
+        {"method": "POST", "path": "/coupons", "body": {"code": "X"}},
+        {"method": "POST", "path": "/orders", "body": {"coupon_id": "{cid}", "amount": 50}}]}], "http://x")
+    assert "def sub_body" in s                    # body 深遍历替换（422 实锤修法）
+    compile(s, "smoke", "exec")

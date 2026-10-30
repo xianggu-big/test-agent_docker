@@ -77,10 +77,13 @@ def make_l3_nodes(deps):
             msg(state["session_id"], f"[L3·prepare] 服务启动失败：{why}")
             return {"done": True, "verdict": "stop", "stop_reason": f"服务启动失败：{why}"}
         rows = conn.execute(
-            """SELECT method, path, operation_id FROM interface_endpoints
+            """SELECT method, path, operation_id, params, request_schema FROM interface_endpoints
                WHERE task_id=? ORDER BY id""", (tid,)).fetchall()
         endpoints = [{"method": r["method"], "path": r["path"],
-                      "operation_id": r["operation_id"]} for r in rows]
+                      "operation_id": r["operation_id"],
+                      "params": json.loads(r["params"] or "[]"),
+                      "request_schema": json.loads(r["request_schema"])
+                      if r["request_schema"] else None} for r in rows]
         if not endpoints:
             _leg_update(tid, strategy="degraded", status="skipped", verdict="skipped",
                         stop_reason="无端点清单（L2 未产出），场景生成无静态闸基准",
