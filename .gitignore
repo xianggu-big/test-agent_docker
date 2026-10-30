@@ -18,3 +18,6 @@ data/tmp_mut/
 
 # Trae 编辑器分享包（工具产物不入库）
 .trae-html-share-packages/
+
+# 真实项目跑测候选（本地预检用，不入库；T005/T003 复用）
+data/candidates/

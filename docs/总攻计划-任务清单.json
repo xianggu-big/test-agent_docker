@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "date": "2026-10-31",
+    "baseline_head": "813fce9",
+    "baseline_tests": "320 passed, 1 skipped",
+    "baseline_guard": "module_check 105 OK / 0 FINDING",
+    "balance_cny": 9.59,
+    "authority": "docs/总攻计划-20261031.md",
+    "rules": [
+      "每任务 ≤1 Agent 会话；完成即路径范围化 commit+push",
+      "标[需余额]的命令先 dry-run/n=1 实测成本再放量",
+      "收尾必更新 AGENTS.md 当前状态；不写真实库除跑数任务本身",
+      "E6-E8 数字未跑前禁止写进论文，只能标【待跑数】"
+    ]
+  },
+  "tasks": [
+    {"id": "T001", "phase": "S1", "title": "基线指纹快照落档", "deps": [], "files": ["docs/基线快照-20261031.md"], "commands": ["python -m pytest -q --tb=no", "python scripts/module_check.py"], "acceptance": "快照含 pytest/守卫/SQL计数/余额四件套原始输出", "verify": "test -f docs/基线快照-20261031.md", "estimate": "0.5h", "priority": "P2"},
+    {"id": "T002", "phase": "S1", "title": "工作区清理：_clone_test 与 data/candidates 处置", "deps": [], "files": [".gitignore"], "commands": ["git status -s"], "acceptance": "git status 零未跟踪（candidates 保留本地文件但被 ignore，或迁移 data/corpus 外目录）", "verify": "git status -s 输出为空", "estimate": "0.2h", "priority": "P2"},
+    {"id": "T003", "phase": "S1", "title": "E6 协议化驱动脚本 run_e6_realprojects.py（3 真实项目×n 轮）", "deps": [], "files": ["scripts/run_e6_realprojects.py"], "commands": ["python scripts/run_e6_realprojects.py --dry-run", "python scripts/run_e6_realprojects.py --projects titlecase,schema --n 1 [需余额]"], "acceptance": "dry-run 列出项目×轮次清单与预估成本；正式跑每轮建任务→confirm→run→收 report/levels/trace json 到 data/reports/e6_*；失败任务如实记录不重试美化", "verify": "python scripts/run_e6_realprojects.py --dry-run 退出码 0", "estimate": "3h", "priority": "P0"},
+    {"id": "T004", "phase": "S1", "title": "E8 四级接力驱动脚本 run_e8_levels.py", "deps": [], "files": ["scripts/run_e8_levels.py"], "commands": ["python scripts/run_e8_levels.py --dry-run", "python scripts/run_e8_levels.py --n 1 [需余额]"], "acceptance": "dry-run 列接力跑次；正式跑每次产生 test_levels≥2 行（L1→L2）+e8_*.json；复用 run_task_levels", "verify": "python scripts/run_e8_levels.py --dry-run 退出码 0", "estimate": "3h", "priority": "P0"},
+    {"id": "T005", "phase": "S1", "title": "E6 项目#3 选定+预检（预算内可喂源码）", "deps": [], "files": ["data/reports/precheck_candidates.py 改造为 scripts/precheck_sources.py"], "commands": ["python scripts/precheck_sources.py <repo_tarball_dir>"], "acceptance": "输出该项目会喂给 LLM 的源码字符数/切片数；选定项目写入 E6 配置", "verify": "python scripts/precheck_sources.py 输出含 3 个项目行", "estimate": "1h", "priority": "P1"},
+    {"id": "T006", "phase": "S1", "title": "答辩演示脚本骨架 demo_defense.py", "deps": [], "files": ["scripts/demo_defense.py"], "commands": ["python scripts/demo_defense.py --dry-run"], "acceptance": "一键串：建四级任务→接力→打印报告页 URL+溯源链摘要；--dry-run 不烧 LLM", "verify": "dry-run 输出步骤清单", "estimate": "3h", "priority": "P1"},
+    {"id": "T007", "phase": "S1", "title": "论文插图落位（图3-1/4-1/4-2）", "deps": [], "files": ["docs/论文草稿/图/"], "commands": ["python scripts/make_thesis_figures.py docs/论文草稿/图"], "acceptance": "3 个 PNG 存在且 >10KB", "verify": "ls docs/论文草稿/图/*.png", "estimate": "1h", "priority": "P1"},
+    {"id": "T008", "phase": "S1", "title": "界面截图包（论文5-x+答辩素材）", "deps": [], "files": ["data/reports/screenshots/"], "commands": ["python data/reports/verify_d9.py 改造为截图脚本"], "acceptance": "≥4 张：四级视图/用例库分组/溯源链/报告页执行信息卡", "verify": "ls data/reports/screenshots/*.png 计数≥4", "estimate": "1.5h", "priority": "P1"},
+    {"id": "T009", "phase": "S2", "title": "E7 corpus-003 n≥3 跑数[需余额]", "deps": ["T003（成本校准方法同源）"], "files": ["data/corpus/corpus-003/grade_task*.json"], "commands": ["python scripts/run_e7_corpus003.py --n 3"], "acceptance": "≥3 份新 grade json，任务 status 非 blocked；失败如实记录", "verify": "python -c \"import glob;print(len(glob.glob('data/corpus/corpus-003/grade_task*.json')))\" ≥ 原值+3", "estimate": "2h", "priority": "P0"},
+    {"id": "T010", "phase": "S2", "title": "E6 n≥3 正式跑数[需余额]", "deps": ["T003", "T005"], "files": ["data/reports/e6_*.json"], "commands": ["python scripts/run_e6_realprojects.py --n 3"], "acceptance": "3 项目×3 轮全终态（done/failed/blocked 均如实）；归因人工复核栏填好", "verify": "SQL: SELECT status,COUNT(*) FROM test_tasks WHERE id>162 GROUP BY status", "estimate": "4h", "priority": "P0"},
+    {"id": "T011", "phase": "S2", "title": "E8 n≥3 正式跑数[需余额]", "deps": ["T004"], "files": ["data/reports/e8_*.json"], "commands": ["python scripts/run_e8_levels.py --n 3"], "acceptance": "≥3 次 relay，每次 test_levels 新增≥2 行；e8 json 含每级 pass/stop", "verify": "SQL: SELECT task_id,COUNT(*) FROM test_levels GROUP BY task_id", "estimate": "4h", "priority": "P0"},
+    {"id": "T012", "phase": "S2", "title": "A1/B1/C1 复跑 n≥3[需余额]", "deps": ["余额确认"], "files": ["data/corpus/corpus-001/grade_task*.json"], "commands": ["python scripts/run_grid.py A1 corpus-001 [需余额]"], "acceptance": "每格≥3 明细 json", "verify": "python scripts/aggregate_grid.py 含新格行", "estimate": "3h", "priority": "P2"},
+    {"id": "T013", "phase": "S2", "title": "spot_check 仲裁抽查", "deps": ["T009", "T010"], "files": [], "commands": ["python scripts/spot_check.py"], "acceptance": "20% 固定种子清单输出无异常", "verify": "命令退出码 0", "estimate": "0.5h", "priority": "P2"},
+    {"id": "T014", "phase": "S3", "title": "E6-E8 聚合脚本（论文表格数据源）", "deps": ["T009", "T010", "T011"], "files": ["scripts/aggregate_e68.py"], "commands": ["python scripts/aggregate_e68.py"], "acceptance": "输出聚合表：每实验 n/pass_rate/recall(适用)/覆盖率/token 成本±std；数字全部 SQL 可回溯", "verify": "命令退出码 0 且打印表格", "estimate": "2h", "priority": "P0"},
+    {"id": "T015", "phase": "S3", "title": "论文 6.8 回填 E6-E8 数字", "deps": ["T014"], "files": ["docs/论文草稿/第6章-系统测试与实验分析.md"], "commands": ["grep -n \"待回填\\|占位\" docs/论文草稿/第6章-系统测试与实验分析.md"], "acceptance": "grep 计数=0；每个数字后注（SQL/聚合表出处）；方差如实", "verify": "grep -c 计数 0", "estimate": "3h", "priority": "P0"},
+    {"id": "T016", "phase": "S3", "title": "成本-质量曲线图（图6-x）", "deps": ["T009", "T010", "T011"], "files": ["docs/论文草稿/图/"], "commands": ["python scripts/make_thesis_figures.py docs/论文草稿/图（扩展成本曲线函数）"], "acceptance": "PNG 存在，数据来自 llm_calls/聚合表", "verify": "ls 图目录计数增 1", "estimate": "1.5h", "priority": "P1"},
+    {"id": "T017", "phase": "S3", "title": "6.9 威胁有效性量化补强", "deps": ["T015"], "files": ["docs/论文草稿/第6章-系统测试与实验分析.md"], "commands": [], "acceptance": "n/std/方差/单机边界如实成文", "verify": "人工审读+用户抽看", "estimate": "1h", "priority": "P1"},
+    {"id": "T018", "phase": "S3", "title": "全稿字数补齐 ≥2.8 万", "deps": ["T015"], "files": ["docs/论文草稿/"], "commands": ["wc -m docs/论文草稿/*.md"], "acceptance": "合计 ≥28000（去 markdown 记号口径如实标注）", "verify": "wc -m 输出", "estimate": "2h", "priority": "P1"},
+    {"id": "T019", "phase": "S4", "title": "学院模板套版 docx[行政：等模板路径]", "deps": ["用户提供模板"], "files": ["docs/论文定稿/"], "commands": ["（docx 样式映射脚本，待模板）"], "acceptance": "样式逐项对照模板；图表三线表；目录/页眉页码", "verify": "格式自查清单文件", "estimate": "4h", "priority": "P0"},
+    {"id": "T020", "phase": "S4", "title": "用户通读标注处置[用户侧]", "deps": [], "files": ["docs/论文评审/通读标注-*.md"], "commands": [], "acceptance": "每章有用户标注记录且逐条处置（改/不改+理由）", "verify": "文件存在", "estimate": "用户", "priority": "P0"},
+    {"id": "T021", "phase": "S4", "title": "引用 GB/T 7714 统一+上标", "deps": [], "files": ["docs/论文草稿/参考文献.md"], "commands": [], "acceptance": "30 条格式一致", "verify": "人工审读", "estimate": "2h", "priority": "P2"},
+    {"id": "T022", "phase": "S4", "title": "第1章小结范本统一", "deps": [], "files": ["docs/论文草稿/第1章-绪论.md"], "commands": [], "acceptance": "小结样式与其他章一致", "verify": "人工审读", "estimate": "0.5h", "priority": "P2"},
+    {"id": "T023", "phase": "S5", "title": "中期材料包组装（对照 02-25 检查单）", "deps": ["T015", "T019"], "files": ["docs/中期材料/"], "commands": [], "acceptance": "系统可运行+初稿 docx+进度表+中期报告，逐项对照有物", "verify": "docs/中期材料/检查单.md 全勾", "estimate": "3h", "priority": "P0"},
+    {"id": "T024", "phase": "S5", "title": "第二轮 reviewer 复审（第6章+摘要）", "deps": ["T015"], "files": ["docs/论文评审/"], "commands": [], "acceptance": "复审意见文件+逐条处置", "verify": "文件存在", "estimate": "2h", "priority": "P1"},
+    {"id": "T025", "phase": "S6", "title": "演示脚本真机彩排+录屏", "deps": ["T006"], "files": ["data/reports/defense/"], "commands": ["python scripts/demo_defense.py"], "acceptance": "一键跑通零人工救砖；录屏留档", "verify": "录屏文件存在", "estimate": "1.5h", "priority": "P1"},
+    {"id": "T026", "phase": "S6", "title": "答辩 PPT（10 分钟版）", "deps": ["T015"], "files": ["docs/答辩/"], "commands": [], "acceptance": "12-15 页：问题/方法/四级系统/实验/结论", "verify": "文件存在", "estimate": "4h", "priority": "P1"},
+    {"id": "T027", "phase": "S6", "title": "问答手册 30 问", "deps": [], "files": ["docs/答辩/"], "commands": [], "acceptance": "含 DA 反方论证应答+数字口径（链路文档聚合表为准）", "verify": "文件存在", "estimate": "3h", "priority": "P1"},
+    {"id": "T028", "phase": "S6", "title": "备份材料（录屏+离线报告快照）", "deps": ["T025"], "files": ["data/reports/defense/"], "commands": [], "acceptance": "全流程录屏+报告 PDF/截图", "verify": "文件存在", "estimate": "1h", "priority": "P2"},
+    {"id": "T029", "phase": "S6", "title": "grilling 预演 2 轮", "deps": ["T027"], "files": [], "commands": [], "acceptance": "2 轮拷问无未答 CRITICAL", "verify": "会话产物", "estimate": "2h", "priority": "P2"},
+    {"id": "T030", "phase": "S7", "title": "定稿签字版提交（04-09 硬节点）", "deps": ["T019", "T024", "T020"], "files": ["docs/论文定稿/"], "commands": [], "acceptance": "导师签收", "verify": "行政", "estimate": "行政", "priority": "P0"},
+    {"id": "T031", "phase": "S7", "title": "答辩材料终检+现场设备测试", "deps": ["T025", "T026", "T027", "T028"], "files": ["docs/答辩/检查单.md"], "commands": [], "acceptance": "现场设备跑通 demo+PPT 投屏", "verify": "检查单全勾", "estimate": "2h", "priority": "P1"},
+    {"id": "T032", "phase": "全程", "title": "每周同步例会记录（两线进度/风险/砍单）", "deps": [], "files": ["docs/周同步/"], "commands": [], "acceptance": "每周一条", "verify": "文件 mtime", "estimate": "0.5h/周", "priority": "P1"}
+  ],
+  "cutlist": [
+    "多模块项目分析（论文已按整仓口径写作，改口径=返工）",
+    "跨任务缺陷跟踪库（演示与论文不依赖，列未来工作）",
+    "跨模型交叉审 V10（同模型角色分离版够答辩口径）",
+    "kill_rate 进 collect_metrics（2026-10-29 已否决；mutation_kill 独立仪器够用）",
+    "用例最小化 P2-G（已否决：缺按用例覆盖数据）",
+    "前端视觉重构（D9 后已达可答辩线）",
+    "性能压测/UI 自动化测试（开题明确排除）"
+  ]
+}
