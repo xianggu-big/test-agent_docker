@@ -126,7 +126,7 @@ def build_plan_prompt(requirement: str, hotspots: list[dict] | None = None) -> s
 {{"conditions": [{{"requirement_ref": "需求原文关键句", "condition": "可验证行为陈述",
    "priority": "高", "method_hint": "等价类划分"}}]}}"""
 
-MAX_SOURCE_CHARS = 8000   # 被测源码总量上限，防 token 爆炸
+MAX_SOURCE_CHARS = 24000  # 被测源码总量上限，防 token 爆炸（24000 字符≈8k token，DeepSeek 64k 上下文内留足生成余量；2026-10-30 H1 实锤 8000 时真实项目只喂到 setup.py，见 docs/真实项目跑测/20261030-H1-python-titlecase-基线.md）
 
 METHODS = [
     {"name": "等价类划分",

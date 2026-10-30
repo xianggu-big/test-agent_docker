@@ -45,23 +45,103 @@ def _sanitize_name(name: str, idx: int, used: set[str]) -> str:
     return candidate
 
 
-def _collect_sources(ws: Path) -> list[tuple[str, str]]:
-    """被测源码 = 非测试、非噪声的 .py 文件，按路径排序后限量收录。"""
-    srcs, used = [], 0
+SOURCE_NOISE_FILES = {"setup.py", "setup.cfg", "conftest.py", "tests.py", "test.py"}
+WHOLE_FILE_LIMIT = 12000  # 不超过该大小的文件整文件收录（上下文最完整；模块级词表/正则不丢）
+
+
+def _is_noise_source(p: Path) -> bool:
+    """打包/配置/测试运行器文件不是被测业务代码。
+
+    D5/D1②（2026-10-30 H1 实锤）：setup.py 曾按路径序挤占预算成为 LLM 唯一见到的"源码"，
+    tests.py 曾被当被测源码收录。"""
+    if p.name.lower() in SOURCE_NOISE_FILES:
+        return True
+    return p.name.startswith("test_") or p.name.endswith("_test.py")
+
+
+def _iter_source_files(ws: Path):
     for p in sorted(ws.rglob("*.py")):
         if any(part in config.SKIP_DIRS for part in p.parts):
             continue
-        if p.name.startswith("test_") or p.name.endswith("_test.py"):
+        if _is_noise_source(p):
             continue
         try:
             text = p.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if not text.strip() or used + len(text) > MAX_SOURCE_CHARS:
+        if text.strip():
+            yield p, text
+
+
+def _split_top_level(text: str) -> list[tuple[str, str]]:
+    """大文件按顶层 def/class 切片，模块级赋值（词表/正则等常量）并入 "(module-level)" 段。
+
+    D1①：more.py 176KB 这类文件整收必超预算，按函数切片才能进 LLM 视野；
+    常量段单独保留——titlecase 的 SMALL_WORDS 词表决定行为，丢了等于继续盲写。"""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+    lines = text.splitlines(keepends=True)
+
+    def seg(node) -> str:
+        end = getattr(node, "end_lineno", None) or node.lineno
+        return "".join(lines[node.lineno - 1:end]).strip()
+
+    chunks: list[tuple[str, str]] = []
+    globals_seg: list[str] = []
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            s = seg(node)
+            if s:
+                chunks.append((node.name, s))
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            s = seg(node)
+            if s:
+                globals_seg.append(s)
+    if globals_seg:
+        chunks.insert(0, ("(module-level)", "\n\n".join(globals_seg)))
+    return chunks
+
+
+def _collect_sources_detailed(ws: Path) -> tuple[list[tuple[str, str]], list[str]]:
+    """被测源码收集（带跳过台账）：小文件整收、大文件按顶层符号切片、预算截断如实记录。
+
+    旧版整文件收录 + 超预算静默 continue——真实项目（源码 >8KB）只喂到 setup.py，
+    生成器盲写期望 → 假缺陷上报（docs/真实项目跑测/20261030-H1-python-titlecase-基线.md）。"""
+    sources: list[tuple[str, str]] = []
+    skipped: list[str] = []
+    used = 0
+    for p, text in _iter_source_files(ws):
+        rel = p.relative_to(ws).as_posix()
+        if len(text) > WHOLE_FILE_LIMIT or used + len(text) > MAX_SOURCE_CHARS:
+            # 大文件或预算吃紧：按顶层 def/class 切片逐段收录（放得下多少收多少）
+            placed = False
+            for name, chunk in _split_top_level(text):
+                key = f"{rel}::{name}"
+                if used + len(chunk) > MAX_SOURCE_CHARS:
+                    skipped.append(f"{key}（预算截断）")
+                    continue
+                sources.append((key, chunk))
+                used += len(chunk)
+                placed = True
+            if not placed:
+                skipped.append(f"{rel}（整文件 {len(text)} 字符超预算且无可容纳切片）")
             continue
-        srcs.append((p.relative_to(ws).as_posix(), text))
+        try:
+            ast.parse(text)
+        except SyntaxError:
+            # 语法坏文件喂给 LLM 是浪费预算且必然产出废用例——如实记台账
+            skipped.append(f"{rel}（语法不可解析，未收录）")
+            continue
+        sources.append((rel, text))
         used += len(text)
-    return srcs
+    return sources, skipped
+
+
+def _collect_sources(ws: Path) -> list[tuple[str, str]]:
+    """被测源码（兼容壳，repair_strategy 复写路径共用）；需要跳过台账用 _collect_sources_detailed。"""
+    return _collect_sources_detailed(ws)[0]
 
 
 def _loads_tolerant(s: str):
@@ -133,7 +213,9 @@ def _module_top_level(ws: Path) -> dict[str, set[str]]:
         except SyntaxError:
             continue
         names = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
-        table.setdefault(p.stem, set()).update(names)
+        # 包入口以包目录名为 import 名（D3：否则 from pkg import x 的闸校验形同虚设）
+        key = p.parent.name if p.stem == "__init__" else p.stem
+        table.setdefault(key, set()).update(names)
     return table
 
 
@@ -460,9 +542,14 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
 
 def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     ws = Path(args["workspace"])
-    sources = _collect_sources(ws)
+    sources, source_skipped = _collect_sources_detailed(ws)
+    if source_skipped:
+        # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
+        log.warning("gen_tests task=%s 源码预算截断 %d 段: %s",
+                    task_id, len(source_skipped), "; ".join(source_skipped)[:300])
     if not sources:
-        return json.dumps({"generated": 0, "reason": "未发现可测源码"}, ensure_ascii=False)
+        return json.dumps({"generated": 0, "reason": "未发现可测源码",
+                           "source_skipped": source_skipped}, ensure_ascii=False)
 
     conn = get_conn()
     conditions = [dict(r) for r in conn.execute(
@@ -607,6 +694,6 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                "methods": [c.get("method") for c in data["cases"]],
                "template_rejected": template_rejected,
                "assertion": assertion_stats, "cond_feedback": cond_feedback,
-               "cross_review": cross_info}
+               "cross_review": cross_info, "source_skipped": source_skipped}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)
