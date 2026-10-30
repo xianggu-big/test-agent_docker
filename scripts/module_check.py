@@ -139,12 +139,13 @@ def part1_completion() -> list[Item]:
     #     骨架四开关默认开（系统默认行为）。A/B/C 三开关默认值见上方第 1 组。
     for key in ("GEN_BOUNDARY_ATTACK", "WITNESS_CONTINUE_ENABLED", "GEN_CROSS_REVIEW_ENABLED",
                 "STATE_TRANSITION_ENABLED", "METAMORPHIC_ENABLED", "AUTO_PREPARE_ENV",
-                "LEVELS_ENABLED", "LEVELS_L3_ENABLED"):
+                "LEVELS_ENABLED", "LEVELS_L3_ENABLED", "LEVELS_L4_ENABLED"):
         v = getattr(config, key, None)
         (ok if v is False else miss)(f"config.{key}", f"默认值={v}（应为 False）")
-    for name in ("parse_scenarios", "confirm_scenario", "l3_metrics", "apply_smoke_results"):
+    for name in ("parse_scenarios", "confirm_scenario", "l3_metrics", "apply_smoke_results",
+                 "parse_acceptance", "render_acceptance_module", "l4_metrics"):
         (ok if callable(getattr(scenario_gen_mod, name, None)) else miss)(
-            f"scenario_gen.{name}", "L3 D5 纯函数在位")
+            f"scenario_gen.{name}", "L3/L4 纯函数在位")
     for key in ("GEN_METHODS_ENABLED", "PLAN_ENABLED", "COVERAGE_FEEDBACK_ENABLED",
                 "TEMPLATES_ENABLED"):
         v = getattr(config, key, None)

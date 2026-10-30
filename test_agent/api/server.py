@@ -481,14 +481,58 @@ def api_env_prepare(user: dict = Depends(staff)):
 # ---------- L3 场景（D5 半自动：失败人工介入） ----------
 
 @app.get("/api/tasks/{tid}/scenarios")
-def api_scenarios(tid: int, user: dict = Depends(current_user)):
+def api_scenarios(tid: int, level: str = "L3", user: dict = Depends(current_user)):
     conn = get_conn()
     _task_or_404(conn, tid)
     rows = conn.execute(
-        """SELECT id, title, requirement_ref, steps, expected, status, last_result,
+        """SELECT id, title, requirement_ref, steps, expected, gwt, status, last_result,
                   actual_note, confirmed_at FROM scenario_cases
-           WHERE task_id=? AND level='L3' ORDER BY id""", (tid,)).fetchall()
+           WHERE task_id=? AND level=? ORDER BY id""", (tid, level)).fetchall()
     return [dict(r) for r in rows]
+
+
+@app.post("/api/tasks/{tid}/l4/convert")
+def api_convert_l4(tid: int, user: dict = Depends(staff)):
+    """D6 转化器：confirmed L4 验收场景 → 可执行 pytest 回归脚本（source='acceptance'）。
+
+    AST 编译闸失败 → 轻量兜底（场景保留确认态，转化记录 fail，不丢人工结论）。"""
+    import re as _re
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    confirmed = [dict(r) for r in conn.execute(
+        """SELECT id, title, steps, expected FROM scenario_cases
+           WHERE task_id=? AND level='L4' AND status IN
+           ('confirmed_pass','confirmed_defect','confirmed_scenario')
+           ORDER BY id""", (tid,))]
+    if not confirmed:
+        raise HTTPException(409, "无已确认的 L4 验收场景可转化（先经确认流转）")
+    for sc in confirmed:
+        sc["steps"] = json.loads(sc["steps"])
+    ws = Path(config.DATA_DIR) / "workspaces" / f"task_{tid}"
+    base_url = f"http://127.0.0.1:{config.L2_SERVICE_PORT}"
+    from ..skills.scenario_gen import render_acceptance_module
+    try:
+        src, cases = render_acceptance_module(confirmed, base_url)
+        compile(src, "test_acceptance.py", "exec")            # AST 编译闸
+    except (SyntaxError, ValueError, KeyError) as e:
+        return {"converted": 0, "fallback": "light",
+                "reason": f"渲染/编译失败退轻量兜底：{type(e).__name__}: {e}"[:300]}
+    fname = "test_acceptance.py"
+    (ws / fname).write_text(src, encoding="utf-8")
+    cur = conn.execute(
+        """INSERT INTO test_scripts(task_id, framework, version, content, content_hash)
+           VALUES (?, 'acceptance',
+                   (SELECT COALESCE(MAX(version), 0) + 1 FROM test_scripts
+                    WHERE task_id=? AND framework='acceptance'), ?, ?)""",
+        (tid, tid, src, __import__("hashlib").sha256(src.encode()).hexdigest()[:16]))
+    script_id = cur.lastrowid
+    for c in cases:
+        conn.execute(
+            """INSERT INTO test_cases(script_id, source, name, method, content)
+               VALUES (?, 'imported', ?, '验收回归', ?)""",
+            (script_id, c["name"], json.dumps(c["steps"], ensure_ascii=False)))
+    conn.commit()
+    return {"converted": len(cases), "script_id": script_id, "file": fname}
 
 
 @app.post("/api/scenarios/{sid}/confirm")

@@ -38,7 +38,8 @@ COVERAGE_TARGET = 0.70               # 准出标准：行覆盖率阈值（分�
 REPAIR_STRATEGY = "prune"
 REWRITE_BUDGET = 3                   # 单轮重写条数上限（防重写风暴）
 
-LEVELS_L3_ENABLED = False            # L3 系统测试半自动（D5：冒烟自动判定+失败人工介入）；
+LEVELS_L3_ENABLED = False
+LEVELS_L4_ENABLED = False            # L4 验收辅助（GWT 场景生成+人工确认+D6 转化回归，默认关）            # L3 系统测试半自动（D5：冒烟自动判定+失败人工介入）；
                                      # 默认关=四级接力止于 L2，口径逐字节不变
 # —— 实验开关（docs/链路方法测试文档.md 控制变量矩阵：每次实验只动一个，其余保持默认） ——
 GEN_METHODS_ENABLED = True           # 五方法骨架注入 gen 提示词（变量 V2：False=自由发挥）

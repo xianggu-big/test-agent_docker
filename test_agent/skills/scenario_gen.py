@@ -9,6 +9,7 @@ confirmed_scenario）回库参与评估；pending 不进通过率分母（未定
 """
 import json
 import logging
+import re
 
 from ..skills.llm_usage import log_llm_call
 
@@ -290,3 +291,169 @@ def gen_scenarios_llm(requirement: str, endpoints: list[dict],
     raw = llm_fn(build_scenario_prompt(requirement, endpoints, max_scenarios))
     valid, rejected = parse_scenarios(raw, endpoints)
     return valid, rejected, 1
+
+
+# ---------------------------------------------------------------------------
+# L4 验收辅助（D5/D6）：验收条件 → GWT 场景清单 → 人工确认 → 确定性转化回归脚本
+# ---------------------------------------------------------------------------
+
+ACCEPTANCE_SYSTEM = (
+    "你是验收测试设计师（L4 验收辅助）。依据验收条件与可用接口清单，"
+    "把每条验收条件转化为 Given/When/Then 场景 + 有序 API 调用序列"
+    "（method+path 只能来自可用接口清单，禁止虚构接口）。只输出 JSON。"
+)
+
+
+def build_acceptance_prompt(conditions: list[dict], endpoints: list[dict],
+                            max_scenarios: int = 6) -> str:
+    cond_text = "\n".join(f"{i}. {c['condition']}（优先级 {c.get('priority') or '中'}）"
+                          for i, c in enumerate(conditions, 1))
+    eps = "\n".join(
+        f"- {e['method']} {e['path']}｜{_schema_digest(e)}" for e in endpoints)
+    return f"""## 验收条件（每条至少一个场景，不得遗漏）
+{cond_text}
+
+## 可用接口清单（steps 中的 method+path 只能取自这里；body 必须满足请求体字段）
+{eps}
+
+## 任务
+把每条验收条件转化为 GWT（Given/When/Then）验收场景：when/then 对应有序 API 调用，
+每步标注 expect_status（来自验收条件契约）。正例用合法数据，负例在 path 直接写
+字面不存在/非法的字面值（如 /coupons/999999），禁止 {{占位符}} 悬空。
+
+## 输出格式
+只输出一个 JSON 对象：
+{{"scenarios": [{{"title": "验收场景名", "requirement_ref": "对应验收条件编号/原文",
+  "gwt": {{"given": "前置状态", "when": "操作", "then": "预期结果"}},
+  "steps": [{{"method": "POST", "path": "/coupons", "body": {{}}, "expect_status": 201}}],
+  "expected": "验收预期叙述"}}]}}"""
+
+
+def parse_acceptance(text: str, endpoints: list[dict]) -> tuple[list[dict], list[str]]:
+    """解析验收场景（GWT 结构 + 端点静态闸，与 L3 同源闸规则）。"""
+    import re
+    m = re.search(r"\{.*\}", text, re.S)
+    if not m:
+        return [], ["LLM 输出不可解析"]
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return [], ["LLM 输出 JSON 解析失败"]
+    allowed = {f"{e['method'].upper()} {e['path']}" for e in endpoints}
+    valid, rejected = [], []
+    for sc in data.get("scenarios", []):
+        if not isinstance(sc, dict):
+            continue
+        sc = {**sc, "title": (sc.get("title") or sc.get("name") or "").strip()}
+        if not sc["title"]:
+            continue
+        steps = sc.get("steps") or []
+        bad = [s for s in steps
+               if not isinstance(s, dict)
+               or f"{str(s.get('method', '')).upper()} {s.get('path', '')}" not in allowed]
+        if not steps:
+            rejected.append(f"{sc['title']}: 无步骤")
+            continue
+        if bad:
+            b = bad[0]
+            rejected.append(f"{sc['title']}: 步骤 {b.get('method')} {b.get('path')} "
+                            f"不在端点清单（虚构接口）")
+            continue
+        norm = [{**s, "method": str(s["method"]).upper()} for s in steps]
+        valid.append({"title": sc["title"], "requirement_ref": sc.get("requirement_ref"),
+                      "gwt": sc.get("gwt"), "steps": norm,
+                      "expected": sc.get("expected")})
+    return valid, rejected
+
+
+def render_acceptance_module(scenarios: list[dict], base_url: str) -> tuple[str, list[dict]]:
+    """D6 确定性转化：confirmed 验收场景（steps 已结构化）→ pytest 回归模块。
+
+    渲染与冒烟执行器同源（引用链 sub_path/sub_body 语义一致），
+    差异=产物是 pytest 函数（source='acceptance' 入回归基线）。
+    返回 (模块源码, 用例清单)。"""
+    cases = []
+    for sc in scenarios:
+        slug = re.sub(r"\W+", "_", sc["title"]).strip("_") or "acceptance"
+        cases.append({"name": f"test_acc_{slug}", "title": sc["title"],
+                      "steps": sc["steps"], "expected": sc.get("expected")})
+    lines = [
+        '"""验收回归脚本（L4 确认场景转化，source=acceptance，D6）。"""',
+        "import re",
+        "import requests",
+        f"BASE = {base_url!r}",
+        "ctx = {}",
+        "last_obj = {}",
+        "",
+        "",
+        "def sub_path(path):",
+        '    return re.sub(r"\\{([^}]+)\\}",',
+        "                  lambda m: str(ctx.get(m.group(1), last_obj.get('id', m.group(0)))),",
+        "                  path)",
+        "",
+        "",
+        "def sub_body(b):",
+        "    if isinstance(b, str):",
+        '        m = re.fullmatch(r"\\{([^}]+)\\}", b)',
+        "        if m:",
+        "            name = m.group(1)",
+        "            if name in ctx:",
+        "                return ctx[name]",
+        "            if name.endswith('id') or name.endswith('_id'):",
+        "                v = last_obj.get('id')",
+        "                if v is not None:",
+        "                    return v",
+        "        return m.group(0) if m else b",
+        "    if isinstance(b, dict):",
+        "        return {k: sub_body(v) for k, v in b.items()}",
+        "    if isinstance(b, list):",
+        "        return [sub_body(v) for v in b]",
+        "    return b",
+        "",
+        "",
+        "def _merge(r):",
+        "    try:",
+        "        obj = r.json()",
+        "        if isinstance(obj, dict):",
+        "            ctx.update(obj)",
+        "            last_obj.clear()",
+        "            last_obj.update(obj)",
+        "    except Exception:",
+        "        pass",
+        "",
+        "",
+    ]
+    for c in cases:
+        lines += [f"def {c['name']}():",
+                  f'    """验收：{c["expected"] or c["title"]}"""',
+                  "    ctx.clear()",
+                  "    last_obj.clear()"]
+        for st in c["steps"]:
+            want = st.get("expect_status")
+            chk = f"_r.status_code == {want}" if want is not None \
+                else "_r.status_code // 100 == 2"
+            lines += [
+                f"    _r = requests.request({st['method']!r}, BASE + sub_path({st['path']!r}),",
+                f"                           json=sub_body({json.dumps(st.get('body'), ensure_ascii=False)}),",
+                "                           timeout=15)",
+                f"    assert {chk}, f\"{{_r.status_code}} {{_r.text[:150]}}\"",
+                "    _merge(_r)"]
+        lines.append("")
+    return "\n".join(lines) + "\n", cases
+
+
+def l4_metrics(conn, task_id: int) -> dict | None:
+    """按级指标：验收确认率 = confirmed_* / total。无场景行整体缺席。"""
+    rows = conn.execute(
+        "SELECT status FROM scenario_cases WHERE task_id=? AND level='L4'",
+        (task_id,)).fetchall()
+    if not rows:
+        return None
+    confirmed = sum(1 for r in rows if r["status"].startswith("confirmed"))
+    return {"total": len(rows), "confirmed": confirmed,
+            "pending": sum(1 for r in rows
+                           if not r["status"].startswith("confirmed")),
+            "confirm_rate": round(confirmed / len(rows), 3),
+            "converted": conn.execute(
+                "SELECT COUNT(*) AS n FROM test_scripts WHERE task_id=? AND framework='acceptance'",
+                (task_id,)).fetchone()["n"]}

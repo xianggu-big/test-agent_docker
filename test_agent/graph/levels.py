@@ -80,6 +80,12 @@ def run_task_levels(task_id: int, levels: tuple[str, ...] = ("L1", "L2")) -> dic
                                   (task_id,)).fetchone()
         from .l3 import run_l3_task  # 延迟导入：L3 关闭时零加载
         l3_final = run_l3_task(task_id, trace_from=l2_leg_row["id"] if l2_leg_row else None)
-        return {"L1": l1_final, "L2": l2_final, "L3": l3_final}
+        if "L4" not in levels or not config.LEVELS_L4_ENABLED:
+            return {"L1": l1_final, "L2": l2_final, "L3": l3_final}
+        l3_leg_row = conn.execute("SELECT id FROM test_levels WHERE task_id=? AND level='L3'",
+                                  (task_id,)).fetchone()
+        from .l4 import run_l4_task  # 延迟导入：L4 关闭时零加载
+        l4_final = run_l4_task(task_id, trace_from=l3_leg_row["id"] if l3_leg_row else None)
+        return {"L1": l1_final, "L2": l2_final, "L3": l3_final, "L4": l4_final}
     finally:
         conn.close()
