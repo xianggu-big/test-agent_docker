@@ -143,8 +143,8 @@
     "scripts/make_thesis_figures.py"
    ],
    "acceptance": "caption 上移/框下移，重生成无重叠",
-   "status": "open",
-   "attempts": 0
+   "status": "done",
+   "attempts": 1
   },
   {
    "id": "TODO-12",
@@ -167,8 +167,8 @@
     "test_agent/graph/nodes.py"
    ],
    "acceptance": "repo_url 白名单校验（github/本地路径/codeload），单测",
-   "status": "open",
-   "attempts": 0
+   "status": "done",
+   "attempts": 1
   },
   {
    "id": "TODO-14",
