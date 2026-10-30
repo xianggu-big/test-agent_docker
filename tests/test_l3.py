@@ -120,7 +120,8 @@ class TestSmokeAndConfirm:
                                  {"title": "S2", "steps": [{"method": "POST", "path": "/orders"}]}])
         counts = apply_smoke_results(conn, 1, [
             {"title": "S1", "ok": True}, {"title": "S2", "ok": False}])
-        assert counts == {"auto_pass": 1, "pending_confirm": 1}
+        # loop-3 起返回结构新增 duplicate_titles_manual 字段——子集断言防再次破坏
+        assert counts["auto_pass"] == 1 and counts["pending_confirm"] == 1
         flags = dict(conn.execute("SELECT title, status FROM scenario_cases").fetchall())
         assert flags["S1"] == "auto_pass" and flags["S2"] == "pending_confirm"
 
