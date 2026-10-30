@@ -1,0 +1,36 @@
+{
+ "task_id": 143,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 2,
+ "not": 0,
+ "recall": 0.33,
+ "extra_suspect": 0,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：11 个失败 nodeid，命中证人 11 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_默认边界_边界值分析",
+    "reason": "该用例含 'a'*64 期望 True，恰好命中 max_len 边界 off-by-one。"
+   },
+   {
+    "id": "D4",
+    "verdict": "uncertain",
+    "by": "test_strength_score_长度项_等价类划分",
+    "reason": "该用例只测长度 8/7/65，未覆盖长度恰为 64 的密码，故未直接命中 D4 的边界计分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "",
+    "reason": "证人用例未构造长度恰为 64 的强密码（如 'Aa1!'+'x'*60），无断言直接命中 is_strong 边界误判。"
+   }
+  ],
+  "extra_suspect": []
+ }
+}

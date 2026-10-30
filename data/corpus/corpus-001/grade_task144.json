@@ -1,0 +1,41 @@
+{
+ "task_id": 144,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_恰好64_边界值分析",
+    "reason": "该用例断言 check_length('A'*64) is True，恰好落在 max_len=64 的闭区间边界上，直接暴露 n >= max_len 的 off-by-one。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用 strength_score 或断言长度 64 的密码得 5 分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义边界_边界值分析",
+    "reason": "该用例只覆盖自定义区间 [5,10] 的 is_strong 边界，未触及默认 max_len=64 的强密码误判，证据不足。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_自定义边界_边界值分析",
+    "reason": "断言 check_length('A'*10,5,10) is True，若实现用 n >= max_len 判断，该用例也会失败，可独立暴露同一 off-by-one（与 D1 同根因但不同输入）。"
+   }
+  ]
+ }
+}

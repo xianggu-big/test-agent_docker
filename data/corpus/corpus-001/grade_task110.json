@@ -1,0 +1,45 @@
+{
+ "task_id": 110,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 0,
+ "not": 1,
+ "recall": 0.67,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：13 个失败 nodeid，命中证人 13 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例断言 check_length('a'*64) 为 True，恰好落在 max_len 边界缺陷上（另有 test_check_length_空字符串_边界值分析、test_check_length_默认区间内_等价类划分 同样触及）。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例中没有任何 strength_score 输入长度恰为 64 的断言（test_strength_score_判定表 只测长度 8 等），未触及该计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_边界值分析",
+    "reason": "该用例断言 is_strong('A'+'a'*61+'1!')（长度 64）为 True，恰好落在 max_len 边界导致的误判上。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义参数_等价类划分",
+    "reason": "断言 is_strong('Ab1!', 4, 6) 为 True，但 'Ab1!' 长度 4 在 [4,6] 内且含大写/小写/数字/特殊，需确认实现是否支持自定义 min/max 参数签名，否则可能是签名错误或参数未生效的真缺陷。"
+   },
+   {
+    "case": "test_strength_score_判定表",
+    "reason": "断言 strength_score('A')==1、strength_score('a')==1、strength_score('1')==1、strength_score('!')==1，即长度不足 8 仍得 1 分，与'长度在 [8,64] 内才得 1 分'的需求可能冲突，需核对评分规则是否另有定义。"
+   }
+  ]
+ }
+}

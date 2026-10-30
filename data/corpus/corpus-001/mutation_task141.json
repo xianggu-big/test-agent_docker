@@ -1,0 +1,69 @@
+{
+ "task_id": 141,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 4,
+ "mutants_total": 5,
+ "killed": 4,
+ "kill_rate": 0.8,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_属性测试",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_自定义区间_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_边界值分析",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_is_strong_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_自定义区间_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_边界值分析",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_has_special_空格_边界值分析",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_has_special_等价类划分"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_自定义区间_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_边界值分析",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_has_special_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_is_strong_边界长度_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_自定义区间_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_check_length_边界值分析",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_has_special_等价类划分",
+    "data/tmp_mut/task141_17z2idyt/test_gen_r1.py::test_is_strong_判定表"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,45 @@
+{
+ "task_id": 109,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 1,
+ "not": 0,
+ "recall": 0.67,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：6 个失败 nodeid，命中证人 6 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例断言长度恰为 64 的密码 check_length 返回 True，而实现因 n >= max_len 返回 False，恰好命中边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_长度项_边界值分析",
+    "reason": "该用例断言长度 64 的密码 strength_score 得 1 分，实现因 check_length 边界错误返回 0，命中少得 1 分的缺陷。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义参数长度不满足_边界值分析",
+    "reason": "该用例用自定义 min=5、max=10 覆盖了 max 边界，但答案键 D5 针对默认 max_len=64 的强密码误判，输入未落在该缺陷上。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_分支覆盖_语句分支覆盖",
+    "reason": "该用例断言长度 64 的密码 check_length 返回 False，与需求闭区间返回 True 相悖，疑似把缺陷行为写成了预期。"
+   },
+   {
+    "case": "test_check_length_自定义参数_边界值分析",
+    "reason": "该用例断言 max=10 时长度 10 返回 True，若实现用 n >= max_len 则实际为 False，断言失败暴露边界缺陷。"
+   }
+  ]
+ }
+}

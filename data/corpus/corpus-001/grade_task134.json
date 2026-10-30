@@ -1,0 +1,41 @@
+{
+ "task_id": 134,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 3,
+ "uncertain": 0,
+ "not": 0,
+ "recall": 1.0,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_自定义区间_等价类划分",
+    "reason": "参数化用例含 'abcde'（长度等于 max=5）期望 True，恰好命中 check_length 在 n==max_len 时返回 False 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_长度项_判定表",
+    "reason": "断言 strength_score('a'*64) == 1，长度恰为 64 时因 check_length 边界错误少得长度分，直接命中该计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_长度边界_边界值分析",
+    "reason": "断言 is_strong('Abcdef1!' + 'a'*56)（长度 64）为 True，恰好命中 max_len 边界下强密码被误判为弱密码的表现。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义区间_判定表",
+    "reason": "自定义区间 (3,5) 下 'Ab1!x'（长度 5 等于 max）期望 True，同样会因 check_length 的 n>=max_len 边界错误失败，是答案键未单列的边界表现。"
+   }
+  ]
+ }
+}

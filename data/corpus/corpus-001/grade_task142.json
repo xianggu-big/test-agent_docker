@@ -1,0 +1,49 @@
+{
+ "task_id": 142,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 3,
+ "uncertain": 0,
+ "not": 0,
+ "recall": 1.0,
+ "extra_suspect": 3,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：6 个失败 nodeid，命中证人 6 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例包含长度64的输入并预期True，恰好触发check_length在max_len=64时返回False的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_各项计分_等价类划分",
+    "reason": "用例中'abcdefgh'等长度8的输入预期得分包含长度分，但未直接覆盖长度64；不过该用例的断言意图覆盖strength_score计分，且长度8边界正常，未精确命中长度64缺陷。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_边界长度_边界值分析",
+    "reason": "该用例断言长度64的强密码is_strong为True，直接触发因check_length边界错误导致的误判。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义参数_等价类划分",
+    "reason": "用例调用is_strong(value, 4, 6)并预期长度4-6为强密码，但实现可能未正确处理自定义长度参数，导致断言失败。"
+   },
+   {
+    "case": "test_strength_score_各项计分_等价类划分",
+    "reason": "用例预期'abcdefgh'得1分，但按需求长度8应得长度分1分且小写满足得1分，总分应为2分，预期值可能错误。"
+   },
+   {
+    "case": "test_check_length_等价类划分",
+    "reason": "用例中长度64的输入预期False，但需求规定长度在[min_len, max_len]闭区间内返回True，长度64应为True，预期值可能错误。"
+   }
+  ]
+ }
+}

@@ -1,0 +1,16 @@
+{
+ "task_id": 114,
+ "corpus_id": "corpus-002",
+ "planted_assertion": 3,
+ "detected": 0,
+ "uncertain": 0,
+ "not": 3,
+ "recall": 0.0,
+ "extra_suspect": 0,
+ "expected_miss_performance": 0,
+ "witness_note": "宿主重放工作区：0 个失败 nodeid，命中证人 0 条；套件全过=植入缺陷未暴露，recall=0.0（全量漏检）",
+ "detail": {
+  "matches": [],
+  "extra_suspect": []
+ }
+}

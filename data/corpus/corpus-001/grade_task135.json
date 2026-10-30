@@ -1,0 +1,45 @@
+{
+ "task_id": 135,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 3,
+ "uncertain": 0,
+ "not": 0,
+ "recall": 1.0,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：6 个失败 nodeid，命中证人 6 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_空字符串_边界值分析",
+    "reason": "该用例包含长度恰为 max=64 的输入并期望 True，直接命中 check_length 在 n==max_len 时返回 False 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_长度条件_判定表",
+    "reason": "该用例断言 strength_score('Aa1!' + 'a' * 60) == 5（长度 64），恰好命中长度 64 少得 1 分的计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_自定义边界_边界值分析",
+    "reason": "该用例在自定义 max=10 时断言长度 10 的强密码为 True，命中 is_strong 因 check_length 边界错误而误判的缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_自定义边界_边界值分析",
+    "reason": "该用例断言语句不完整（缺少 == expected），属于语法错误，无法正常执行。"
+   },
+   {
+    "case": "test_check_length_默认边界_边界值分析",
+    "reason": "该用例参数列表末尾被截断，存在语法错误，无法正常执行。"
+   }
+  ]
+ }
+}

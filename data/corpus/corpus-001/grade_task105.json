@@ -1,0 +1,45 @@
+{
+ "task_id": 105,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 1,
+ "not": 0,
+ "recall": 0.67,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：5 个失败 nodeid，命中证人 5 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_空字符串_边界值分析",
+    "reason": "该用例包含 max=64 的输入并断言 check_length('a'*64) 为 True，恰好命中 n>=max_len 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_长度项计分_等价类划分",
+    "reason": "该用例断言长度 64 的纯小写串得 2 分（长度项应得 1 分），恰好命中长度 64 少得 1 分的缺陷。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "",
+    "reason": "证人用例只覆盖 check_length 与 strength_score 的边界，没有 is_strong 对长度 64 强密码的断言，无法直接证实。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_自定义边界值_边界值分析",
+    "reason": "该用例断言 check_length(value,5,10) 为真值，但未与 expected 比较，且 max=10 的期望 True 与实现 n>=max_len 返回 False 冲突，属断言写法缺陷或暴露自定义上界缺陷。"
+   },
+   {
+    "case": "test_check_length_自定义区间内_等价类划分",
+    "reason": "该用例断言长度 10（max）在 [5,10] 内为 True，若实现用 n>=max_len 判断则失败，暴露自定义上界边界缺陷。"
+   }
+  ]
+ }
+}

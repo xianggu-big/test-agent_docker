@@ -1,0 +1,41 @@
+{
+ "task_id": 146,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该参数化用例断言 check_length('A'*64) is True，恰好命中 max_len 处 n >= max_len 的差一错误。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "三条证人用例都只测 check_length，没有任何用例调用 strength_score 或断言长度 64 的密码得 5 分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有用例调用 is_strong，边界长度强密码被误判的断言未被触及。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_边界值分析_闭区间上下界",
+    "reason": "用例内容在自定义区间断言处被截断（'A' * 后不完整），存在语法/截断错误，无法执行，属坏用例而非真缺陷。"
+   }
+  ]
+ }
+}

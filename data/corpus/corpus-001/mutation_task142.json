@@ -1,0 +1,73 @@
+{
+ "task_id": 142,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 6,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_属性测试",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_等价类划分[\\u957f\\u5ea664\\u65e0\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_等价类划分[\\u957f\\u5ea68\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_自定义参数_等价类划分[\\u957f\\u5ea63\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_自定义参数_等价类划分[\\u957f\\u5ea65\\u6709\\u6548\\u7c7b]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_等价类划分[\\u957f\\u5ea664\\u65e0\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_边界值分析[max+1=65]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_strength_score_各项计分_等价类划分[\\u4ec5\\u957f\\u5ea6+\\u5c0f\\u5199\\u6ee1\\u8db3\\u5f972\\u5206]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_等价类划分[\\u957f\\u5ea664\\u65e0\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_自定义参数_等价类划分[\\u957f\\u5ea65\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_边界值分析[max+1=65]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_has_special_等价类划分[\\u542b\\u611f\\u53f9\\u53f7\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_is_strong_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_等价类划分[\\u957f\\u5ea664\\u65e0\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_自定义参数_等价类划分[\\u957f\\u5ea65\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_边界值分析[max+1=65]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_is_strong_自定义参数_等价类划分[\\u957f\\u5ea66\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_is_strong_边界长度_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_等价类划分[\\u957f\\u5ea664\\u65e0\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_自定义参数_等价类划分[\\u957f\\u5ea65\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_check_length_边界值分析[max+1=65]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_has_special_等价类划分[\\u4ec5\\u5b57\\u6bcd\\u6570\\u5b57\\u65e0\\u6548\\u7c7b]",
+    "data/tmp_mut/task142_bagowlew/test_gen_r1.py::test_has_special_等价类划分[\\u542b\\u7a7a\\u683c\\u65e0\\u5176\\u4ed6\\u7279\\u6b8a\\u5b57\\u7b26\\u65e0\\u6548\\u7c7b]"
+   ]
+  }
+ ]
+}

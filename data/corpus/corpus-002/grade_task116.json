@@ -1,0 +1,41 @@
+{
+ "task_id": 116,
+ "corpus_id": "corpus-002",
+ "planted_assertion": 3,
+ "detected": 0,
+ "uncertain": 0,
+ "not": 3,
+ "recall": 0.0,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 1,
+ "witness_note": "宿主重放工作区：1 个失败 nodeid，命中证人 1 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只测 percent 券的 value 边界，未涉及 min_spend 与 subtotal 相等时的门槛校验。"
+   },
+   {
+    "id": "D2",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例未触及 calculate_discount 的 max_discount 封顶逻辑。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例未涉及 apply_coupon 的 payable 计算。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_validate_percent_boundary_边界值分析",
+    "reason": "该用例断言 value=0 与 101 返回 invalid_percent、1~100 返回 ok，但内容被截断且未真正执行断言，可能暴露 percent 边界校验缺陷。"
+   }
+  ]
+ }
+}

@@ -1,0 +1,45 @@
+{
+ "task_id": 138,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 0,
+ "not": 1,
+ "recall": 0.67,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：6 个失败 nodeid，命中证人 6 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "参数化用例包含 (64, True)，恰好断言长度等于 max_len 时 check_length 返回 True，直接命中 n >= max_len 的边界错误。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "strength_score 相关用例只测了 'aaaaaaaa'（长度 8 得 1 分），没有长度恰为 64 的密码，未触及该计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_边界长度_边界值分析",
+    "reason": "用例构造长度 64 的强密码并断言 is_strong 为 True，恰好命中边界长度被误判为弱密码的缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义区间越界_边界值分析",
+    "reason": "断言 is_strong('Abcdefgh1!', 5, 10) is True，但该密码长度 10 在闭区间内，若实现按 max_len 边界误判则可能失败，需确认 is_strong 是否支持自定义区间参数及边界处理。"
+   },
+   {
+    "case": "test_check_length_自定义区间_边界值分析",
+    "reason": "参数化含 (10, True) 即 max 边界，与 D1 同源但走自定义区间路径，若 check_length 的边界错误在自定义区间同样存在则失败，属答案键未单列的边界覆盖。"
+   }
+  ]
+ }
+}

@@ -1,0 +1,41 @@
+{
+ "task_id": 149,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：2 个失败 nodeid，命中证人 2 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_等于max_边界值分析",
+    "reason": "该用例断言 check_length('a'*64) is True，恰好落在长度等于 max_len 的边界缺陷上。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只测 check_length，没有对 strength_score 在长度 64 时的得分断言。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例未调用 is_strong，也没有对边界长度强密码的断言。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_自定义区间_等价类划分",
+    "reason": "该用例覆盖自定义区间 [3,5] 的上下边界，若实现存在 >= max_len 判断，'abcde' 会返回 False 而失败，可独立暴露同类边界缺陷。"
+   }
+  ]
+ }
+}
