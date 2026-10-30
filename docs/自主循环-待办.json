@@ -1,0 +1,186 @@
+{
+ "meta": {
+  "created": "2026-10-31T03:10",
+  "baseline": {
+   "head": "9a51238",
+   "pytest": "336 passed 1 skipped",
+   "guard": "105 OK"
+  },
+  "constraints": "不跑真实任务链/实验；不 push；每轮 ≤3 文件 ≤150 行"
+ },
+ "todos": [
+  {
+   "id": "TODO-01",
+   "title": "P2-5a：L2『0 用例收集』stop_reason 误导（exit=5 无 FAILED 行却报『契约违背 0 处：实现与 spec 不符』）",
+   "severity": "P1",
+   "evidence": "体检报告 P2-5；l2.py:366-373 代码坐实",
+   "files": [
+    "test_agent/graph/l2.py",
+    "tests/test_levels_l2.py"
+   ],
+   "acceptance": "exit=5 且 stdout 无 FAILED 行 → stop_reason=『无可执行用例』类语义；含 FAILED 行时维持契约违背语义｜已达成：judge_l2 纯函数+3 测试，339/105",
+   "status": "done",
+   "attempts": 1
+  },
+  {
+   "id": "TODO-02",
+   "title": "D10：levels 接力路径缺容器瞬态兜底（exec 409 container not running 直接炸任务）",
+   "severity": "P1",
+   "evidence": "E7 任务167 实锤（e7_task_167.json error 字段）；主图 nodes.py run 节点有 repair 兜底而 levels 路径无",
+   "files": [
+    "test_agent/graph/levels.py",
+    "tests/"
+   ],
+   "acceptance": "fake runner 模拟 exec 抛 409 → 重建/复用 fresh 容器重试一次并留痕，不再裸炸",
+   "status": "done",
+   "attempts": 1
+  },
+  {
+   "id": "TODO-03",
+   "title": "P2-8：防线单点耦合——静态闸直通(MutC)/红线删除(MutA)各只 1 测试守",
+   "severity": "P1",
+   "evidence": "体检报告 §6 突变实验：MutC→1 failed、MutA→1 failed",
+   "files": [
+    "tests/"
+   ],
+   "acceptance": "静态闸与红线各补 2-3 个变体测试（纯测试零产品代码），突变再演≥2 红",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-04",
+   "title": "P3-2：apply_smoke_results 按 title 匹配更新，同名场景状态串写",
+   "severity": "P2",
+   "evidence": "体检报告 P3-2；scenario_gen.py:283-290 WHERE title=?",
+   "files": [
+    "test_agent/skills/scenario_gen.py",
+    "tests/"
+   ],
+   "acceptance": "同名场景只更新目标行（按行 id 或 scenario_id 匹配）；单测锁",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-05",
+   "title": "P3-3：l3_metrics 文档『未定不算账』与代码不一致（pending_confirm 计入分母）",
+   "severity": "P2",
+   "evidence": "体检报告 P3-3；scenario_gen.py:8 vs :336-338",
+   "files": [
+    "test_agent/skills/scenario_gen.py"
+   ],
+   "acceptance": "文档措辞与代码一致（代码方向保守不虚高，改文档不改代码）",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-06",
+   "title": "P1-4b：容器网络隔离（执行轮 network 收敛）",
+   "severity": "P1",
+   "evidence": "体检报告 P1-4 后半；runner.py:70-77 无 network 限制",
+   "files": [
+    "test_agent/sandbox/runner.py"
+   ],
+   "acceptance": "需真机验证 L2 不破（服务在容器自身 loopback）——标注需授权真机验证，暂 blocked",
+   "status": "blocked",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-07",
+   "title": "P2-5b：endpoints_covered 改名 endpoints_generated（生成级≠执行级）",
+   "severity": "P2",
+   "evidence": "体检报告 P2-5 后半；前端 D9 已消费该字段，改名 breaking",
+   "files": [
+    "test_agent/graph/l2.py",
+    "前端"
+   ],
+   "acceptance": "需决策改名策略（并存/直接改+前端同步）",
+   "status": "blocked",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-08",
+   "title": "token 移出 localStorage（P1-1 进阶：sessionStorage+短时效）",
+   "severity": "P2",
+   "evidence": "体检报告 P1-1 修法进阶项",
+   "files": [
+    "app.js"
+   ],
+   "acceptance": "需决策（影响登录态时长体验）",
+   "status": "blocked",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-09",
+   "title": "P2-9：97 个 workspace 无保留策略",
+   "severity": "P2",
+   "evidence": "体检报告 P2-9；ls data/workspaces 计数",
+   "files": [
+    "scripts/或启动钩子"
+   ],
+   "acceptance": "保留 N 轮策略+清理脚本（dry-run 先行）；不删现有数据需用户点头",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-10",
+   "title": "前端 390 表格列密度过高（suite 表六列挤压，截图实锤）",
+   "severity": "P2",
+   "evidence": "data/reports/screenshots/suite_161_390.png",
+   "files": [
+    "style.css",
+    "app.js"
+   ],
+   "acceptance": "390 下表格横滚容器或卡片化；Playwright 390 无溢出",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-11",
+   "title": "图4-1 顶部 caption 与首框重叠",
+   "severity": "P2",
+   "evidence": "docs/论文草稿/图/图4-1 目检",
+   "files": [
+    "scripts/make_thesis_figures.py"
+   ],
+   "acceptance": "caption 上移/框下移，重生成无重叠",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-12",
+   "title": "P2-8b：levels 接力测试全 mock 只测调度壳",
+   "severity": "P2",
+   "evidence": "体检报告 P2-8；tests/test_levels_l2.py 结构",
+   "files": [
+    "tests/"
+   ],
+   "acceptance": "一条 fake-LLM 全接力集成测试（不 mock 内部节点）",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-13",
+   "title": "git clone 参数注入输入校验（体检红队四问降级项：--upload-pack 形态退化不执行，防御性校验）",
+   "severity": "P3",
+   "evidence": "体检报告 §5 红队四问第 4 行",
+   "files": [
+    "test_agent/graph/nodes.py"
+   ],
+   "acceptance": "repo_url 白名单校验（github/本地路径/codeload），单测",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-14",
+   "title": "P2-3 拦截消息其余正则碎片复核（pat[1:3] 修复后全量扫）",
+   "severity": "P3",
+   "evidence": "P3-1 已修通过/失败/跳过三处，复核无同类残留",
+   "files": [
+    "test_agent/skills/evaluate.py"
+   ],
+   "acceptance": "grep pat[1:3] 归零",
+   "status": "done",
+   "attempts": 1
+  }
+ ]
+}
