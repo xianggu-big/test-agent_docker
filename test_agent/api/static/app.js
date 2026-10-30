@@ -491,17 +491,15 @@ function renderPipeline(logs, levels) {
 
 // R2/F10 缺陷归因清单（摘要态：任务级 defects 三分类+日志 FAILED 行；
 // per-case 精确归因=需后端新增 /defects API（F18），前端不编造）
-function renderDefectsPanel(latest, logs) {
+function renderDefectsPanel(latest, defectsApi) {
   if (!latest) return '<div class="hint">无报告</div>';
-  let defects = {};
-  try { defects = JSON.parse(latest.defects || "{}"); } catch (e) {}
+  const defects = (defectsApi && defectsApi.task_level) || {};
   const fk = defects.failure_kind || "none";
   const cls = { product_defect: "background:#fee2e2;color:#dc2626",
                 case_defect: "background:#fef3c7;color:#b45309",
                 env: "background:#f3f4f6;color:#6b7280" }[fk] || "background:#f3f4f6;color:#6b7280";
-  const failedLines = (logs || []).filter(l => /FAILED/.test(l.content))
-    .map(l => esc(l.content.slice(0, 110)));
-  return `<div style="margin-bottom:10px"><span class="badge" style="${cls}">` +
+  const failedLines = ((defectsApi && defectsApi.failed_cases) || [])
+    .map(fc => `[${fc.origin === "generated" ? "生成" : "自带"}] ${esc(fc.nodeid.slice(0, 90))}`);  return `<div style="margin-bottom:10px"><span class="badge" style="${cls}">` +
     `${{ product_defect: "疑似产品缺陷", case_defect: "用例自身缺陷", env: "环境问题", none: "无缺陷归因" }[fk]}</span>` +
     ` <span class="hint">${esc(defects.stop_reason || "")}</span></div>` +
     (failedLines.length
@@ -536,7 +534,8 @@ async function loadTaskDetail(tid) {
   const latest = reports && reports[0];
   const ex = latest && latest.exec;
   if (!t) { $("td-hero").innerHTML = '<div class="hint">任务不存在或加载失败</div>'; return; }
-  const name = (t.repo_url || "").split("/").pop() || `任务 ${tid}`;
+  const name = t.project_name || (t.repo_url || "").split("/").pop() || `任务 ${tid}`;
+  const lang = t.primary_language ? ` ${t.primary_language}` : "";
   let dur = "";
   if (ex && ex.started_at && latest.created_at) {
     const ms = new Date(latest.created_at.replace(" ", "T")) - new Date(ex.started_at.replace(" ", "T"));
@@ -545,7 +544,7 @@ async function loadTaskDetail(tid) {
   $("td-hero").innerHTML =
     `<div style="font-size:26px;font-weight:800">${esc(name)}</div>` +
     `<span class="badge badge-queued">任务 #${tid}</span>` +
-    `<div class="hint" style="margin-top:6px">状态：${esc(STATUS_CN[t.status] || t.status)}${dur}` +
+    `<div class="hint" style="margin-top:6px">${esc(lang)}｜状态：${esc(STATUS_CN[t.status] || t.status)}${dur}` +
     (ex ? `｜执行方式：${esc(ex.mode)}｜执行者：系统自动（${esc(ex.sandbox)}+LLM ${esc(ex.llm)}）` : "") + `</div>`;
   const req = (latest && latest.narrative) ? "" : "";
   const trow = await api(`/tasks/${tid}`).catch(() => null);
@@ -556,9 +555,10 @@ async function loadTaskDetail(tid) {
   const logs = await api(`/tasks/${tid}/logs`).catch(() => []);
   $("td-pipeline").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "执行流水线（固定图编排 · 容器沙箱）</div>" + renderPipeline(logs, lv);
+  const defectsApi = await api(`/tasks/${tid}/defects`).catch(() => null);
   $("td-defects").innerHTML = "<div style=\"font-size:16px;font-weight:800\">缺陷归因清单</div>" +
     "<div class=\"hint\" style=\"margin-bottom:6px\">env / case / product 三分类 · 不确定时宁可误报不可造假</div>" +
-    renderDefectsPanel(latest, logs);
+    renderDefectsPanel(latest, defectsApi);
   const trace = await api(`/tasks/${tid}/trace`).catch(() => null);
   $("td-trace").innerHTML = "<div style=\"font-size:16px;font-weight:800\">跨级 RTM 溯源链</div>" +
     `<div class="hint">失败自动沿 [验收场景 → 系统场景 → 集成用例 → 单元用例 → 代码行] 反向定位｜共 ${(trace && trace.chains || []).length} 条</div>` +

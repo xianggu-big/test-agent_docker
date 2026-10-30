@@ -254,7 +254,50 @@ def api_tasks(user: dict = Depends(current_user)):
 def api_task_detail(tid: int, user: dict = Depends(current_user)):
     conn = get_conn()
     row = _task_or_404(conn, tid)
-    return dict(row, progress=PROGRESS.get(row["status"], 0))
+    # F18-a（前端设计分析 §4）：补 project_name + 主语言/占比（projects JOIN）——详情页元信息行用
+    proj = conn.execute(
+        "SELECT name, primary_language, language_ratios FROM projects WHERE id=?",
+        (row["project_id"],)).fetchone()
+    out = dict(row, progress=PROGRESS.get(row["status"], 0))
+    if proj:
+        out["project_name"] = proj["name"]
+        out["primary_language"] = proj["primary_language"]
+        try:
+            out["language_ratios"] = json.loads(proj["language_ratios"])                 if proj["language_ratios"] else None
+        except (TypeError, ValueError):
+            out["language_ratios"] = None
+    return out
+
+
+@app.get("/api/tasks/{tid}/defects")
+def api_defects(tid: int, user: dict = Depends(current_user)):
+    """F18-c：per-case 失败归因摘要——任务级三分类 + 日志 FAILED 行（确定性提取；
+    nodeid 匹配生成用例名判 origin，无匹配的自带测试失败如实标 origin=repo）。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    rep = conn.execute("SELECT defects FROM test_reports WHERE task_id=? "
+                       "ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+    try:
+        task_defects = json.loads(rep["defects"]) if rep and rep["defects"] else {}
+    except (TypeError, ValueError):
+        task_defects = {}
+    logs = conn.execute(
+        """SELECT m.content FROM agent_messages m JOIN agent_sessions s
+           ON s.id = m.session_id WHERE s.task_id=? ORDER BY m.id""", (tid,)).fetchall()
+    failed_lines = [l["content"] for l in logs if "FAILED" in l["content"]]
+    known = {r[0] for r in conn.execute(
+        """SELECT c.name FROM test_cases c JOIN test_scripts s ON s.id=c.script_id
+           WHERE s.task_id=?""", (tid,))}
+    items = []
+    for line in failed_lines:
+        m = re.search(r"FAILED (\S+)", line)
+        nodeid = m.group(1) if m else ""
+        base = nodeid.split("::")[-1].split("[")[0]
+        items.append({"nodeid": nodeid, "origin": "generated" if base in known else "repo",
+                      "raw": line[:200]})
+    return {"task_level": task_defects, "failed_cases": items,
+            "counts": {"generated": sum(1 for i in items if i["origin"] == "generated"),
+                       "repo": sum(1 for i in items if i["origin"] == "repo")}}
 
 
 @app.get("/api/tasks/{tid}/report")

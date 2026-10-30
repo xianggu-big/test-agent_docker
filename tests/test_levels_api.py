@@ -145,3 +145,45 @@ def test_levels_仅L2轮次无L1信号不出卡(tmp_db):
     conn.close()
     out = api_levels(tmp_db, {"user_id": 1, "role": "admin"})
     assert out["levels"] == []
+
+
+# ---------- F18：/tasks/{tid} 补 project 字段 + /defects API ----------
+
+def test_task_detail_附project_name与主语言(tmp_db):
+    """F18-a：详情接口 JOIN projects——project_name/primary_language/占比。"""
+    from test_agent.api.server import api_task_detail
+    conn = get_conn()
+    conn.execute("UPDATE projects SET name='titlecase', primary_language='python', "
+                 "language_ratios='{\"python\":1.0}' WHERE id=1")
+    conn.commit()
+    conn.close()
+    out = api_task_detail(tmp_db, {"user_id": 1, "role": "admin"})
+    assert out["project_name"] == "titlecase"
+    assert out["primary_language"] == "python"
+    assert out["language_ratios"] == {"python": 1.0}
+
+
+def test_defects_api_按origin分类(tmp_db):
+    """F18-c：FAILED 行 nodeid 匹配生成用例名→generated，否则 repo；任务级三分类透传。"""
+    from test_agent.api.server import api_defects
+    conn = get_conn()
+    sid = conn.execute("INSERT INTO test_scripts(task_id, framework, version, content, "
+                       "content_hash) VALUES(?, 'pytest', 1, 'x', 'h')", (tmp_db,)).lastrowid
+    conn.execute("INSERT INTO test_cases(script_id, source, name, content) "
+                 "VALUES(?, 'ai', 'test_gen_case', 'x')", (sid,))
+    conn.execute("INSERT INTO agent_sessions(task_id) VALUES(?)", (tmp_db,))
+    sess = conn.execute("SELECT id FROM agent_sessions WHERE task_id=?", (tmp_db,)).fetchone()[0]
+    conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES(?,1,'assistant',?)",
+                 (sess, "FAILED tests/test_gen_r1.py::test_gen_case[1] - AssertionError"))
+    conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES(?,2,'assistant',?)",
+                 (sess, "FAILED tests/test_tenacity.py::test_repo_own - X"))
+    json_d = '{"failure_kind": "product_defect", "stop_reason": "证人"}'
+    conn.execute("INSERT INTO test_reports(task_id, passed, failed, skipped, defects) "
+                 "VALUES(?, 5, 2, 0, ?)", (tmp_db, json_d))
+    conn.commit()
+    conn.close()
+    out = api_defects(tmp_db, {"user_id": 1, "role": "admin"})
+    assert out["task_level"]["failure_kind"] == "product_defect"
+    assert out["counts"] == {"generated": 1, "repo": 1}
+    assert out["failed_cases"][0]["origin"] == "generated"
+    assert out["failed_cases"][1]["origin"] == "repo"
