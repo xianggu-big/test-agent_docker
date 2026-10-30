@@ -23,7 +23,8 @@ from typing import TypedDict
 from langchain_openai import ChatOpenAI
 
 from .. import config
-from ..skills.callgraph import (build_call_edges, handler_edges, sequence_scenarios)
+from ..skills.callgraph import (build_call_edges, collect_functions,
+                                route_call_edges, sequence_scenarios)
 from ..skills.contract_gen import build_requirement_asserts
 from ..skills.endpoint_extract import probe_endpoint_source
 from ..skills.registry import Skill
@@ -87,15 +88,18 @@ def build_l2_skills(runner) -> dict[str, Skill]:
     def build_callgraph(task_id: int, args: dict) -> str:
         conn = get_conn()
         try:
-            graph = build_call_edges(Path(args["workspace"]))
+            ws = Path(args["workspace"])
+            graph = build_call_edges(ws)
             eps = args.get("endpoints") or []
-            edges = handler_edges(eps, graph)
+            edges = route_call_edges(eps, graph, collect_functions(ws))
             scenes = sequence_scenarios(eps)
             conn.execute("DELETE FROM call_edges WHERE task_id=?", (task_id,))
-            for caller, callee, depth in edges:
+            for e in edges:
                 conn.execute(
-                    "INSERT INTO call_edges(task_id, caller, callee, depth) VALUES (?,?,?,?)",
-                    (task_id, caller, callee, depth))
+                    """INSERT INTO call_edges(task_id, caller, callee, depth, file, lineno)
+                       VALUES (?,?,?,?,?,?)""",
+                    (task_id, e["caller"], e["callee"], e["depth"],
+                     e.get("file"), e.get("lineno")))
             conn.commit()
             return json.dumps({"edge_count": len(edges), "scenarios": scenes},
                               ensure_ascii=False)

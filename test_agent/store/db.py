@@ -32,6 +32,7 @@ _MIGRATIONS = {
     "test_cases": {"priority": "TEXT", "input": "TEXT", "steps": "TEXT",
                    "expected": "TEXT", "expected_basis": "TEXT"},  # 六要素结构化（§3.3）
     "evaluation_rounds": {"level": "TEXT DEFAULT 'L1'"},  # 四级双轨：老库补级别维度，存量行=L1
+    "call_edges": {"file": "TEXT", "lineno": "INTEGER"},  # 跨级溯源：老库补函数定义位置
 }
 
 

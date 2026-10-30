@@ -71,7 +71,7 @@ python scripts/demo.py                            # 一键演示：建任务→�
 | L2 集成层冒烟（四级双轨 P1） | `python scripts/smoke_l2.py [demo_dir] [--keep-ws]` | 真机 11 过/1 败（埋的缺陷被顺序场景如实抓到）；leg 台账 test_levels |
 | L2 全链路接力（L1→L2） | `python -c "from test_agent.graph.levels import run_task_levels; run_task_levels(<tid>)"`（需 LEVELS 场景自建任务） | test_levels 两行 + trace_from 链 + evaluation_rounds 按级 |
 
-回归：`python -m pytest`（249 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
+回归：`python -m pytest`（279 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
 API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/api_adversarial.py`（9 项）。
 
 ## 文档索引
@@ -79,7 +79,7 @@ API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/ap
 - `docs/vision-and-gaps.md` —— 愿景六步流程权威记录 + 设计定稿（归因 §7、评估 §3）
 - `docs/build-plan.md` —— 阶段 0-4 搭建计划（已全部完成）
 - `docs/experiment-design.md` —— 实验设计定稿（RQ1-5 ↔ E1-E5 映射）
-- `docs/layer5-data-schema.sql` —— 数据层 18 表 DDL（单一真源，建库幂等）
+- `docs/layer5-data-schema.sql` —— 数据层 22 表 DDL（单一真源，建库幂等）
 - `docs/testing-theory.md` —— 测试理论 ↔ 系统机制映射
 - `docs/industry-testing-research.md` —— 主流软测流程调研（33 信源逐条核验）
 - `docs/audit-findings.md` —— 全量审计清单（A1-A13 已清零）

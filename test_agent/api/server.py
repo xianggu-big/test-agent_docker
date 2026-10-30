@@ -27,6 +27,7 @@ from ..sandbox import preflight
 from ..sandbox.runner import SandboxRunner
 from ..skills.evaluate import hotspot_coverage
 from ..skills.gen_tests import _rebuild_imported_file, _sanitize_name
+from ..skills.traceability import build_task_traces, build_trace_chain
 from ..store import db
 from ..store.db import get_conn
 from . import auth
@@ -327,6 +328,24 @@ def api_rtm(tid: int, user: dict = Depends(current_user)):
             "matrix": json.loads(latest["matrix"]) if latest else [],
             "map_source": latest["source"] if latest else None,
             "cases": cases}
+
+
+@app.get("/api/tasks/{tid}/trace")
+def api_trace(tid: int, scenario_id: int | None = None,
+              user: dict = Depends(current_user)):
+    """四级 RTM 跨级溯源链（P2，E7）：验收→系统→集成→单元→代码位置，纯确定性。
+
+    - `?scenario_id=` 指定场景：返回单条链（不属于该任务 → 404）
+    - 不带参数：仅对 pending_confirm / confirmed_defect 场景逐条建链（auto_pass 不触发）
+    """
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    try:
+        if scenario_id is not None:
+            return build_trace_chain(conn, tid, scenario_id)
+        return {"task_id": tid, "chains": build_task_traces(conn, tid)}
+    except LookupError as e:
+        raise HTTPException(404, str(e))
 
 
 @app.get("/api/tasks/{tid}/logs")

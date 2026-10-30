@@ -3,13 +3,13 @@
 用法：python scripts/module_check.py [--full]
 三段式：
   PART1 完成度 = 静态契约检查（开关/函数/提示词段/集成点/仪器锚点逐一核对；
-       第十一轮补 L5 18 表/消融开关默认值/V8V9 机制函数/重跑幂等与台账语义/
+       第十一轮补 L5 表契约（现 22 表）/消融开关默认值/V8V9 机制函数/重跑幂等与台账语义/
        评估链单快照/X 格消融入口/阅卷 decoy 协议/新机制单测文件）；
   PART2 单测回归 = 三方案机制单测 + review 节点 + 四轮新机制单测文件；
   PART3 边界探针 = 单测未覆盖的边界输入逐个喂给方案A/B/C核心函数与变异算子，
        每条探针结论三态：PASS（符合契约）/ FAIL（契约违约，exit 1）/ FINDING（可辩护的
        边界行为，记录不动死刑，留给 v2 决策）。
---full 额外跑全量 pytest 回归（223 过 1 跳基线）。
+--full 额外跑全量 pytest 回归（279 过 1 跳基线）。
 
 诚实边界：本脚本离线确定性（不触网/不依赖 Docker/不调 LLM）；方案B 的容器侧
 hypothesis 安装只做源码契约检查（真容器行为由 run_grid B1 格真机实验覆盖）。
@@ -117,8 +117,8 @@ def part1_completion() -> list[Item]:
 
     # —— 第十一轮补齐：以下为第四至十轮新机制的静态契约（此前契约集合停在 2026-10-28 三方案轮）——
 
-    # 10) L5 表契约：21 表齐备（15-18 rtm_maps/evaluation_rounds/complexity_hotspots/llm_calls
-    #     + 19-21 四级双轨 P1：test_levels/interface_endpoints/call_edges）
+    # 10) L5 表契约：22 表齐备（15-18 rtm_maps/evaluation_rounds/complexity_hotspots/llm_calls
+    #     + 19-22 四级双轨：test_levels/interface_endpoints/call_edges/scenario_cases）
     ddl = config.SCHEMA_PATH.read_text(encoding="utf-8")
     created = set(re.findall(r"CREATE TABLE IF NOT EXISTS\s+(\w+)", ddl))
     expected_tables = {
@@ -129,7 +129,7 @@ def part1_completion() -> list[Item]:
         "test_levels", "interface_endpoints", "call_edges", "scenario_cases"}
     (ok if created == expected_tables else miss)(
         "L5 schema 22 表契约",
-        "21 表齐备" if created == expected_tables else
+        "22 表齐备" if created == expected_tables else
         f"缺失={sorted(expected_tables - created)} 多余={sorted(created - expected_tables)}")
     lvl_col = re.search(r"CREATE TABLE IF NOT EXISTS evaluation_rounds\s*\(.*?\n\)", ddl, re.S)
     (ok if lvl_col and "level" in lvl_col.group(0) else miss)(

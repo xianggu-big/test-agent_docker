@@ -1,8 +1,9 @@
 """L2 调用链单测：调用图收集（同模块/跨模块）、operationId 反查 handler、顺序场景配对。"""
 from pathlib import Path
 
-from test_agent.skills.callgraph import (build_call_edges, handler_edges,
-                                         handler_of, sequence_scenarios)
+from test_agent.skills.callgraph import (build_call_edges, collect_functions,
+                                         handler_edges, handler_of,
+                                         route_call_edges, sequence_scenarios)
 
 WS = None  # 由 fixture 写入
 
@@ -52,6 +53,40 @@ def test_handler_edges_depth_walk():
     assert ("app.create_coupon", "service.calc_discount", 2) in edges
     assert ("service.calc_discount", "service._helper", 3) in edges
     assert not any(d > 3 for _, _, d in edges)                        # 深度上限
+
+
+def test_collect_functions_含无出边handler与位置(tmp_path: Path):
+    ws = _write_project(tmp_path)
+    funcs = collect_functions(ws)
+    assert funcs["app.create_coupon"]["file"] == "app.py"
+    assert funcs["app.create_coupon"]["lineno"] >= 1
+    assert "app.read_coupon" in funcs            # 无调用边的 handler 也在目录里
+
+
+def test_route_call_edges_无出边handler不丢根(tmp_path: Path):
+    """老 handler_edges 从调用图推根：handler 无出边时整个端点丢根（task_151 实锤 0 边）。"""
+    ws = tmp_path
+    (ws / "app.py").write_text(
+        "from fastapi import FastAPI\n"
+        "api = FastAPI()\n"
+        "def ping():\n"
+        "    return {'ok': True}\n"
+        "def create(c):\n"
+        "    return helper(c)\n"
+        "def helper(c):\n"
+        "    return {'id': 1}\n", encoding="utf-8")
+    eps = [{"method": "GET", "path": "/ping", "operation_id": "ping_ping_get"},
+           {"method": "POST", "path": "/c", "operation_id": "create_c_post"}]
+    graph = build_call_edges(ws)
+    funcs = collect_functions(ws)
+    edges = route_call_edges(eps, graph, funcs)
+    assert ("route:GET /ping", "app.ping", 1) in [(e["caller"], e["callee"], e["depth"])
+                                                  for e in edges]
+    assert ("route:POST /c", "app.create", 1) in [(e["caller"], e["callee"], e["depth"])
+                                                  for e in edges]
+    nested = [e for e in edges if e["caller"] == "app.create"]
+    assert nested and nested[0]["callee"] == "app.helper"
+    assert nested[0]["file"] == "app.py" and nested[0]["lineno"] == 7
 
 
 def test_sequence_scenarios_create_then_read():

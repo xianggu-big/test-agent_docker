@@ -313,7 +313,9 @@ CREATE TABLE IF NOT EXISTS call_edges (
   task_id    INTEGER NOT NULL REFERENCES test_tasks(id) ON DELETE CASCADE,
   caller     TEXT NOT NULL,                   -- 'route:POST /orders' 或 'module.func'
   callee     TEXT NOT NULL,
-  depth      INTEGER NOT NULL DEFAULT 1,
+  depth      INTEGER NOT NULL DEFAULT 1,      -- 距 handler 深度（route 行 depth=1）
+  file       TEXT,                           -- 被调函数定义所在文件（workspace 相对路径）
+  lineno     INTEGER,                        -- 被调函数定义起始行（跨级溯源代码位置）
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

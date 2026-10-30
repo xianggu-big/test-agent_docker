@@ -77,6 +77,61 @@ def build_call_edges(ws: Path) -> dict[str, list[str]]:
     return {k: sorted(v) for k, v in edges.items()}
 
 
+def collect_functions(ws: Path) -> dict[str, dict]:
+    """函数目录（含无调用边的函数）：{module.func: {file, lineno}}。
+
+    与 build_call_edges 同一解析域（非测试 .py、跳过噪声目录）。存在的意义：
+    调用图只含有出边的 caller，而端点 handler 常常无出边（task_151 实测 0 边），
+    溯源需要 handler 自身的代码位置，不能从调用图反推。
+    """
+    ws = Path(ws)
+    out: dict[str, dict] = {}
+    for p in sorted(ws.rglob("*.py")):
+        if any(part in config.SKIP_DIRS for part in p.parts):
+            continue
+        if p.name.startswith("test_") or p.name.endswith("_test.py"):
+            continue
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8", errors="ignore"))
+        except SyntaxError:
+            continue
+        rel = p.relative_to(ws).as_posix()
+        for name, fn in _module_functions(tree).items():
+            out[f"{p.stem}.{name}"] = {"file": rel, "lineno": fn.lineno}
+    return out
+
+
+def route_call_edges(endpoints: list[dict], call_graph: dict[str, list[str]],
+                     functions: dict[str, dict]) -> list[dict]:
+    """端点根调用边（含无出边的 handler）：[{caller, callee, depth, file, lineno}]。
+
+    与 handler_edges 的差别：根集合来自 functions 目录而非调用图 key——handler
+    无出边时不会被丢掉（老函数的真 bug：task_151 四个端点却 0 条 call_edges）。
+    """
+    all_funcs = set(functions) | set(call_graph) | {
+        c for cs in call_graph.values() for c in cs}
+    out: list[dict] = []
+    for ep in endpoints:
+        route = f"route:{ep['method']} {ep['path']}"
+        handler = handler_of(ep, all_funcs)
+        if not handler:
+            continue
+        seen: set[str] = set()
+
+        def walk(node: str, caller: str, depth: int) -> None:
+            if node in seen or depth > _MAX_DEPTH:
+                return
+            seen.add(node)
+            loc = functions.get(node) or {}
+            out.append({"caller": caller, "callee": node, "depth": depth,
+                        "file": loc.get("file"), "lineno": loc.get("lineno")})
+            for callee in call_graph.get(node, []):
+                walk(callee, node, depth + 1)
+
+        walk(handler, route, 1)
+    return out
+
+
 def handler_name(endpoint: dict, func_tails: set[str]) -> str | None:
     """operationId 反查函数名：FastAPI 约定 '<handler>_<path>_<method>'，但 handler 本身可含
     下划线（create_coupon_coupons_post）——按「最长函数名前缀+下划线」匹配（确定性，
