@@ -168,3 +168,36 @@ def test_run_worker_dispatches_to_levels_when_enabled(tmp_db, monkeypatch):
     assert calls[0] == ("levels", 99, ("L1", "L2"))          # L3 关：接力止于 L2
     assert calls[1] == ("levels", 99, ("L1", "L2", "L3"))    # L3 开：元组带 L3
     assert calls[2][0] == "l1"
+
+
+# ---------- Loop-1（TODO-01/P2-5a）：L2 判读纯函数化 + 0 用例收集诚实语义 ----------
+
+def test_judge_l2_exit5_no_failed_is_collect_failure_not_contract(tmp_db):
+    """exit=5（pytest 收集失败）且无 FAILED 行：不得谎称『契约违背 N 处：实现与 spec 不符』。"""
+    from test_agent.graph.l2 import judge_l2
+    summary, verdict, reason = judge_l2(
+        stdout="no tests ran in 0.01s", last_exit=5,
+        endpoints=[{"path": "/x", "method": "GET"}], skipped_routes=[])
+    assert verdict == "stop"
+    assert "无可执行用例" in reason or "收集" in reason
+    assert "实现与 spec 不符" not in reason
+    assert summary["failed"] == 0
+
+
+def test_judge_l2_contract_violation_semantics_kept(tmp_db):
+    """有 FAILED 行（契约违背）时维持原语义（不误伤）。"""
+    from test_agent.graph.l2 import judge_l2
+    stdout = "1 failed, 2 passed in 0.1s\nFAILED test_gen_r1.py::test_x"
+    summary, verdict, reason = judge_l2(stdout=stdout, last_exit=1,
+                                        endpoints=[{"path": "/x", "method": "GET"}],
+                                        skipped_routes=[])
+    assert verdict == "stop" and "契约违背" in reason
+    assert summary["contract_violations"] == 1
+
+
+def test_judge_l2_pass_semantics_kept(tmp_db):
+    from test_agent.graph.l2 import judge_l2
+    summary, verdict, reason = judge_l2(
+        stdout="3 passed in 0.1s", last_exit=0,
+        endpoints=[{"path": "/x", "method": "GET"}], skipped_routes=[])
+    assert verdict == "pass"

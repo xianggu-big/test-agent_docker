@@ -243,6 +243,40 @@ def _start_service(runner, container, app_module: str, port: int) -> tuple[bool,
     return False, (tail.stdout or tail.stderr or "服务未就绪")[-300:]
 
 
+def judge_l2(stdout: str, last_exit: int, endpoints: list, skipped_routes: list) -> tuple[dict, str, str]:
+    """L2 判读纯函数（Loop-1 自 run() 内联抽出，语义除 P2-5a 修复外逐字节不变）。
+
+    P2-5a（2026-10-31 体检）：pytest exit=5（收集失败）且无 FAILED 行时，旧逻辑落
+    『契约违背 0 处：实现与 spec 不符』——0 处违背却声称实现不符，语义误导。
+    现在：failed==0 且 exit!=0 → 『无可执行用例』诚实降级语义（不判契约）。"""
+    passed = int(m.group(1)) if (m := re.search(r"(\d+) passed", stdout)) else 0
+    failed = int(m.group(1)) if (m := re.search(r"(\d+) failed", stdout)) else 0
+    errors = int(m.group(1)) if (m := re.search(r"(\d+) errors?", stdout)) else 0
+    failed += errors
+    from ..graph.repair import failing_nodeids
+    nodeids = failing_nodeids(stdout)
+    req_fail = sum(1 for n in nodeids if "需求断言" in n)
+    contract_fail = failed - req_fail
+    eps = endpoints or []
+    skipped_n = len(skipped_routes or [])
+    summary = {"passed": passed, "failed": failed,
+               "requirement_failures": req_fail, "contract_violations": contract_fail,
+               "endpoints_total": len(eps),
+               "endpoints_covered": max(0, len(eps) - skipped_n)}
+    if last_exit == 0 and failed == 0:
+        verdict, reason = "pass", "契约与需求断言全过（L2 单轮 v0，无 R-Loop）"
+    elif failed == 0:
+        verdict, reason = ("stop", f"无可执行用例（pytest exit={last_exit}，收集/环境失败）："
+                                   f"容器内测试未真正运行，无法判定契约语义（诚实降级）")
+    elif req_fail:
+        verdict, reason = ("stop", f"疑似需求级缺陷：需求断言失败 {req_fail} 条保留为证人"
+                                   f"（不回炉迁就，人工定性）")
+    else:
+        verdict, reason = ("stop", f"契约违背 {contract_fail} 处：实现与 spec 不符"
+                                   f"（可能为实现缺陷或契约漂移，先归因需人工定性）")
+    return summary, verdict, reason
+
+
 # ---------------------------------------------------------------------------
 # L2 子图节点
 # ---------------------------------------------------------------------------
@@ -354,28 +388,14 @@ def make_l2_nodes(deps):
     def evaluate(state: L2State) -> dict:
         tid = state["task_id"]
         stdout = state.get("last_stdout", "")
-        passed = int(m.group(1)) if (m := re.search(r"(\d+) passed", stdout)) else 0
-        failed = int(m.group(1)) if (m := re.search(r"(\d+) failed", stdout)) else 0
-        errors = int(m.group(1)) if (m := re.search(r"(\d+) errors?", stdout)) else 0
-        failed += errors
-        from ..graph.repair import failing_nodeids
-        nodeids = failing_nodeids(stdout)
-        req_fail = sum(1 for n in nodeids if "需求断言" in n)
-        contract_fail = failed - req_fail
+        # Loop-1：判读抽纯函数 judge_l2（P2-5a 修复；下方消息行沿用同名局部量）
+        summary, verdict, reason = judge_l2(stdout, int(state.get("last_exit", 1) or 1),
+                                            state.get("endpoints"), state.get("skipped_routes"))
+        passed = summary["passed"]
+        failed = summary["failed"]
+        req_fail = summary["requirement_failures"]
+        contract_fail = summary["contract_violations"]
         eps = state.get("endpoints") or []
-        skipped_n = len(state.get("skipped_routes") or [])
-        summary = {"passed": passed, "failed": failed,
-                   "requirement_failures": req_fail, "contract_violations": contract_fail,
-                   "endpoints_total": len(eps),
-                   "endpoints_covered": max(0, len(eps) - skipped_n)}
-        if state.get("last_exit", 1) == 0 and failed == 0:
-            verdict, reason = "pass", "契约与需求断言全过（L2 单轮 v0，无 R-Loop）"
-        elif req_fail:
-            verdict, reason = ("stop", f"疑似需求级缺陷：需求断言失败 {req_fail} 条保留为证人"
-                                       f"（不回炉迁就，人工定性）")
-        else:
-            verdict, reason = ("stop", f"契约违背 {contract_fail} 处：实现与 spec 不符"
-                                       f"（可能为实现缺陷或契约漂移，先归因需人工定性）")
         conn.execute("DELETE FROM evaluation_rounds WHERE task_id=? AND level='L2'", (tid,))
         conn.execute(
             """INSERT INTO evaluation_rounds(task_id, level, round_no, passed, failed,
