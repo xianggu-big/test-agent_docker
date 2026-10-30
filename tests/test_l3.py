@@ -1,5 +1,6 @@
 """L3 系统测试半自动（D5）机制单测 —— fake-LLM，不依赖 Docker/网络。"""
 import json
+import os
 
 import pytest
 
@@ -150,3 +151,59 @@ def test_冒烟脚本body引用链():
         {"method": "POST", "path": "/orders", "body": {"coupon_id": "{cid}", "amount": 50}}]}], "http://x")
     assert "def sub_body" in s                    # body 深遍历替换（422 实锤修法）
     compile(s, "smoke", "exec")
+
+
+def test_冒烟脚本引用链端到端_假服务执行(tmp_path):
+    """行为级验证：生成的冒烟脚本对真实 HTTP 服务执行，
+    路径 {cid} 与 body {coupon_id} 都被前一步响应的 id 替换（W2 实锤修法的行为锁）。"""
+    import http.server
+    import json as _json
+    import subprocess
+    import sys
+    import threading
+
+    received = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def _handle(self):
+            raw = b""
+            n = self.headers.get("Content-Length")
+            if self.command == "POST" and n:
+                raw = self.rfile.read(int(n))
+            body = _json.loads(raw) if raw else None
+            received.append((self.command, self.path, body))
+            resp = _json.dumps({"id": 1, "code": "X"}).encode()
+            code = 201 if self.command == "POST" else 200
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+
+        do_POST = do_GET = _handle
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        from test_agent.skills.scenario_gen import build_smoke_script
+        s = build_smoke_script([{"title": "链式场景", "steps": [
+            {"method": "POST", "path": "/coupons", "body": {"code": "X"}},
+            {"method": "GET", "path": "/coupons/{cid}"},
+            {"method": "POST", "path": "/orders",
+             "body": {"coupon_id": "{cid}", "amount": 50}}]}], f"http://127.0.0.1:{port}")
+        f = tmp_path / "smoke_gen.py"
+        f.write_text(s, encoding="utf-8")
+        r = subprocess.run([sys.executable, str(f)], capture_output=True,
+                           text=True, timeout=60, encoding="utf-8",
+                           env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        assert "SMOKE_JSON=" in r.stdout, r.stdout + r.stderr
+        data = _json.loads(r.stdout.split("SMOKE_JSON=", 1)[1].strip().splitlines()[0])
+        assert data[0]["ok"] is True
+        assert received[1] == ("GET", "/coupons/1", None)              # 路径 {cid}→1
+        assert received[2][2] == {"coupon_id": 1, "amount": 50}        # body {cid}→1
+    finally:
+        srv.shutdown()
