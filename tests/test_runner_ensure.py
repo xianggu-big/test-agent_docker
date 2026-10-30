@@ -77,3 +77,26 @@ def test_missing_container_creates_fresh():
     r = _runner_with([], after_start="running")
     out = r.ensure_container("img", "mta-run-9")
     assert out.name == "mta-run-9" and out.status == "running"
+
+
+# ---------- Loop-6（TODO-13）：repo_url 防御性校验 ----------
+
+def test_clone_rejects_option_prefix_and_shell_metachars():
+    """--upload-pack 形态/- 前缀/空白与 shell 元字符：直接 RuntimeError（不进 subprocess）。"""
+    from test_agent.graph import nodes as N
+    import pytest
+    for bad in ("--upload-pack=touch /tmp/pwn https://x/y",
+                "https://x/y.git --depth=2",
+                "a b", "x;y", "a|b", "`id`", "$(id)"):
+        with pytest.raises(RuntimeError, match="repo_url 非法"):
+            N._validate_repo_url(bad)
+
+
+def test_clone_accepts_legal_urls_and_local_paths():
+    from test_agent.graph import nodes as N
+    for good in ("https://github.com/a/b.git", "http://github.com/a/b",
+                 "git@github.com:a/b.git", "ssh://git@host/a/b"):
+        assert N._validate_repo_url(good) is None
+    import tempfile, os
+    d = tempfile.mkdtemp()
+    assert N._validate_repo_url(d) is None  # 本地存在路径放行（os.path.isdir 分支）

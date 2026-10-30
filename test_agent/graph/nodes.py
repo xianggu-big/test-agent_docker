@@ -38,6 +38,18 @@ _GH_URL = re.compile(
     r"^https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 
 
+def _validate_repo_url(src: str) -> None:
+    """Loop-6/TODO-13（体检红队四问降级项）：repo_url 白名单校验——git clone 的 src
+    以位置参数传入，option 形态注入实测不执行但防御性收敛：只允许 http(s)/git@/ssh URL
+    或本地存在路径；含空白/引号/Option 前缀（-）/shell 元字符一律 RuntimeError。"""
+    if os.path.isdir(src):
+        return
+    if src.startswith("-") or re.search(r"[\s\"';&|`$<>]", src):
+        raise RuntimeError(f"repo_url 非法（含空白/引号/shell 元字符或 Option 前缀）：{src[:80]}")
+    if not re.match(r"^https?://|^git@|^ssh://", src):
+        raise RuntimeError(f"repo_url 非法（仅支持 http(s)/git@/ssh URL 或本地路径）：{src[:80]}")
+
+
 def _extract_tarball_strip1(data: bytes, dest: Path) -> int:
     """GitHub tarball（顶层 <repo>-<branch>/）解包到 dest，剥顶层目录；返回落盘文件数。
 
@@ -184,6 +196,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             shutil.rmtree(ws)
         ws.mkdir(parents=True)
         src = state["repo_url"]
+        _validate_repo_url(src)  # Loop-6/TODO-13：非法 URL/路径 fail-closed
         if os.path.isdir(src):
             shutil.copytree(src, ws, dirs_exist_ok=True,
                             ignore=shutil.ignore_patterns(*config.SKIP_DIRS))
