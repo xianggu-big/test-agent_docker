@@ -563,8 +563,21 @@ function renderEnv(b) {
   if (prep.state === "running") { cls = "busy"; text = prep.message || "环境补齐中…"; }
   else if (blocking.length) { cls = "bad"; text = "环境未就绪：" + blocking.map(i => i.label).join("、"); }
   else if (warn.length) { cls = "warn"; text = "环境就绪（" + warn[0].label + "未配置，将诚实降级）"; }
-  $("env-dot").className = "env-dot " + cls;
-  $("env-text").textContent = text;
+  // R1/F09：三状态胶囊组（设计图规格：Docker/镜像/API Key，浅绿底绿字；异常红、准备中脉冲）
+  const PICK = { docker: "Docker", "image:mta-test:py312": "镜像 ✓", llm: "API Key ✓" };
+  const pills = ["docker", "image:mta-test:py312", "llm"].map(k => {
+    const it = items.find(i => i.key === k) || {};
+    const okPill = it.status === "ok";
+    const bg = prep.state === "running" ? "#fef3c7" : okPill ? "#d1fae5" : "#fee2e2";
+    const fg = okPill ? "#059669" : "#b91c1c";
+    return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;` +
+      `border-radius:999px;background:${bg};font-size:12.5px;font-weight:600;color:${fg}">` +
+      `<span style="width:7px;height:7px;border-radius:50%;background:${okPill ? '#22c55e' : '#ef4444'}"></span>` +
+      `${esc(PICK[k] || it.label || k)}</span>`;
+  }).join("");
+  $("env-pills").innerHTML = pills;
+  $("env-btn").classList.toggle("hidden", !blocking.length || prep.state === "running");
+  $("env-btn").disabled = prep.state === "running";
   $("env-strip").title = items.map(i => `${i.label}：${i.detail}`).join("\n") +
     (prep.finished_at ? `\n最近补齐：${prep.message}` : "");
   $("env-btn").disabled = prep.state === "running";
