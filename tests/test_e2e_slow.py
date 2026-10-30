@@ -5,6 +5,7 @@
 只验证终态合法（达标 或 诚实停止）且数据落库完整。
 """
 import os
+from pathlib import Path
 
 import pytest
 
@@ -12,12 +13,19 @@ pytestmark = pytest.mark.skipif(os.environ.get("MTA_E2E") != "1",
                                 reason="需 Docker 与 DeepSeek Key；设 MTA_E2E=1 启用")
 
 
-def test_full_pipeline_reaches_legal_terminal_state(tmp_path):
+def test_full_pipeline_reaches_legal_terminal_state(tmp_path, monkeypatch):
+    from test_agent import config
     from test_agent.graph.builder import run_task
     from test_agent.store import db
 
-    db.init_db()
-    conn = db.get_conn()
+    # P2-7（2026-10-31 体检）：零参 init_db 会直写真实生产库——MTA_E2E=1 跑法污染真库；
+    # 图节点内部 get_conn()/workspace 全走 config 全局量，必须整体 monkeypatch 到 tmp
+    import tempfile
+    tmp_db = Path(tempfile.mkdtemp()) / "e2e.db"
+    monkeypatch.setattr(config, "DB_PATH", tmp_db)
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    db.init_db(tmp_db)
+    conn = db.get_conn(tmp_db)
     conn.execute("INSERT OR IGNORE INTO users(username,password_hash,role) VALUES('e2e','x','developer')")
     uid = conn.execute("SELECT id FROM users WHERE username='e2e'").fetchone()["id"]
     pid = conn.execute("INSERT INTO projects(user_id,repo_url,name) VALUES(?, 'local://e2e', 'e2e冒烟')",

@@ -1,0 +1,60 @@
+{
+  "task_id": 167,
+  "chains": 0,
+  "defects_real": 5,
+  "hits": 0,
+  "hit_rate": 0.0,
+  "codes": 0,
+  "details": [
+    {
+      "defect": "D1",
+      "location": "booking.py::validate_duration",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    },
+    {
+      "defect": "D2",
+      "location": "booking.py::quote_total",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    },
+    {
+      "defect": "D3",
+      "location": "app.py::read_booking",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    },
+    {
+      "defect": "D4",
+      "location": "booking.py::has_overlap",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    },
+    {
+      "defect": "D5",
+      "location": "app.py::cancel_booking",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    }
+  ],
+  "chain_gaps": {},
+  "run": 2,
+  "status": "blocked",
+  "error": "APIError: 409 Client Error for http+docker://localnpipe/v1.54/containers/76ac2eb5da837d169c3a8c0ff40e98814e973db79cf038fbba6382c345b8144a/exec: Conflict (\"container 76ac2eb5da837d169c3a8c0ff40e98814e973db79cf038fbba6382c345b8144a is not running\")",
+  "note": "跑数失败（如 LLM 402/环境）——不得当作命中率 0 的实验结果"
+}

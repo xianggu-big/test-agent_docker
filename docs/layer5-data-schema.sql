@@ -7,8 +7,8 @@
 --   * 时间统一 TEXT ISO8601（UTC）；比值/覆盖率用 REAL（0~1）；耗时毫秒 INTEGER
 --   * 枚举用 TEXT + CHECK，不建字典表（本科规模，简单优先）
 --   * 外键运行时开启：PRAGMA foreign_keys = ON
---   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 21 张
---     （18 张 L1 全链路 + 19-21 张四级双轨 P1：test_levels / interface_endpoints / call_edges）
+--   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 22 张
+--     （18 张 L1 全链路 + 19-22 张四级双轨 P1/P2：test_levels / interface_endpoints / call_edges / scenario_cases）
 -- ============================================================================
 
 PRAGMA journal_mode = WAL;

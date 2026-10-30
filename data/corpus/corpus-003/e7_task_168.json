@@ -1,0 +1,68 @@
+{
+  "task_id": 168,
+  "chains": 3,
+  "defects_real": 5,
+  "hits": 4,
+  "hit_rate": 0.8,
+  "codes": 6,
+  "details": [
+    {
+      "defect": "D1",
+      "location": "booking.py::validate_duration",
+      "matched_scenario": 62,
+      "matched_title": "预约创建与查询（含计价折扣）",
+      "hit": true,
+      "rank": 4,
+      "candidates": 5
+    },
+    {
+      "defect": "D2",
+      "location": "booking.py::quote_total",
+      "matched_scenario": 62,
+      "matched_title": "预约创建与查询（含计价折扣）",
+      "hit": true,
+      "rank": 3,
+      "candidates": 5
+    },
+    {
+      "defect": "D3",
+      "location": "app.py::read_booking",
+      "matched_scenario": 62,
+      "matched_title": "预约创建与查询（含计价折扣）",
+      "hit": false,
+      "rank": null,
+      "candidates": 5
+    },
+    {
+      "defect": "D4",
+      "location": "booking.py::has_overlap",
+      "matched_scenario": 64,
+      "matched_title": "时段重叠冲突检测（边界不重叠）",
+      "hit": true,
+      "rank": 2,
+      "candidates": 5
+    },
+    {
+      "defect": "D5",
+      "location": "app.py::cancel_booking",
+      "matched_scenario": 63,
+      "matched_title": "预约取消与重复取消冲突",
+      "hit": true,
+      "rank": 1,
+      "candidates": 1
+    }
+  ],
+  "chain_gaps": {
+    "62": [
+      "无 L1 单元用例关联（RTM 无映射/文本不匹配）"
+    ],
+    "63": [
+      "无 L1 单元用例关联（RTM 无映射/文本不匹配）"
+    ],
+    "64": [
+      "无 L1 单元用例关联（RTM 无映射/文本不匹配）"
+    ]
+  },
+  "run": 3,
+  "status": "ok"
+}

@@ -387,7 +387,7 @@ def api_levels(tid: int, user: dict = Depends(current_user)):
         t = conn.execute("SELECT status FROM test_tasks WHERE id=?", (tid,)).fetchone()
         latest = conn.execute(
             """SELECT passed, failed, coverage_line, verdict, stop_reason
-               FROM evaluation_rounds WHERE task_id=?
+               FROM evaluation_rounds WHERE task_id=? AND level='L1'
                ORDER BY round_no DESC, id DESC LIMIT 1""", (tid,)).fetchone()
         cases = conn.execute(
             """SELECT COUNT(*) AS n FROM test_cases c

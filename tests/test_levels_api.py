@@ -114,3 +114,17 @@ def test_levels_空任务仍如实无卡(tmp_db):
     """既无 rounds 也无用例：不出卡（诚实缺席，不造假数据）。"""
     out = api_levels(tmp_db, {"user_id": 1, "role": "admin"})
     assert out["levels"] == []
+
+
+def test_levels_合成卡只取L1轮次(tmp_db):
+    """P2-4（体检）：任务有 L2 轮次但无 test_levels 行时，合成卡不得拿 L2 轮次冒充 L1。"""
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO evaluation_rounds(task_id, round_no, passed, failed, skipped,
+               coverage_line, verdict, level) VALUES(?, 1, 99, 1, 0, 0.5, 'pass', 'L2')""")
+    conn.commit()
+    conn.close()
+    out = api_levels(tmp_db, {"user_id": 1, "role": "admin"})
+    card = out["levels"][0]
+    assert card["synthetic"] is True
+    assert card["summary"]["passed"] is None  # 只认 level='L1' 的轮次，L2 轮次不冒充

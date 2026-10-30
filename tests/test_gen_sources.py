@@ -125,3 +125,35 @@ def test_static_gate_flat_module_unchanged(tmp_path):
         [{"name": "t", "code": "from calc import add\n\n\ndef test_t():\n    assert add(1, 2) == 3\n"}],
         ws)
     assert ok
+
+
+# ---------- P1-4a：生成物 import 白名单审计（提示注入防线） ----------
+
+def test_import_audit_白名单外被剔(tmp_path):
+    ws = _mkws(tmp_path, {"calc.py": "def add(a, b):\n    return a + b\n"})
+    ok, rejected = _static_filter([
+        {"name": "t1", "code": "import os\n\n\ndef test_t1():\n    assert True\n"},
+        {"name": "t2", "code": "import subprocess\n\n\ndef test_t2():\n    assert True\n"},
+        {"name": "t3", "code": "from socket import socket\n\n\ndef test_t3():\n    assert True\n"},
+    ], ws)
+    assert not ok and len(rejected) == 3
+    assert all("白名单" in r for r in rejected)
+
+
+def test_import_audit_白名单与被测模块放行(tmp_path):
+    ws = _mkws(tmp_path, {"calc.py": "def add(a, b):\n    return a + b\n"})
+    ok, rejected = _static_filter([
+        {"name": "t", "code": ("import json\nfrom collections import OrderedDict\n"
+                               "import pytest\nfrom calc import add\n\n\n"
+                               "def test_t():\n    assert add(1, 2) == 3\n")},
+    ], ws)
+    assert ok and not rejected
+
+
+def test_import_audit_plain_import被测包放行(tmp_path):
+    """import 被测包（D3 包名映射后进 table）不被白名单误杀。"""
+    ws = _mkws(tmp_path, {"titlecase/__init__.py": "def titlecase(s):\n    return s\n"})
+    ok, rejected = _static_filter([
+        {"name": "t", "code": "import titlecase\n\n\ndef test_t():\n    assert titlecase\n"},
+    ], ws)
+    assert ok and not rejected

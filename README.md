@@ -80,7 +80,7 @@ python scripts/demo.py                            # 一键演示：建任务→�
 | corpus-003 缺陷标定 | `python scripts/build_corpus.py validate data/corpus/corpus-003` → `python scripts/calibrate_corpus.py corpus-003` | 5 真缺陷可暴露 + 2 decoy 不暴露 |
 | E7 跨级溯源跑数 | `python scripts/run_e7_corpus003.py --n 3` | data/corpus/corpus-003/e7_task_*.json（402 时 blocked 不计均值） |
 
-回归：`python -m pytest`（299 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
+回归：`python -m pytest`（320 过 + 1 e2e 慢测默认跳过，`MTA_E2E=1` 启用）；
 API 冒烟 `python scripts/api_smoke.py`（15 项）；对抗 `python scripts/api_adversarial.py`（9 项）。
 
 ## 文档索引

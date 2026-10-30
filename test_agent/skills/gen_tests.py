@@ -48,6 +48,19 @@ def _sanitize_name(name: str, idx: int, used: set[str]) -> str:
 SOURCE_NOISE_FILES = {"setup.py", "setup.cfg", "conftest.py", "tests.py", "test.py"}
 WHOLE_FILE_LIMIT = 12000  # 不超过该大小的文件整文件收录（上下文最完整；模块级词表/正则不丢）
 
+# P1-4a（2026-10-31 体检）：生成物 import 白名单——LLM 输出的 import 原样进容器执行，
+# 被测仓库提示注入可诱导 import os/subprocess/socket 等触达容器外。允许集=测试框架/
+# 标准库无害子集/被测模块本身；白名单外一律剔除并留理由（确定性、零成本）。
+IMPORT_WHITELIST = {
+    # 测试与常用无害三方
+    "pytest", "unittest", "mock", "jsonschema", "hypothesis", "freezegun",
+    # 标准库无害子集（数据/文本/时间/数学——不含 os/sys/subprocess/socket/pathlib/shutil 等）
+    "math", "random", "string", "textwrap", "datetime", "time", "calendar",
+    "collections", "itertools", "functools", "re", "json", "decimal", "fractions",
+    "statistics", "enum", "abc", "copy", "heapq", "bisect", "uuid", "base64",
+    "hashlib", "typing", "dataclasses", "contextlib", "warnings", "types",
+}
+
 
 def _is_noise_source(p: Path) -> bool:
     """打包/配置/测试运行器文件不是被测业务代码。
@@ -232,9 +245,26 @@ def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
             continue
         ok = True
         for node in ast.walk(tree):
+            # P1-4a：import 白名单审计（Import 与 ImportFrom 都查）——提示注入防线，
+            # 白名单外（os/subprocess/socket/requests...）整案剔除并留理由
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    mod = alias.name.split(".")[0]
+                    if mod not in IMPORT_WHITELIST and mod not in table:
+                        rejected.append(f"{c.get('name')}: import {alias.name} 不在白名单"
+                                        f"（测试框架/标准库无害子集/被测模块之外不执行）")
+                        ok = False
+                        break
+            if not ok:
+                break
             if not (isinstance(node, ast.ImportFrom) and node.module):
                 continue
             mod = node.module.split(".")[0]
+            if mod not in IMPORT_WHITELIST and mod not in table:
+                rejected.append(f"{c.get('name')}: from {node.module} import … 不在白名单"
+                                f"（测试框架/标准库无害子集/被测模块之外不执行）")
+                ok = False
+                break
             if mod in table:
                 for alias in node.names:
                     if alias.name != "*" and alias.name not in table[mod]:

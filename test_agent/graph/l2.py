@@ -213,6 +213,11 @@ def _detect_app_module(ws: Path) -> str | None:
 
 
 def _start_service(runner, container, app_module: str, port: int) -> tuple[bool, str]:
+    # P2-6（2026-10-31 体检）：app_module 拼进 sh -c，文件名含 shell 元字符=命令注入；
+    # 模块名必须是合法 Python 标识符（点号分层允许），否则拒绝起服务（fail-closed）
+    import re as _re
+    if not _re.fullmatch(r"[A-Za-z_][\w.]*(\.[A-Za-z_]\w*)*", app_module or ""):
+        return False, f"app_module 非法（非标识符）：{app_module[:60]}"
     """容器内后台起 uvicorn 并轮询健康（/openapi.json）；返回 (就绪?, 失败说明)。"""
     runner.exec_in(container, ["sh", "-c",
                    f"cd /work && nohup python -m uvicorn {app_module}:app "
