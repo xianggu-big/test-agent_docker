@@ -128,8 +128,11 @@ def build_l2_skills(runner) -> dict[str, Skill]:
                               "source": r["source"], "success_code": 200,
                               "documented_codes": []} for r in rows]
 
-            contract_code, cases, happy, skipped = cg.render_contract_module(
-                endpoints, f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}")
+            if not config.L2_BLACKBOX_ENABLED:   # E6 L2E1：无黑盒轨（契约/需求用例跳过）
+                contract_code, cases, happy, skipped = "", [], {}, []
+            else:
+                contract_code, cases, happy, skipped = cg.render_contract_module(
+                    endpoints, f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}")
             seq_code, seq_cases = cg.render_sequence_module(
                 args.get("scenarios") or [], happy,
                 f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}",
@@ -137,7 +140,7 @@ def build_l2_skills(runner) -> dict[str, Skill]:
             req_code, req_cases = "", []
             api_key = os.environ.get("DEEPSEEK_API_KEY")
             requirement = args.get("requirement") or ""
-            if api_key and requirement:
+            if api_key and requirement and config.L2_BLACKBOX_ENABLED:
                 llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
                                  base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
                                  timeout=60, max_retries=2)
@@ -316,6 +319,9 @@ def make_l2_nodes(deps):
 
     def callgraph(state: L2State) -> dict:
         tid = state["task_id"]
+        if not config.L2_WHITEBOX_ENABLED:   # E6 L2E2：无白盒轨（诚实留痕，不冒充）
+            msg(state["session_id"], "[L2·callgraph] 白盒轨开关关闭：跳过调用图与顺序场景（消融格）")
+            return {"scenarios": []}
         res = registry.invoke(tid, skills["build_callgraph"],
                               {"workspace": state["workspace"],
                                "endpoints": state.get("endpoints") or []})

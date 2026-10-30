@@ -325,6 +325,11 @@ def build_trace_chain(conn, task_id: int, scenario_id: int) -> dict:
 
 
 def build_task_traces(conn, task_id: int) -> list[dict]:
+    # S0-3/E6 L2E3（2026-10-31）：跨级建链总开关——False 时返回空链（gaps 语义由调用方
+    # 呈现"无链"），确定性建链本身不消耗资源，开关只为消融实验隔离变量
+    from .. import config as _cfg
+    if not getattr(_cfg, "TRACE_ENABLED", True):
+        return []
     """任务级：对需要溯源的失败/待定性场景逐条建链（auto_pass/pending 不触发）。"""
     rows = conn.execute(
         """SELECT id FROM scenario_cases WHERE task_id=? AND status IN (?,?)

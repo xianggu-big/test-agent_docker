@@ -33,6 +33,10 @@ GRID = {
     # 消融延伸格（入口 2026-10-29 补齐，待 DeepSeek 余额复跑；沿 X5=V6 先例：格名 X 系、变量 V 系）
     "X6": {"WITNESS_CONTINUE_ENABLED": True},   # V8=True：证人冻结+继续补测（X2/X4 循环类机制的表达前提）
     "X7": {"GEN_CROSS_REVIEW_ENABLED": True},   # V9=True：生成用例 LLM 交叉语义审（§3.6 第 3 道闸真机消融）
+    # —— E6 集成层消融三格（S0-4，2026-10-31；被测 corpus-003，走 levels 接力见 run_e8_levels）——
+    "L2E1": {"L2_BLACKBOX_ENABLED": False},     # E6：无黑盒轨（契约/需求用例跳过，只留顺序场景）
+    "L2E2": {"L2_WHITEBOX_ENABLED": False},     # E6：无白盒轨（调用图/顺序场景跳过，只留契约用例）
+    "L2E3": {"TRACE_ENABLED": False},           # E6：无跨级追踪（溯源建链关）
 }
 
 

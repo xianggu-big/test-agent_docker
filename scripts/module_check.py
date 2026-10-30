@@ -112,6 +112,11 @@ def part1_completion() -> list[Item]:
               "scripts/compare_proposals.py", "tests/test_review_node.py"):
         (ok if (ROOT / p).exists() else miss)(p, "文件缺失")
 
+    # 11b) E6 消融三开关（S0：默认 True，L2E1/L2E2/L2E3 格逐个关）
+    for key in ("L2_BLACKBOX_ENABLED", "L2_WHITEBOX_ENABLED", "TRACE_ENABLED"):
+        v = getattr(config, key, None)
+        (ok if v is True else miss)(f"config.{key}", f"默认值={v}（应为 True）")
+
     # 12) 2026-10-31 质检修复+自主循环新机制（loop-1/2/6/8/9：judge_l2/容器复核/URL 校验/
     #     收集错误容忍/生成物限定）
     _nodes_src = inspect.getsource(__import__("test_agent.graph.nodes",
