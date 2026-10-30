@@ -323,6 +323,27 @@ def assertion_audit(code: str) -> dict:
     return {"total": strong + weak, "strong": strong, "weak": weak, "reasons": reasons}
 
 
+def _verify_expected_basis(cases: list[dict], requirement: str) -> list[str]:
+    """D8（2026-10-31 真机实锤）：LLM 会把推断预期洗成「需求明示」（expected_basis 假标注）——
+    归因语义信任该字段，假标注即假 product_defect（titlecase 任务160：需求未提「AND 转小写」
+    却标注需求明示）。确定性校验：预期文本与需求 2-gram 零重叠的「需求明示」降级「模型推断」。
+    诚实边界：需求提及主题但规则理解错（缩写词规则优先于小词规则）无法用重叠判定，
+    仍靠执行暴露——oracle 问题本质，论文讨论素材。只校验 code 形态用例（模板槽位的
+    expected_basis 由渲染器语义负责）。"""
+    from .evaluate import _grams
+    req = _grams(requirement or "")
+    downgraded: list[str] = []
+    for c in cases:
+        if c.get("template"):
+            continue
+        if (c.get("expected_basis") or "").strip() == "需求明示":
+            eg = _grams((c.get("expected") or "") + (c.get("input") or ""))
+            if req and eg and not (eg & req):
+                c["expected_basis"] = "模型推断"
+                downgraded.append(c.get("name") or "?")
+    return downgraded
+
+
 def _condition_gaps(conditions: list[dict], cases: list[dict]) -> list[dict]:
     """方案C：确定性 2-gram 映射（与 map_requirements 启发式同源）找出无用例对准的条件。"""
     from .evaluate import _heuristic_map          # 延迟导入避免环形依赖
@@ -585,6 +606,12 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         return json.dumps({"generated": 0, "reason": "全部用例模板展开失败（槽位无效，诚实降级）",
                            "template_rejected": template_rejected}, ensure_ascii=False)
 
+    # —— D8 期望依据校验：无需求依据的「需求明示」降级「模型推断」（假标注→假 product_defect 根因） ——
+    basis_downgraded = _verify_expected_basis(data["cases"], args.get("requirement", ""))
+    if basis_downgraded:
+        log.info("gen_tests task=%s 需求明示降级 %d 案: %s",
+                 task_id, len(basis_downgraded), basis_downgraded[:5])
+
     # —— 静态闸（§3.6 第 1 道）：语法 + from-import 符号存在性，坏案在写盘前剔除 ——
     data["cases"], rejected = _static_filter(data["cases"], ws)
     if not data["cases"]:
@@ -694,6 +721,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                "methods": [c.get("method") for c in data["cases"]],
                "template_rejected": template_rejected,
                "assertion": assertion_stats, "cond_feedback": cond_feedback,
-               "cross_review": cross_info, "source_skipped": source_skipped}
+               "cross_review": cross_info, "source_skipped": source_skipped,
+               "basis_downgraded": basis_downgraded}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)
