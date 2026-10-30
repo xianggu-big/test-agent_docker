@@ -48,3 +48,21 @@ def test_无遗留类在pass下放行():
 def test_P3_1_拦截消息不再含正则碎片():
     reasons = review_rules("通过 9、失败 0。", M, "stop")
     assert reasons and all("?<" not in r for r in reasons)
+
+
+def test_红线_failed大于零却称全部通过_专锁():
+    """MutA 专锁（体检 P2-8：该红线原单点耦合）——删除此红线本测试必红。
+    样本设计：verdict=pass（绕开 stop 黑名单线）+叙述只含『全部通过』——
+    唯一能触发的是 failed>0 红线本身。"""
+    m = {"passed": 2, "failed": 3, "skipped": 0, "coverage_line": 0.5,
+         "pass_rate": 0.4, "failure_kind": "none"}
+    reasons = review_rules("全部通过。", m, "pass")
+    assert any("全部通过" in r for r in reasons), reasons
+
+
+def test_红线_failed大于零全部通过_变体二():
+    """MutA 第二条守线（P2-8 加厚）：不同 failed 值/叙述位置的变体。"""
+    m = {"passed": 5, "failed": 1, "skipped": 0, "coverage_line": 0.9,
+         "pass_rate": 0.833, "failure_kind": "none"}
+    reasons = review_rules("覆盖率 90%。全部通过，收工。", m, "pass")
+    assert any("全部通过" in r for r in reasons), reasons
