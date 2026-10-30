@@ -147,3 +147,19 @@ def test_l2_gen_contract_tests_full_flow(tmp_db, tmp_path):
         "SELECT COUNT(*) AS n FROM test_cases c JOIN test_scripts s ON s.id=c.script_id"
         " WHERE s.task_id=?", (tid,)).fetchone()["n"]
     assert n == out["contract"] + out["sequence"] + out["requirement"]    # 用例全量落库
+
+
+def test_run_worker_dispatches_to_levels_when_enabled(tmp_db, monkeypatch):
+    """API 下发分派分支锁：LEVELS_ENABLED=True 走串行接力，False 走 L1 原样。"""
+    from test_agent import config
+    from test_agent.graph import levels as levels_mod
+    from test_agent.api import server
+    calls = []
+    monkeypatch.setattr(config, "LEVELS_ENABLED", True)
+    monkeypatch.setattr(levels_mod, "run_task_levels",
+                        lambda t: calls.append(("levels", t)) or {"L1": {}})
+    server._run_worker(99)
+    monkeypatch.setattr(config, "LEVELS_ENABLED", False)
+    monkeypatch.setattr(server, "run_task", lambda t: calls.append(("l1", t)))
+    server._run_worker(99)
+    assert [c[0] for c in calls] == ["levels", "l1"]
