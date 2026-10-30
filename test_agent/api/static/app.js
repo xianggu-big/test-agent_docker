@@ -486,6 +486,22 @@ function renderPipeline(logs, levels) {
     `<div class="hint">级别调度：${esc(legs || "（未走 levels 流）")}｜调度说明：R-Loop 失败不回炉，同指纹熔断 ≥2 次或预算耗尽诚实停机</div>`;
 }
 
+// F08 跨级溯源面板（/trace chains：触发场景+节点链+gaps 徽章）
+function renderTracePanel(trace) {
+  const chains = (trace && trace.chains) || [];
+  if (!chains.length) return '<div class="hint">该任务无溯源链（失败场景触发建链，链数为 0 如实）</div>';
+  return chains.map(c => {
+    const trig = c.trigger || {};
+    const nodes = (c.nodes || []).map(n =>
+      `<span class="trace-node${n.level === "CODE" ? "" : ""}">${esc(n.level)} ${esc(String(n.title || n.name || n.function || "").slice(0, 24))}</span>`)
+      .join('<span class="hint">›</span>');
+    const gaps = (c.gaps || []).length ? ` <span class="badge badge-fail">缺环 ${c.gaps.length}</span>` : "";
+    return `<div style="margin:8px 0"><b style="font-size:13px">${esc(trig.title || "场景 " + c.scenario_id)}</b>` +
+      `<span class="badge badge-queued" style="margin-left:8px">${esc(trig.status || "")}</span>${gaps}` +
+      `<div class="trace-chain">${nodes}</div></div>`;
+  }).join("");
+}
+
 async function loadTaskDetail(tid) {
   const [t, reports] = await Promise.all([
     api(`/tasks/${tid}`).catch(() => null),
@@ -514,6 +530,10 @@ async function loadTaskDetail(tid) {
   const logs = await api(`/tasks/${tid}/logs`).catch(() => []);
   $("td-pipeline").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "执行流水线（固定图编排 · 容器沙箱）</div>" + renderPipeline(logs, lv);
+  const trace = await api(`/tasks/${tid}/trace`).catch(() => null);
+  $("td-trace").innerHTML = "<div style=\"font-size:16px;font-weight:800\">跨级 RTM 溯源链</div>" +
+    `<div class="hint">失败自动沿 [验收场景 → 系统场景 → 集成用例 → 单元用例 → 代码行] 反向定位｜共 ${(trace && trace.chains || []).length} 条</div>` +
+    renderTracePanel(trace);
   $("td-levels").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "测试级别计划（黑盒 + 白盒双轨）</div>" +
     (renderLevelCards(lv && lv.levels) || '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>');
