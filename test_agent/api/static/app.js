@@ -119,7 +119,7 @@ async function refreshWorkbench() {
   const sel = $("wb-task");
   const tasks = await api("/tasks");
   sel.innerHTML = `<option value="">— 选择任务 —</option>` +
-    tasks.map(t => `<option value="${t.id}">#${t.id} ${t.project_name}（${STATUS_CN[t.status]}）</option>`).join("");
+    tasks.map(t => `<option value="${t.id}">#${t.id} ${esc(t.project_name)}（${STATUS_CN[t.status]}）</option>`).join("");
   sel.onchange = loadWorkbench;
 }
 
@@ -201,7 +201,7 @@ async function viewLogs(id) { location.hash = "#/reports"; setTimeout(() => { $(
 /* ---------- 报告 ---------- */
 async function refreshReports() {
   const tasks = await api("/tasks");
-  $("rp-task").innerHTML = tasks.map(t => `<option value="${t.id}">#${t.id} ${t.project_name}（${STATUS_CN[t.status]}）</option>`).join("");
+  $("rp-task").innerHTML = tasks.map(t => `<option value="${t.id}">#${t.id} ${esc(t.project_name)}（${STATUS_CN[t.status]}）</option>`).join("");
   $("rp-task").onchange = loadReport;
   if (tasks.length) { $("rp-task").value = String(tasks[0].id); await loadReport(); }
 }
@@ -217,8 +217,11 @@ function switchRp(which) {
 
 const LV_NAME = { L1: "单元", L2: "集成", L3: "系统", L4: "验收" };
 
-function levelMetric(l) {
+function levelMetric(l, scenarios) {
   const s = l.summary || {};
+  // L3/L4 的按级指标在 /levels 的 scenarios 字段里（l3_metrics/l4_metrics），
+  // 不能只看 test_levels.summary——L4 summary 只有 scenarios/rejected，
+  // 直接读会把「场景/已确认/转化」全显示成 --（真数据在 d.scenarios.L4）。
   if (l.level === "L1") {
     const cov = s.coverage_line != null ? Math.round(s.coverage_line * 100) + "%" : "--";
     return `覆盖 ${cov} · 通过 ${s.passed ?? "--"}`;
@@ -226,10 +229,11 @@ function levelMetric(l) {
   if (l.level === "L2") {
     return `端点 ${s.endpoints_covered ?? "--"}/${s.endpoints_total ?? "--"} · 契约违背 ${s.contract_violations ?? "--"}`;
   }
+  const m = (scenarios && scenarios[l.level]) || {};
   if (l.level === "L3") {
-    return `场景 ${s.total ?? "--"} · 自动过 ${s.auto_pass ?? "--"} · 待确认 ${s.pending_confirm ?? "--"}`;
+    return `场景 ${m.total ?? s.total ?? "--"} · 自动过 ${m.auto_pass ?? s.auto_pass ?? "--"} · 待确认 ${m.pending_confirm ?? s.pending_confirm ?? "--"}`;
   }
-  return `场景 ${s.total ?? "--"} · 已确认 ${s.confirmed ?? "--"} · 转化 ${s.converted ?? "--"}`;
+  return `场景 ${m.total ?? s.total ?? "--"} · 已确认 ${m.confirmed ?? s.confirmed ?? "--"} · 转化 ${m.converted ?? s.converted ?? "--"}`;
 }
 
 // D10 四级卡 + 溯源链（真数据：/levels 端点；无级别行时不出块，L1-only 兼容）
@@ -240,7 +244,7 @@ function renderLevels(d) {
     return `<div class="level-card ${bad ? "fail" : "ok"}">
       <div class="lv">${l.level} ${LV_NAME[l.level] || ""} <span class="badge ${bad ? "badge-fail" : "badge-ok"}">${esc(l.status)}</span></div>
       <div class="st">判定 ${esc(l.verdict || "--")}</div>
-      <div class="st">${esc(levelMetric(l))}</div>
+      <div class="st">${esc(levelMetric(l, d.scenarios))}</div>
       <div class="st">${esc((l.stop_reason || "").slice(0, 80))}</div>
     </div>`;
   }).join("");

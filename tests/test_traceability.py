@@ -70,6 +70,9 @@ def test_script_level_三分类():
     assert script_level("acceptance", "requests") == "L4"
     assert script_level("pytest", "import requests\nBASE='http://x'") == "L2"
     assert script_level("pytest", "from fastapi.testclient import TestClient") == "L1"
+    # 回归锁：L1 用例可能 import requests 做辅助（无 BASE 端点地址），
+    # 老启发式只要看到 requests 子串就误判 L2，跨级链会把单元用例当集成用例。
+    assert script_level("pytest", "import requests\n# 仅用于下载 fixture\n") == "L1"
 
 
 def _seed_full(conn):
@@ -151,6 +154,22 @@ def test_无调用图诚实缺席(conn):
     assert any("无 L1" in g for g in chain["gaps"])
 
 
+def test_失败端点无调用图不回退到别的端点(conn):
+    """真 bug 锁：focus 路由无 call_edges 时，老实现会 `or roots` 回退到全部端点，
+    把 /orders 的代码位置冒充成 /ghost 的溯源结果。"""
+    _ep(conn, "POST", "/orders")
+    conn.execute(
+        "INSERT INTO call_edges(task_id,caller,callee,depth,file,lineno)"
+        " VALUES(1,'route:POST /orders','app.create_order',1,'app.py',50)")
+    sid = _scenario(conn, "幽灵端点失败", [{"method": "POST", "path": "/ghost"}],
+                    last={"ok": False, "steps": [{"step": "POST /ghost", "status": 500,
+                                                  "ok": False}]})
+    chain = _chain(sid, conn)
+    code = [n for n in chain["nodes"] if n["level"] == "CODE"]
+    assert code == []
+    assert any("无该端点" in g for g in chain["gaps"])
+
+
 def test_rtm缺失时L1文本兜底(conn):
     _ep(conn, "POST", "/orders")
     l1_script = _script(conn, "pytest", "from fastapi.testclient import TestClient\n")
@@ -164,7 +183,8 @@ def test_rtm缺失时L1文本兜底(conn):
 
 
 def test_未知端点不硬猜L2(conn):
-    l2_script = _script(conn, "pytest", "import requests\n")
+    l2_script = _script(conn, "pytest",
+                        "import requests\nBASE = 'http://127.0.0.1:8000'\n")
     _case(conn, l2_script, "test_post_orders_契约黑盒", steps="POST /orders")
     _ep(conn, "POST", "/coupons")
     sid = _scenario(conn, "幽灵接口场景", [{"method": "POST", "path": "/ghost"}])
@@ -205,7 +225,8 @@ def test_l4触发不重复上游(conn):
 
 def test_场景步骤真实id归一匹配L2(conn):
     _ep(conn, "GET", "/orders/{oid}")
-    l2_script = _script(conn, "pytest", "import requests\n")
+    l2_script = _script(conn, "pytest",
+                        "import requests\nBASE = 'http://127.0.0.1:8000'\n")
     _case(conn, l2_script, "test_get_order_契约黑盒", steps="GET /orders/{oid}")
     sid = _scenario(conn, "按 id 查询订单", [{"method": "GET", "path": "/orders/1"}])
     chain = _chain(sid, conn)

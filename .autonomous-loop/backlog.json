@@ -1,0 +1,36 @@
+{
+  "project": "D:\\test agent_docker",
+  "created": "2026-10-31",
+  "updated": "2026-10-31",
+  "baseline": {
+    "test_cmd": "python -m pytest -q",
+    "guard_cmd": "python scripts/module_check.py",
+    "frontend_cmd": "node --check test_agent/api/static/app.js",
+    "corpus_validate": "python scripts/build_corpus.py validate data/corpus/corpus-003",
+    "corpus_calibrate": "python scripts/calibrate_corpus.py corpus-003",
+    "protected_paths": ["data/test_agent.db", "data/workspaces/**", "data/corpus/**/grade_task*.json"],
+    "max_files": 3,
+    "max_lines": 150,
+    "timebox_min": 20,
+    "commit_mode": "on",
+    "commit_state": "on",
+    "full_suite_max_min": 10,
+    "note": "DeepSeek 402：禁止 run_task/run_e7/run_grid/grade_corpus；真实库只读。"
+  },
+  "source": ["docs/体检报告-20261031.md", "docs/自主循环-台账.md"],
+  "items": [
+    {"id": "P1-1", "severity": "P1", "title": "存储型 XSS：工作台/报告页任务名未转义", "evidence": "zcode 体检报告 P1-1；app.js:122/204 原为 ${t.project_name}", "files": ["test_agent/api/static/app.js"], "acceptance": "两处 option 模板均走 esc()；grep 无未转义插值；node --check OK", "status": "done", "attempts": 1, "loop": 4},
+    {"id": "P1-2", "severity": "P1", "title": "溯源链焦点路由缺边时回退全部端点，假定位", "evidence": "traceability.py:251 原 `or roots`；体检报告 EXP2", "files": ["test_agent/skills/traceability.py", "tests/test_traceability.py"], "acceptance": "缺焦点边时 CODE 节点为空且 gaps 含说明；新增回归测试修复前红/修复后绿", "status": "done", "attempts": 1, "loop": 1},
+    {"id": "P1-3", "severity": "P1", "title": "报告规则闸可被“通过率 100%”等措辞绕过", "evidence": "zcode 体检报告 P1-3；evaluate.py:380-419 只匹配固定措辞", "files": ["test_agent/skills/evaluate.py", "tests/test_eval_tools.py"], "acceptance": "通过率百分比与 pass_rate 比对；同义“无遗留/验证完毕”纳入红线；新增纯函数单测", "status": "open", "attempts": 0},
+    {"id": "P1-4", "severity": "P1", "title": "LLM imports 未审 + 容器网络未隔离的提示注入链", "evidence": "zcode 体检报告 P1-4；gen_tests.py:676-680 / runner.py:70-77", "files": ["test_agent/skills/gen_tests.py", "test_agent/sandbox/runner.py"], "acceptance": "纯 import 白名单审计单测；容器网络限制或论文威胁边界明确记录", "status": "open", "attempts": 0},
+    {"id": "P1-5", "severity": "P1", "title": "审计基线移动靶：README/AGENTS 数字与实时 HEAD 漂移", "evidence": "zcode 体检报告 P1-5/H-1；README 299 vs 实测 320+", "files": ["README.md", "AGENTS.md"], "acceptance": "基线数字只在一处维护，或改为命令输出而不写死；并发会话提交后统一同步", "status": "open", "attempts": 0},
+    {"id": "P2-1", "severity": "P2", "title": "D10 L4 卡只读 test_levels.summary，显示 --，忽略 /levels.scenarios", "evidence": "app.js:220 原 levelMetric(l) 仅用 l.summary；L4 summary 只有 scenarios/rejected", "files": ["test_agent/api/static/app.js"], "acceptance": "L4 卡显示 场景 21/已确认 2/转化 2；Playwright 0 控制台错误", "status": "done", "attempts": 1, "loop": 3},
+    {"id": "P2-2", "severity": "P2", "title": "script_level 仅凭 requests 子串误判 L1 为 L2", "evidence": "traceability.py:67 原 `\"requests\" in c`", "files": ["test_agent/skills/traceability.py", "tests/test_traceability.py"], "acceptance": "需 requests+BASE 才判 L2；L1 import requests 辅助用例判 L1；测试锁死", "status": "done", "attempts": 1, "loop": 2},
+    {"id": "P2-3", "severity": "P2", "title": "api_smoke 未覆盖 /trace 与 /levels 新端点", "evidence": "scripts/api_smoke.py 15 项；新端点仅在单测/Playwright 验证", "files": ["scripts/api_smoke.py", "README.md"], "acceptance": "冒烟新增 trace/levels 200+404 探针，计数同步；需服务与余额恢复后跑", "status": "open", "attempts": 0},
+    {"id": "P2-4", "severity": "P2", "title": "module_check 未钉 /levels API 入口契约", "evidence": "module_check.py 仅检查 /trace 入口", "files": ["scripts/module_check.py"], "acceptance": "新增 /levels 入口与 scenarios 字段契约；守卫 OK 数增加", "status": "open", "attempts": 0},
+    {"id": "P2-5", "severity": "P2", "title": "corpus-003 标定只靠脚本，未进 pytest 回归", "evidence": "scripts/calibrate_corpus.py 独立运行；tests/ 无对应文件", "files": ["tests/"], "acceptance": "新增轻量测试或模块检查契约，防止语料漂移未被发现", "status": "open", "attempts": 0},
+    {"id": "P2-6", "severity": "P2", "title": "run_e7 blocked/均值排除逻辑无单测", "evidence": "scripts/run_e7_corpus003.py status=blocked 分支", "files": ["scripts/run_e7_corpus003.py", "tests/"], "acceptance": "纯函数化或单测覆盖 blocked 不计均值/摘要字段", "status": "open", "attempts": 0},
+    {"id": "P2-7", "severity": "P2", "title": "config L3/L4 默认关注释互换", "evidence": "config.py:41-43 原 L4 行同时挂 L3 注释", "files": ["test_agent/config.py"], "acceptance": "L3/L4 各归其位；守卫默认值不变", "status": "done", "attempts": 1, "loop": 4},
+    {"id": "P2-8", "severity": "P2", "title": "README/AGENTS 回归数字与实时测试数漂移", "evidence": "体检报告 H-1；并发会话导致 299→320→321 移动", "files": ["README.md", "AGENTS.md"], "acceptance": "稳定时统一同步；或改为“以 pytest 输出为准”避免写死", "status": "open", "attempts": 0}
+  ]
+}

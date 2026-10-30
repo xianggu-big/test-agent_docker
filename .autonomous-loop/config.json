@@ -1,0 +1,5 @@
+{
+  "created": "2026-10-31",
+  "role": "autonomous quality loop",
+  "note": "由本会话按“审计→修复→测试→复验”方案建立；可被后续 zcode 任务直接读取。"
+}

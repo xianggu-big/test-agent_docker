@@ -64,7 +64,9 @@ def script_level(framework: str | None, content: str | None) -> str:
     if (framework or "") == "acceptance":
         return "L4"
     c = content or ""
-    if "requests" in c or re.search(r"BASE\s*=\s*['\"]http", c):
+    # L2 生成脚本同时具备 requests 依赖与 BASE 端点地址；只用 "requests" 子串会把
+    # 某些 import requests 做辅助的 L1 用例误判成 L2（单测锁定该边界）。
+    if "requests" in c and re.search(r"BASE\s*=\s*['\"]http", c):
         return "L2"
     return "L1"
 
@@ -248,7 +250,11 @@ def _code_nodes(conn, task_id: int, focus_routes: list[str]) -> tuple[list[dict]
         else:
             adj.setdefault(e["caller"], []).append(e)
     wanted = {f"route:{r}" for r in focus_routes}
-    roots = [r for r in roots if r["caller"] in wanted] or roots
+    # 失败端点没有调用图映射时，绝不能回退到"所有端点根"——那会把别的端点的
+    # 代码位置当作本场景的溯源结果（假定位）。缺环如实 gaps。
+    roots = [r for r in roots if r["caller"] in wanted] if focus_routes else []
+    if not roots:
+        return [], ["调用图无该端点 handler 映射——代码位置缺席"]
     out, seen = [], set()
     for root in roots:
         stack = [root]
