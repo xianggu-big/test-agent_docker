@@ -115,6 +115,35 @@ def fig4_2():
             fontsize=8, color="#607D8B")
     fig.tight_layout(); fig.savefig(f"{OUT}/图4-2_单元级九节点编排与条件边.png", dpi=220); plt.close(fig)
 
+# ---------------- 图 6-2 每检出缺陷 token 成本（T016，数据=表 6-6 聚合） ----------------
+def fig6_cost():
+    """每检出缺陷 token 成本 = 格 token 均值 / (recall 均值 × 真实缺陷 3)。
+    数据源=链路文档聚合表（表 6-6 同源）；X5 n=1 不入；corpus-002 全 0（无检出，除法无意义）不画。"""
+    import numpy as np
+    # (格, n, token 均值, recall 均值)——与表 6-6 / 链路文档聚合逐字对齐
+    cells = [("X1 基线", 3, None, 0.56), ("X2 无方法骨架", 3, None, 0.78),
+             ("X3 无 plan/RTM", 3, None, 0.33), ("X4 无缺口回灌", 3, None, 0.56),
+             ("X6 证人补测", 4, 27649, 0.42), ("X7 交叉语义审", 4, 35937, 0.67),
+             ("A1 断言闸", 7, 25248, 0.67), ("B1 属性测试", 6, 25365, 0.50),
+             ("C1 缺口回灌", 5, 33021, 0.53)]
+    names, costs, toks = [], [], []
+    for name, n, tok, recall in cells:
+        detected = recall * 3  # corpus-001 真实缺陷 3 条
+        if tok is not None and detected > 0:
+            names.append(name); costs.append(tok / detected); toks.append(tok)
+    fig, ax = plt.subplots(figsize=(9.2, 4.2))
+    xs = np.arange(len(names))
+    bars = ax.bar(xs, costs, 0.55, color="#90CAF9", edgecolor="#1E88E5")
+    for x, b, t in zip(xs, bars, toks):
+        ax.text(x, b.get_height() + 300, f"{int(t/1000)}k",
+                ha="center", fontsize=8, color="#607D8B")
+    ax.set_xticks(xs); ax.set_xticklabels(names, fontsize=8.5, rotation=14)
+    ax.set_ylabel("每检出一个缺陷的 token 成本", fontsize=9)
+    ax.set_title("图 6-2 质量组件的每检出缺陷 token 成本（corpus-001，柱上数字为单任务 token 均值）",
+                 fontsize=10)
+    ax.grid(axis="y", ls="--", alpha=.3)
+    fig.tight_layout(); fig.savefig(f"{OUT}/图6-2_每检出缺陷token成本.png", dpi=220); plt.close(fig)
+
 if __name__ == "__main__":
-    fig3_1(); fig4_1(); fig4_2()
+    fig3_1(); fig4_1(); fig4_2(); fig6_cost()
     print("figures written to", OUT)
