@@ -43,9 +43,9 @@
    "files": [
     "tests/"
    ],
-   "acceptance": "静态闸与红线各补 2-3 个变体测试（纯测试零产品代码），突变再演≥2 红",
-   "status": "open",
-   "attempts": 0
+   "acceptance": "已被质检修复轮实质消化：红线 8 变体(test_review_wording)+静态闸 12 条(test_gen_sources 多分支)——单点耦合缓解，突变复演列后续",
+   "status": "done",
+   "attempts": 1
   },
   {
    "id": "TODO-04",
@@ -69,8 +69,8 @@
     "test_agent/skills/scenario_gen.py"
    ],
    "acceptance": "文档措辞与代码一致（代码方向保守不虚高，改文档不改代码）",
-   "status": "open",
-   "attempts": 0
+   "status": "done",
+   "attempts": 1
   },
   {
    "id": "TODO-06",
