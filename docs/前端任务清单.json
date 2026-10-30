@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "date": "2026-10-31",
+    "design_source": "用户设计图（cart-service 四级平台稿）",
+    "stack": "FastAPI + 原生 HTML/CSS/JS（不引框架/构建链）",
+    "static_dir": "test_agent/api/static/",
+    "authority": "docs/前端设计分析-20261031.md",
+    "acceptance_common": "Playwright 断言 + 三断点(1440/768/375)截图 + 0 控制台错误；数据全部来自现有 API，缺接口按设计分析§2 标注降级口径",
+    "rules": [
+      "安全优先：F01 XSS 先于一切视觉任务",
+      "详情页=纯增量，不破坏现有 5 页路由与鉴权",
+      "每任务完成即路径范围化 commit；真数据纪律——无数据渲染空态，不填 0 不造假"
+    ]
+  },
+  "tasks": [
+    {"id": "F01", "phase": "安全", "title": "存储型 XSS 修复：app.js project_name 两处过 esc", "files": ["test_agent/api/static/app.js"], "apis": [], "deps": [], "acceptance": "app.js 内所有插值入口均经 esc()；用含 <img onerror> 的项目名建任务验证不执行", "verify": "Playwright：任务名注入样本显示为文本；0 控制台错误", "estimate": "0.5h", "priority": "P0"},
+    {"id": "F02", "phase": "骨架", "title": "CSS token + 响应式断点骨架", "files": ["test_agent/api/static/style.css"], "apis": [], "deps": [], "acceptance": ":root 语义色/字号/阴影 token 齐全；@media 1199/767 两断点；现页面无回归破坏", "verify": "Playwright 三断点截图对照；现有 5 页渲染正常", "estimate": "2h", "priority": "P0"},
+    {"id": "F03", "phase": "详情页", "title": "任务详情页骨架 #/task/{tid}（task-hero+需求卡+sec-title+空态）", "files": ["test_agent/api/static/index.html", "app.js"], "apis": ["GET /api/tasks/{tid}", "GET /api/tasks/{tid}/report"], "deps": ["F02"], "acceptance": "hash 路由可达；标题/ID徽章/元信息(含已运行时长前端算)/需求卡渲染；无报告任务显示空态", "verify": "Playwright：#/task/161 与空任务两样本", "estimate": "3h", "priority": "P0"},
+    {"id": "F04", "phase": "级别卡", "title": "级别卡组件重写 level-card2（顶边色条+四态徽章+指标行+动作链接）", "files": ["style.css", "app.js"], "apis": [], "deps": ["F02"], "acceptance": "四态徽章（已完成✓/●运行中/待人工确认/清单待审）与 L1绿/L2蓝/L3橙/L4灰 顶边；指标行点线对齐", "verify": "Playwright：任务151 四卡四态齐", "estimate": "3h", "priority": "P0"},
+    {"id": "F05", "phase": "流水线", "title": "流水线胶囊条（9 节点三态+调度说明行，/logs 前缀确定性解析）", "files": ["app.js", "style.css"], "apis": ["GET /api/tasks/{tid}/logs", "GET /api/tasks/{tid}/levels"], "deps": ["F03"], "acceptance": "节点三态渲染；无消息节点=排队灰；调度行=levels+rounds 合成；解析函数有单测", "verify": "Playwright：任务151/161 节点态与日志一致；JS 单测（node --test 或 pytest 侧字符串函数）", "estimate": "3h", "priority": "P0"},
+    {"id": "F06", "phase": "级别卡", "title": "L1 卡数据接线（用例数/通过率/覆盖率/缺陷+方法标注）", "files": ["app.js"], "apis": ["GET /api/tasks/{tid}/report", "GET /api/tasks/{tid}/rtm"], "deps": ["F04"], "acceptance": "四指标真数据；缺陷=product 时红色；无报告=空态", "verify": "Playwright：任务161 卡值=API 值逐项断言", "estimate": "1.5h", "priority": "P0"},
+    {"id": "F07", "phase": "级别卡", "title": "L2/L3/L4 卡数据接线", "files": ["app.js"], "apis": ["GET /api/tasks/{tid}/levels", "GET /api/tasks/{tid}/scenarios"], "deps": ["F04"], "acceptance": "L2 端点/契约违背来自 levels summary；L3 场景/冒烟/失败场景 id；L4 GWT/已确认；缺字段行不渲染（不填 0）", "verify": "Playwright：任务151 三卡断言", "estimate": "2h", "priority": "P0"},
+    {"id": "F08", "phase": "溯源", "title": "溯源链面板升级（面板化+链节点+失败红标+gaps 如实）", "files": ["index.html", "app.js", "style.css"], "apis": ["GET /api/tasks/{tid}/trace"], "deps": ["F03"], "acceptance": "chains 渲染节点链；gaps>0 显示'缺环 N'徽章；零链=空态", "verify": "Playwright：任务151 五链零 gaps 渲染", "estimate": "2h", "priority": "P0"},
+    {"id": "F09", "phase": "顶栏", "title": "顶栏状态胶囊组（Docker/镜像×N/API Key）", "files": ["index.html", "app.js", "style.css"], "apis": ["GET /api/env/status"], "deps": ["F02"], "acceptance": "items 映射三胶囊（blocking 项）+保留一键准备；异常态红/准备中脉冲", "verify": "Playwright：三胶囊渲染与 /env/status 一致", "estimate": "1.5h", "priority": "P0"},
+    {"id": "F10", "phase": "归因", "title": "缺陷归因清单面板（摘要态：defects+日志 FAILED 行）", "files": ["index.html", "app.js", "style.css"], "apis": ["GET /api/tasks/{tid}/report", "GET /api/tasks/{tid}/logs"], "deps": ["F03"], "acceptance": "三分类徽章（product 红/case 黄/env 灰）；'宁可误报不可造假'口径文案；per-case 明细位标注'需后端新增 /defects API'", "verify": "Playwright：任务159（假缺陷样本）面板渲染", "estimate": "2h", "priority": "P1"},
+    {"id": "F11", "phase": "入口", "title": "任务列表/报告页入口改造（查看→详情页）", "files": ["app.js", "index.html"], "apis": [], "deps": ["F03"], "acceptance": "列表'报告'按钮跳 #/task/{tid}；详情页内'深度报告'回 #/reports 并选中同任务", "verify": "Playwright：往返跳转断言", "estimate": "1h", "priority": "P1"},
+    {"id": "F12", "phase": "四态", "title": "空态/加载态/错误态统一组件", "files": ["style.css", "app.js"], "apis": [], "deps": ["F02"], "acceptance": ".empty/.loading/.error 三类样式+渲染函数；详情页/级别卡/溯源/归因四区域接入", "verify": "Playwright：断网/空任务两样本", "estimate": "2h", "priority": "P1"},
+    {"id": "F13", "phase": "导航", "title": "顶导航（测试任务/报告中心/镜像管理/执行环境 → 现有页映射）", "files": ["index.html", "style.css", "app.js"], "apis": [], "deps": ["F02"], "acceptance": "4 项映射现有 hash 路由；桌面顶导航+sidebar 并存，<768 sidebar 折叠", "verify": "Playwright：4 项跳转断言", "estimate": "1.5h", "priority": "P1"},
+    {"id": "F14", "phase": "关系", "title": "详情页与报告页共存关系（互链+职责说明）", "files": ["index.html", "app.js"], "apis": [], "deps": ["F03", "F11"], "acceptance": "详情页=概览聚合；报告页=深度分析（用例库/RTM/日志/导出）；两页互链可达", "verify": "Playwright：互链断言", "estimate": "1h", "priority": "P1"},
+    {"id": "F15", "phase": "动作", "title": "L3 确认/L4 审阅动作接进级别卡", "files": ["app.js"], "apis": ["POST /api/scenarios/{sid}/confirm", "POST /api/tasks/{tid}/l4/convert", "GET /api/tasks/{tid}/scenarios"], "deps": ["F07"], "acceptance": "pending_confirm 场景卡内可确认（三选一）；L4 convert 按钮接现有 API；staff 才可见", "verify": "Playwright：caller 隐藏+admin 可操作（stub 环境可跑则真机）", "estimate": "2h", "priority": "P1"},
+    {"id": "F16", "phase": "权限", "title": "无权限态（caller 隐藏操作位+403 统一提示）", "files": ["app.js", "style.css"], "apis": ["GET /api/me"], "deps": ["F12"], "acceptance": "caller 视角无确认/转化按钮；403 响应渲染统一错误态", "verify": "Playwright：caller 登录双样本", "estimate": "1h", "priority": "P1"},
+    {"id": "F17", "phase": "级别计划", "title": "任务级'级别计划'展示（降级=实际执行级别口径）", "files": ["app.js"], "apis": ["GET /api/tasks/{tid}/levels"], "deps": ["F03"], "acceptance": "元信息行显示'实际执行：L1✅ L2✅…'（test_levels 行）；不虚构任务参数；需后端项标注", "verify": "Playwright：任务151/161 断言", "estimate": "1h", "priority": "P1"},
+    {"id": "F18", "phase": "后端配合", "title": "[需后端新增] 三件：tasks/{tid} 附 project_name+language；L2 summary 补契约用例/顺序场景数；GET /defects API", "files": ["test_agent/api/server.py"], "apis": [], "deps": [], "acceptance": "三接口字段落地+TestClient 单测；前端 F03/F07/F10 升级为完整态", "verify": "pytest tests/test_api_* 新增 3 断言；Playwright 复验", "estimate": "3h", "priority": "P2", "note": "属后端任务；不阻塞 P0/P1 降级口径"},
+    {"id": "F19", "phase": "对齐", "title": "设置/镜像管理页对齐 token", "files": ["style.css"], "apis": ["GET /api/config", "GET /api/images"], "deps": ["F02"], "acceptance": "现页面样式统一无回归", "verify": "Playwright 截图", "estimate": "1h", "priority": "P2"},
+    {"id": "F20", "phase": "动效", "title": "状态动效（运行中脉冲/卡片过渡）", "files": ["style.css"], "apis": [], "deps": ["F04", "F05"], "acceptance": "≤3 处轻动效；prefers-reduced-motion 尊重", "verify": "Playwright 0 控制台错误", "estimate": "1h", "priority": "P2"},
+    {"id": "F21", "phase": "移动", "title": "移动端专项（<768 表格横滚/胶囊收缩）", "files": ["style.css"], "apis": [], "deps": ["F02", "F13"], "acceptance": "375px 无横向溢出（除表格容器内滚）", "verify": "Playwright 375 截图", "estimate": "1.5h", "priority": "P2"},
+    {"id": "F22", "phase": "验收", "title": "Playwright 验收脚本（三断点+三样本+双角色+0 错误）", "files": ["data/reports/verify_frontend.py"], "apis": [], "deps": ["F03", "F04", "F05", "F06", "F07"], "acceptance": "一键跑全套断言+截图归档 data/reports/screenshots/frontend/", "verify": "脚本退出码 0；截图计数≥8", "estimate": "2h", "priority": "P0"},
+    {"id": "F23", "phase": "打磨", "title": "视觉走查像素级校准（对照设计图逐区域）", "files": ["style.css"], "apis": [], "deps": ["F22"], "acceptance": "走查清单逐项勾（间距/字号/色值±容忍度）", "verify": "走查清单文件", "estimate": "2h", "priority": "P2"}
+  ],
+  "cutlist": [
+    "SSE 实时轨迹推送（轮询已够演示）",
+    "暗色主题/主题切换",
+    "组件框架/构建链引入（原生栈=约束也是答辩卖点）",
+    "图表重绘（gen_charts 真数据已内嵌）",
+    "移动端像素级还原（三档可用即达标）",
+    "报告页重写（保留与详情页互补）"
+  ]
+}
