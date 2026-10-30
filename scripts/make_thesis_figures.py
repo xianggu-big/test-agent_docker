@@ -58,8 +58,10 @@ def fig3_1():
 
 # ---------------- 图 4-1 五层总体架构 ----------------
 def fig4_1():
-    fig, ax = plt.subplots(figsize=(11.6, 5.6))
-    ax.set_xlim(0, 11.6); ax.set_ylim(0, 5.6); ax.axis("off")
+    # Loop-5（TODO-11）：原 ylim 5.6 时 caption(y=5.32) 撞界面层框顶(y=5.47)——
+    # 画布扩到 6.05，caption 移到框顶之上的独立行
+    fig, ax = plt.subplots(figsize=(11.6, 6.05))
+    ax.set_xlim(0, 11.6); ax.set_ylim(0, 6.05); ax.axis("off")
     layers = [
         (4.55, "界面层", "任务管理 ｜ 脚本工作台（人工确认门） ｜ 报告页（RTM 矩阵·图表·审查徽章） ｜ 环境状态", "人机协作"),
         (3.45, "编排层", "LangGraph 固定图九节点 ｜ 级别编排器（L1→L2→L3 串行接力） ｜ 条件边（归因分流·三停）", "测试四阶段编排"),
@@ -75,7 +77,7 @@ def fig4_1():
     for y in (3.45, 2.35, 1.25, 0.15):
         for x in (3.6, 6.1, 8.6):
             arrow(ax, x, y + 0.92, x, y + 1.32, style="-", color=ACC, lw=0.9)
-    ax.text(0.18, 5.32, "自上而下：请求经界面层进入编排层，动作经技能层治理后在沙箱层执行，全过程证据落数据层。",
+    ax.text(0.18, 5.82, "自上而下：请求经界面层进入编排层，动作经技能层治理后在沙箱层执行，全过程证据落数据层。",
             fontsize=8.4, color="#607D8B")
     fig.tight_layout(); fig.savefig(f"{OUT}/图4-1_五层总体架构.png", dpi=220); plt.close(fig)
 
