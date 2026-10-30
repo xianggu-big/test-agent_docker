@@ -46,7 +46,7 @@ body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(-
 .legend-title { font-weight: 700; color: var(--text); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .dot-admin { background: var(--primary); } .dot-dev { background: var(--ok); } .dot-caller { background: var(--fail); }
-.main { flex: 1; padding: 20px 24px; }
+.main { flex: 1; padding: 20px 24px; min-width: 0; }  /* Loop-7：flex 子项允许收缩，防表格撑穿 */
 
 /* 卡片与表单 */
 .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 18px; margin-bottom: 16px; }
@@ -95,7 +95,7 @@ textarea { resize: vertical; }
 .case-item code { flex: 1; font-size: 12px; color: var(--text); }
 
 /* 任务表 */
-.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }  /* Loop-7：窄屏换行 */
 .tab { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 16px; font-size: 13px; cursor: pointer; }
 .tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -110,7 +110,7 @@ textarea { resize: vertical; }
 /* 报告 */
 .report-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .report-head select { flex: 1; }
-.metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px; }  /* Loop-7：窄屏自适应换行 */
 .metric { background: #fff; border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 14px 18px; }
 .metric .k { font-size: 12px; color: var(--muted); }
 .metric .v { font-size: 24px; font-weight: 700; margin-top: 4px; }
@@ -125,7 +125,7 @@ textarea { resize: vertical; }
 .img-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f1f3f6; font-size: 13px; }
 .code-view { background: #0f172a; color: #dbe4f0; border-radius: 8px; padding: 14px; font-size: 12px; font-family: Consolas, monospace; overflow: auto; max-height: 360px; white-space: pre-wrap; }
 
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; max-width: 100%; }
 
 /* 报告页图表内嵌（gen_charts 四图，自适配两列/单列） */
 .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin-top: 12px; }
@@ -142,3 +142,6 @@ textarea { resize: vertical; }
 .trace-node.fail { background: #fee2e2; color: var(--fail); }
 .chart-fig figcaption { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .chart-fig img { width: 100%; height: auto; display: block; border-radius: 4px; }
+
+/* Loop-7/TODO-10：窄屏下表格不再挤压成多行乱麻——容器横滚（表保持可读最小宽度） */
+.table-wrap table { min-width: 640px; }
