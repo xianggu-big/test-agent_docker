@@ -58,9 +58,14 @@ function applyRole() {
 
 /* ---------- 路由 ---------- */
 const PAGES = ["new", "workbench", "tasks", "reports", "settings"];
+let TASK_TID = 0;                            // F03 详情页当前任务
 function route() {
   let page = (location.hash || "#/new").replace("#/", "");
-  if (!PAGES.includes(page)) page = "new";
+  if (page.startsWith("task/")) {           // F03 任务详情路由 #/task/{tid}
+    page = "taskdetail";
+    TASK_TID = parseInt(page.split("/") ? (location.hash.split("/")[2] || "0") : "0", 10);
+  }
+  if (!PAGES.includes(page) && page !== "taskdetail") page = "new";
   if (page === "settings" && ME.role !== "admin") page = "new";
   if (page === "workbench" && !(ME.role === "admin" || ME.role === "developer")) page = "new";
   PAGES.forEach(p => $("page-" + p).classList.toggle("hidden", p !== page));
@@ -70,6 +75,7 @@ function route() {
   if (page === "reports") refreshReports();
   if (page === "settings") refreshSettings();
   if (page === "new" && NEW_TASK_ID) pollNewCases(NEW_TASK_ID);
+  if (page === "taskdetail" && TASK_TID) loadTaskDetail(TASK_TID);
   if (page !== "tasks" && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
@@ -398,6 +404,35 @@ async function refreshSettings() {
   const users = await api("/users");
   $("st-users").innerHTML = users.map(u =>
     `<div class="img-row"><span>${esc(u.username)}</span><span class="badge badge-${u.role === "developer" ? "dev" : u.role}">${ROLE_CN[u.role]}</span><span class="hint">创建于 ${esc(u.created_at)}</span></div>`).join("");
+}
+
+// ---------- F03 任务详情页（设计图主页面） ----------
+async function loadTaskDetail(tid) {
+  const [t, reports] = await Promise.all([
+    api(`/tasks/${tid}`).catch(() => null),
+    api(`/tasks/${tid}/report`).catch(() => []),
+  ]);
+  const latest = reports && reports[0];
+  const ex = latest && latest.exec;
+  if (!t) { $("td-hero").innerHTML = '<div class="hint">任务不存在或加载失败</div>'; return; }
+  const name = (t.repo_url || "").split("/").pop() || `任务 ${tid}`;
+  let dur = "";
+  if (ex && ex.started_at && latest.created_at) {
+    const ms = new Date(latest.created_at.replace(" ", "T")) - new Date(ex.started_at.replace(" ", "T"));
+    if (ms > 0 && !isNaN(ms)) dur = `｜已运行 ${ms >= 60000 ? Math.floor(ms/60000) + "m" : ""}${Math.round(ms%60000/1000)}s`;
+  }
+  $("td-hero").innerHTML =
+    `<div style="font-size:26px;font-weight:800">${esc(name)}</div>` +
+    `<span class="badge badge-queued">任务 #${tid}</span>` +
+    `<div class="hint" style="margin-top:6px">状态：${esc(STATUS_CN[t.status] || t.status)}${dur}` +
+    (ex ? `｜执行方式：${esc(ex.mode)}｜执行者：系统自动（${esc(ex.sandbox)}+LLM ${esc(ex.llm)}）` : "") + `</div>`;
+  const req = (latest && latest.narrative) ? "" : "";
+  const trow = await api(`/tasks/${tid}`).catch(() => null);
+  $("td-req").classList.remove("hidden");
+  $("td-req").innerHTML = `<div style="border-left:4px solid var(--ok2);padding-left:14px">` +
+    `<b style="color:var(--ok2)">需求</b>　${esc((trow && trow.requirement_text) || "—")}</div>`;
+  $("td-levels").innerHTML = renderLevels(latest ? latest : null) ||
+    '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>';
 }
 
 async function buildImage(image) {

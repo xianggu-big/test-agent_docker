@@ -4,6 +4,11 @@
   --primary: #2563eb; --primary-weak: #eff4ff; --ok: #16a34a; --fail: #dc2626;
   --run: #2563eb; --warn: #d97706; --text: #1f2937; --muted: #6b7280;
   --bg: #f5f7fa; --card: #ffffff; --line: #e5e7eb; --radius: 12px;
+  /* F02 设计 token（前端设计分析 §1）：语义色/字号阶 */
+  --ok2: #10b981; --info: #3b82f6; --warn2: #f59e0b; --idle: #9ca3af;
+  --text-strong: #111827; --fs-xs: 12px; --fs-sm: 13.5px; --fs-md: 14px;
+  --fs-lg: 16px; --fs-xl: 18px; --fs-hero: 26px;
+  --shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
 .hidden { display: none !important; }
@@ -145,3 +150,20 @@ textarea { resize: vertical; }
 
 /* Loop-7/TODO-10：窄屏下表格不再挤压成多行乱麻——容器横滚（表保持可读最小宽度） */
 .table-wrap table { min-width: 640px; }
+
+/* F02 响应式断点（设计分析 §1.8） */
+@media (max-width: 1199px) {
+  .grid-2 { grid-template-columns: 1fr; }
+  .level-grid { grid-template-columns: repeat(2, 1fr); }
+  .metric-row { grid-template-columns: repeat(2, 1fr); }
+  .sidebar { width: 180px; }
+}
+@media (max-width: 767px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; display: flex; overflow-x: auto; padding: 8px; gap: 4px; }
+  .sidebar nav { display: flex; gap: 4px; }
+  .sidebar .nav-item { white-space: nowrap; padding: 8px 10px; }
+  .role-legend { display: none; }
+  .level-grid { grid-template-columns: 1fr; }
+  .main { padding: 12px; }
+}
