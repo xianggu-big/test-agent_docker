@@ -25,6 +25,7 @@ from .. import config
 from ..graph.builder import run_task
 from ..sandbox import preflight
 from ..sandbox.runner import SandboxRunner
+from ..skills.ai_reviewer import spotcheck_sample
 from ..skills.evaluate import hotspot_coverage
 from ..skills.gen_tests import _rebuild_imported_file, _sanitize_name
 from ..skills.traceability import build_task_traces, build_trace_chain
@@ -36,8 +37,8 @@ log = logging.getLogger(__name__)
 
 ACTIVE = {"cloning", "analyzing", "provisioning", "generating", "running", "reporting"}
 PROGRESS = {"queued": 5, "cloning": 10, "analyzing": 25, "provisioning": 40,
-            "generating": 55, "running": 70, "reporting": 85, "done": 100,
-            "failed": 100, "cancelled": 100}
+            "generating": 55, "ready_for_review": 60, "running": 70, "reporting": 85,
+            "done": 100, "failed": 100, "cancelled": 100}
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="容器化大模型软件测试 Agent", version="1.0.0")
@@ -170,19 +171,26 @@ def api_create_task(body: dict, user: dict = Depends(current_user)):  # 调用�
     if not repo_url or not requirement:
         raise HTTPException(422, "项目地址与自然语言需求必填")
     auto_prepare = 1 if body.get("auto_prepare") else 0
+    two_stage = 1 if body.get("two_stage") else 0
+    ai_reviewer = str(body.get("ai_reviewer") or "off").strip()
+    if ai_reviewer not in ("off", "hybrid", "auto"):
+        raise HTTPException(422, "ai_reviewer 必须是 off/hybrid/auto")
     conn = get_conn()
     name = repo_url.rstrip("/").split("/")[-1] or "project"
     pid = conn.execute("INSERT INTO projects(user_id, repo_url, name) VALUES (?,?,?)",
                        (user["user_id"], repo_url, name)).lastrowid
     tid = conn.execute(
-        "INSERT INTO test_tasks(project_id, user_id, requirement_text, auto_prepare) VALUES (?,?,?,?)",
-        (pid, user["user_id"], requirement, auto_prepare)).lastrowid
+        """INSERT INTO test_tasks(project_id, user_id, requirement_text, auto_prepare,
+                                  two_stage, ai_reviewer) VALUES (?,?,?,?,?,?)""",
+        (pid, user["user_id"], requirement, auto_prepare, two_stage, ai_reviewer)).lastrowid
     conn.commit()
     return {"task_id": tid, "project_name": name}
 
 
 @app.post("/api/tasks/{tid}/confirm")
 def api_confirm(tid: int, user: dict = Depends(staff)):
+    """确认门（fail-closed 结构不变）。两阶段任务：确认=授权+自动启动阶段一
+    （克隆/摸底/考纲/出题），跑完停在 ready_for_review 等审查；单阶段任务行为逐字节不变。"""
     conn = get_conn()
     row = _task_or_404(conn, tid)
     if row["status"] in ACTIVE:
@@ -191,18 +199,67 @@ def api_confirm(tid: int, user: dict = Depends(staff)):
         "UPDATE test_tasks SET confirmed=1, confirmed_by=?, confirmed_at=datetime('now') WHERE id=?",
         (user["user_id"], tid))
     conn.commit()
-    return {"task_id": tid, "confirmed": 1}
+    started = False
+    if row["two_stage"] == 1 and row["status"] not in ("ready_for_review",):
+        # 阶段一自动启动（hybrid/off：跑完停等人工；auto：停等点由代审接管——见 _prep_worker）
+        threading.Thread(target=_prep_worker, args=(tid,), daemon=True).start()
+        started = True
+    return {"task_id": tid, "confirmed": 1, "stage1_started": started}
+
+
+def _prep_worker(tid: int) -> None:
+    """阶段一后台线程：准备图跑完停在 ready_for_review；auto 模式在此接 AI 代审钩子。"""
+    try:
+        from ..graph.builder import run_task_prep
+        run_task_prep(tid)
+        conn = get_conn()
+        row = conn.execute("SELECT ai_reviewer, status FROM test_tasks WHERE id=?", (tid,)).fetchone()
+        if row and row["status"] == "ready_for_review" and row["ai_reviewer"] == "hybrid":
+            from ..skills.ai_reviewer import reviewer_llm, run_review_once
+            try:
+                summary = run_review_once(reviewer_llm(), conn, tid, round_no=1)
+                if summary:
+                    log.info("hybrid 代审完成 task=%s: %s", tid,
+                             {k: summary[k] for k in ("approved", "deleted", "regenerate", "inserted")})
+            except Exception as e:  # noqa: BLE001 —— 代审失败=无决策落库，人工照常审查
+                log.warning("hybrid 代审失败 task=%s: %s: %s", tid, type(e).__name__, e)
+    except Exception as e:  # run_task_prep 已把失败落库，这里只防线程栈崩溃噪音
+        log.error("后台阶段一任务 %s 异常: %s: %s", tid, type(e).__name__, e)
+
+
+def _exec_worker(tid: int) -> None:
+    try:
+        from ..graph.builder import run_task_exec
+        run_task_exec(tid)
+    except Exception as e:
+        log.error("后台阶段二任务 %s 异常: %s: %s", tid, type(e).__name__, e)
+
+
+def _auto_worker(tid: int) -> None:
+    try:
+        from ..graph.builder import run_task_auto
+        run_task_auto(tid)
+    except Exception as e:
+        log.error("后台代审链任务 %s 异常: %s: %s", tid, type(e).__name__, e)
 
 
 @app.post("/api/tasks/{tid}/run")
 def api_run(tid: int, user: dict = Depends(staff)):
+    """下发执行。两阶段任务：仅待审查态可放行阶段二（执行图）；单阶段任务行为逐字节不变。"""
     conn = get_conn()
     row = _task_or_404(conn, tid)
     if row["status"] in ACTIVE:
         raise HTTPException(409, "任务正在执行中")
     if row["confirmed"] != 1:
         raise HTTPException(409, "任务未确认（fail-closed 确认门），禁止下发")
-    # L1 环境守卫：Docker/工作区缺失时自动开始补齐，不把"环境没准备"留到图里炸
+    if row["two_stage"] == 1:
+        if row["status"] != "ready_for_review":
+            raise HTTPException(409, "两阶段任务需先完成阶段一（确认后自动跑准备阶段），"
+                                     "当前状态：" + row["status"])
+        # L1 环境守卫：Docker/工作区缺失时自动开始补齐，不把"环境没准备"留到图里炸
+        env_gate()
+        threading.Thread(target=_exec_worker, args=(tid,), daemon=True).start()
+        return {"task_id": tid, "started": True, "stage": 2}
     env_gate()
     threading.Thread(target=_run_worker, args=(tid,), daemon=True).start()
     return {"task_id": tid, "started": True}
@@ -243,7 +300,8 @@ def api_stop(tid: int, user: dict = Depends(staff)):
 def api_tasks(user: dict = Depends(current_user)):
     conn = get_conn()
     rows = conn.execute(
-        """SELECT t.id, t.status, t.confirmed, t.requirement_text, t.error, t.created_at,
+        """SELECT t.id, t.status, t.confirmed, t.two_stage, t.ai_reviewer,
+                  t.requirement_text, t.error, t.created_at,
                   p.name AS project_name, p.repo_url, p.primary_language,
                   (SELECT COUNT(*) FROM test_cases c
                     JOIN test_scripts sc ON sc.id = c.script_id WHERE sc.task_id = t.id) AS cases,
@@ -537,7 +595,8 @@ def api_add_case(tid: int, body: dict, user: dict = Depends(staff)):
 
 @app.post("/api/cases/{case_id}/toggle")
 def api_toggle_case(case_id: int, user: dict = Depends(staff)):
-    """用例启停：imported 用例重建工作区文件即生效；AI 生成脚本为不可变版本，v1 不支持。"""
+    """用例启停。imported 用例重建 test_imported.py；AI 生成用例在待审查态可启停
+    （两阶段评审的"取消用例"——布考场按审查结论重写生成文件即生效），执行链路中仍不可变。"""
     conn = get_conn()
     row = conn.execute(
         """SELECT c.enabled, c.source, s.id AS script_id, s.task_id FROM test_cases c
@@ -547,16 +606,137 @@ def api_toggle_case(case_id: int, user: dict = Depends(staff)):
     task = conn.execute("SELECT status FROM test_tasks WHERE id=?", (row["task_id"],)).fetchone()
     if task and task["status"] in ACTIVE:
         raise HTTPException(409, "任务执行中，禁止切换用例状态")
-    if row["source"] != "imported":
-        raise HTTPException(409, "v1 仅支持人工/导入用例启停；AI 生成脚本为不可变版本")
+    if row["source"] != "imported" and task["status"] != "ready_for_review":
+        raise HTTPException(409, "AI 生成脚本为不可变版本（仅两阶段待审查态可启停）")
     conn.execute("UPDATE test_cases SET enabled=? WHERE id=?", (0 if row["enabled"] else 1, case_id))
     conn.commit()
-    content = _rebuild_imported_file(conn, row["task_id"],
-                                     Path(config.DATA_DIR) / "workspaces" / f"task_{row['task_id']}")
-    conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
-                 (content, hashlib.sha256(content.encode()).hexdigest()[:16], row["script_id"]))
-    conn.commit()
+    if row["source"] == "imported":
+        content = _rebuild_imported_file(conn, row["task_id"],
+                                         Path(config.DATA_DIR) / "workspaces" / f"task_{row['task_id']}")
+        conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
+                     (content, hashlib.sha256(content.encode()).hexdigest()[:16], row["script_id"]))
+        conn.commit()
+    else:
+        from ..skills.gen_tests import rebuild_gen_files_from_db
+        rebuild_gen_files_from_db(conn, row["task_id"],
+                                  Path(config.DATA_DIR) / "workspaces" / f"task_{row['task_id']}")
     return {"case_id": case_id, "enabled": 0 if row["enabled"] else 1}
+
+
+# ---------- 两阶段评审：对话增补 / AI 代审决策（docs/两阶段设计 + docs/AI代审设计） ----------
+
+@app.post("/api/tasks/{tid}/feedback")
+def api_feedback(tid: int, body: dict, user: dict = Depends(staff)):
+    """对话框增补（两阶段评审页）：人工反馈 → 定向增补生成（独立 test_gen_fbN.py，
+    走同一三道闸，不动已批准用例），预算 FEEDBACK_MAX_ROUNDS 轮；AI 代审的
+    regenerate 决策走同一管线（同端点语义）。同步返回增补摘要（评审页刷新用例清单）。"""
+    feedback = str(body.get("feedback", "")).strip()
+    if not feedback:
+        raise HTTPException(422, "反馈文本必填")
+    _task_or_404(get_conn(), tid)
+    from ..graph.builder import run_feedback_round
+    try:
+        summary = run_feedback_round(tid, feedback)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    return summary
+
+
+@app.get("/api/tasks/{tid}/review-decisions")
+def api_review_decisions(tid: int, user: dict = Depends(current_user)):
+    """审查意见书（AI 代审决策台账）：决策/对象/理由/证据/角色/轮次 + hybrid 抽检标记。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    rows = [dict(r) for r in conn.execute(
+        """SELECT id, decision, target, reasoning, evidence, reviewer_role, round, created_at
+           FROM review_decisions WHERE task_id=? ORDER BY id""", (tid,))]
+    latest_round = max((r["round"] for r in rows), default=0)
+    sample = spotcheck_sample(tid, [r["id"] for r in rows if r["round"] == latest_round]) \
+        if latest_round else set()
+    for r in rows:
+        r["evidence"] = _safe_json(r["evidence"])
+        r["spotcheck"] = r["id"] in sample and r["reviewer_role"] == "ai_proxy"
+    return {"decisions": rows, "spotcheck_ratio": 0.2,
+            "pending_spotcheck": sum(1 for r in rows if r["spotcheck"])}
+
+
+def _safe_json(text):
+    try:
+        return json.loads(text) if text else None
+    except (TypeError, ValueError):
+        return None
+
+
+@app.post("/api/review-decisions/{did}/spotcheck")
+def api_spotcheck(did: int, body: dict, user: dict = Depends(staff)):
+    """hybrid 抽检：uphold=同意 / override=推翻。推翻也落库（对齐信号）；
+    推翻"删除"决策同时恢复用例启用（人工意志即时生效）。"""
+    conn = get_conn()
+    from ..skills.ai_reviewer import record_spotcheck
+    try:
+        out = record_spotcheck(conn, did, str(body.get("verdict", "")),
+                               str(body.get("note", "")), user["user_id"])
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return out
+
+
+@app.post("/api/tasks/batch/ai-reviewer")
+def api_batch_reviewer(body: dict, user: dict = Depends(staff)):
+    """批量开关（AI代审设计 §5）：对 N 个任务批量设置 ai_reviewer 模式。
+    执行链路中的任务跳过。返回逐任务结果。"""
+    mode = str(body.get("mode", "")).strip()
+    if mode not in ("off", "hybrid", "auto"):
+        raise HTTPException(422, "mode 必须是 off/hybrid/auto")
+    ids = body.get("task_ids") or []
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(422, "task_ids 必填（数组）")
+    conn = get_conn()
+    out = []
+    for tid in ids:
+        row = conn.execute("SELECT status FROM test_tasks WHERE id=?", (tid,)).fetchone()
+        if row is None:
+            out.append({"task_id": tid, "applied": False, "reason": "不存在"})
+        elif row["status"] in ACTIVE:
+            out.append({"task_id": tid, "applied": False, "reason": "执行中"})
+        else:
+            conn.execute("UPDATE test_tasks SET ai_reviewer=? WHERE id=?", (mode, tid))
+            out.append({"task_id": tid, "applied": True})
+    conn.commit()
+    return {"mode": mode, "results": out}
+
+
+@app.post("/api/tasks/batch/auto-run")
+def api_batch_auto_run(body: dict, user: dict = Depends(staff)):
+    """批量代审链入口：对已开 auto 且未确认的任务启动 D1→阶段一→D2→阶段二 全链。
+    任何任务停在等待点都如实返回（fail-closed 交人工），不影响其他任务。"""
+    ids = body.get("task_ids") or []
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(422, "task_ids 必填（数组）")
+    conn = get_conn()
+    out = []
+    for tid in ids:
+        row = conn.execute("SELECT status, confirmed, ai_reviewer FROM test_tasks WHERE id=?",
+                           (tid,)).fetchone()
+        if row is None:
+            out.append({"task_id": tid, "started": False, "reason": "不存在"})
+        elif row["ai_reviewer"] != "auto":
+            out.append({"task_id": tid, "started": False, "reason": "未开启 auto 代审"})
+        elif row["status"] in ACTIVE:
+            out.append({"task_id": tid, "started": False, "reason": "执行中"})
+        elif row["status"] == "ready_for_review" and row["confirmed"] == 1:
+            threading.Thread(target=_exec_worker, args=(tid,), daemon=True).start()
+            out.append({"task_id": tid, "started": True, "stage": 2})
+        elif row["confirmed"] == 1:
+            out.append({"task_id": tid, "started": False, "reason": f"状态 {row['status']} 无需代审"})
+        else:
+            threading.Thread(target=_auto_worker, args=(tid,), daemon=True).start()
+            out.append({"task_id": tid, "started": True, "stage": "auto"})
+    return {"results": out}
 
 
 # ---------- 设置页（仅管理员）：基础配置 / 镜像管理 ----------

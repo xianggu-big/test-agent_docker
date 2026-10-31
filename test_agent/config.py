@@ -76,6 +76,17 @@ DEEPSEEK_MODEL = "deepseek-chat"
 
 # —— 三源知识注入（docs/领域知识注入调研-20261031.md：C docstring/A 用法锚点/B 陷阱库，默认关做消融） ——
 DOCSTRING_GROUNDING_ENABLED = False  # C源：目标函数 docstring 注入生成提示词（预期冲突时以 docstring 为准）
+USAGE_EXAMPLES_ENABLED = False       # A源：仓库自带测试的调用形态注入（断言已剥离——只锚定 API 用法层，
+                                     # 不锚定预期输出值；防迁就切分线，全过率上升=迁就发生应回滚）
+PITFALL_KB_ENABLED = False           # B源：语言×类型陷阱清单注入错误推测法（curated 清单=文献空白点；
+                                     # 发现二前车之鉴：很可能无效，负结果如实写，与发现二互证）
+
+# —— 两阶段人机协作（docs/两阶段人机协作流程设计-20261031.md；任务级 two_stage 开关） ——
+FEEDBACK_MAX_ROUNDS = 5              # 对话增补预算封顶：增补 ≤5 轮（防"再来一次"无限对话）
+
+# —— AI 代审（docs/AI代审设计-20261031.md：任务级 ai_reviewer off/hybrid/auto） ——
+AI_REVIEWER_TOKEN_BUDGET = 80_000    # 代审停车线（任务级）：D2 审查+增补循环 token 超线即停等人工（fail-closed）
+AI_REVIEWER_MAX_ROUNDS = 5           # auto 模式 D2 审查→增补→再审循环上限（与 FEEDBACK_MAX_ROUNDS 同源语义）
 
 # —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
 LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg

@@ -7,8 +7,9 @@
 --   * 时间统一 TEXT ISO8601（UTC）；比值/覆盖率用 REAL（0~1）；耗时毫秒 INTEGER
 --   * 枚举用 TEXT + CHECK，不建字典表（本科规模，简单优先）
 --   * 外键运行时开启：PRAGMA foreign_keys = ON
---   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 22 张
---     （18 张 L1 全链路 + 19-22 张四级双轨 P1/P2：test_levels / interface_endpoints / call_edges / scenario_cases）
+--   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 23 张
+--     （18 张 L1 全链路 + 19-22 张四级双轨 P1/P2：test_levels / interface_endpoints / call_edges / scenario_cases
+--      + 第 23 张 review_decisions：AI 代审/人工审查决策台账，决策必须结构化+可解释）
 -- ============================================================================
 
 PRAGMA journal_mode = WAL;
@@ -59,10 +60,14 @@ CREATE TABLE IF NOT EXISTS test_tasks (
   status           TEXT NOT NULL DEFAULT 'queued'
                    CHECK (status IN ('queued','cloning','analyzing','provisioning',
                                      'generating','running','reporting',
+                                     'ready_for_review',
                                      'done','failed','cancelled')),
-  confirmed        INTEGER NOT NULL DEFAULT 0,        -- 人工确认门：0 = 禁止下发执行
+  confirmed        INTEGER NOT NULL DEFAULT 0,        -- 确认门：0 = 禁止下发；两阶段任务确认=授权启动阶段一
   auto_prepare     INTEGER NOT NULL DEFAULT 0,        -- 沙箱自适应：1 = 开局自动拉取/构建执行镜像（模式③）
-  confirmed_by     INTEGER REFERENCES users(id),
+  two_stage        INTEGER NOT NULL DEFAULT 0,        -- 两阶段人机协作：1 = 确认后先跑准备阶段（克隆/摸底/考纲/出题），停在 ready_for_review 等审查
+  ai_reviewer      TEXT NOT NULL DEFAULT 'off'
+                   CHECK (ai_reviewer IN ('off','hybrid','auto')),  -- AI 代审三模式（docs/AI代审设计-20261031.md）
+  confirmed_by     TEXT,                              -- 满足确认门的主体：用户 id 或 agent:reviewer-<session>（AI 代审，问责链）
   confirmed_at     TEXT,
   error            TEXT,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
@@ -98,6 +103,7 @@ CREATE TABLE IF NOT EXISTS test_scripts (
   module_id    INTEGER REFERENCES modules(id),
   framework    TEXT NOT NULL,             -- pytest / junit5
   version      INTEGER NOT NULL DEFAULT 1,
+  filename     TEXT,                      -- 工作区文件名（test_gen_r1.py / test_gen_fb1.py…）：布考场按审查结论重建文件的键
   content      TEXT NOT NULL,             -- 脚本全文（含固定框架 + 已插入用例）
   content_hash TEXT NOT NULL,
   confirmed_by INTEGER REFERENCES users(id),
@@ -355,3 +361,20 @@ CREATE TABLE IF NOT EXISTS scenario_cases (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_scenarios_task ON scenario_cases(task_id, level);
+
+-- 23) AI 代审/人工审查决策台账（docs/AI代审设计-20261031.md：决策必须结构化+可解释，
+--     reasoning 必须引用证据——条件编号/断言类型/覆盖缺口，静态闸校验防 vibes 审查）
+CREATE TABLE IF NOT EXISTS review_decisions (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id        INTEGER NOT NULL REFERENCES test_tasks(id),
+  decision       TEXT NOT NULL
+                 CHECK (decision IN ('approve','reject','regenerate','insert')),
+  target         TEXT,                   -- 决策对象：任务级准入='task' / 用例名 / '用例集' / 缺失行为描述
+  reasoning      TEXT NOT NULL,          -- 审查理由（像人写审查意见：为什么通过/删除/再生成/插入）
+  evidence       TEXT,                   -- JSON：{condition_ids:[...], risk_points/notes}
+  reviewer_role  TEXT NOT NULL DEFAULT 'ai_proxy'
+                 CHECK (reviewer_role IN ('ai_proxy','human')),
+  round          INTEGER NOT NULL DEFAULT 1,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_review_decisions_task ON review_decisions(task_id);

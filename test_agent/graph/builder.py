@@ -1,4 +1,4 @@
-"""StateGraph 组装 + run_task 入口。
+"""StateGraph 组装 + run_task / run_task_prep / run_task_exec / run_task_auto 入口。
 
     主图（对应论文"五阶段 + 带熔断的补测循环"插图）：
 
@@ -9,8 +9,16 @@
 analyze 遇到非深度支持语言时短路到 report（诚实降级）。
 report 后必经 review（评估五工具 + 报告二次审查）；review 只推翻 pass 判定回炉，
 stop（product_defect 证人冻结）不被审查改判。
+
+两阶段人机协作（docs/两阶段人机协作流程设计-20261031.md；任务级 two_stage=1 时启用）：
+    准备图  clone → analyze → plan → generate ─┬─ 正常 → 停在 ready_for_review（待审查停等点）
+                                                └─ analyze 诚实降级 → 任务如实 failed
+    执行图  provision(布考场：按审查结论重写用例文件+补跑顺延收集闸) → run → evaluate ─┬─ 同主图
+    确认=授权启动准备图；下发=启动执行图。R-Loop 归执行图（无人值守能力保住）。
 """
+import json
 import logging
+import os
 
 from langgraph.graph import END, StateGraph
 
@@ -52,6 +60,53 @@ def build_graph(deps: GraphDeps):
                             lambda s: "generate" if s.get("verdict") == "repair_gen" else END,
                             # 映射 key 必须是路由返回值的字面量：END 常量内部值是 "__end__"，
                             # 写成 "end" 会在运行时 KeyError '__end__'（实测踩坑，勿改回）
+                            {"generate": "generate", "__end__": END})
+    return g.compile()
+
+
+def build_prep_graph(deps: GraphDeps):
+    """准备图（两阶段·阶段一）：克隆→摸底→考纲(plan/RTM)→出题，跑完停在待审查。
+
+    generate 的容器回灌+收集闸在无容器时诚实顺延（gen_tests 内置容忍），不弱化闸语义。"""
+    nodes = make_nodes(deps)
+    g = StateGraph(TaskState)
+    for name in ("clone", "analyze", "plan", "generate"):
+        g.add_node(name, nodes[name])
+    g.set_entry_point("clone")
+    g.add_edge("clone", "analyze")
+    # analyze 诚实降级（非深度支持语言）：准备阶段无报告可出，END 后由 run_task_prep 如实失败
+    g.add_conditional_edges("analyze",
+                            lambda s: END if s.get("done") else "plan",
+                            {"__end__": END, "plan": "plan"})
+    g.add_edge("plan", "generate")
+    g.add_edge("generate", END)
+    return g.compile()
+
+
+def build_exec_graph(deps: GraphDeps):
+    """执行图（两阶段·阶段二）：布考场→开考→判卷→报告→复审，吃阶段一审查通过的用例集。
+
+    首轮不进 generate（用例集已在阶段一出题并经人工/AI 审查）；generate 仅由
+    repair_env/repair_gen/审查回炉再入——R-Loop 完整保留在阶段二（无人值守能力保住）。"""
+    nodes = make_nodes(deps)
+    g = StateGraph(TaskState)
+    for name in ("provision", "generate", "run", "evaluate", "report", "review"):
+        g.add_node(name, nodes[name])
+    g.set_entry_point("provision")
+    g.add_conditional_edges("provision",
+                            lambda s: "report" if s.get("done") else "run",
+                            {"report": "report", "run": "run"})
+    g.add_conditional_edges("run",
+                            lambda s: "report" if s.get("done") else "evaluate",
+                            {"report": "report", "evaluate": "evaluate"})
+    g.add_conditional_edges("evaluate",
+                            lambda s: "report" if s["verdict"] in ("pass", "stop")
+                            else ("provision" if s["verdict"] == "repair_env" else "generate"),
+                            {"report": "report", "provision": "provision", "generate": "generate"})
+    g.add_edge("generate", "run")
+    g.add_edge("report", "review")
+    g.add_conditional_edges("review",
+                            lambda s: "generate" if s.get("verdict") == "repair_gen" else END,
                             {"generate": "generate", "__end__": END})
     return g.compile()
 
@@ -113,3 +168,304 @@ def run_task(task_id: int) -> dict:
             deps.runner.cleanup(f"mta-run-{task_id}")
         except Exception as e:  # 回收失败不影响主流程，但要留痕
             log.warning("容器回收失败: %s", e)
+
+
+# ==================== 两阶段人机协作（docs/两阶段人机协作流程设计-20261031.md） ====================
+
+def _load_task_full(conn, task_id: int):
+    row = conn.execute(
+        """SELECT t.*, p.repo_url, p.primary_language FROM test_tasks t
+           JOIN projects p ON p.id = t.project_id WHERE t.id=?""", (task_id,)).fetchone()
+    if not row:
+        raise ValueError(f"任务 {task_id} 不存在")
+    return row
+
+
+def _new_session(conn, task_id: int) -> int:
+    cur = conn.execute("INSERT INTO agent_sessions(task_id, agent_role) VALUES (?, 'test_agent')",
+                       (task_id,))
+    conn.commit()
+    return cur.lastrowid
+
+
+def _fail_task(conn, task_id: int, reason: str) -> None:
+    conn.execute("UPDATE test_tasks SET status='failed', error=?, updated_at=datetime('now') WHERE id=?",
+                 (reason[:500], task_id))
+    conn.commit()
+
+
+def run_task_prep(task_id: int) -> dict:
+    """两阶段·阶段一入口：确认门 → 准备图（克隆/摸底/考纲/出题）→ 停在 ready_for_review。
+
+    停等语义：正常完成即置待审查（人工/AI 代审在评审页接管）；analyze 诚实降级
+    （非深度支持语言）如实 failed；异常同 run_task 落 failed。不触碰容器。
+    守卫全部走临时短连接（fail-closed 拒绝时零 Docker/注册表开销）。"""
+    guard = get_conn()
+    task = _load_task_full(guard, task_id)
+    if task["confirmed"] != 1:
+        guard.close()
+        raise RuntimeError("任务未确认（confirmed=0），禁止启动阶段一 —— fail-closed 确认门")
+    # A4 同款乐观锁：执行链路中拒绝并发；准备阶段可从 queued/failed/cancelled/ready_for_review 重启
+    lock = guard.execute(
+        """UPDATE test_tasks SET status='cloning', updated_at=datetime('now')
+           WHERE id=? AND status NOT IN ('cloning','analyzing','provisioning',
+                                         'generating','running','reporting')""", (task_id,))
+    guard.commit()
+    if lock.rowcount == 0:
+        guard.close()
+        raise RuntimeError("任务正在执行中，禁止并发下发")
+    guard.close()
+
+    deps = make_deps()
+    conn = deps.conn
+    session_id = _new_session(conn, task_id)
+    init: TaskState = {
+        "task_id": task_id,
+        "session_id": session_id,
+        "repo_url": task["repo_url"],
+        "requirement": task["requirement_text"] or "",
+        "container_name": f"mta-run-{task_id}",
+        "round_no": 0,
+        "coverage_target": task["coverage_target"] or config.COVERAGE_TARGET,
+        "fingerprints": [],
+        "auto_prepare": bool(task["auto_prepare"]) if "auto_prepare" in task.keys() else False,
+    }
+    graph = build_prep_graph(deps)
+    try:
+        final = graph.invoke(init, {"recursion_limit": 30})
+    except Exception as e:
+        _fail_task(conn, task_id, f"{type(e).__name__}: {e}")
+        raise
+    if final.get("done"):
+        # analyze 诚实降级：准备阶段无报告可出，如实失败（不做伪装的"待审查"）
+        _fail_task(conn, task_id, final.get("stop_reason") or "准备阶段诚实降级终止")
+    else:
+        conn.execute("UPDATE test_tasks SET status='ready_for_review', updated_at=datetime('now') WHERE id=?",
+                     (task_id,))
+        conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?", (session_id,))
+        conn.commit()
+    return final
+
+
+def run_task_exec(task_id: int) -> dict:
+    """两阶段·阶段二入口：待审查停等点放行 → 执行图（布考场/开考/判卷/报告/复审）。
+
+    首轮 round_no=1：run 节点跑全目录基线（自带 tests + 审查通过的生成用例集），
+    与单阶段首轮口径一致；R-Loop/评估/复审完整保留在阶段二。
+    守卫全部走临时短连接（fail-closed 拒绝时零 Docker/注册表开销）。"""
+    guard = get_conn()
+    task = _load_task_full(guard, task_id)
+    if task["confirmed"] != 1:
+        guard.close()
+        raise RuntimeError("任务未确认（confirmed=0），禁止下发执行 —— fail-closed 确认门")
+    if task["two_stage"] != 1:
+        guard.close()
+        raise RuntimeError("任务未开启两阶段流程，请走单阶段下发")
+    # 放行锁：仅待审查态可启动阶段二（准备阶段未完成 = 没有可执行的用例集）
+    lock = guard.execute(
+        """UPDATE test_tasks SET status='provisioning', updated_at=datetime('now')
+           WHERE id=? AND status='ready_for_review'""", (task_id,))
+    guard.commit()
+    if lock.rowcount == 0:
+        guard.close()
+        raise RuntimeError("任务不在待审查状态，禁止启动阶段二")
+    ws = config.DATA_DIR / "workspaces" / f"task_{task_id}"
+    if not ws.exists():
+        _fail_task(guard, task_id, "工作区不存在（阶段一未完成或已被清理）")
+        guard.close()
+        raise RuntimeError("工作区不存在：阶段一未完成，禁止启动阶段二")
+    guard.close()
+
+    deps = make_deps()
+    conn = deps.conn
+    try:
+        deps.runner.cleanup(f"mta-run-{task_id}")
+    except Exception as e:
+        log.warning("预清理容器失败: %s", e)
+    session_id = _new_session(conn, task_id)
+    primary = task["primary_language"] or "python"
+    module_row = conn.execute("SELECT id FROM modules WHERE project_id=? AND path='.'",
+                              (task["project_id"],)).fetchone()
+    init: TaskState = {
+        "task_id": task_id,
+        "session_id": session_id,
+        "repo_url": task["repo_url"],
+        "requirement": task["requirement_text"] or "",
+        "container_name": f"mta-run-{task_id}",
+        "round_no": 1,
+        "coverage_target": task["coverage_target"] or config.COVERAGE_TARGET,
+        "fingerprints": [],
+        "workspace": str(ws),
+        "primary_language": primary,
+        "image": config.IMAGE_PY if primary == "python" else config.IMAGE_JAVA,
+        "module_id": module_row["id"] if module_row else None,
+        "auto_prepare": bool(task["auto_prepare"]) if "auto_prepare" in task.keys() else False,
+        "two_stage_rebuild": True,
+    }
+    graph = build_exec_graph(deps)
+    try:
+        final = graph.invoke(init, {"recursion_limit": 60})
+        return final
+    except Exception as e:
+        _fail_task(conn, task_id, f"{type(e).__name__}: {e}")
+        raise
+    finally:
+        try:
+            deps.runner.cleanup(f"mta-run-{task_id}")
+        except Exception as e:
+            log.warning("容器回收失败: %s", e)
+
+
+def run_feedback_round(task_id: int, feedback_text: str, runner=None) -> dict:
+    """两阶段③·对话增补共用管线（人工对话框与 AI 代审 regenerate 走同一端点语义）：
+    反馈进提示词 → 定向增补生成（独立 test_gen_fbN.py 走同一三道闸，不动已批准用例）→
+    落库（llm_calls phase=gen_feedback）。预算封顶 FEEDBACK_MAX_ROUNDS 轮；
+    仅待审查态可调（fail-closed：状态/确认/预算/Key 任何一关不过即拒绝）。"""
+    feedback_text = (feedback_text or "").strip()
+    if not feedback_text:
+        raise ValueError("反馈文本不能为空")
+    conn = get_conn()
+    task = _load_task_full(conn, task_id)
+    if task["status"] != "ready_for_review":
+        raise RuntimeError(f"任务当前状态为「{task['status']}」，仅待审查状态可增补用例")
+    if task["confirmed"] != 1:
+        raise RuntimeError("任务未确认，禁止增补（fail-closed 确认门）")
+    ws = config.DATA_DIR / "workspaces" / f"task_{task_id}"
+    if not ws.exists():
+        raise RuntimeError("工作区不存在（阶段一未完成）")
+    fb_no = len(list(ws.glob("test_gen_fb*.py"))) + 1
+    if fb_no > config.FEEDBACK_MAX_ROUNDS:
+        raise RuntimeError(f"增补预算已用尽（上限 {config.FEEDBACK_MAX_ROUNDS} 轮），"
+                           f"请整理用例集后下发执行")
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise RuntimeError("未配置 DEEPSEEK_API_KEY，无法增补生成（诚实降级）")
+    module_row = conn.execute("SELECT id FROM modules WHERE project_id=? AND path='.'",
+                              (task["project_id"],)).fetchone()
+    existing_names = [r["name"] for r in conn.execute(
+        """SELECT c.name FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
+           WHERE s.task_id=?""", (task_id,))]
+    version_row = conn.execute(
+        "SELECT COALESCE(MAX(version), 100) + 1 AS v FROM test_scripts "
+        "WHERE task_id=? AND framework='pytest'", (task_id,)).fetchone()
+    from ..skills.gen_tests import generate_tests
+    if runner is None:
+        from ..sandbox.runner import SandboxRunner
+        runner = SandboxRunner()
+    summary = generate_tests(api_key, {
+        "workspace": str(ws),
+        "requirement": task["requirement_text"] or "",
+        "module_hint": task["primary_language"] or "",
+        "container_name": f"mta-run-{task_id}",
+        "module_id": module_row["id"] if module_row else None,
+        "round_no": 1,
+        "feedback": feedback_text,
+        "fb_no": fb_no,
+        "version": version_row["v"],
+        "existing_names": existing_names,
+    }, task_id, runner)
+    return json.loads(summary)
+
+
+# ==================== AI 代审 auto 模式（docs/AI代审设计-20261031.md） ====================
+
+def _reviewer_msg(conn, task_id: int, content: str) -> None:
+    """代审轨迹写进最新会话日志（前端日志流可见——AI 的思考过程对人可见）。"""
+    row = conn.execute("SELECT id FROM agent_sessions WHERE task_id=? ORDER BY id DESC LIMIT 1",
+                       (task_id,)).fetchone()
+    if not row:
+        return
+    seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
+                       (row["id"],)).fetchone()["n"]
+    conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
+                 (row["id"], seq, "assistant", content))
+    conn.commit()
+
+
+def _auto_review_loop(deps: GraphDeps, task_id: int) -> None:
+    """auto 模式 D2 代审循环：审查 →（有 regenerate/insert 决策）→ 增补 → 再审 →
+    收敛或预算（AI_REVIEWER_MAX_ROUNDS 轮 / token 停车线）耗尽。
+    fail-closed：任何失败/不可解析/超线分支都停在 ready_for_review 交人工，绝不自动放行。"""
+    from ..skills.ai_reviewer import reviewer_llm, run_review_once, token_budget_exceeded
+    conn = deps.conn
+    llm = reviewer_llm()
+    for round_no in range(1, config.AI_REVIEWER_MAX_ROUNDS + 1):
+        if token_budget_exceeded(conn, task_id):
+            _reviewer_msg(conn, task_id, "[ai-review] token 停车线触顶，停在待审查交人工（fail-closed）")
+            return
+        try:
+            summary = run_review_once(llm, conn, task_id, round_no=round_no)
+        except Exception as e:  # noqa: BLE001 —— 代审自身失败绝不炸链路，交人工
+            log.warning("D2 代审异常 task=%s round=%s: %s", task_id, round_no, e)
+            _reviewer_msg(conn, task_id,
+                          f"[ai-review] 代审调用失败（{type(e).__name__}），停在待审查交人工")
+            return
+        if summary is None:
+            _reviewer_msg(conn, task_id, "[ai-review] 代审输出不可解析，停在待审查交人工（fail-closed）")
+            return
+        fbs = [t for t in (summary.get("feedback_texts") or []) if t]
+        if not fbs:
+            _reviewer_msg(conn, task_id,
+                          f"[ai-review] 第{round_no}轮代审收敛：通过{summary.get('approved', 0)}"
+                          f" 删除{summary.get('deleted', 0)} 增补{summary.get('inserted', 0)}，放行阶段二")
+            return
+        text = "；".join(fbs)[:1500]
+        try:
+            fb = run_feedback_round(task_id, text, runner=deps.runner)
+        except Exception as e:  # noqa: BLE001 —— 增补失败不自动放行
+            _reviewer_msg(conn, task_id,
+                          f"[ai-review] 增补失败（{type(e).__name__}: {e}），停在待审查交人工")
+            return
+        _reviewer_msg(conn, task_id,
+                      f"[ai-review] 第{round_no}轮按决策增补 {fb.get('generated', 0)} 条"
+                      f"（反馈：{text[:120]}）")
+        if not fb.get("generated"):
+            _reviewer_msg(conn, task_id, "[ai-review] 增补 0 条（闸门剔除或不可解析），停在待审查交人工")
+            return
+    _reviewer_msg(conn, task_id, "[ai-review] 代审轮次预算耗尽，停在待审查交人工（fail-closed）")
+
+
+def run_task_auto(task_id: int) -> dict:
+    """AI 代审 auto 全链（批量入口）：D1 准入代审（意见书+带理由确认）→ 阶段一 →
+    D2 用例集代审循环 → 阶段二。人工已确认的任务跳过 D1（门由人满足，D2 仍代审）。
+    守卫走临时短连接（未开 auto 的任务拒绝时零 Docker/注册表开销）。"""
+    from ..skills.ai_reviewer import reviewer_llm, run_d1_review
+    guard = get_conn()
+    task = _load_task_full(guard, task_id)
+    if task["ai_reviewer"] != "auto":
+        guard.close()
+        raise RuntimeError("任务未开启 AI 代审 auto 模式，禁止走代审链")
+    confirmed_by_human = task["confirmed"] == 1
+    guard.close()
+
+    deps = make_deps()
+    conn = deps.conn
+    if confirmed_by_human:
+        run_task_prep(task_id)          # 人满足 D1；阶段一跑完停在待审查，D2 交给代审
+    else:
+        session_id = _new_session(conn, task_id)
+        d1 = None
+        try:
+            d1 = run_d1_review(reviewer_llm(), conn, task_id,
+                               task["requirement_text"] or "", task["repo_url"])
+        except Exception as e:  # noqa: BLE001
+            log.warning("D1 代审失败 task=%s: %s", task_id, e)
+        if d1 is None:
+            _reviewer_msg(conn, task_id, "[ai-review] D1 准入代审不可用，停在待确认交人工（fail-closed）")
+            conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?", (session_id,))
+            conn.commit()
+            return {"task_id": task_id, "stage": "D1", "stopped": "fail_closed"}
+        if d1["decision"] != "approve":
+            conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?", (session_id,))
+            conn.commit()
+            return {"task_id": task_id, "stage": "D1", "stopped": "rejected"}
+        conn.execute(
+            "UPDATE test_tasks SET confirmed=1, confirmed_by=?, confirmed_at=datetime('now') WHERE id=?",
+            (f"agent:reviewer-{session_id}", task_id))
+        conn.commit()
+        run_task_prep(task_id)
+    _auto_review_loop(deps, task_id)
+    row = conn.execute("SELECT status FROM test_tasks WHERE id=?", (task_id,)).fetchone()
+    if row["status"] != "ready_for_review":
+        return {"task_id": task_id, "stage": "D2", "stopped": "fail_closed"}
+    return run_task_exec(task_id)

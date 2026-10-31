@@ -328,10 +328,24 @@ def make_nodes(deps: GraphDeps) -> dict:
             msg(state["session_id"], "assistant", f"[provision] {reason}")
             return {"done": True, "verdict": "stop", "stop_reason": reason}
         msg(state["session_id"], "assistant", f"[provision] 执行镜像 {state['image']} 就绪（{how}）")
+        # 两阶段"布考场"（docs/两阶段人机协作流程设计-20261031.md）：快照前按审查结论
+        # 重写生成用例文件（评审页勾掉/增补的用例以库为准），再补跑阶段一顺延的收集闸
+        if state.get("two_stage_rebuild"):
+            from ..skills.gen_tests import collect_gate_files, rebuild_gen_files_from_db
+            n_files = rebuild_gen_files_from_db(conn, tid, Path(state["workspace"]))
+            if n_files:
+                msg(state["session_id"], "assistant",
+                    f"[provision] 布考场：按审查结论重写 {n_files} 个生成用例文件（停用用例已摘除）")
         # 上一轮执行超时（exit=-1）说明容器里有 exec 残留，必须重建（A2），否则新旧任务争抢 CPU
         fresh = state.get("last_exit") == -1 and state.get("round_no", 0) > 0
         container = runner.ensure_container(state["image"], state["container_name"], fresh=fresh)
         runner.copy_dir_into(container, state["workspace"])
+        if state.get("two_stage_rebuild"):
+            from ..skills.gen_tests import collect_gate_files
+            dropped = collect_gate_files(runner, container, conn, tid, Path(state["workspace"]))
+            if dropped:
+                msg(state["session_id"], "assistant",
+                    "[provision] 阶段一顺延的收集闸：文件级废案 " + "、".join(dropped))
         dep = registry.invoke(tid, skills["install_deps"], {
             "container_name": state["container_name"],
             "deps_manifest": probe_deps_manifest(state["workspace"])})
@@ -404,8 +418,10 @@ def make_nodes(deps: GraphDeps) -> dict:
             return {"done": True, "verdict": "stop",
                     "stop_reason": "Java/Maven 执行链路 v1 未接入（诚实降级），任务终止"}
         # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
-        # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）
+        # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）；
+        # 两阶段对话增补文件（test_gen_fb*.py）同属生成物，一并纳入
         gen_files = sorted(p.name for p in Path(state["workspace"]).glob("test_gen_r*.py"))
+        gen_files += sorted(p.name for p in Path(state["workspace"]).glob("test_gen_fb*.py"))
         if (Path(state["workspace"]) / "test_imported.py").exists():
             gen_files.append("test_imported.py")
         cmd = build_run_cmd(round_no=state.get("round_no", 1), gen_files=gen_files)

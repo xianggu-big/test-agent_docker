@@ -253,6 +253,52 @@ def _extract_api_docs(ws: Path, max_chars: int = 2000) -> str | None:
     return nl.join(kept) if kept else None
 
 
+def _extract_usage_examples(ws: Path, limit: int = 5, max_chars: int = 1600) -> str | None:
+    """A 源·repo 校准（领域知识注入调研 §A，防迁就是红线）：扫仓库自带 tests/ 的**调用形态**——
+    import 被测包的语句 + 顶层调用表达式 + pytest.raises 的异常类型，**剥除断言行**。
+    只示范"怎么正确调用"（参数形态/import 方式/异常触发），不是预期值来源——
+    预期值由需求/docstring 决定；对齐自带测试的预期=对齐实现现状，会加剧 2412.14137 迁就。
+    生成时无法预知哪些自带测试会过（要先跑一遍，成本翻倍）→ 实现口径=全部自带测试的
+    调用形态+剥断言（复审修正①），剥了断言后过不过已无关紧要。无自带测试返回 None。"""
+    table = _module_top_level(ws)
+    nl = chr(10)
+    snippets: list[str] = []
+    for p in sorted(Path(ws).rglob("*.py")):
+        if len(snippets) >= limit:
+            break
+        if any(part in config.SKIP_DIRS for part in p.parts):
+            continue
+        # 只看自带测试文件（被测源码已由 _collect_sources 收录，这里要的是"别人怎么调它"）
+        if not (p.name.startswith("test_") or p.name.endswith("_test.py")):
+            continue
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8", errors="ignore"))
+        except SyntaxError:
+            continue
+        lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+        kept: list[str] = []
+        for node in tree.body:
+            seg = ""
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                mod = (node.module or "").split(".")[0] if isinstance(node, ast.ImportFrom) \
+                    else (node.names[0].name.split(".")[0] if node.names else "")
+                if mod in table:          # 只留 import 被测包的语句（pytest/hypothesis 不是锚点）
+                    seg = (lines[node.lineno - 1] or "").strip()
+            elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+                seg = (lines[node.lineno - 1] or "").strip()   # 顶层调用表达式（调用形态）
+            if seg:
+                kept.append(seg)
+        if kept:
+            snippets.append(f"# {p.relative_to(ws).as_posix()}" + nl +
+                            nl.join(kept[:8]))
+    text = (f"{nl}{nl}".join(snippets))[:max_chars] if snippets else None
+    # kill 检查（防自欺，调研文档§每源一 kill）：残片必须不含断言——剥除断言是防迁就切分线
+    if text and re.search(r"(?m)^\s*assert\b", text):
+        cleaned = nl.join(l for l in text.split(nl) if not re.match(r"\s*assert\b", l))
+        text = cleaned[:max_chars]
+    return text or None
+
+
 def _module_top_level(ws: Path) -> dict[str, set[str]]:
     """被测工作区各模块的顶层符号表（静态闸用）：module stem -> {def/class 名}。"""
     table: dict[str, set[str]] = {}
@@ -641,7 +687,15 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
 
 
 def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
+    """生成/增补共用管线（三道闸同源保证）：
+    - 常规轮：args.round_no → test_gen_r{N}.py（version=N）
+    - 对话增补轮（两阶段评审/AI 代审 regenerate）：args.feedback + args.fb_no →
+      test_gen_fb{N}.py（version=调用方给定，独立文件不动已批准用例），phase=gen_feedback
+    """
     ws = Path(args["workspace"])
+    feedback = (args.get("feedback") or "").strip()
+    fb_no = args.get("fb_no")
+    phase = "gen_feedback" if feedback else "gen_tests"
     sources, source_skipped = _collect_sources_detailed(ws)
     if source_skipped:
         # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
@@ -656,6 +710,10 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         "SELECT condition, priority, method_hint FROM test_conditions "
         "WHERE task_id=? ORDER BY id", (task_id,)).fetchall()] or None
 
+    # —— 三源 grounding 注入（各自独立开关，默认关=提示词逐字节不变） ——
+    api_docs = _extract_api_docs(ws) if config.DOCSTRING_GROUNDING_ENABLED else None
+    usage_examples = _extract_usage_examples(ws) if config.USAGE_EXAMPLES_ENABLED else None
+
     llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
                      base_url=config.DEEPSEEK_BASE_URL,
                      temperature=0.2, timeout=90, max_retries=2)
@@ -669,8 +727,15 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   pbt=config.PBT_ENABLED,
                                                   templates=config.TEMPLATES_ENABLED,
                                                   state_transition=config.STATE_TRANSITION_ENABLED,
-                                                  metamorphic=config.METAMORPHIC_ENABLED))])
-    log_llm_call(task_id, "gen_tests", resp)
+                                                  metamorphic=config.METAMORPHIC_ENABLED,
+                                                  api_docs=api_docs,
+                                                  usage_examples=usage_examples,
+                                                  feedback_text=feedback or None,
+                                                  pitfalls=config.PITFALL_KB_ENABLED,
+                                                  module_lang=args.get("module_hint", ""),
+                                                  existing_cases=(args.get("existing_names") or None)
+                                                  if feedback else None))])
+    log_llm_call(task_id, phase, resp)
     data = _parse_cases(resp.content)
     if data is None:
         return json.dumps({"generated": 0,
@@ -699,7 +764,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                           ensure_ascii=False)
 
     # —— def 名对齐（A5）：用规整后的 name 重写首个 def，nodeid 从此可反查用例 ——
-    used_names: set[str] = set()
+    # 对话增补轮：防撞池=任务全域已有用例名（增补文件与已批准文件同名函数会让归因反查失准）
+    used_names: set[str] = set(args.get("existing_names") or [])
     for i, c in enumerate(data["cases"]):
         def_name = _sanitize_name(c.get("name"), i, used_names)
         code = c["code"].strip()
@@ -710,9 +776,10 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
 
     # —— 方案C·条件缺口回灌（Gotel&Finkelstein post-traceability 的生成侧闭环）：
     # 确定性 2-gram 映射查无用例对准的条件 → 定向补生成恰 1 轮（预算纪律）——
-    # 与 V4 行覆盖回灌不同层：这里是 RTM 条件层的"覆盖了≠测到了"信号。 ——
+    # 与 V4 行覆盖回灌不同层：这里是 RTM 条件层的"覆盖了≠测到了"信号。
+    # 对话增补轮跳过（增补目标由反馈文本定向，不做全量条件扫描）。 ——
     cond_feedback: dict | None = None
-    if config.COND_FEEDBACK_ENABLED and conditions:
+    if config.COND_FEEDBACK_ENABLED and conditions and not feedback:
         new_cases, extra_imports, cond_feedback = refill_condition_gaps(
             llm, sources, args.get("requirement", ""), conditions, data["cases"], ws,
             used_names, config.GEN_METHODS_ENABLED, config.PBT_ENABLED,
@@ -749,20 +816,28 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                "cond_feedback": cond_feedback,
                                "cross_review": cross_info}, ensure_ascii=False)
 
-    # —— 写入工作区 ——
+    # —— 写入工作区（常规轮 test_gen_r{N}.py；对话增补轮独立 test_gen_fb{N}.py，不动已批准文件） ——
     round_no = args.get("round_no", 1)
-    fname = f"test_gen_r{round_no}.py"
+    if feedback and fb_no:
+        fname = f"test_gen_fb{fb_no}.py"
+        header = f'"""AI 增补用例（审查反馈第 {fb_no} 轮 · 两阶段评审对话）"""'
+        version = int(args.get("version") or (100 + fb_no))
+    else:
+        fname = f"test_gen_r{round_no}.py"
+        header = f'"""AI 生成用例（第 {round_no} 轮 · 五种方法知识库）"""'
+        version = round_no
     imports = (data.get("imports") or "").strip()
     body = "\n\n".join(c["code"].strip() for c in data["cases"])
-    content = (f'"""AI 生成用例（第 {round_no} 轮 · 五种方法知识库）"""\n'
+    content = (header + "\n"
                + (imports + "\n\n" if imports else "") + body + "\n")
     (ws / fname).write_text(content, encoding="utf-8")
 
-    # —— 落库：脚本版本 + 用例清单（先于闸门，收集失败时可整体废案删除） ——
+    # —— 落库：脚本版本 + 用例清单（先于闸门，收集失败时可整体废案删除）；
+    # filename 落列：两阶段"布考场"按审查结论重建生成文件的键 ——
     cur = conn.execute(
-        """INSERT INTO test_scripts(task_id, module_id, framework, version, content, content_hash)
-           VALUES (?, ?, 'pytest', ?, ?, ?)""",
-        (task_id, args.get("module_id"), round_no, content,
+        """INSERT INTO test_scripts(task_id, module_id, framework, version, filename, content, content_hash)
+           VALUES (?, ?, 'pytest', ?, ?, ?, ?)""",
+        (task_id, args.get("module_id"), version, fname, content,
          hashlib.sha256(content.encode()).hexdigest()[:16]))
     script_id = cur.lastrowid
     for c in data["cases"]:
@@ -775,15 +850,23 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
              c.get("expected"), c.get("expected_basis")))
     conn.commit()
 
-    # —— 回灌容器（依赖随项目走，生成物也随项目走） ——
-    container = runner.client.containers.get(args["container_name"])
-    runner.copy_dir_into(container, ws)
+    # —— 回灌容器（依赖随项目走，生成物也随项目走）。
+    # 两阶段准备图里 generate 先于 provision（阶段一出题无考场）：容器不存在时不炸，
+    # collect 闸与回灌如实标注"顺延"，由执行图 provision 在快照后补跑（collect_gate_files）。 ——
+    collect_deferred: str | None = None
+    try:
+        container = runner.client.containers.get(args["container_name"])
+        runner.copy_dir_into(container, ws)
+    except Exception as e:  # noqa: BLE001 —— 容器缺失/守护进程未起：阶段一出题的合法形态
+        collect_deferred = f"容器未就绪（{type(e).__name__}），collect 闸顺延到阶段二布考场"
 
     # —— 第二道闸（§3.6 第 2 道）：容器内 --collect-only 可收集性检查 ——
     # 收集失败是文件级问题（模块级 import 等），无法按用例归责 → 整体废案（诚实降级），
     # 绝不把注定 ERROR 的生成物交给执行轮。
-    r = runner.exec_in(container, ["pytest", "--collect-only", "-q", fname], timeout_s=120)
-    if r.exit_code != 0:
+    r = None
+    if collect_deferred is None:
+        r = runner.exec_in(container, ["pytest", "--collect-only", "-q", fname], timeout_s=120)
+    if r is not None and r.exit_code != 0:
         (ws / fname).unlink(missing_ok=True)
         conn.execute("DELETE FROM test_cases WHERE script_id=?", (script_id,))
         conn.execute("DELETE FROM test_scripts WHERE id=?", (script_id,))
@@ -801,6 +884,72 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                "template_rejected": template_rejected,
                "assertion": assertion_stats, "cond_feedback": cond_feedback,
                "cross_review": cross_info, "source_skipped": source_skipped,
-               "basis_downgraded": basis_downgraded}
+               "basis_downgraded": basis_downgraded, "phase": phase,
+               "collect_deferred": collect_deferred}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)
+
+
+def rebuild_gen_files_from_db(conn, task_id: int, ws: Path) -> int:
+    """两阶段"布考场"：按审查结论（test_cases.enabled）重写工作区生成用例文件。
+
+    以 test_scripts.filename 为键逐文件重建：从脚本原文 AST 中摘除已停用用例的
+    FunctionDef（保留 imports/模块级代码——imports 丢失会让整文件废），返回重写文件数。
+    常规轮/对话增补轮文件都处理；无脚本行的任务返回 0（老流程不受影响）。
+    """
+    rows = conn.execute(
+        """SELECT id, filename, content FROM test_scripts
+           WHERE task_id=? AND framework='pytest' AND filename LIKE 'test_gen%'
+           ORDER BY id""", (task_id,)).fetchall()
+    rewritten = 0
+    for row in rows:
+        fname = row["filename"]
+        if not fname:
+            continue
+        enabled = {r["name"] for r in conn.execute(
+            "SELECT name FROM test_cases WHERE script_id=? AND enabled=1", (row["id"],))}
+        try:
+            tree = ast.parse(row["content"])
+        except SyntaxError:
+            continue
+        kept = []
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                if node.name in enabled:
+                    kept.append(node)
+                # 已停用用例的函数体摘除；非用例函数（helper）一律保留
+            else:
+                kept.append(node)
+        tree.body = kept
+        (Path(ws) / fname).write_text(ast.unparse(tree) + "\n", encoding="utf-8")
+        rewritten += 1
+    return rewritten
+
+
+def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[str]:
+    """阶段一顺延的收集闸（两阶段执行图 provision 快照后补跑）：逐生成文件 --collect-only，
+    失败文件整体废案（删文件+删该脚本行与用例行），返回废案文件名清单。
+    test_imported.py 只报告不删库（人工插入用例保留审计，交由人工在评审页处理）。"""
+    names = sorted(p.name for p in Path(ws).glob("test_gen_r*.py")) \
+        + sorted(p.name for p in Path(ws).glob("test_gen_fb*.py"))
+    if (Path(ws) / "test_imported.py").exists():
+        names.append("test_imported.py")
+    dropped: list[str] = []
+    for fname in names:
+        r = runner.exec_in(container, ["pytest", "--collect-only", "-q", fname], timeout_s=120)
+        if r.exit_code == 0:
+            continue
+        dropped.append(fname)
+        (Path(ws) / fname).unlink(missing_ok=True)
+        runner.exec_in(container, ["rm", "-f", f"/work/{fname}"], timeout_s=30)
+        if fname != "test_imported.py":
+            conn.execute(
+                """DELETE FROM test_cases WHERE script_id IN
+                   (SELECT id FROM test_scripts WHERE task_id=? AND filename=?)""",
+                (task_id, fname))
+            conn.execute("DELETE FROM test_scripts WHERE task_id=? AND filename=?",
+                         (task_id, fname))
+            conn.commit()
+        log.warning("collect_gate_files task=%s 废案 %s: %s", task_id, fname,
+                    (r.stderr or "")[-160:])
+    return dropped

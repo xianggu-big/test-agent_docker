@@ -4,6 +4,7 @@
 让 Agent 按方法逐类生成，而不是自由发挥 —— 这是生成正确率的第一道抓手。
 方法骨架 = 传统测试理论（等价类/边界值/判定表/覆盖/错误推测）的显式化。
 """
+import re
 
 SYSTEM_PROMPT = (
     "你是资深软件测试工程师。严格按给定的用例设计方法生成 pytest 用例，"
@@ -219,6 +220,83 @@ METAMORPHIC_SECTION = """
 禁止"实现两次调用恰好相等"这类从实现反推的伪 MR。"""
 
 
+# —— B 源·语言×类型陷阱库（docs/领域知识注入调研-20261031.md：curated 清单=文献空白点，
+# 对应资深测试人员经验；发现二前车之鉴——很可能对检出无贡献，消融负结果如实写） ——
+PITFALL_KB: dict[str, list[dict]] = {
+    "python": [
+        {"pattern": "浮点数相等比较", "why": "IEEE754 二进制浮点无法精确表示多数十进制小数",
+         "test_hint": "用 abs(a-b)<eps 或 pytest.approx 断言，禁止 ==", "keyword": "float|浮点|小数|比例|折扣|利率"},
+        {"pattern": "可变默认参数", "why": "def f(x=[]) 的列表跨调用共享，状态跨调用泄漏",
+         "test_hint": "同一默认参数连续调用两次，断言第二次不受第一次影响", "keyword": "默认参数|cache|缓存|累积"},
+        {"pattern": "字符串编码/规范化", "why": "大小写/全半角/Unicode 归一化差异（如 ß 与 ss、土耳其 ı）",
+         "test_hint": "用含非 ASCII、大小写混合的输入断言归一化行为", "keyword": "编码|normalize|大小写|title|upper|unicode"},
+        {"pattern": "边界含不含", "why": "range/切片/比较的边界语义（<= 与 <、[a,b) 与 [a,b]）最易错",
+         "test_hint": "对每个数值边界取 min-1/min/max/max+1 四点断言", "keyword": "边界|范围|上限|下限|超过|至少|至多"},
+        {"pattern": "None 与空容器混用", "why": "None、''、[]、{} 的真值语义不同，函数常只处理其一",
+         "test_hint": "None/空串/空列表/空字典分别单发用例", "keyword": "空|None|缺省|可选"},
+        {"pattern": "异常吞没", "why": "except 后返回默认值会把错误静默洗成正常返回",
+         "test_hint": "构造非法输入断言异常类型，而非断言默认返回值", "keyword": "异常|错误|失败|重试|回退"},
+        {"pattern": "整数除法与舍入", "why": "/ 与 //、round 的银行家舍入（round(0.5)=0）与直觉不符",
+         "test_hint": "对 .5/.25 等中点值断言舍入方向", "keyword": "除|平均|舍入|round|取整"},
+        {"pattern": "时区与本地时间", "why": "datetime.now() 依赖本地时区，跨时区/夏令时行为漂移",
+         "test_hint": "用固定 aware datetime 注入，断言 UTC 转换", "keyword": "时间|日期|时区|timestamp|天|月"},
+    ],
+    "web": [
+        {"pattern": "并发幂等", "why": "重复提交/并发请求造成重复创建或双扣",
+         "test_hint": "同幂等键重复调用两次，断言只生效一次", "keyword": "下单|支付|提交|创建|并发"},
+        {"pattern": "时区序列化", "why": "API 返回时间缺时区标注，客户端解析漂移一天",
+         "test_hint": "断言响应时间的 ISO8601 带时区偏移", "keyword": "时间|创建时间|deadline"},
+        {"pattern": "缓存穿透", "why": "不存在的 key 反复打穿缓存击穿数据库",
+         "test_hint": "查询不存在资源两次，断言第二次不再触发底层", "keyword": "缓存|查询|详情|cache"},
+        {"pattern": "分页边界", "why": "offset 越界返回空页还是报错、last page 判定",
+         "test_hint": "请求超过末页的 page，断言空列表而非 5xx", "keyword": "分页|列表|page|limit|offset"},
+        {"pattern": "输入归一化", "why": "前后空格/大小写/全半角在唯一性校验时口径不一",
+         "test_hint": "带空格与不带空格的等价输入，断言判定一致", "keyword": "登录|注册|唯一|重复|trim"},
+        {"pattern": "部分失败原子性", "why": "批量操作中途失败留下半成品状态",
+         "test_hint": "构造第二条必然失败的批处理，断言无残留副作用", "keyword": "批量|事务|导入|上传"},
+    ],
+    "cli": [
+        {"pattern": "退出码约定", "why": "成功 0/失败非 0 是脚本编排的契约，异常路径常漏",
+         "test_hint": "断言非法输入的退出码非 0 且 stderr 有信息", "keyword": "命令|cli|脚本|退出"},
+        {"pattern": "信号中断清理", "why": "SIGINT/SIGTERM 后临时文件/锁未清理",
+         "test_hint": "中断长任务后断言无残留临时文件", "keyword": "中断|清理|临时|锁"},
+        {"pattern": "stdin/stdout 编码", "why": "管道二进制数据/非 UTF-8 环境的解码崩溃",
+         "test_hint": "用非 ASCII 输入走管道断言不崩", "keyword": "输入|输出|编码|管道"},
+        {"pattern": "参数组合冲突", "why": "互斥 flag 同给、缺必需参数的报错质量",
+         "test_hint": "互斥参数同给，断言明确报错而非静默择一", "keyword": "参数|选项|flag|开关"},
+    ],
+}
+
+
+def select_pitfalls(lang: str, requirement: str, top: int = 4) -> list[dict]:
+    """按 analyze 主语言 + 需求关键词选陷阱子集（确定性、零 LLM）：需求像 Web/CLI 用对应清单，
+    其余按语言回退 python；条目数封顶防提示词膨胀。"""
+    req = requirement or ""
+    if re.search(r"API|接口|HTTP|REST|FastAPI|Flask|路由|请求|响应", req, re.IGNORECASE):
+        pool = PITFALL_KB["web"]
+    elif re.search(r"命令行|CLI|argparse|终端|脚本参数", req, re.IGNORECASE):
+        pool = PITFALL_KB["cli"]
+    else:
+        pool = PITFALL_KB.get(lang or "python") or PITFALL_KB["python"]
+    return pool[:top]
+
+
+def build_pitfall_section(lang: str, requirement: str) -> str:
+    """B 源注入段：并进「用例设计方法」之后；命中条目时预期依据须有实质来源。"""
+    items = select_pitfalls(lang, requirement)
+    if not items:
+        return ""
+    rows = "\n".join(f"- 【{p['pattern']}】{p['why']} → 测试手法：{p['test_hint']}"
+                     for p in items)
+    return f"""
+
+## 领域陷阱清单（B 源·错误推测法扩展，实验变量 X9）
+资深测试人员在本类目标上的高发缺陷模式（供错误推测法聚焦，禁止硬凑与需求无关的条目）：
+{rows}
+命中陷阱条目的用例，expected_basis 必须标注实质来源（「需求明示」/「docstring文档」/「源码推导」），
+禁止一律标「常识」——依据可溯是审查与归因的前提。"""
+
+
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
                       coverage_target: float | None = None,
@@ -231,7 +309,11 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       metamorphic: bool = False,
                       cond_forced: bool = False,
                       existing_cases: list[str] | None = None,
-                      api_docs: str | None = None) -> str:
+                      api_docs: str | None = None,
+                      usage_examples: str | None = None,
+                      feedback_text: str | None = None,
+                      pitfalls: bool = False,
+                      module_lang: str = "") -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -246,6 +328,10 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     state_transition: B4 状态迁移法开关（T4 迁移清单模板；True=追加状态机段）。
     metamorphic: B8 蜕变法开关（MR 模式库提示词；True=追加蜕变关系段）。
     cond_forced: 条件缺口回灌模式（方案C；True=conditions 段改为"强制逐条覆盖"措辞）。
+    usage_examples: A 源·repo 校准（调用形态锚点，断言已剥离——只示范"怎么调用"，
+    不是预期值来源；预期仍以需求/docstring 为准，防止对齐实现现状的迁就）。
+    feedback_text: 两阶段评审的对话增补目标（人工/AI 审查反馈；只增补不动已批准用例）。
+    pitfalls: B 源·陷阱清单开关（错误推测法扩展段，按 module_lang+需求选条目）。
     """
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
@@ -258,6 +344,27 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
 预期值与 docstring 冲突时，**以 docstring 为准**，expected_basis 标「docstring文档」；
 docstring 没写的行为，按需求文档推断，禁止猜。
 {api_docs}"""
+    usage_text = ""
+    if usage_examples:
+        usage_text = f"""
+
+## 仓库自带测试的调用用法（A 源·调用形态锚点，实验变量 X-A）
+以下摘自仓库自带测试的**调用形态**（断言已剥离）——仅示范"怎么正确调用"：
+参数形态、import 方式、异常触发方式。它们**不是预期值来源**：
+预期值一律以需求与 docstring 为准，禁止对齐这些用法背后的实现现状。
+{usage_examples}"""
+    feedback_sec = ""
+    if feedback_text:
+        feedback_sec = f"""
+
+## 审查反馈（本轮增补目标——人工/AI 审查员的意见）
+{feedback_text}
+
+### 增补纪律（两阶段评审对话，违反即废案）
+1. 只**新增**用例：已批准用例不在你的输出里，也禁止试图撤销/重写它们；
+2. 禁止与已有用例重复覆盖同一行为（已有用例名单见下方，重复产出会被剔除）；
+3. 预期值依据照旧标注 expected_basis：能在需求原文直接定位的标「需求明示」；
+   直接来自本条反馈但需求未提及的，诚实标「用户反馈」（不得洗成需求明示）。"""
     method_text = "\n".join(f"{i}.【{m['name']}】{m['skeleton']}"
                             for i, m in enumerate(METHODS, 1)) if include_methods else ""
     boundary_text = BOUNDARY_ATTACK_SECTION if boundary_attack else ""
@@ -265,6 +372,7 @@ docstring 没写的行为，按需求文档推断，禁止猜。
     template_text = TEMPLATE_SECTION if templates else ""
     st_text = STATE_TRANSITION_SECTION if state_transition else ""
     mt_text = METAMORPHIC_SECTION if metamorphic else ""
+    pitfall_text = build_pitfall_section(module_lang, requirement) if pitfalls else ""
     cond_text = ""
     if conditions:
         rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
@@ -298,19 +406,24 @@ docstring 没写的行为，按需求文档推断，禁止猜。
 {rows}
 生成用例时必须优先命中上述未覆盖行；已在上一轮覆盖的分支不必重复设计。"""
 
+    basis_note = ("五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」"
+                  "（对话增补轮另有第六项「用户反馈」：预期直接来自审查反馈但需求原文无依据时诚实标注）——"
+                  if feedback_text else
+                  "五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」——")
     return f"""## 被测源码
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{docs_text}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
+{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
-{method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}
+{method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}
 
 ## 输出格式
 只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。
 expected = 预期结果（断言依据，必须先于执行确定）；expected_basis = 该预期值的出处，
-五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」——预期值不得从实际运行结果反推。
+{basis_note}
+预期值不得从实际运行结果反推。
 「需求明示」仅限预期值能在需求原文中直接找到依据时使用；凭你的知识/经验推断的一律
 标「源码推导」「常识」或「模型推断」（系统会对「需求明示」做需求重叠确定性校验，
 无依据的假标注会被降级为「模型推断」并留痕——错误标注会污染归因）。
