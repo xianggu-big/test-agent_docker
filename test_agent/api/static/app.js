@@ -105,12 +105,21 @@ async function createTask() {
   finally { $("new-submit").disabled = false; }
 }
 
+let NEW_POLL_TIMER = null;   // 用户反馈：AI 生成用例"完全看不到"——单次拉取改持续轮询
 async function pollNewCases(tid) {
+  clearTimeout(NEW_POLL_TIMER);
   try {
-    const b = await api(`/tasks/${tid}/cases`);
+    const [b, st] = await Promise.all([
+      api(`/tasks/${tid}/cases`),
+      api(`/tasks/${tid}`).catch(() => null),
+    ]);
     const box = $("new-cases");
+    const status = st ? st.status : "unknown";
     if (!b.script || !b.cases.length) {
-      box.innerHTML = `<div class="hint">任务 #${tid} 尚无用例：下发执行后由 AI 按五种方法生成。</div>`;
+      box.innerHTML = `<div class="hint">任务 #${tid} ${esc(STATUS_CN[status] || status)}——AI 按五种方法生成后，用例会实时出现在这里（每 8 秒刷新）。</div>`;
+      if (!["done", "failed", "stopped", "blocked"].includes(status) && location.hash.includes("new")) {
+        NEW_POLL_TIMER = setTimeout(() => pollNewCases(tid), 8000);
+      }
       return;
     }
     box.innerHTML = b.cases.map(c =>
@@ -142,9 +151,21 @@ async function loadWorkbench() {
       $("wb-confirm-bar").classList.add("hidden"); loadWorkbench(); } catch (e) { alert(e.message); }
   };
   const box = $("wb-cases");
-  box.innerHTML = (cases.cases.length ? cases.cases.map(c =>
-    `<label class="case-item"><input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleCase(${c.id})"><code>${esc(c.name)}</code>` +
-    `<span class="m">${c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置"}·${esc(c.method) || "-"}</span></label>`).join("")
+  box.innerHTML = (cases.cases.length ? cases.cases.map(c => {
+    const src = c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置";
+    // 用户反馈：每个用例要"大概介绍有什么作用"——expected 摘要+输入+依据标签
+    const desc = c.expected ? esc(String(c.expected).slice(0, 52)) : "";
+    const inp = c.input ? `<span class="hint">输入：${esc(String(c.input).slice(0, 36))}</span>` : "";
+    const basis = c.expected_basis ? `<span class="badge badge-queued" style="font-size:10px;padding:1px 6px">${esc(c.expected_basis)}</span>` : "";
+    return `<div class="case-item" style="flex-wrap:wrap;align-items:flex-start">` +
+      `<label style="display:flex;gap:6px;align-items:center;flex:1 1 100%;cursor:pointer">` +
+      `<input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleCase(${c.id})">` +
+      `<code>${esc(c.name)}</code>` +
+      `<span class="m">${src}·${esc(c.method) || "-"}${c.priority ? "·" + esc(c.priority) : ""}</span></label>` +
+      (desc ? `<div style="flex:1 1 100%;padding-left:26px;font-size:12px;color:var(--text)">${desc} ${basis}</div>` : "") +
+      (inp ? `<div style="flex:1 1 100%;padding-left:26px">${inp}</div>` : "") +
+      `</div>`;
+  }).join("")
     : '<div class="hint">暂无用例：先下发执行触发 AI 生成，或在下方插入用例。</div>');
   if (cases.script && cases.script.content) $("wb-preview").textContent = cases.script.content;
 }
