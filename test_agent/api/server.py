@@ -244,7 +244,11 @@ def api_tasks(user: dict = Depends(current_user)):
     conn = get_conn()
     rows = conn.execute(
         """SELECT t.id, t.status, t.confirmed, t.requirement_text, t.error, t.created_at,
-                  p.name AS project_name, p.repo_url, p.primary_language
+                  p.name AS project_name, p.repo_url, p.primary_language,
+                  (SELECT COUNT(*) FROM test_cases c
+                    JOIN test_scripts sc ON sc.id = c.script_id WHERE sc.task_id = t.id) AS cases,
+                  (SELECT r.coverage_line FROM test_reports r WHERE r.task_id = t.id
+                    ORDER BY r.id DESC LIMIT 1) AS coverage
            FROM test_tasks t JOIN projects p ON p.id = t.project_id
            ORDER BY t.id DESC""").fetchall()
     return [dict(r, progress=PROGRESS.get(r["status"], 0)) for r in rows]

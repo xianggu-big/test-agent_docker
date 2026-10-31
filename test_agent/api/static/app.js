@@ -195,29 +195,80 @@ async function pollTasks() {
   if (!pollTimer) pollTimer = setInterval(pollTasks, 3000);
 }
 
+const PG_COLLAPSED = new Set();   // 收起的项目名（粘性：3s 轮询重渲染不丢）
+let PG_SEARCH = "";
+
 function renderTasks() {
-  const groups = {
-    all: TASKS, running: TASKS.filter(t => t.progress < 100),
-    done: TASKS.filter(t => t.status === "done"), failed: TASKS.filter(t => t.status === "failed"),
-  }[TASK_FILTER] || TASKS;
-  $("task-rows").innerHTML = groups.map(t => {
-    const isStaff = ME.role !== "caller";
-    const confirmable = isStaff && t.confirmed !== 1 && t.progress < 100;
-    const runnable = isStaff && t.confirmed === 1 && t.progress < 100;
-    return `<tr>
-      <td><b>#${t.id}</b><div class="hint">${esc((t.requirement_text || "").slice(0, 24))}…</div></td>
-      <td>${esc(t.project_name)}<div class="hint">${esc(t.primary_language) || "-"}</div></td>
-      <td><span class="badge ${t.status === "done" ? "badge-ok" : t.status === "failed" ? "badge-fail" :
-        t.progress < 100 && t.status !== "queued" ? "badge-run" : t.status === "cancelled" ? "badge-cancel" : "badge-queued"}">${STATUS_CN[t.status] || t.status}</span>
-        ${t.confirmed !== 1 ? '<div class="hint">未确认 · 禁止下发</div>' : ""}</td>
-      <td><span class="progress"><i style="width:${t.progress}%"></i></span>${t.progress}%</td>
-      <td>
-        <button class="op-link" onclick="viewReport(${t.id})">查看</button>
-        <button class="op-link" ${confirmable ? "" : "disabled"} onclick="confirmTask(${t.id})">人工确认</button>
-        <button class="op-link" ${runnable ? "" : "disabled"} onclick="runTask(${t.id})">下发执行</button>
-        <button class="op-link" onclick="viewLogs(${t.id})">日志</button>
-      </td></tr>`;
-  }).join("") || '<tr><td colspan="5" class="hint">暂无任务</td></tr>';
+  const stCls = t => t.status === "done" ? "badge-ok" : t.status === "failed" ? "badge-fail" :
+    (t.progress < 100 && t.status !== "queued" && t.status !== "cancelled") ? "badge-run" :
+    t.status === "cancelled" ? "badge-cancel" : "badge-queued";
+  const isStaff = ME.role !== "caller";
+  const groups = new Map();
+  TASKS.forEach(t => {
+    const key = t.project_name || "（未命名项目）";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(t);
+  });
+  let html = "", shown = 0, idx = 0;
+  groups.forEach((tasks, pname) => {
+    const q = PG_SEARCH.toLowerCase();
+    if (PG_SEARCH && pname.toLowerCase().indexOf(q) === -1 &&
+        !tasks.some(t => (t.requirement_text || "").toLowerCase().indexOf(q) > -1)) return;
+    if (TASK_FILTER === "running" && !tasks.some(t => t.progress < 100 && t.status !== "queued" && t.status !== "cancelled" && t.status !== "done")) return;
+    if (TASK_FILTER === "done" && !tasks.some(t => t.status === "done")) return;
+    if (TASK_FILTER === "failed" && !tasks.some(t => t.status === "failed")) return;
+    idx++; shown++;
+    const okN = tasks.filter(t => t.status === "done").length;
+    const failN = tasks.filter(t => t.status === "failed").length;
+    const runN = tasks.filter(t => t.progress < 100 && t.status !== "queued" && t.status !== "cancelled" && t.status !== "done").length;
+    const open = !PG_COLLAPSED.has(pname);
+    let rows = "";
+    tasks.forEach(t => {
+      const confirmable = isStaff && t.confirmed !== 1 && t.progress < 100;
+      const runnable = isStaff && t.confirmed === 1 && t.progress < 100;
+      rows += `<tr class="pg-task" data-tid="${t.id}">
+        <td><span class="hint">#${t.id}</span></td>
+        <td>${esc((t.requirement_text || "").slice(0, 46))}${(t.requirement_text || "").length > 46 ? "…" : ""}</td>
+        <td><span class="badge ${stCls(t)}">${STATUS_CN[t.status] || t.status}${t.progress < 100 && t.status !== "queued" && t.status !== "cancelled" && t.status !== "done" ? " " + t.progress + "%" : ""}</span>
+            ${t.confirmed !== 1 ? '<div class="hint">未确认 · 禁止下发</div>' : ""}</td>
+        <td class="hint">${t.cases != null ? t.cases : "—"}</td>
+        <td class="hint">${t.coverage != null ? Math.round(t.coverage * 100) + "%" : "—"}</td>
+        <td class="hint hide-sm">${esc(t.created_at || "")}</td>
+        <td>
+          <button class="op-link" onclick="event.stopPropagation();viewReport(${t.id})">报告</button>
+          <button class="op-link" ${confirmable ? "" : "disabled"} onclick="event.stopPropagation();confirmTask(${t.id})">人工确认</button>
+          <button class="op-link" ${runnable ? "" : "disabled"} onclick="event.stopPropagation();runTask(${t.id})">下发执行</button>
+          <button class="op-link" onclick="event.stopPropagation();viewLogs(${t.id})">日志</button>
+        </td></tr>`;
+    });
+    html += `<div class="pg-group ${open ? "open" : ""}">
+      <div class="pg-head" role="button" tabindex="0" aria-expanded="${open}" data-p="${esc(pname)}">
+        <span class="pg-chev">▾</span><span class="pg-name">${esc(pname)}</span>
+        <span class="lang">${esc(tasks[0].primary_language || "-")}</span>
+        <span class="pg-sum"><span class="mini ok">通过 ${okN}</span>
+          ${failN ? `<span class="mini fail">缺陷 ${failN}</span>` : ""}
+          ${runN ? `<span class="mini run-n">运行 ${runN}</span>` : ""}
+          <span class="mini mut">${tasks.length} 次运行</span></span>
+        <span class="hint pg-last">最近 ${esc(tasks[0].created_at || "")}</span>
+      </div>
+      <div class="pg-tbl ${open ? "" : "hidden"}"><table class="tbl">
+        <thead><tr><th>#</th><th>需求 / 测试标题</th><th>状态</th><th>用例</th><th>覆盖率</th><th class="hide-sm">时间</th><th>操作</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`;
+  });
+  $("project-groups").innerHTML = html ||
+    '<div class="card hint" style="padding:24px;text-align:center">没有匹配的项目或任务——换个关键词或筛选条件</div>';
+  document.querySelectorAll(".pg-head").forEach(h => {
+    const toggle = () => {
+      const name = h.dataset.p;
+      PG_COLLAPSED.has(name) ? PG_COLLAPSED.delete(name) : PG_COLLAPSED.add(name);
+      renderTasks();
+    };
+    h.onclick = toggle;
+    h.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
+  });
+  document.querySelectorAll(".pg-task").forEach(tr => {
+    tr.onclick = e => { if (e.target.closest("button")) return; viewReport(Number(tr.dataset.tid)); };
+  });
 }
 
 async function confirmTask(id) { try { await api(`/tasks/${id}/confirm`, { method: "POST", body: "{}" }); pollTasks(); } catch (e) { alert(e.message); } }
@@ -683,6 +734,12 @@ $("wb-confirm").onclick = () => {};
 document.querySelectorAll("#task-tabs .tab").forEach(b => b.onclick = () => {
   TASK_FILTER = b.dataset.f;
   document.querySelectorAll("#task-tabs .tab").forEach(x => x.classList.toggle("active", x === b));
+  renderTasks();
+});
+
+const pgSearch = document.getElementById("pg-search");
+if (pgSearch) pgSearch.addEventListener("input", e => {
+  PG_SEARCH = e.target.value.trim().toLowerCase();
   renderTasks();
 });
 document.querySelectorAll("[data-rp]").forEach(b => b.onclick = () => switchRp(b.dataset.rp));

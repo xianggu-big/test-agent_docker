@@ -172,3 +172,27 @@ textarea { resize: vertical; }
   .level-grid { grid-template-columns: 1fr; }
   .main { padding: 12px; }
 }
+
+
+/* ---------- 任务列表：项目分组视图 ---------- */
+.pg-group{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.pg-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;flex-wrap:wrap}
+.pg-head:hover{background:#fafbfd}
+.pg-chev{color:var(--muted);transition:transform .15s}
+.pg-group.open .pg-chev{display:inline-block;transform:rotate(180deg)}
+.pg-name{font-weight:500;font-size:15px}
+.lang{background:var(--primary-weak,#eff4ff);color:var(--primary);border-radius:5px;padding:1px 8px;font-size:11px}
+.pg-sum{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}
+.mini{border-radius:5px;padding:2px 9px;font-size:11px;font-weight:500;white-space:nowrap}
+.mini.ok{background:#e8f7ee;color:var(--ok)}
+.mini.fail{background:#fdecec;color:var(--fail)}
+.mini.run-n{background:#eff4ff;color:var(--primary)}
+.mini.mut{background:#f1f3f6;color:var(--muted)}
+.pg-last{white-space:nowrap}
+.pg-tbl table{width:100%;border-collapse:collapse;font-size:13px}
+.pg-tbl th{text-align:left;padding:9px 14px;color:var(--muted);font-weight:400;font-size:12px;border-bottom:1px solid var(--line);background:#fafbfd;white-space:nowrap}
+.pg-tbl td{padding:10px 14px;border-bottom:1px solid #f0f2f5;vertical-align:middle}
+.pg-task{cursor:pointer}
+.pg-task:hover{background:#f8faff}
+.pg-task:last-child td{border-bottom:none}
+@media(max-width:900px){.hide-sm{display:none}}
