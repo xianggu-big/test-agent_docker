@@ -38,7 +38,9 @@ GRID = {
     "L2E2": {"L2_WHITEBOX_ENABLED": False},     # E6：无白盒轨（调用图/顺序场景跳过，只留契约用例）
     "L2E3": {"TRACE_ENABLED": False},           # E6：无跨级追踪（溯源建链关）
     "X8": {"FINGERPRINT_BREAKER": 3},           # 熔断阈值对照：3 轮同指纹（用户 2026-10-31 拍板"按建议来"；三角色 23/30 在第 2 轮熔断的对照）
-    # —— 三源知识注入剩余两格（docs/领域知识注入调研-20261031.md：C 源 XC 格已先行）——
+    # —— 三源知识注入消融三格（docs/领域知识注入调研-20261031.md；df8d573 声称的 XC 格
+    # 实际缺失，本轮补齐——提交信息与实现不符的第 2 例，引用前先 grep 实锤）——
+    "XC": {"DOCSTRING_GROUNDING_ENABLED": True},  # C源：docstring grounding（预期冲突以文档为准）
     "XA": {"USAGE_EXAMPLES_ENABLED": True},     # A源：repo 调用形态锚点（剥断言防迁就；判据=①类失败中
                                                 # "调用形态错误"子类消失 + 监督指标全过率不得上升）
     "X9": {"PITFALL_KB_ENABLED": True},         # B源：语言×类型陷阱库（错误推测法扩展；判据=检出率+
