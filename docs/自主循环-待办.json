@@ -216,6 +216,18 @@
    "acceptance": "done+S0 模块测试 7/7（V1 GRID 一致性/V2 L2E1 产物无契约函数/V3 L2E2 产物无顺序函数+契约在/V4 TRACE 门控矩阵关0开5，真库只读）；脚本 data/reports/test_s0_modules.py",
    "status": "done",
    "attempts": 1
+  },
+  {
+   "id": "TODO-18",
+   "title": "re-export 型包转发名进符号表（首批根因双杀之二）——loop-10 已修",
+   "severity": "P1",
+   "evidence": "tenacity 18→63 符号；roleexp 首批 static_rejected 实锤",
+   "files": [
+    "test_agent/skills/gen_tests.py"
+   ],
+   "acceptance": "done",
+   "status": "done",
+   "attempts": 1
   }
  ]
 }
