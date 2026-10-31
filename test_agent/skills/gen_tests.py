@@ -228,6 +228,17 @@ def _module_top_level(ws: Path) -> dict[str, set[str]]:
         names = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
         # 包入口以包目录名为 import 名（D3：否则 from pkg import x 的闸校验形同虚设）
         key = p.parent.name if p.stem == "__init__" else p.stem
+        # Loop-10（三角色实验首批实锤）：re-export 型包的 __init__.py 全是
+        # `from .sub import X` 转发（tenacity/requests 均如此），ast 里不是
+        # FunctionDef——把转发名也纳入符号表，否则静态闸误杀合法 import
+        if p.stem == "__init__":
+            for node in tree.body:
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    for alias in node.names:
+                        if alias.name != "*":
+                            names.add(alias.asname or alias.name)
+                elif isinstance(node, ast.Assign):
+                    pass  # __all__ 等赋值不展开（v2：解析 __all__ 更精确）
         table.setdefault(key, set()).update(names)
     return table
 

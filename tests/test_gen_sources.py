@@ -157,3 +157,19 @@ def test_import_audit_plain_import被测包放行(tmp_path):
         {"name": "t", "code": "import titlecase\n\n\ndef test_t():\n    assert titlecase\n"},
     ], ws)
     assert ok and not rejected
+
+
+# ---------- Loop-10：re-export 型包的 __init__ 转发名进符号表（tenacity 闸误杀实锤） ----------
+
+def test_static_gate_reexport_package(tmp_path):
+    ws = _mkws(tmp_path, {
+        "mypkg/__init__.py": "from ._core import retry, wait\nfrom .util import *\n",
+        "mypkg/_core.py": "def retry():\n    return 1\n\ndef wait():\n    return 2\n",
+        "mypkg/util.py": "def util_fn():\n    return 3\n",
+    })
+    table = _module_top_level(ws)
+    assert {"retry", "wait"} <= table["mypkg"], "转发名必须进符号表"
+    ok, rejected = _static_filter(
+        [{"name": "t", "code": "from mypkg import retry\n\n\ndef test_t():\n    assert retry\n"}],
+        ws)
+    assert ok and not rejected
