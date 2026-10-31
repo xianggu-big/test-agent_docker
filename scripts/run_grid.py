@@ -37,6 +37,7 @@ GRID = {
     "L2E1": {"L2_BLACKBOX_ENABLED": False},     # E6：无黑盒轨（契约/需求用例跳过，只留顺序场景）
     "L2E2": {"L2_WHITEBOX_ENABLED": False},     # E6：无白盒轨（调用图/顺序场景跳过，只留契约用例）
     "L2E3": {"TRACE_ENABLED": False},           # E6：无跨级追踪（溯源建链关）
+    "X8": {"FINGERPRINT_BREAKER": 3},           # 熔断阈值对照：3 轮同指纹（用户 2026-10-31 拍板"按建议来"；三角色 23/30 在第 2 轮熔断的对照）
 }
 
 

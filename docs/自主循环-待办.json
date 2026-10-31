@@ -237,7 +237,7 @@
    "files": [
     "test_agent/skills/prompt_library.py"
    ],
-   "acceptance": "陷阱库按语言/类型分级注入+消融格",
+   "acceptance": "方案=三源注入（A repo 校准/B 陷阱库 X9/C docstring grounding），调研与排期见 docs/领域知识注入调研-20261031.md",
    "status": "open",
    "attempts": 0
   },
