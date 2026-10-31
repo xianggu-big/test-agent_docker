@@ -36,6 +36,17 @@ def test_v8_v9_ablation_cells_wired():
     assert config.GEN_CROSS_REVIEW_ENABLED is False
 
 
+def test_three_source_ablation_cells_wired():
+    """三源注入消融格入口钉死（docs/领域知识注入调研-20261031.md）：
+    XC=C docstring（df8d573 先行）/XA=A repo 调用形态/X9=B 陷阱库，三格默认全关。"""
+    assert GRID["XC"] == {"DOCSTRING_GROUNDING_ENABLED": True}
+    assert GRID["XA"] == {"USAGE_EXAMPLES_ENABLED": True}
+    assert GRID["X9"] == {"PITFALL_KB_ENABLED": True}
+    assert config.DOCSTRING_GROUNDING_ENABLED is False
+    assert config.USAGE_EXAMPLES_ENABLED is False
+    assert config.PITFALL_KB_ENABLED is False
+
+
 def _mem_conn():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row

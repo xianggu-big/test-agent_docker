@@ -30,6 +30,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from test_agent import config
+from test_agent.graph import builder as builder_mod  # noqa: E402
+from test_agent.skills import ai_reviewer as ai_reviewer_mod  # noqa: E402
 from test_agent.skills import scenario_gen as scenario_gen_mod  # noqa: E402
 from test_agent.skills import (builtin, callgraph, contract_gen, endpoint_extract,
                                gen_tests, llm_usage, prompt_library,
@@ -142,8 +144,9 @@ def part1_completion() -> list[Item]:
 
     # —— 第十一轮补齐：以下为第四至十轮新机制的静态契约（此前契约集合停在 2026-10-28 三方案轮）——
 
-    # 10) L5 表契约：22 表齐备（15-18 rtm_maps/evaluation_rounds/complexity_hotspots/llm_calls
-    #     + 19-22 四级双轨：test_levels/interface_endpoints/call_edges/scenario_cases）
+    # 10) L5 表契约：23 表齐备（15-18 rtm_maps/evaluation_rounds/complexity_hotspots/llm_calls
+    #     + 19-22 四级双轨：test_levels/interface_endpoints/call_edges/scenario_cases
+    #     + 23 review_decisions：AI 代审/人工审查决策台账，决策必须结构化+可解释）
     ddl = config.SCHEMA_PATH.read_text(encoding="utf-8")
     created = set(re.findall(r"CREATE TABLE IF NOT EXISTS\s+(\w+)", ddl))
     expected_tables = {
@@ -151,11 +154,15 @@ def part1_completion() -> list[Item]:
         "skills", "skill_invocations", "container_jobs", "test_scripts", "test_cases",
         "test_conditions", "test_reports", "feedback_annotations", "rtm_maps",
         "evaluation_rounds", "complexity_hotspots", "llm_calls",
-        "test_levels", "interface_endpoints", "call_edges", "scenario_cases"}
+        "test_levels", "interface_endpoints", "call_edges", "scenario_cases",
+        "review_decisions"}
     (ok if created == expected_tables else miss)(
-        "L5 schema 22 表契约",
-        "22 表齐备" if created == expected_tables else
+        "L5 schema 23 表契约",
+        "23 表齐备" if created == expected_tables else
         f"缺失={sorted(expected_tables - created)} 多余={sorted(created - expected_tables)}")
+    tasks_ddl = re.search(r"CREATE TABLE IF NOT EXISTS test_tasks\s*\(.*?\n\)", ddl, re.S)
+    (ok if tasks_ddl and "ready_for_review" in tasks_ddl.group(0) else miss)(
+        "test_tasks.status 含 ready_for_review（两阶段停等态）", "缺失")
     lvl_col = re.search(r"CREATE TABLE IF NOT EXISTS evaluation_rounds\s*\(.*?\n\)", ddl, re.S)
     (ok if lvl_col and "level" in lvl_col.group(0) else miss)(
         "evaluation_rounds.level 列", "级别维度在位" if lvl_col else "DDL 缺失")
@@ -164,7 +171,8 @@ def part1_completion() -> list[Item]:
     #     骨架四开关默认开（系统默认行为）。A/B/C 三开关默认值见上方第 1 组。
     for key in ("GEN_BOUNDARY_ATTACK", "WITNESS_CONTINUE_ENABLED", "GEN_CROSS_REVIEW_ENABLED",
                 "STATE_TRANSITION_ENABLED", "METAMORPHIC_ENABLED", "AUTO_PREPARE_ENV",
-                "LEVELS_ENABLED", "LEVELS_L3_ENABLED", "LEVELS_L4_ENABLED"):
+                "LEVELS_ENABLED", "LEVELS_L3_ENABLED", "LEVELS_L4_ENABLED",
+                "USAGE_EXAMPLES_ENABLED", "PITFALL_KB_ENABLED"):
         v = getattr(config, key, None)
         (ok if v is False else miss)(f"config.{key}", f"默认值={v}（应为 False）")
     for name in ("parse_scenarios", "confirm_scenario", "l3_metrics", "apply_smoke_results",
@@ -213,6 +221,41 @@ def part1_completion() -> list[Item]:
         "gen_tests._extract_api_docs（C源 docstring grounding）", "缺失")
     (ok if getattr(config, "DOCSTRING_GROUNDING_ENABLED", None) is False else miss)(
         "config.DOCSTRING_GROUNDING_ENABLED 默认关", "缺失")
+    (ok if callable(getattr(gen_tests, "_extract_usage_examples", None))
+     and callable(getattr(gen_tests, "rebuild_gen_files_from_db", None))
+     and callable(getattr(gen_tests, "collect_gate_files", None)) else miss)(
+        "gen_tests A源提取+布考场重建+顺延收集闸", "缺失")
+    (ok if getattr(prompt_library, "PITFALL_KB", None)
+     and callable(getattr(prompt_library, "select_pitfalls", None))
+     and callable(getattr(prompt_library, "build_pitfall_section", None)) else miss)(
+        "prompt_library PITFALL_KB（B源陷阱库）", "缺失")
+
+    # 12b) 两阶段人机协作 + AI 代审（2026-10-31）：两图入口/状态机/代审机制/角色分离/红线
+    (ok if callable(getattr(builder_mod, "build_prep_graph", None))
+     and callable(getattr(builder_mod, "build_exec_graph", None)) else miss)(
+        "builder 两图入口（prep/exec）", "缺失")
+    (ok if all(callable(getattr(builder_mod, n, None)) for n in
+               ("run_task_prep", "run_task_exec", "run_task_auto", "run_feedback_round")) else miss)(
+        "两阶段+代审入口（prep/exec/auto/feedback）", "缺失")
+    src_builder = inspect.getsource(builder_mod)
+    (ok if "two_stage_rebuild" in src_builder else miss)(
+        "布考场按审查结论重写（two_stage_rebuild 钩子）", "缺失")
+    (ok if all(callable(getattr(ai_reviewer_mod, n, None)) for n in
+               ("run_review_once", "run_d1_review", "validate_decisions",
+                "witness_protected_names", "spotcheck_sample", "record_spotcheck")) else miss)(
+        "ai_reviewer 机制函数在位", "缺失")
+    src_ar = inspect.getsource(ai_reviewer_mod)
+    (ok if "证人保护" in src_ar else miss)(
+        "AI 代审证人保护红线（AI 无权删 product_defect 证人）", "缺失")
+    sys_rev = getattr(prompt_library, "REVIEWER_SYSTEM", "")
+    sys_d1 = getattr(prompt_library, "D1_SYSTEM", "")
+    sys_base = getattr(prompt_library, "SYSTEM_PROMPT", "")
+    (ok if sys_base and sys_rev and sys_d1 and len({sys_base, sys_rev, sys_d1}) == 3 else miss)(
+        "代审角色分离（D1/REVIEWER ≠ 生成器 SYSTEM，三份独立提示词）", "缺失")
+    (ok if getattr(config, "AI_REVIEWER_TOKEN_BUDGET", 0) > 0 else miss)(
+        "代审 token 停车线", "缺失")
+    (ok if getattr(config, "FEEDBACK_MAX_ROUNDS", 0) == 5 else miss)(
+        "对话增补预算 5 轮", "缺失")
     demo_spec = config.ROOT / "data" / "demo" / "L2场景-coupon-api" / "openapi.json"
     (ok if demo_spec.exists() else miss)("L2 冒烟 demo 项目（openapi.json）", "缺失")
     sys_gen = getattr(prompt_library, "SYSTEM_PROMPT", None)
