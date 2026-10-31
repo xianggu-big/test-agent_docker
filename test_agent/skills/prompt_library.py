@@ -230,7 +230,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       state_transition: bool = False,
                       metamorphic: bool = False,
                       cond_forced: bool = False,
-                      existing_cases: list[str] | None = None) -> str:
+                      existing_cases: list[str] | None = None,
+                      api_docs: str | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -248,6 +249,15 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     """
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
+    docs_text = ""
+    if api_docs:
+        docs_text = f"""
+
+## API 行为文档（docstring grounding，实验变量 C）
+以下是被测函数的官方文档摘录——这是行为规范的第一来源：
+预期值与 docstring 冲突时，**以 docstring 为准**，expected_basis 标「docstring文档」；
+docstring 没写的行为，按需求文档推断，禁止猜。
+{api_docs}"""
     method_text = "\n".join(f"{i}.【{m['name']}】{m['skeleton']}"
                             for i, m in enumerate(METHODS, 1)) if include_methods else ""
     boundary_text = BOUNDARY_ATTACK_SECTION if boundary_attack else ""
@@ -292,7 +302,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
+{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{docs_text}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}

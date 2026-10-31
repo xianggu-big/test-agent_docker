@@ -74,6 +74,9 @@ AUTO_PREPARE_ENV = False             # 模式③一条龙：True=provision 缺�
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-chat"
 
+# —— 三源知识注入（docs/领域知识注入调研-20261031.md：C docstring/A 用法锚点/B 陷阱库，默认关做消融） ——
+DOCSTRING_GROUNDING_ENABLED = False  # C源：目标函数 docstring 注入生成提示词（预期冲突时以 docstring 为准）
+
 # —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
 LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg
 

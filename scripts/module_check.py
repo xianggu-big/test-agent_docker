@@ -209,6 +209,10 @@ def part1_completion() -> list[Item]:
                                                  fromlist=["make_nodes"]).make_nodes)
     (ok if "AND level='L1'" in src_nodes_lvl else miss)(
         "L1 evaluate 轮次删除级别过滤", "缺失")
+    (ok if callable(getattr(gen_tests, "_extract_api_docs", None)) else miss)(
+        "gen_tests._extract_api_docs（C源 docstring grounding）", "缺失")
+    (ok if getattr(config, "DOCSTRING_GROUNDING_ENABLED", None) is False else miss)(
+        "config.DOCSTRING_GROUNDING_ENABLED 默认关", "缺失")
     demo_spec = config.ROOT / "data" / "demo" / "L2场景-coupon-api" / "openapi.json"
     (ok if demo_spec.exists() else miss)("L2 冒烟 demo 项目（openapi.json）", "缺失")
     sys_gen = getattr(prompt_library, "SYSTEM_PROMPT", None)

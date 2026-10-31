@@ -215,6 +215,44 @@ def _parse_cases(text: str) -> dict | None:
     return data
 
 
+def _extract_api_docs(ws: Path, max_chars: int = 2000) -> str | None:
+    """C 源·docstring grounding（领域知识注入调研 §C）：AST 遍历取模块级+顶层函数/类的
+    docstring，渲染为 "### 模块.符号" + 换行 + 原文。确定性、零 LLM；超预算截断时优先
+    保留含 Args/Returns/Raises 段的（行为规范密度高）；无任何 docstring 返回 None。"""
+    docs: list[tuple[str, str, int]] = []   # (标题, 正文, 语义密度分)
+    nl = chr(10)                             # 规避 heredoc 转义坑：换行一律 chr(10)
+    for p in sorted(Path(ws).rglob("*.py")):
+        if any(part in config.SKIP_DIRS for part in p.parts):
+            continue
+        if p.name.startswith("test_") or p.name.endswith("_test.py"):
+            continue
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8", errors="ignore"))
+        except SyntaxError:
+            continue
+        mod = p.stem
+        mod_doc = ast.get_docstring(tree)
+        if mod_doc:
+            docs.append((f"### {mod}（模块）{nl}{mod_doc.strip()}", mod_doc, 0))
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                doc = ast.get_docstring(node)
+                if doc:
+                    score = sum(k in doc for k in ("Args", "Returns", "Raises", "参数", "返回", "抛出"))
+                    docs.append((f"### {mod}.{node.name}{nl}{doc.strip()}", doc, score))
+    if not docs:
+        return None
+    # 超预算：先按语义密度降序保优质，再按标题序稳定输出
+    docs.sort(key=lambda d: (-d[2], d[0]))
+    kept, used = [], 0
+    for title, _body, _score in sorted(docs, key=lambda d: (-d[2], d[0])):
+        if used + len(title) > max_chars:
+            continue
+        kept.append(title)
+        used += len(title)
+    return nl.join(kept) if kept else None
+
+
 def _module_top_level(ws: Path) -> dict[str, set[str]]:
     """被测工作区各模块的顶层符号表（静态闸用）：module stem -> {def/class 名}。"""
     table: dict[str, set[str]] = {}
