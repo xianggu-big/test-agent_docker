@@ -228,6 +228,30 @@
    "acceptance": "done",
    "status": "done",
    "attempts": 1
+  },
+  {
+   "id": "TODO-19",
+   "title": "错误推测知识库升级：语言×项目类型常见陷阱库——现状 T5 仅通用槽位，缺 Python/Web 常见问题领域知识注入",
+   "severity": "P1",
+   "evidence": "grep 无 ERROR_GUESS_KB；test_templates.py T5 仅槽位",
+   "files": [
+    "test_agent/skills/prompt_library.py"
+   ],
+   "acceptance": "陷阱库按语言/类型分级注入+消融格",
+   "status": "open",
+   "attempts": 0
+  },
+  {
+   "id": "TODO-20",
+   "title": "熔断阈值 X8 对照格（BREAKER=3，预算冻结不可改现值）",
+   "severity": "P2",
+   "evidence": "config.py:32 冻结纪律；三角色 23/30 第 2 轮熔断",
+   "files": [
+    "scripts/run_grid.py"
+   ],
+   "acceptance": "X8 对照数据",
+   "status": "open",
+   "attempts": 0
   }
  ]
 }
