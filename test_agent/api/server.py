@@ -384,7 +384,7 @@ def api_rtm(tid: int, user: dict = Depends(current_user)):
                           "WHERE task_id=? ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
     cases = [dict(r) for r in conn.execute(
         """SELECT c.id, c.name, c.method, c.priority, c.input, c.steps, c.expected,
-                  c.expected_basis, c.source, c.enabled
+                  c.expected_basis, c.source, c.enabled, c.content
            FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
            WHERE s.task_id=? AND c.enabled=1 ORDER BY c.id""", (tid,))]
     return {"conditions_total": len(conditions),

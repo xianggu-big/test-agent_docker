@@ -83,15 +83,20 @@
     <!-- ② 脚本工作台 -->
     <section id="page-workbench" class="page hidden">
       <div class="stepper" id="stepper-wb"></div>
+      <div class="card" id="wb-plan" style="margin-bottom:12px">
+        <h3>测试方案（需求 → 测试条件 → 用例 → 测试目标）</h3>
+        <div id="wb-plan-body" class="hint">（选择任务后加载：显示需求拆解出的测试条件、每条条件由哪些用例覆盖、每个用例测哪个目标函数）</div>
+      </div>
       <div class="grid-2">
         <div>
           <div class="card">
             <h3>选择任务</h3>
             <select id="wb-task"></select>
             <div class="confirm-bar hidden" id="wb-confirm-bar">
-              人工确认后才能下发执行
-              <button id="wb-confirm" class="btn btn-primary btn-sm">人工确认</button>
+              <div>确认后 Agent 才能下发执行——将按下方<b>测试方案</b>自动生成用例并运行</div>
+              <button id="wb-confirm" class="btn btn-primary btn-sm">人工确认（允许下发）</button>
             </div>
+            <div class="confirm-ok hidden" id="wb-confirm-ok">✅ 已确认。下一步：到<b>任务列表</b>点【下发执行】——Agent 将按测试方案拆解需求、生成用例（复用已有用例）、在容器里运行并出报告。</div>
           </div>
           <div class="card">
             <h3>测试框架 / 插件</h3>

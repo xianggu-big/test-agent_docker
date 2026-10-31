@@ -66,6 +66,7 @@ function route() {
     TASK_TID = parseInt(page.split("/") ? (location.hash.split("/")[2] || "0") : "0", 10);
   }
   if (!PAGES.includes(page) && page !== "taskdetail") page = "new";
+  if (!ME) return;   // /api/me 未返回前先不渲染（whoami 返回后 808 行会重入 route()）
   if (page === "settings" && ME.role !== "admin") page = "new";
   if (page === "workbench" && !(ME.role === "admin" || ME.role === "developer")) page = "new";
   PAGES.forEach(p => $("page-" + p).classList.toggle("hidden", p !== page));
@@ -138,17 +139,71 @@ async function refreshWorkbench() {
   sel.onchange = loadWorkbench;
 }
 
+function wbTargets(code) {
+  // 从用例代码提取被测目标：from <模块> import <函数们> → 模块.函数 列表（确定性，无 LLM）
+  const out = [];
+  const re = /from\s+([\w\.]+)\s+import\s+([\w\s,]+)/g;
+  let m;
+  while ((m = re.exec(code || ""))) {
+    m[2].split(",").forEach(fn => {
+      const name = fn.trim().split(/\s+as\s+/)[0];
+      if (name && !name.startsWith("pytest") && !name.startsWith("hypothesis")) out.push(m[1] + "." + name);
+    });
+  }
+  return out.slice(0, 4);
+}
+
+function renderWbPlan(rtm, detail) {
+  const box = $("wb-plan-body");
+  if (!rtm || (!rtm.conditions_total && !(rtm.matrix || []).length)) {
+    box.innerHTML = detail.status === "queued"
+      ? "该任务尚未下发执行。<b>确认并下发后</b>，Agent 会：①把你的需求拆解成一条条可验证的测试条件（测试分析）；②按条件生成用例或复用已有用例（测试设计）；③在容器里运行（执行）；④出报告并标注哪些条件没覆盖到（评估）。本面板届时展示完整链路。"
+      : "该任务无测试条件数据（plan 关闭或运行于旧版本）。";
+    return;
+  }
+  const src = rtm.map_source === "llm" ? "LLM 语义映射" : "关键词映射（2-gram）";
+  const nameTargets = {};
+  (rtm.cases || []).forEach(c => {
+    const tg = wbTargets(c.content || "");
+    // L2 契约用例的目标是 API 端点（steps 字段=路由，如 "POST /coupons"），不是函数
+    if (c.steps && /^(GET|POST|PUT|DELETE|PATCH)\s/.test(c.steps)) tg.push("API " + c.steps);
+    nameTargets[c.name] = tg;
+  });
+  let rows = "";
+  (rtm.matrix || []).forEach(r => {
+    const casesHtml = (r.cases || []).length
+      ? r.cases.map(n => {
+          const tg = (nameTargets[n] || []).map(t => `<code>${esc(t)}</code>`).join(" ");
+          return `<div style="margin:3px 0 3px 18px"><span class="badge badge-queued" style="font-size:10px;padding:1px 6px">用例</span> <code>${esc(n)}</code>`
+            + (tg ? ` <span class="hint">→ 目标：${tg}</span>` : "") + "</div>";
+        }).join("")
+      : '<div style="margin:3px 0 3px 18px"><span class="badge badge-fail" style="font-size:10px;padding:1px 6px">缺口</span> <span class="hint">无用例覆盖——下发执行后 Agent 优先为它生成用例</span></div>';
+    rows += `<div style="padding:7px 0;border-bottom:1px dashed var(--line)">`
+      + `<b style="font-weight:500">${esc(r.condition || "")}</b> `
+      + `<span class="badge ${r.status === "covered" ? "badge-ok" : "badge-fail"}" style="font-size:10px;padding:1px 6px">${r.status === "covered" ? "已覆盖" : "缺口"}</span>${casesHtml}</div>`;
+  });
+  box.innerHTML = `<div class="hint" style="margin-bottom:6px">需求共拆解 <b>${rtm.conditions_total}</b> 条测试条件，已覆盖 <b>${rtm.matrix.filter(x => x.status === "covered").length}</b> 条（映射方式：${src}）。"
+    + "每条用例标注了它测的目标函数——这就是"你的需求 ↔ 用例 ↔ 脚本目标"的对应关系。</div>${rows}`;
+}
+
 async function loadWorkbench() {
   const tid = $("wb-task").value;
   $("wb-cases").innerHTML = ""; $("wb-preview").textContent = "（选择任务后加载最新脚本）";
   $("wb-confirm-bar").classList.add("hidden");
-  if (!tid) return;
-  const [detail, cases] = await Promise.all([api(`/tasks/${tid}`), api(`/tasks/${tid}/cases`)]);
+  $("wb-confirm-ok").classList.add("hidden");
+  if (!tid) { $("wb-plan-body").innerHTML = "（选择任务后加载：显示需求拆解出的测试条件、每条条件由哪些用例覆盖、每个用例测哪个目标函数）"; return; }
+  const [detail, cases, rtm] = await Promise.all([
+    api(`/tasks/${tid}`), api(`/tasks/${tid}/cases`), api(`/tasks/${tid}/rtm`)]);
   const active = ["cloning","analyzing","provisioning","generating","running","reporting"].includes(detail.status);
   if (detail.confirmed !== 1 && !active) $("wb-confirm-bar").classList.remove("hidden");
+  renderWbPlan(rtm, detail);
   $("wb-confirm").onclick = async () => {
-    try { await api(`/tasks/${tid}/confirm`, { method: "POST", body: "{}" });
-      $("wb-confirm-bar").classList.add("hidden"); loadWorkbench(); } catch (e) { alert(e.message); }
+    try {
+      await api(`/tasks/${tid}/confirm`, { method: "POST", body: "{}" });
+      $("wb-confirm-bar").classList.add("hidden");
+      $("wb-confirm-ok").classList.remove("hidden");   // 成功反馈 + 下一步指引
+      loadWorkbench();
+    } catch (e) { alert(e.message); }
   };
   const box = $("wb-cases");
   box.innerHTML = (cases.cases.length ? cases.cases.map(c => {
@@ -164,6 +219,7 @@ async function loadWorkbench() {
       `<span class="m">${src}·${esc(c.method) || "-"}${c.priority ? "·" + esc(c.priority) : ""}</span></label>` +
       (desc ? `<div style="flex:1 1 100%;padding-left:26px;font-size:12px;color:var(--text)">${desc} ${basis}</div>` : "") +
       (inp ? `<div style="flex:1 1 100%;padding-left:26px">${inp}</div>` : "") +
+      ((tgt => tgt ? `<div style="flex:1 1 100%;padding-left:26px"><span class="hint">目标：</span>${tgt.map(t => `<code>${esc(t)}</code>`).join(" ")}</div>` : "")(wbTargets(c.content || ""))) +
       `</div>`;
   }).join("")
     : '<div class="hint">暂无用例：先下发执行触发 AI 生成，或在下方插入用例。</div>');
@@ -199,6 +255,7 @@ const PG_COLLAPSED = new Set();   // 收起的项目名（粘性：3s 轮询重�
 let PG_SEARCH = "";
 
 function renderTasks() {
+  if (!ME) return;   // /api/me 未返回前的轮询重渲染直接跳过（下一轮 3s 补上）——修 ME.role 竞态
   const stCls = t => t.status === "done" ? "badge-ok" : t.status === "failed" ? "badge-fail" :
     (t.progress < 100 && t.status !== "queued" && t.status !== "cancelled") ? "badge-run" :
     t.status === "cancelled" ? "badge-cancel" : "badge-queued";
@@ -730,7 +787,7 @@ $("login-btn").onclick = doLogin;
 $("login-pass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
 $("new-submit").onclick = createTask;
 $("ac-submit").onclick = addCase;
-$("wb-confirm").onclick = () => {};
+$("wb-confirm").onclick = null;   // 真实 handler 在 loadWorkbench 按任务绑定
 document.querySelectorAll("#task-tabs .tab").forEach(b => b.onclick = () => {
   TASK_FILTER = b.dataset.f;
   document.querySelectorAll("#task-tabs .tab").forEach(x => x.classList.toggle("active", x === b));
