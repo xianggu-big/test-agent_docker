@@ -31,7 +31,8 @@ _MIGRATIONS = {
                    "ai_reviewer": "TEXT NOT NULL DEFAULT 'off'"},  # AI 代审三模式 off/hybrid/auto
     "test_reports": {"per_file": "TEXT",         # B2：逐文件覆盖明细（缺口回灌+趋势图数据源）
                      "narrative": "TEXT",        # gen_report 叙述正文（E5 审查对象）
-                     "review": "TEXT"},          # 报告二次审查结论 JSON（§3.4 双闸）
+                     "review": "TEXT",           # 报告二次审查结论 JSON（§3.4 双闸）
+                     "analysis": "TEXT"},        # AI 缺陷分析与修复建议 JSON（报告概览失败框，按需生成缓存）
     "test_cases": {"priority": "TEXT", "input": "TEXT", "steps": "TEXT",
                    "expected": "TEXT", "expected_basis": "TEXT"},  # 六要素结构化（§3.3）
     "evaluation_rounds": {"level": "TEXT DEFAULT 'L1'"},  # 四级双轨：老库补级别维度，存量行=L1

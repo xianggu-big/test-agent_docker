@@ -59,6 +59,16 @@ def error_class_of(stdout: str, nodeid: str) -> str:
     return ""
 
 
+def failure_summary_of(stdout: str, nodeid: str, limit: int = 220) -> str:
+    """提取某 nodeid 的失败摘要全文（错误类: 消息，如 `AssertionError: assert 1 == 2`）——
+    报告概览"预期 vs 实际"与 AI 缺陷分析的证据源；找不到返回空串。"""
+    for l in stdout.splitlines():
+        l = l.strip()
+        if l.startswith(("FAILED", "ERROR")) and nodeid in l and " - " in l:
+            return l.split(" - ", 1)[1].strip()[:limit]
+    return ""
+
+
 def fingerprint_of(stdout: str, stderr: str,
                    exclude_nodeids: tuple[str, ...] = ()) -> str:
     """失败指纹 = pytest 短摘要（-rfE 的 FAILED/ERROR 行）规整后哈希。

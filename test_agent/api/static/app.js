@@ -826,15 +826,120 @@ function renderSuite(cases) {
   return html;
 }
 
+// ---------- 报告概览·判决先行（用户反馈：概览太直白，要最快知道结果；失败要原因+分析+怎么修）----------
+const FK_META = {
+  product_defect: { title: "发现疑似产品缺陷", icon: "🔴", bg: "#fdecec", bd: "#f5c6c6", fg: "#b91c1c",
+    advice: ["这些失败是<b>断言失败</b>——用例预期与程序实际行为不符，系统按「宁可误报不可造假」如实上报为证人，<b>未回炉迁就</b>。",
+             "先看每条的「预期依据」：标<b>需求明示</b>的，预期可在需求里直接定位——若需求没错，就是产品缺陷，按失败消息定位源码修；",
+             "标<b>模型推断/常识</b>的，优先复核用例预期本身是否写错（oracle 问题：失败不一定是程序错）；",
+             "点下方「AI 详细分析」拿逐条根因推测与修复建议（基于真实失败消息和源码，标注置信度）。"] },
+  case_defect: { title: "用例自身问题导致失败（非产品缺陷）", icon: "⚠️", bg: "#fdf3e1", bd: "#f3ddb0", fg: "#b45309",
+    advice: ["失败类型是 import/语法/属性名错误——是<b>生成用例写坏了</b>，不是被测程序的问题。",
+             "重新下发执行：R-Loop 会剪掉坏用例并补测；或到评审页手动修正/停用对应用例。"] },
+  env: { title: "环境问题：测试未能有效执行", icon: "🔧", bg: "#f3f4f6", bd: "#e2e5ea", fg: "#52525b",
+    advice: ["依赖安装、容器或镜像出了问题，用例根本没跑起来。",
+             "查日志里 <code>[provision]</code>/<code>[run]</code> 行定位；确认 requirements.txt / package.json 完整；顶栏「一键准备」可补齐 Docker 与镜像。"] },
+  static: { title: "静态模式：已产出测试设计，未执行", icon: "📋", bg: "#dbeafe", bd: "#c3d7fe", fg: "#1d4fd8",
+    advice: ["该语言暂无容器执行链路（见 README 分级表），系统做了确定性扫描并生成测试设计草稿。",
+             "草稿在「测试用例库」tab 可看（六要素齐全，framework=static_draft）；<b>没有覆盖率和执行结果</b>，报告如实标注未验证。"] },
+};
+
+function renderVerdict(t, latest, an) {
+  if (!latest) {
+    return `<div class="verdict" style="background:#f3f4f6;border-color:#e2e5ea;color:#52525b">
+      <div class="v-title">⏳ 暂无报告</div><div class="v-sub">任务 ${esc(STATUS_CN[t?.status] || t?.status || "")}——跑完评估阶段后这里给结论</div></div>`;
+  }
+  let defects = {};
+  try { defects = JSON.parse(latest.defects || "{}"); } catch { defects = {}; }
+  const fk = defects.failure_kind || "none";
+  const total = latest.total || 0, passed = latest.passed || 0, failed = latest.failed || 0;
+  const cov = latest.coverage_line != null ? Math.round(latest.coverage_line * 100) + "%" : "—";
+  const rounds = latest.exec?.rounds ?? "—";
+  const rev = latest.review ? (() => { try { return JSON.parse(latest.review); } catch { return null; } })() : null;
+  const kpis = (items) => `<div class="v-kpis">${items.map(([k, v]) =>
+    `<div class="v-kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}</div>`;
+
+  // ✅ 通过
+  if (fk === "none" || (!FK_META[fk] && failed === 0 && t?.status === "done")) {
+    return `<div class="verdict" style="background:#e8f7ee;border-color:#bbe7cb;color:#15803d">
+      <div class="v-title">✅ 测试通过</div>
+      <div class="v-sub">${total} 条用例全部通过，覆盖率 ${cov}，R-Loop ${rounds} 轮${rev ? "，报告二次审查" + (rev.status === "pass" ? "通过" : "未过") : ""}——完整数据在下方展开。</div>
+      ${kpis([["用例", total], ["通过", passed], ["覆盖率", cov], ["轮次", rounds]])}</div>`;
+  }
+  const meta = FK_META[fk] || { title: "任务未完成", icon: "⛔", bg: "#f3f4f6", bd: "#e2e5ea", fg: "#52525b",
+    advice: ["执行在某一步诚实停下（见原因），修复后重新下发。"] };
+  const ev = (an && an.evidence) || {};
+  const failedRows = (ev.failed || []);
+  const basisCount = {};
+  failedRows.forEach(f => { const b = f.expected_basis || "未标注"; basisCount[b] = (basisCount[b] || 0) + 1; });
+  const basisLine = Object.keys(basisCount).length
+    ? `<div class="hint" style="margin:6px 0 0">失败用例的预期依据分布：${Object.entries(basisCount).map(([b, n]) => `<span class="badge badge-queued" style="font-size:11px">${esc(b)} ×${n}</span>`).join(" ")}</div>` : "";
+  const table = failedRows.length ? `
+    <div class="table-wrap" style="margin-top:10px"><table class="tbl v-fail-tbl">
+      <tr><th>失败用例</th><th>预期（依据）</th><th>实际失败</th><th>归因</th></tr>
+      ${failedRows.map(f => `<tr>
+        <td><code>${esc(f.name)}</code><div class="hint" style="margin:2px 0 0">${esc(f.method || "")}</div></td>
+        <td>${esc((f.expected || "—").slice(0, 90))}${f.expected_basis ? ` <span class="hint">〔${esc(f.expected_basis)}〕</span>` : ""}</td>
+        <td><span class="badge ${f.error_class === "AssertionError" ? "badge-fail" : "badge-cancel"}">${esc(f.error_class)}</span>
+            <div style="font-size:12px;margin-top:3px;color:var(--muted)">${esc((f.message || "").replace(/^[A-Za-z_]+:?\s*/, "").slice(0, 140))}</div></td>
+        <td class="hint">${f.origin === "generated" ? "生成用例" : "自带测试"}</td></tr>`).join("")}
+    </table></div>` : (fk === "static" ? "" : '<div class="hint" style="margin-top:8px">（该任务为旧日志格式或未执行到判卷，无逐条失败明细）</div>');
+  const adviceHtml = `<div class="v-advice"><b>怎么处理</b><ol>${meta.advice.map(a => `<li>${a}</li>`).join("")}</ol></div>`;
+  const aiBlock = fk === "static" ? "" : renderAnalysisBlock(t?.id, an && an.analysis, failedRows.length);
+  return `<div class="verdict" style="background:${meta.bg};border-color:${meta.bd};color:${meta.fg}">
+    <div class="v-title">${meta.icon} ${meta.title}${fk === "product_defect" ? `：${failed} 处` : ""}</div>
+    <div class="v-sub">${esc(defects.stop_reason || latest.error || "")}</div>
+    ${kpis([["用例", total], ["通过", passed], ["失败", failed], ["覆盖率", cov], ["轮次", rounds]])}
+    <div class="v-box">
+      <div class="v-box-h">失败原因</div>
+      <div>${esc(defects.stop_reason || "—")}</div>${basisLine}${table}${adviceHtml}${aiBlock}
+    </div></div>`;
+}
+
+function renderAnalysisBlock(tid, analysis, nFailed) {
+  if (!analysis) {
+    if (!nFailed) return "";
+    const can = ME && ME.role !== "caller";
+    return `<div class="v-ai" id="v-ai-block">
+      <div class="v-box-h"><span class="ai-chip">AI</span> 详细分析与修复建议</div>
+      <div class="hint" style="margin:4px 0 8px">基于真实失败消息、用例预期与被测源码，逐条给根因推测与改法（标注置信度；失败也可能是用例预期错，分析会如实判别）。按需生成，约 3-6k token。</div>
+      ${can ? `<button class="btn btn-primary btn-sm" onclick="runAnalysis(${tid}, this)">生成 AI 分析</button>`
+            : '<span class="hint">（开发者/管理员可生成）</span>'}</div>`;
+  }
+  const conf = c => ({ "高": "badge-ok", "中": "badge-cancel", "低": "badge-queued" }[c] || "badge-queued");
+  return `<div class="v-ai" id="v-ai-block">
+    <div class="v-box-h"><span class="ai-chip">AI</span> 详细分析与修复建议 <span class="hint" style="margin:0">（已缓存 · ${analysis.evidence_count ?? ""} 条证据）</span></div>
+    ${analysis.summary ? `<div class="v-ai-sum">${esc(analysis.summary)}</div>` : ""}
+    ${(analysis.defects || []).map(d => `<div class="v-ai-item">
+      <div class="d-head"><code>${esc(d.case)}</code> <span class="badge ${conf(d.confidence)}">置信度 ${esc(d.confidence || "—")}</span></div>
+      <div class="v-ai-row"><b>实际</b>${esc(d.observed)}</div>
+      <div class="v-ai-row"><b>预期</b>${esc(d.expected)}</div>
+      <div class="v-ai-row"><b>根因推测</b>${esc(d.root_cause)}</div>
+      <div class="v-ai-row fix"><b>修复建议</b>${esc(d.fix)}</div></div>`).join("")}
+    <div class="hint" style="margin-top:6px">${esc(analysis.note || "")}</div></div>`;
+}
+
+async function runAnalysis(tid, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "AI 分析中（约 20-60 秒）…"; }
+  try {
+    const out = await api(`/tasks/${tid}/analysis`, { method: "POST", body: "{}" });
+    if (out.error) { alert("分析不可用：" + out.error); if (btn) { btn.disabled = false; btn.textContent = "重试 AI 分析"; } return; }
+    if (out.skipped) { alert(out.skipped); return; }
+    await loadReport();
+  } catch (e) { alert("分析失败：" + e.message); if (btn) { btn.disabled = false; btn.textContent = "重试 AI 分析"; } }
+}
+
 async function loadReport() {
   const tid = $("rp-task").value;
   if (!tid) return;
-  const [reports, logs, rtm, charts, levels] = await Promise.all([
+  const [reports, logs, rtm, charts, levels, tdetail, an] = await Promise.all([
     api(`/tasks/${tid}/report`).catch(() => []),
     api(`/tasks/${tid}/logs`).catch(() => []),
     api(`/tasks/${tid}/rtm`).catch(() => null),
     api(`/tasks/${tid}/charts`).catch(() => []),
     api(`/tasks/${tid}/levels`).catch(() => null),
+    api(`/tasks/${tid}`).catch(() => null),
+    api(`/tasks/${tid}/analysis`).catch(() => null),
   ]);
   const latest = reports[0];
   const rate = latest && latest.pass_rate != null ? Math.round(latest.pass_rate * 100) : null;
@@ -873,7 +978,15 @@ async function loadReport() {
         `<figure class="chart-fig"><figcaption>${esc(c.title)}</figcaption>` +
         `<img src="${c.data_url}" alt="${esc(c.title)}" loading="lazy"></figure>`).join("") + "</div>"
     : "";
-  $("rp-overview").innerHTML = execCard(latest) + renderLevels(levels) + summaryHtml + chartsHtml;
+  // 成功：判决绿卡 + 全部内容展开（用户："成功就把现在所有的东西都展示出来"）；
+  // 失败：判决卡+失败框是主角，执行信息/四级卡/叙述/图表折叠在 details 里可展开
+  let fkTop = null;
+  try { fkTop = latest ? JSON.parse(latest.defects || "{}").failure_kind : null; } catch { fkTop = null; }
+  const openAll = !!latest && (!fkTop || fkTop === "none");   // report 节点 pass 时写的是字符串 "none"
+  $("rp-overview").innerHTML = renderVerdict(tdetail, latest, an) +
+    `<details class="v-details" ${openAll ? "open" : ""}>
+      <summary>执行信息 · 四级卡 · 报告叙述 · 图表（点击展开/收起）</summary>` +
+    execCard(latest) + renderLevels(levels) + summaryHtml + chartsHtml + `</details>`;
 
   // RTM 矩阵（测试条件 ↔ 用例映射）——用例六要素移至「测试用例库」tab（D9 分离关注点）
   if (rtm && (rtm.matrix.length || rtm.cases.length)) {

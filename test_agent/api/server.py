@@ -409,6 +409,36 @@ def api_report(tid: int, user: dict = Depends(current_user)):
     return reports
 
 
+@app.get("/api/tasks/{tid}/analysis")
+def api_get_analysis(tid: int, user: dict = Depends(current_user)):
+    """AI 缺陷分析缓存（最新报告行）+ 确定性证据包（失败行/预期/归因，零 LLM，总是可用）。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    from ..skills.defect_analysis import collect_failure_evidence
+    rep = conn.execute("SELECT analysis FROM test_reports WHERE task_id=? ORDER BY id DESC LIMIT 1",
+                       (tid,)).fetchone()
+    cached = _safe_json(rep["analysis"]) if rep and rep["analysis"] else None
+    return {"analysis": cached, "evidence": collect_failure_evidence(conn, tid)}
+
+
+@app.post("/api/tasks/{tid}/analysis")
+def api_run_analysis(tid: int, user: dict = Depends(staff)):
+    """按需生成 AI 缺陷分析与修复建议（花 LLM token，按钮触发；结果缓存）。
+    无 Key 409（诚实）；无失败用例 200 skipped；输出不可解析 200 error（不硬造）。"""
+    import os
+    conn = get_conn()
+    row = _task_or_404(conn, tid)
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise HTTPException(409, "未配置 DEEPSEEK_API_KEY，无法生成 AI 分析（确定性证据仍可在概览查看）")
+    proj = conn.execute("SELECT primary_language FROM projects WHERE id=?", (row["project_id"],)).fetchone()
+    from ..skills.defect_analysis import run_defect_analysis
+    out = run_defect_analysis(api_key, conn, tid,
+                              ws=Path(config.DATA_DIR) / "workspaces" / f"task_{tid}",
+                              lang=(proj["primary_language"] if proj else None) or "python")
+    return out
+
+
 @app.get("/api/tasks/{tid}/charts")
 def api_charts(tid: int, user: dict = Depends(current_user)):
     """报告图表内嵌（gen_charts 产物）：base64 data URL 返回，随报告页一起看。

@@ -260,3 +260,32 @@ textarea { resize: vertical; }
 .pipe-pill.done{background:#e7f6ec;color:#16a34a}
 .pipe-pill.running{background:#fff;border:1.5px solid var(--info);color:var(--info)}
 .pipe-arrow{color:#d1d5db;margin:0 6px}
+
+/* ---------- 报告概览·判决先行（判决卡 / 失败框 / AI 分析） ---------- */
+.verdict{border:1px solid;border-radius:14px;padding:18px 22px;margin-bottom:14px}
+.verdict .v-title{font-size:22px;font-weight:800;letter-spacing:.2px}
+.verdict .v-sub{font-size:13.5px;margin-top:6px;opacity:.9;line-height:1.7}
+.v-kpis{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.v-kpi{background:rgba(255,255,255,.75);border:1px solid rgba(0,0,0,.06);border-radius:10px;padding:8px 14px;min-width:92px}
+.v-kpi .k{font-size:11.5px;color:var(--muted);font-weight:600}
+.v-kpi .v{font-size:20px;font-weight:800;color:var(--text-strong);margin-top:2px}
+.v-box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:14px;color:var(--text)}
+.v-box-h{font-size:14px;font-weight:800;color:var(--text-strong);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.v-fail-tbl td{vertical-align:top;font-size:12.5px}
+.v-fail-tbl th{font-size:12px}
+.v-advice{margin-top:12px;background:#fafbfd;border:1px dashed var(--line);border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.75}
+.v-advice ol{margin:6px 0 0 18px}
+.v-advice li{margin:2px 0}
+.v-ai{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.v-ai-sum{background:#f0f6ff;border-left:3px solid var(--info);padding:8px 12px;border-radius:0 8px 8px 0;font-size:13px;line-height:1.7;margin-bottom:8px}
+.v-ai-item{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12.5px}
+.v-ai-item .d-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.v-ai-row{display:grid;grid-template-columns:72px 1fr;gap:8px;padding:3px 0;line-height:1.6}
+.v-ai-row b{color:var(--muted);font-weight:600}
+.v-ai-row.fix b{color:#15803d}
+.v-ai-row.fix{background:#f3fbf6;border-radius:6px;padding:5px 6px;margin-top:3px}
+.v-details{margin-top:8px}
+.v-details summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0;user-select:none}
+.v-details summary:hover{color:var(--primary)}
+.v-details[open] summary{margin-bottom:8px;border-bottom:1px solid var(--line)}
+@media (max-width:767px){.verdict .v-title{font-size:18px}.v-kpi{min-width:72px;padding:6px 10px}.v-ai-row{grid-template-columns:1fr}}

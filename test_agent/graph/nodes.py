@@ -521,10 +521,11 @@ def make_nodes(deps: GraphDeps) -> dict:
             f"[evaluate 第{round_no}轮] 通过{passed} 失败{failed} 跳过{skipped} "
             f"覆盖率{coverage if coverage is not None else 'N/A'} 指纹{fp[:8] or '无'} → {verdict}（{reason}）")
         # per-case 失败明细进日志（/defects API 与归因面板的数据源——此前从未写入，
-        # F18-c 的 FAILED 行提取一直为空；Python/JS 同口径：nodeid - 错误类）
+        # F18-c 的 FAILED 行提取一直为空；Python/JS 同口径：nodeid - 错误类: 失败消息摘要）
         for nid in repair.failing_nodeids(stdout)[:20]:
             msg(state["session_id"], "assistant",
-                f"[evaluate·failed] FAILED {nid} - {repair.error_class_of(stdout, nid) or 'Error'}")
+                f"[evaluate·failed] FAILED {nid} - "
+                f"{repair.failure_summary_of(stdout, nid) or repair.error_class_of(stdout, nid) or 'Error'}")
         return {"passed": passed, "failed": failed, "skipped": skipped,
                 "coverage_line": coverage, "per_file": _parse_per_file_coverage(stdout),
                 "fingerprint": fp, "failure_kind": kind,

@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS test_reports (
   per_file        TEXT,                  -- JSON：逐文件覆盖率与未覆盖行（B2：覆盖率趋势图与缺口回灌数据源）
   narrative       TEXT,                  -- gen_report 叙述正文（markdown；数字只能来自指标包，E5 审查对象）
   review          TEXT,                  -- JSON：报告二次审查结论 {status, reasons, reviewer}（§3.4 双闸）
+  analysis        TEXT,                  -- JSON：AI 缺陷分析与修复建议 {summary, defects[]}（报告概览失败框，按需生成缓存；root_cause/fix 为推测）
   duration_ms     INTEGER,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
