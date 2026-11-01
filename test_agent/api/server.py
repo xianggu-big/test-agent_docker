@@ -569,9 +569,30 @@ def api_logs(tid: int, user: dict = Depends(current_user)):
 # ---------- 脚本工作台（用例查看 / 人工插入） ----------
 
 @app.get("/api/tasks/{tid}/cases")
-def api_cases(tid: int, user: dict = Depends(current_user)):
+def api_cases(tid: int, all: bool = False, user: dict = Depends(current_user)):
+    """任务用例查询。默认只回最新脚本（老消费方零变化）；?all=1 回任务全量——
+    评审页用：反馈增补写在独立 test_gen_fbN（version 更高），只看最新脚本会把
+    原始用例整个藏掉，用户分不清哪些是新增（任务A实锤）。"""
     conn = get_conn()
     _task_or_404(conn, tid)
+    if all:
+        scripts = conn.execute(
+            "SELECT id, framework, version, filename FROM test_scripts WHERE task_id=? "
+            "ORDER BY version", (tid,)).fetchall()
+        out_scripts = []
+        for s in scripts:
+            cs = conn.execute(
+                """SELECT id, name, method, source, enabled, priority, input, expected,
+                          expected_basis, content FROM test_cases
+                   WHERE script_id=? ORDER BY id""", (s["id"],)).fetchall()
+            out_scripts.append({
+                "id": s["id"], "framework": s["framework"], "version": s["version"],
+                "filename": s["filename"] or "",
+                "cases": [dict(c, content=c["content"][:500]) for c in cs]})
+        flat = [dict(c, script_id=sc["id"], version=sc["version"],
+                     filename=sc["filename"] or "")
+                for sc in out_scripts for c in sc["cases"]]
+        return {"scripts": out_scripts, "cases": flat}
     script = conn.execute(
         "SELECT id, framework, version, content FROM test_scripts WHERE task_id=? "
         "ORDER BY version DESC LIMIT 1", (tid,)).fetchone()
@@ -673,7 +694,8 @@ def api_feedback(tid: int, body: dict, user: dict = Depends(staff)):
     feedback = str(body.get("feedback", "")).strip()
     if not feedback:
         raise HTTPException(422, "反馈文本必填")
-    _task_or_404(get_conn(), tid)
+    conn = get_conn()
+    _task_or_404(conn, tid)
     from ..graph.builder import run_feedback_round
     try:
         summary = run_feedback_round(tid, feedback)
@@ -681,6 +703,17 @@ def api_feedback(tid: int, body: dict, user: dict = Depends(staff)):
         raise HTTPException(422, str(e))
     except RuntimeError as e:
         raise HTTPException(409, str(e))
+    # 任务A：附新增用例明细（name/method/expected/expected_basis/priority + 来源脚本），
+    # 前端据此渲染「本轮新增 N 条」面板——只回 generated 数字用户看不到加了什么
+    sid = summary.get("script_id")
+    if sid:
+        rows = conn.execute(
+            """SELECT id, name, method, priority, input, expected, expected_basis
+               FROM test_cases WHERE script_id=? ORDER BY id""", (sid,)).fetchall()
+        summary["cases"] = [dict(r) for r in rows]
+        summary["filename"] = summary.get("file") or ""
+    else:
+        summary["cases"] = []
     return summary
 
 

@@ -65,6 +65,7 @@ const PAGES = ["new", "workbench", "review", "tasks", "reports", "settings"];
 let TASK_TID = 0;                            // F03 详情页当前任务
 let REVIEW_TID = 0;                          // 评审页当前任务
 let REVIEW_POLL = null;                      // 评审页轮询（阶段一跑动时实时刷新）
+let TD_POLL = null;                          // 任务详情页轮询（活跃态 3s 刷新流水线）
 function route() {
   let page = (location.hash || "#/new").replace("#/", "");
   if (page.startsWith("task/")) {           // F03 任务详情路由 #/task/{tid}
@@ -80,6 +81,9 @@ function route() {
   if (page === "settings" && ME.role !== "admin") page = "new";
   if ((page === "workbench" || page === "review") && !(ME.role === "admin" || ME.role === "developer")) page = "new";
   PAGES.forEach(p => $("page-" + p).classList.toggle("hidden", p !== page));
+  // 任务A3：taskdetail 不在 PAGES 里，上面那行永远碰不到它——初始 hidden 就永远摘不掉，
+  // #/task/{tid} 变成"点了没反应"（所有「查看执行进度」链接全指这里）。显式 toggle：
+  $("page-taskdetail").classList.toggle("hidden", page !== "taskdetail");
   document.querySelectorAll(".nav-item").forEach(a => a.classList.toggle("active", a.dataset.page === page));
   if (page === "workbench") refreshWorkbench();
   if (page === "review") { if (REVIEW_TID) loadReview(REVIEW_TID); else pickReviewTask(); }
@@ -90,6 +94,7 @@ function route() {
   if (page === "taskdetail" && TASK_TID) loadTaskDetail(TASK_TID);
   if (page !== "tasks" && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (page !== "review" && REVIEW_POLL) { clearInterval(REVIEW_POLL); REVIEW_POLL = null; }
+  if (page !== "taskdetail" && TD_POLL) { clearTimeout(TD_POLL); TD_POLL = null; }
   if (page !== "workbench") stopConfirmWatch();         // 离开工作台停阶段一监控（终态监听 watchTaskFinal 跨页保留）
 }
 
@@ -185,7 +190,7 @@ async function loadReview(tid) {
   renderReviewPicker(tid);                                 // 选择器与正文并行加载
   const [detail, cases, rtm, dec, logs] = await Promise.all([
     api(`/tasks/${tid}`).catch(() => null),
-    api(`/tasks/${tid}/cases`).catch(() => null),
+    api(`/tasks/${tid}/cases?all=1`).catch(() => null),
     api(`/tasks/${tid}/rtm`).catch(() => null),
     api(`/tasks/${tid}/review-decisions`).catch(() => null),
     api(`/tasks/${tid}/logs`).catch(() => []),
@@ -219,10 +224,19 @@ async function loadReview(tid) {
     $("rv-plan-body").innerHTML = "该任务尚无测试条件数据（准备阶段的考纲在 plan 节点产出后出现）";
   }
   // 用例清单（勾选=启用；待审查态可增删，布考场按勾选结论重建文件）
+  // 任务A1：改用 ?all=1 按脚本分组——只看最新脚本会把原始用例整个藏掉（增补写在
+  // 独立 test_gen_fbN，version 更高），用户分不清哪些是本轮新增
   const box = $("rv-cases");
-  box.innerHTML = (cases && cases.cases.length ? cases.cases.map(c => {
+  const scriptLabel = (sc) => {
+    const fn = sc.filename || "";
+    if (/fb\d+/.test(fn)) return `对话增补 ${fn.replace(/^test_gen_/, "").replace(/\..*$/, "")}`;
+    if (/r\d+/.test(fn)) return `首轮生成 ${fn.replace(/\..*$/, "")}`;
+    if (/imported/.test(fn)) return "人工插入";
+    return fn || `脚本 v${sc.version}`;
+  };
+  const caseRow = (c) => {
     const src = c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置";
-    const desc = c.expected ? esc(String(c.expected).slice(0, 52)) : "";
+    const desc = c.expected ? esc(String(c.expected).slice(0, 80)) : "";
     const basis = c.expected_basis ? `<span class="badge badge-queued" style="font-size:10px;padding:1px 6px">${esc(c.expected_basis)}</span>` : "";
     return `<div class="case-item">
       <label><input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleReviewCase(${c.id})">
@@ -230,7 +244,18 @@ async function loadReview(tid) {
       <span class="m">${src}·${esc(c.method) || "-"}</span>
       ${desc ? `<div class="case-desc">${desc} ${basis}</div>` : ""}
     </div>`;
-  }).join("") : '<div class="hint">暂无用例（准备阶段出题后出现）</div>');
+  };
+  if (cases && cases.scripts && cases.scripts.length) {
+    box.innerHTML = cases.scripts.map(sc =>
+      `<div style="margin-bottom:12px">
+        <div class="hint" style="margin:0 0 4px"><b>${esc(scriptLabel(sc))}</b>（${sc.cases.length} 条）</div>
+        ${sc.cases.map(caseRow).join("")}
+      </div>`).join("");
+  } else if (cases && cases.cases && cases.cases.length) {   // 老契约兜底（?all 未生效时）
+    box.innerHTML = cases.cases.map(caseRow).join("");
+  } else {
+    box.innerHTML = '<div class="hint">暂无用例（准备阶段出题后出现）</div>';
+  }
   // 日志
   $("rv-logs").innerHTML = (logs || []).map(l =>
     `<div class="log-line"><b>[${l.seq}]</b> ${esc(l.content)}</div>`).join("") || '<div class="hint">暂无日志</div>';
@@ -251,9 +276,25 @@ async function loadReview(tid) {
   $("rv-fb-send").disabled = !reviewable;
   $("rv-ac-submit").disabled = !reviewable;
   if (!reviewable) {
-    $("rv-hero").insertAdjacentHTML("beforeend",
-      `<div class="hint" style="margin-top:8px;color:#b45309">⚠ 该任务当前为「${esc(STATUS_CN[detail.status] || detail.status)}」，` +
-      `不在待审查状态——本页只读查看用例与决策；对话增补、手动插入、放行仅对待审查任务开放。</div>`);
+    // 任务A4：按状态分化提示——失败要给 error/下一步，准备中要给阶段日志入口，
+    // 不能一律"只读查看"让用户不知道发生了什么
+    let hint;
+    if (detail.status === "failed") {
+      hint = `<div class="hint" style="margin-top:8px;color:#b91c1c"><b>任务已失败</b>（未走完执行链）` +
+        (detail.error ? `——失败原因：<code>${esc(String(detail.error).slice(0, 300))}</code>` : "") +
+        `<br>下一步：去 <a href="#/task/${tid}" style="color:var(--link,#2563eb)">详情页</a> 看各节点日志定位阶段，` +
+        `或修正后在「新建任务」重提；失败任务不会再产生报告/RTM。</div>`;
+    } else if (["provisioning", "running", "reporting"].includes(detail.status)) {
+      hint = `<div class="hint" style="margin-top:8px;color:#b45309">该任务正在执行阶段二（${esc(STATUS_CN[detail.status] || detail.status)}）——` +
+        `用例清单此刻只读；<a href="#/task/${tid}" style="color:var(--link,#2563eb)">▶ 详情页可看实时进度</a>。</div>`;
+    } else if (["cloning", "analyzing", "generating"].includes(detail.status)) {
+      hint = `<div class="hint" style="margin-top:8px;color:#b45309">该任务正在跑准备阶段（${esc(STATUS_CN[detail.status] || detail.status)}）——` +
+        `出题完成后本页自动出现用例与审查控件（5 秒轮询）。</div>`;
+    } else {
+      hint = `<div class="hint" style="margin-top:8px;color:#b45309">⚠ 该任务当前为「${esc(STATUS_CN[detail.status] || detail.status)}」，` +
+        `不在待审查状态——本页只读查看用例与决策；对话增补、手动插入、放行仅对待审查任务开放。</div>`;
+    }
+    $("rv-hero").insertAdjacentHTML("beforeend", hint);
   }
   $("rv-release").onclick = async () => {
     try {
@@ -289,8 +330,27 @@ async function sendFeedback() {
   try {
     const b = await api(`/tasks/${tid}/feedback`, { method: "POST",
       body: JSON.stringify({ feedback: text }) });
+    // 任务A1：不只报数字——「本轮新增 N 条」面板逐条列名字/方法/作用（expected）/
+    // 预期依据/来源文件，默认展开（details open），用户不用再去下面翻清单对差异
+    const newCases = b.cases || [];
+    const panel = newCases.length
+      ? `<details open style="margin-top:8px;background:#f0faf4;border:1px solid #bbe7cb;border-radius:8px;padding:8px 12px">
+          <summary style="cursor:pointer;font-weight:700;color:#15803d">本轮新增 ${newCases.length} 条用例（${esc(b.file || "")}）——点开/收起</summary>
+          <div style="margin-top:6px;display:grid;gap:6px">
+          ${newCases.map(c => `
+            <div style="border-left:3px solid #86efac;padding-left:8px">
+              <code style="font-weight:700">${esc(c.name)}</code>
+              <span class="badge badge-queued" style="font-size:10px;padding:1px 6px;margin-left:6px">${esc(c.method || "-")}</span>
+              ${c.priority ? `<span class="hint" style="margin:0 0 0 6px">优先级 ${esc(String(c.priority))}</span>` : ""}
+              <div class="case-desc" style="margin-top:2px">作用：${esc(c.expected ? String(c.expected).slice(0, 120) : "（未写预期）")}
+                ${c.expected_basis ? `　<span class="badge badge-queued" style="font-size:10px;padding:1px 6px">依据：${esc(c.expected_basis)}</span>` : ""}</div>
+            </div>`).join("")}
+          </div>
+          <div class="hint" style="margin:6px 0 0">这些用例已并入下方用例清单的「对话增补」分组，与其他用例一样可勾选/取消。</div>
+        </details>`
+      : "";
     $("rv-fb-result").innerHTML = `<span style="color:#16a34a">✅ 增补 ${b.generated} 条 → ${esc(b.file || "")}</span>` +
-      (b.static_rejected && b.static_rejected.length ? `；闸门剔除 ${b.static_rejected.length} 条` : "");
+      (b.static_rejected && b.static_rejected.length ? `；闸门剔除 ${b.static_rejected.length} 条` : "") + panel;
     $("rv-fb-text").value = "";
     loadReview(tid);
   } catch (e) { $("rv-fb-result").textContent = "增补失败：" + e.message; }
@@ -1189,7 +1249,17 @@ async function loadTaskDetail(tid) {
     `<div style="font-size:26px;font-weight:800">${esc(name)}</div>` +
     `<span class="badge badge-queued">任务 #${tid}</span>` +
     `<div class="hint" style="margin-top:6px">${esc(lang)}｜状态：${esc(STATUS_CN[t.status] || t.status)}${dur}` +
-    (ex ? `｜执行方式：${esc(ex.mode)}｜执行者：系统自动（${esc(ex.sandbox)}+LLM ${esc(ex.llm)}）` : "") + `</div>`;
+    (ex ? `｜执行方式：${esc(ex.mode)}｜执行者：系统自动（${esc(ex.sandbox)}+LLM ${esc(ex.llm)}）` : "") + `</div>` +
+    // 任务A4：失败/准备中不再只给一个状态词——error + 阶段 + 下一步（用户点进来就是要知道发生了什么）
+    (t.status === "failed"
+      ? `<div style="margin-top:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px">
+          <b style="color:#b91c1c">任务失败</b>${t.error ? `——<code style="color:#b91c1c">${esc(String(t.error).slice(0, 400))}</code>` : "（未记录错误信息，看下方节点日志定位阶段）"}
+          <div class="hint" style="margin:6px 0 0">下一步：对照下方「执行流水线」找到最后一个打勾的节点（= 死在那一步）；
+          ${latest ? "已产出报告的可在" : "该任务未执行到评估阶段，因此<b>没有报告与 RTM</b>（不是项目不兼容）；修复后"} 去报告页看判决${latest ? "" : "或重提任务"}。</div>
+        </div>`
+      : ["provisioning", "running", "reporting"].includes(t.status)
+        ? `<div class="hint" style="margin-top:8px;color:#b45309">执行中——下方流水线实时更新（本页打开期间自动轮询）。</div>`
+        : "");
   const req = (latest && latest.narrative) ? "" : "";
   const trow = await api(`/tasks/${tid}`).catch(() => null);
   $("td-req").classList.remove("hidden");
@@ -1210,6 +1280,11 @@ async function loadTaskDetail(tid) {
   $("td-levels").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "测试级别计划（黑盒 + 白盒双轨）</div>" +
     (renderLevelCards(lv && lv.levels) || '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>');
+  // 任务A4：活跃态自动轮询（3s，终态/离开页面即停——上面提示语写了"自动轮询"，说到做到）
+  clearTimeout(TD_POLL);
+  if (["provisioning", "running", "reporting", "cloning", "analyzing", "generating"].includes(t.status)) {
+    TD_POLL = setTimeout(() => { if (TASK_TID === tid) loadTaskDetail(tid); }, 3000);
+  }
 }
 
 // R4/F15：L3 确认/L4 转化动作（最小可用版：prompt 交互；正式弹层列 F 线后续）
