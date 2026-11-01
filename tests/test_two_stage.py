@@ -103,6 +103,16 @@ def test_prep_graph_compiles(tmp_path):
     conn.close()
 
 
+def test_prep_gen_route_retry_once():
+    """出题 0 条重试一次（单阶段 repair_gen 的两阶段对等物，E2E task_264 实锤后补）：
+    0 条且未到轮次上限→重试；仍 0 到上限→停等（评审页对话框是自愈通道）；有产出→直接过。"""
+    from test_agent import config as cfg
+    route = builder.prep_gen_route
+    assert route(0, 1, cfg.PREP_GEN_MAX_ROUNDS) == "generate"    # 首轮 0 条 → 重试
+    assert route(0, cfg.PREP_GEN_MAX_ROUNDS, cfg.PREP_GEN_MAX_ROUNDS) == "__end__"  # 重试仍 0 → 停
+    assert route(5, 1, cfg.PREP_GEN_MAX_ROUNDS) == "__end__"     # 有产出 → 不重试
+
+
 @pytest.fixture()
 def task_env(tmp_path, monkeypatch):
     """tmp 库 + tmp DATA_DIR + 一个 queued 任务；返回 (conn, tid, ws路径)。"""

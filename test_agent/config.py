@@ -83,6 +83,8 @@ PITFALL_KB_ENABLED = False           # B源：语言×类型陷阱清单注入�
 
 # —— 两阶段人机协作（docs/两阶段人机协作流程设计-20261031.md；任务级 two_stage 开关） ——
 FEEDBACK_MAX_ROUNDS = 5              # 对话增补预算封顶：增补 ≤5 轮（防"再来一次"无限对话）
+PREP_GEN_MAX_ROUNDS = 2              # 阶段一出题 0 条（LLM 偶发不可解析）自动重试上限——
+                                     # 单阶段主图 repair_gen 兜底的两阶段对等物（E2E 实锤后补）
 
 # —— AI 代审（docs/AI代审设计-20261031.md：任务级 ai_reviewer off/hybrid/auto） ——
 AI_REVIEWER_TOKEN_BUDGET = 80_000    # 代审停车线（任务级）：D2 审查+增补循环 token 超线即停等人工（fail-closed）

@@ -64,11 +64,23 @@ def build_graph(deps: GraphDeps):
     return g.compile()
 
 
-def build_prep_graph(deps: GraphDeps):
-    """准备图（两阶段·阶段一）：克隆→摸底→考纲(plan/RTM)→出题，跑完停在待审查。
+def prep_gen_route(n_cases: int, round_no: int, max_rounds: int) -> str:
+    """准备图出题路由（纯函数便于单测）：0 用例（LLM 偶发不可解析）给一次重试——
+    单阶段主图有 repair_gen 循环兜底，两阶段准备图 generate 即 END，无重试则
+    LLM 一次抖动就让用户看到空用例集（E2E 实锤 task_264）。仍 0 也停在待审查：
+    评审页对话框增补（feedback 端点）就是用户侧自愈通道。"""
+    if n_cases == 0 and round_no < max_rounds:
+        return "generate"
+    return "__end__"
 
-    generate 的容器回灌+收集闸在无容器时诚实顺延（gen_tests 内置容忍），不弱化闸语义。"""
+
+def build_prep_graph(deps: GraphDeps):
+    """准备图（两阶段·阶段一）：克隆→摸底→考纲→出题，跑完停在待审查。
+
+    generate 的容器回灌+收集闸在无容器时诚实顺延（gen_tests 内置容忍），不弱化闸语义；
+    出题 0 条自动重试一次（prep_gen_route），单阶段 repair_gen 兜底的两阶段对等物。"""
     nodes = make_nodes(deps)
+    conn = deps.conn
     g = StateGraph(TaskState)
     for name in ("clone", "analyze", "plan", "generate"):
         g.add_node(name, nodes[name])
@@ -79,7 +91,17 @@ def build_prep_graph(deps: GraphDeps):
                             lambda s: END if s.get("done") else "plan",
                             {"__end__": END, "plan": "plan"})
     g.add_edge("plan", "generate")
-    g.add_edge("generate", END)
+
+    def _gen_ok(s: TaskState) -> str:
+        n = conn.execute(
+            """SELECT COUNT(*) AS n FROM test_cases c JOIN test_scripts sc ON sc.id=c.script_id
+               WHERE sc.task_id=? AND c.source='ai' AND c.enabled=1""",
+            (s["task_id"],)).fetchone()["n"]
+        return prep_gen_route(n, s.get("round_no", 0), config.PREP_GEN_MAX_ROUNDS)
+
+    # 映射 key 必须是路由返回值字面量（run46 教训：END 内部值 "__end__"）
+    g.add_conditional_edges("generate", _gen_ok,
+                            {"generate": "generate", "__end__": END})
     return g.compile()
 
 
@@ -243,6 +265,15 @@ def run_task_prep(task_id: int) -> dict:
         conn.execute("UPDATE test_tasks SET status='ready_for_review', updated_at=datetime('now') WHERE id=?",
                      (task_id,))
         conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?", (session_id,))
+        # 空集停等要给用户自愈指引（E2E 实锤：超长提示词可致两轮出题均不可解析，
+        # 此时评审页对话框增补就是补救通道——指出来，别让人对着空清单发呆）
+        n_cases = conn.execute(
+            """SELECT COUNT(*) AS n FROM test_cases c JOIN test_scripts sc ON sc.id=c.script_id
+               WHERE sc.task_id=? AND c.source='ai' AND c.enabled=1""", (task_id,)).fetchone()["n"]
+        if n_cases == 0:
+            _reviewer_msg(conn, task_id,
+                          "[prep] 出题 0 条（LLM 输出两次不可解析，多为需求条件过多导致输出截断）——"
+                          "可在左侧「对话增补」描述你要的用例，AI 会定向补生成")
         conn.commit()
     return final
 

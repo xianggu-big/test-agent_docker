@@ -255,7 +255,7 @@ def _extract_api_docs(ws: Path, max_chars: int = 2000) -> str | None:
 
 def _extract_usage_examples(ws: Path, limit: int = 5, max_chars: int = 1600) -> str | None:
     """A 源·repo 校准（领域知识注入调研 §A，防迁就是红线）：扫仓库自带 tests/ 的**调用形态**——
-    import 被测包的语句 + 顶层调用表达式 + pytest.raises 的异常类型，**剥除断言行**。
+    import 被测包的语句 + 测试函数内的调用表达式 + pytest.raises 的异常触发方式，**剥除断言行**。
     只示范"怎么正确调用"（参数形态/import 方式/异常触发），不是预期值来源——
     预期值由需求/docstring 决定；对齐自带测试的预期=对齐实现现状，会加剧 2412.14137 迁就。
     生成时无法预知哪些自带测试会过（要先跑一遍，成本翻倍）→ 实现口径=全部自带测试的
@@ -268,29 +268,48 @@ def _extract_usage_examples(ws: Path, limit: int = 5, max_chars: int = 1600) -> 
             break
         if any(part in config.SKIP_DIRS for part in p.parts):
             continue
-        # 只看自带测试文件（被测源码已由 _collect_sources 收录，这里要的是"别人怎么调它"）
+        # 只看仓库自带测试（被测源码已由 _collect_sources 收录，这里要的是"别人怎么调它"）；
+        # Agent/人工产物（test_gen_*/test_imported/test_acceptance）不是自带锚点，排除
         if not (p.name.startswith("test_") or p.name.endswith("_test.py")):
+            continue
+        if p.name.startswith(("test_gen_", "test_imported", "test_acceptance")):
             continue
         try:
             tree = ast.parse(p.read_text(encoding="utf-8", errors="ignore"))
         except SyntaxError:
             continue
         lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+
+        def seg(node) -> str:
+            return (lines[node.lineno - 1] if 0 < node.lineno <= len(lines) else "").strip()
+
         kept: list[str] = []
         for node in tree.body:
-            seg = ""
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 mod = (node.module or "").split(".")[0] if isinstance(node, ast.ImportFrom) \
                     else (node.names[0].name.split(".")[0] if node.names else "")
-                if mod in table:          # 只留 import 被测包的语句（pytest/hypothesis 不是锚点）
-                    seg = (lines[node.lineno - 1] or "").strip()
-            elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
-                seg = (lines[node.lineno - 1] or "").strip()   # 顶层调用表达式（调用形态）
-            if seg:
-                kept.append(seg)
+                if mod in table:      # 只留 import 被测包的语句（pytest/hypothesis 不是锚点）
+                    kept.append(seg(node))
+            elif isinstance(node, ast.FunctionDef):
+                # 下钻测试函数体：调用表达式语句 + raises 上下文（异常触发方式）；
+                # assert 语句天然不收（不是 Expr/With）——剥断言是防迁就切分线
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Expr) and isinstance(sub.value, ast.Call):
+                        kept.append(seg(sub))
+                    elif isinstance(sub, ast.With):
+                        for item in sub.items:
+                            ctx = item.context_expr
+                            if isinstance(ctx, ast.Call):
+                                fn = ctx.func
+                                name = fn.attr if isinstance(fn, ast.Attribute) \
+                                    else (fn.id if isinstance(fn, ast.Name) else "")
+                                if name == "raises":
+                                    kept.append(seg(sub))
+            if len(kept) >= 8:
+                break
+        kept = [s for s in kept if s and not s.startswith("assert")][:8]
         if kept:
-            snippets.append(f"# {p.relative_to(ws).as_posix()}" + nl +
-                            nl.join(kept[:8]))
+            snippets.append(f"# {p.relative_to(ws).as_posix()}" + nl + nl.join(kept))
     text = (f"{nl}{nl}".join(snippets))[:max_chars] if snippets else None
     # kill 检查（防自欺，调研文档§每源一 kill）：残片必须不含断言——剥除断言是防迁就切分线
     if text and re.search(r"(?m)^\s*assert\b", text):
@@ -709,6 +728,17 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     conditions = [dict(r) for r in conn.execute(
         "SELECT condition, priority, method_hint FROM test_conditions "
         "WHERE task_id=? ORDER BY id", (task_id,)).fetchall()] or None
+    # 条件超限降采样（E2E 三跑实锤：43 条条件→40+ 用例 JSON 超 DeepSeek 输出上限截断不可解析，
+    # 20 条则稳定成功）：按优先级 高>中>低 保 15 条，其余由条件缺口回灌/评审增补接力——
+    # 长度爆炸在源头治，不指望解析器救截断。缺口条数如实留痕（摘要可查）。
+    conditions_truncated = 0
+    if conditions and len(conditions) > 15:
+        prio = {"高": 0, "中": 1, "低": 2}
+        conditions.sort(key=lambda c: prio.get((c.get("priority") or "中"), 1))
+        conditions_truncated = len(conditions) - 15
+        conditions = conditions[:15]
+        log.warning("gen_tests task=%s 条件 %d 条超限，按优先级保 15（截 %d）",
+                    task_id, conditions_truncated + 15, conditions_truncated)
 
     # —— 三源 grounding 注入（各自独立开关，默认关=提示词逐字节不变） ——
     api_docs = _extract_api_docs(ws) if config.DOCSTRING_GROUNDING_ENABLED else None
@@ -885,7 +915,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                "assertion": assertion_stats, "cond_feedback": cond_feedback,
                "cross_review": cross_info, "source_skipped": source_skipped,
                "basis_downgraded": basis_downgraded, "phase": phase,
-               "collect_deferred": collect_deferred}
+               "collect_deferred": collect_deferred,
+               "conditions_truncated": conditions_truncated}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)
 
