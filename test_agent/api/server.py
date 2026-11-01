@@ -432,6 +432,13 @@ def api_run_analysis(tid: int, user: dict = Depends(staff)):
     if not api_key:
         raise HTTPException(409, "未配置 DEEPSEEK_API_KEY，无法生成 AI 分析（确定性证据仍可在概览查看）")
     proj = conn.execute("SELECT primary_language FROM projects WHERE id=?", (row["project_id"],)).fetchone()
+    # 缓存短路：同任务重复 POST 不重复烧 token（UI 按钮消失防了界面重复，API 层也要幂等）
+    rep = conn.execute("SELECT analysis FROM test_reports WHERE task_id=? ORDER BY id DESC LIMIT 1",
+                       (tid,)).fetchone()
+    if rep and rep["analysis"]:
+        cached = _safe_json(rep["analysis"])
+        if cached:
+            return cached
     from ..skills.defect_analysis import run_defect_analysis
     out = run_defect_analysis(api_key, conn, tid,
                               ws=Path(config.DATA_DIR) / "workspaces" / f"task_{tid}",

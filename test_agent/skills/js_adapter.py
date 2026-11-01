@@ -66,15 +66,31 @@ def _coverage_rows(coverage_map: dict) -> tuple[list[str], int, int]:
     return rows, tot_s, tot_m
 
 
+def _extract_trailing_json(text: str):
+    """从混杂输出中提取最长可解析 JSON（晚间回归实锤：贪婪正则 `{.*}` 会被前缀里的
+    `{}` 带偏，整段解析失败→计数全丢）。逐个 `{` 位置 raw_decode，取 end 最大（最长）
+    的成功解析——容忍 JSON 前后的任意噪声。"""
+    dec = json.JSONDecoder()
+    best_obj, best_end = None, 0
+    if len(text) > 2_000_000:            # 防病态输入 O(n²) 爆炸
+        text = text[-2_000_000:]
+    for i, ch in enumerate(text):
+        if ch != "{" or i < best_end:    # 已找到更长解析后，跳过其内部的 `{`
+            continue
+        try:
+            obj, end = dec.raw_decode(text[i:])
+        except json.JSONDecodeError:
+            continue
+        if end > best_end:
+            best_obj, best_end = obj, end
+    return best_obj
+
+
 def jest_json_to_pytest_text(stdout: str, stderr: str = "") -> str:
     """主入口：jest --json 输出（stdout 为 JSON；可能混杂非 JSON 前缀）→ pytest 风格文本。
     解析失败（无测试/配置炸/非 JSON）原样返回 stdout+stderr 让 evaluate 走 env 归因。"""
-    m = re.search(r"\{.*\}\s*$", stdout or "", re.S)
-    if not m:
-        return (stdout or "") + ("\n" + stderr if stderr else "")
-    try:
-        data = json.loads(m.group(0))
-    except json.JSONDecodeError:
+    data = _extract_trailing_json(stdout or "")
+    if not isinstance(data, dict) or "testResults" not in data:
         return (stdout or "") + ("\n" + stderr if stderr else "")
     passed = int(data.get("numPassedTests") or 0)
     failed = int(data.get("numFailedTests") or 0)

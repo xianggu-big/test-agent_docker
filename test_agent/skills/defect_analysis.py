@@ -32,7 +32,9 @@ def collect_failure_evidence(conn, task_id: int) -> dict:
         defects = {}
     logs = [r["content"] for r in conn.execute(
         """SELECT m.content FROM agent_messages m JOIN agent_sessions s ON s.id = m.session_id
-           WHERE s.task_id=? AND m.content LIKE '[evaluate·failed] FAILED %' ORDER BY m.id""",
+           WHERE s.id = (SELECT id FROM agent_sessions WHERE task_id=?
+                         ORDER BY id DESC LIMIT 1)
+             AND m.content LIKE '[evaluate·failed] FAILED %' ORDER BY m.id""",
         (task_id,))]
     cases_by_name = {r["name"]: dict(r) for r in conn.execute(
         """SELECT c.name, c.expected, c.input, c.expected_basis, c.method, c.content
