@@ -167,6 +167,11 @@
 
     <!-- ③b 用例评审页（两阶段·阶段一停等点：方案链+用例清单+对话框+决策卡+日志） -->
     <section id="page-review" class="page hidden">
+      <div class="card" id="rv-picker" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px">
+        <label class="fld-label" style="margin:0;white-space:nowrap">评审任务</label>
+        <select id="rv-task" style="width:auto;min-width:320px;flex:1"></select>
+        <span id="rv-pending-pills" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"></span>
+      </div>
       <div class="stepper" id="stepper-review"></div>
       <div id="rv-hero" class="card"></div>
       <div class="card" id="rv-plan" style="margin-bottom:12px">

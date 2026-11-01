@@ -158,7 +158,31 @@ function decisionCard(d) {
     <div class="d-body">${esc(d.reasoning)}${ev}</div></div>`;
 }
 
+/* 评审页任务选择器（用户反馈：只显示最新一个、多任务并发切不了）：
+   下拉列全部任务（待审查排最前并标★），待审查快捷胶囊一键切换；当前任务高亮。 */
+async function renderReviewPicker(currentTid) {
+  let tasks = [];
+  try { tasks = await api("/tasks"); } catch (_) { return []; }
+  const pending = tasks.filter(t => t.status === "ready_for_review");
+  const others = tasks.filter(t => t.status !== "ready_for_review");
+  const sel = $("rv-task");
+  const opt = t => `<option value="${t.id}">#${t.id} ${esc(t.project_name)}（${esc(STATUS_CN[t.status] || t.status)}）` +
+    `${t.status === "ready_for_review" ? " ★待审查" : ""}${t.ai_reviewer && t.ai_reviewer !== "off" ? " ·代审" + t.ai_reviewer : ""}</option>`;
+  sel.innerHTML = `<option value="">— 选择要评审的任务 —</option>` +
+    (pending.length ? `<optgroup label="待审查（${pending.length}）">${pending.map(opt).join("")}</optgroup>` : "") +
+    `<optgroup label="其他任务（只读查看）">${others.map(opt).join("")}</optgroup>`;
+  sel.value = currentTid ? String(currentTid) : "";
+  sel.onchange = () => { if (sel.value) location.hash = "#/review/" + sel.value; };
+  $("rv-pending-pills").innerHTML = pending.length
+    ? `<span class="hint" style="margin:0">待审查 ${pending.length} 个：</span>` + pending.map(t =>
+        `<a href="#/review/${t.id}" class="badge ${Number(currentTid) === t.id ? "badge-run" : "badge-queued"}" ` +
+        `style="text-decoration:none" title="${esc(t.project_name)}">#${t.id}</a>`).join("")
+    : '<span class="hint" style="margin:0">当前没有待审查任务</span>';
+  return pending;
+}
+
 async function loadReview(tid) {
+  renderReviewPicker(tid);                                 // 选择器与正文并行加载
   const [detail, cases, rtm, dec, logs] = await Promise.all([
     api(`/tasks/${tid}`).catch(() => null),
     api(`/tasks/${tid}/cases`).catch(() => null),
@@ -211,8 +235,16 @@ async function loadReview(tid) {
   } else {
     dwrap.innerHTML = '<div class="hint">暂无代审决策（off 模式=人工审查；hybrid/auto 模式的 AI 决策会在这里逐条列出，理由+证据可追责）</div>';
   }
-  // 放行按钮：仅待审查态可点
-  $("rv-release").disabled = detail.status !== "ready_for_review";
+  // 放行按钮：仅待审查态可点；非待审查任务本页只读（增补/插入同禁），避免误操作后端 409
+  const reviewable = detail.status === "ready_for_review";
+  $("rv-release").disabled = !reviewable;
+  $("rv-fb-send").disabled = !reviewable;
+  $("rv-ac-submit").disabled = !reviewable;
+  if (!reviewable) {
+    $("rv-hero").insertAdjacentHTML("beforeend",
+      `<div class="hint" style="margin-top:8px;color:#b45309">⚠ 该任务当前为「${esc(STATUS_CN[detail.status] || detail.status)}」，` +
+      `不在待审查状态——本页只读查看用例与决策；对话增补、手动插入、放行仅对待审查任务开放。</div>`);
+  }
   $("rv-release").onclick = async () => {
     try {
       await api(`/tasks/${tid}/run`, { method: "POST", body: "{}" });
@@ -229,11 +261,12 @@ async function loadReview(tid) {
 }
 
 async function pickReviewTask() {
-  const tasks = await api("/tasks");
-  const rv = tasks.find(t => t.status === "ready_for_review");
-  if (rv) { location.hash = "#/review/" + rv.id; return; }
-  $("rv-hero").innerHTML = '<div class="hint">当前没有待审查的任务——两阶段任务在确认后自动跑准备阶段，跑完会出现在这里。</div>';
+  const pending = await renderReviewPicker(0);
+  if (pending.length) { location.hash = "#/review/" + pending[0].id; return; }
+  $("rv-hero").innerHTML = '<div class="hint">当前没有待审查的任务——两阶段任务在确认后自动跑准备阶段，跑完会出现在这里；' +
+    '也可从上方下拉选任意任务只读查看其用例与决策。</div>';
   $("stepper-review").innerHTML = "";
+  ["rv-plan-body", "rv-cases", "rv-decisions", "rv-logs"].forEach(id => { $(id).innerHTML = ""; });
 }
 
 async function sendFeedback() {
