@@ -123,12 +123,12 @@ function renderStageStepper(status, logs) {
       if (cls === "active") activeMarked = true;
       if (status === "ready_for_review" && stage === 1 && !s.d) cls = "";
       return `<span class="step ${cls}"><span class="n">${s.d ? "✓" : "·"}</span>${s.n}</span>`;
-    }).join('<span class="step-arrow">—›</span>');
+    }).join('<span class="step-arrow">→</span>');
   };
   $("stepper-review").innerHTML =
-    `<span class="hint" style="margin-right:8px">阶段一</span>` + seg(s1, 1) +
-    `<span class="step-arrow" style="margin:0 14px;color:var(--info)">═›</span>` +
-    `<span class="hint" style="margin-right:8px">阶段二</span>` + seg(s2, 2);
+    `<span class="stage-tag">阶段一</span>` + seg(s1, 1) +
+    `<span class="stage-gap"></span>` +
+    `<span class="stage-tag">阶段二</span>` + seg(s2, 2);
 }
 
 function decisionCard(d) {
@@ -137,15 +137,16 @@ function decisionCard(d) {
   const [cn, cls] = DCN[d.decision] || [d.decision, "badge-queued"];
   const role = d.reviewer_role === "ai_proxy" ? "AI 代审" : "人工";
   const ev = d.evidence && d.evidence.condition_ids && d.evidence.condition_ids.length
-    ? ` <span class="hint">证据：条件 ${d.evidence.condition_ids.join("、")}</span>` : "";
+    ? ` <span class="d-ev">证据：条件 ${d.evidence.condition_ids.join("、")}</span>` : "";
   const spot = d.spotcheck
-    ? `<span class="badge" style="background:#fde9c8;color:#b45309">待抽检</span>
+    ? `<span class="badge badge-cancel">待抽检</span>
        <button class="op-link" onclick="spotcheck(${d.id}, 'uphold')">同意</button>
        <button class="op-link" onclick="spotcheck(${d.id}, 'override')">推翻</button>` : "";
-  return `<div style="padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px">
-    <span class="badge ${cls}">${cn}</span> <code>${esc(d.target === "task" ? "（任务准入）" : d.target)}</code>
-    <span class="hint">${role} · 第${d.round}轮${d.decision === "reject" && d.reviewer_role === "ai_proxy" ? "（已停用，可勾选恢复）" : ""}</span> ${spot}
-    <div style="margin:4px 0 0 4px;color:var(--text)">${esc(d.reasoning)}${ev}</div></div>`;
+  return `<div class="decision">
+    <div class="d-head"><span class="badge ${cls}">${cn}</span>
+      <code>${esc(d.target === "task" ? "（任务准入）" : d.target)}</code>
+      <span class="d-ev">${role} · 第${d.round}轮${d.decision === "reject" && d.reviewer_role === "ai_proxy" ? "（已停用，可勾选恢复）" : ""}</span> ${spot}</div>
+    <div class="d-body">${esc(d.reasoning)}${ev}</div></div>`;
 }
 
 async function loadReview(tid) {
@@ -161,13 +162,13 @@ async function loadReview(tid) {
   const name = detail.project_name || `任务 ${tid}`;
   const aiCn = { off: "关", hybrid: "AI 先审+抽检", auto: "AI 全权" }[detail.ai_reviewer] || detail.ai_reviewer;
   $("rv-hero").innerHTML =
-    `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <div><span style="font-size:20px;font-weight:800">${esc(name)}</span>
+    `<div class="rv-hero-top">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="rv-title">${esc(name)}</span>
         <span class="badge badge-queued">任务 #${tid}</span>
         <span class="badge ${detail.status === "ready_for_review" ? "badge-run" : "badge-queued"}">${esc(STATUS_CN[detail.status] || detail.status)}</span>
-        <span class="hint">代审：${esc(aiCn)}${detail.two_stage ? " · 两阶段" : ""}</span></div>
-      <a href="#/task/${tid}" class="hint">任务详情 →</a></div>
-    <div style="border-left:4px solid var(--ok2);padding-left:12px;margin-top:8px;font-size:13.5px">${esc(detail.requirement_text || "—")}</div>`;
+        <span class="hint" style="margin:0">代审：${esc(aiCn)}${detail.two_stage ? " · 两阶段" : ""}</span></div>
+      <a href="#/task/${tid}" class="hint" style="margin:0">任务详情 →</a></div>
+    <div class="rv-req">${esc(detail.requirement_text || "—")}</div>`;
   // 方案链（wb-plan 渲染器平移，目标容器参数化指向 rv-plan-body）
   if (rtm && (rtm.conditions_total || (rtm.matrix || []).length)) {
     renderWbPlan(rtm, detail, "rv-plan-body");
@@ -180,12 +181,11 @@ async function loadReview(tid) {
     const src = c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置";
     const desc = c.expected ? esc(String(c.expected).slice(0, 52)) : "";
     const basis = c.expected_basis ? `<span class="badge badge-queued" style="font-size:10px;padding:1px 6px">${esc(c.expected_basis)}</span>` : "";
-    return `<div class="case-item" style="flex-wrap:wrap;align-items:flex-start">
-      <label style="display:flex;gap:6px;align-items:center;flex:1 1 100%;cursor:pointer">
-        <input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleReviewCase(${c.id})">
-        <code>${esc(c.name)}</code>
-        <span class="m">${src}·${esc(c.method) || "-"}</span></label>
-      ${desc ? `<div style="flex:1 1 100%;padding-left:26px;font-size:12px">${desc} ${basis}</div>` : ""}
+    return `<div class="case-item">
+      <label><input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleReviewCase(${c.id})">
+        <code>${esc(c.name)}</code></label>
+      <span class="m">${src}·${esc(c.method) || "-"}</span>
+      ${desc ? `<div class="case-desc">${desc} ${basis}</div>` : ""}
     </div>`;
   }).join("") : '<div class="hint">暂无用例（准备阶段出题后出现）</div>');
   // 日志
@@ -414,16 +414,16 @@ async function loadWorkbench() {
     const src = c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置";
     // 用户反馈：每个用例要"大概介绍有什么作用"——expected 摘要+输入+依据标签
     const desc = c.expected ? esc(String(c.expected).slice(0, 52)) : "";
-    const inp = c.input ? `<span class="hint">输入：${esc(String(c.input).slice(0, 36))}</span>` : "";
+    const inp = c.input ? `<span class="hint" style="margin:0">输入：${esc(String(c.input).slice(0, 36))}</span>` : "";
     const basis = c.expected_basis ? `<span class="badge badge-queued" style="font-size:10px;padding:1px 6px">${esc(c.expected_basis)}</span>` : "";
-    return `<div class="case-item" style="flex-wrap:wrap;align-items:flex-start">` +
-      `<label style="display:flex;gap:6px;align-items:center;flex:1 1 100%;cursor:pointer">` +
-      `<input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleCase(${c.id})">` +
-      `<code>${esc(c.name)}</code>` +
-      `<span class="m">${src}·${esc(c.method) || "-"}${c.priority ? "·" + esc(c.priority) : ""}</span></label>` +
-      (desc ? `<div style="flex:1 1 100%;padding-left:26px;font-size:12px;color:var(--text)">${desc} ${basis}</div>` : "") +
-      (inp ? `<div style="flex:1 1 100%;padding-left:26px">${inp}</div>` : "") +
-      ((tgt => tgt ? `<div style="flex:1 1 100%;padding-left:26px"><span class="hint">目标：</span>${tgt.map(t => `<code>${esc(t)}</code>`).join(" ")}</div>` : "")(wbTargets(c.content || ""))) +
+    const tgt = wbTargets(c.content || "");
+    return `<div class="case-item">` +
+      `<label><input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleCase(${c.id})">` +
+      `<code>${esc(c.name)}</code></label>` +
+      `<span class="m">${src}·${esc(c.method) || "-"}${c.priority ? "·" + esc(c.priority) : ""}</span>` +
+      (desc ? `<div class="case-desc">${desc} ${basis}</div>` : "") +
+      (inp ? `<div class="case-desc">${inp}</div>` : "") +
+      (tgt ? `<div class="case-desc"><span class="hint" style="margin:0">目标：</span>${tgt.map(t => `<code>${esc(t)}</code>`).join(" ")}</div>` : "") +
       `</div>`;
   }).join("")
     : '<div class="hint">暂无用例：先下发执行触发 AI 生成，或在下方插入用例。</div>');
