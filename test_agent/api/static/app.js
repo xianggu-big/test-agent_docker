@@ -90,6 +90,7 @@ function route() {
   if (page === "taskdetail" && TASK_TID) loadTaskDetail(TASK_TID);
   if (page !== "tasks" && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (page !== "review" && REVIEW_POLL) { clearInterval(REVIEW_POLL); REVIEW_POLL = null; }
+  if (page !== "workbench") stopConfirmWatch();         // 离开工作台停阶段一监控（终态监听 watchTaskFinal 跨页保留）
 }
 
 /* ---------- 两阶段评审页（阶段一停等点） ---------- */
@@ -215,7 +216,8 @@ async function loadReview(tid) {
   $("rv-release").onclick = async () => {
     try {
       await api(`/tasks/${tid}/run`, { method: "POST", body: "{}" });
-      $("rv-release-result").innerHTML = '<span style="color:#16a34a">✅ 已放行——阶段二启动（布考场→开考→判卷→报告→复审），进度看任务详情页。</span>';
+      $("rv-release-result").innerHTML = '<span style="color:#16a34a">✅ 已放行——阶段二启动（布考场→开考→判卷→报告→复审），进度看任务详情页；跑挂会弹窗告诉你原因。</span>';
+      watchTaskFinal(tid, "阶段二（布考场/开考/判卷/报告/复审）");
       loadReview(tid);
     } catch (e) { $("rv-release-result").textContent = "放行失败：" + e.message; }
   };
@@ -422,19 +424,36 @@ async function loadWorkbench() {
   $("wb-cases").innerHTML = ""; $("wb-preview").textContent = "（选择任务后加载最新脚本）";
   $("wb-confirm-bar").classList.add("hidden");
   $("wb-confirm-ok").classList.add("hidden");
+  stopConfirmWatch();                                    // 切换任务即停旧监控
   if (!tid) { $("wb-plan-body").innerHTML = "（选择任务后加载：显示需求拆解出的测试条件、每条条件由哪些用例覆盖、每个用例测哪个目标函数）"; return; }
   const [detail, cases, rtm] = await Promise.all([
     api(`/tasks/${tid}`), api(`/tasks/${tid}/cases`), api(`/tasks/${tid}/rtm`)]);
   const active = ["cloning","analyzing","provisioning","generating","running","reporting"].includes(detail.status);
   if (detail.confirmed !== 1 && !active) $("wb-confirm-bar").classList.remove("hidden");
   renderWbPlan(rtm, detail);
+  // 两阶段任务确认后（阶段一跑动中/已停等/已失败）恢复进度面板，切走再切回来不丢
+  if (detail.two_stage === 1 && detail.confirmed === 1) {
+    if (detail.status === "ready_for_review" || detail.status === "failed") {
+      $("wb-confirm-ok").classList.remove("hidden");
+      renderConfirmDone(Number(tid), detail.status, detail.error);
+    } else if (active || detail.status === "queued") {   // queued=刚确认线程起步中，几百 ms 后变 cloning
+      $("wb-confirm-ok").classList.remove("hidden");
+      watchStage1(Number(tid), false);
+    }
+  }
   $("wb-confirm").onclick = async () => {
     try {
       await api(`/tasks/${tid}/confirm`, { method: "POST", body: "{}" });
       $("wb-confirm-bar").classList.add("hidden");
-      $("wb-confirm-ok").classList.remove("hidden");   // 成功反馈 + 下一步指引
-      loadWorkbench();
-    } catch (e) { alert(e.message); }
+      $("wb-confirm-ok").classList.remove("hidden");
+      if (detail.two_stage === 1) {
+        CONFIRM_ALERT_FAIL = Number(tid);                 // 阶段一自动启动：跑挂弹窗带原因（用户点名）
+        loadWorkbench();                                  // 恢复分支会启动实时监控面板
+      } else {
+        $("wb-progress").innerHTML = '<div class="confirm-ok">✅ 已确认。下一步：到<b>任务列表</b>点【下发执行】——Agent 将按测试方案拆解需求、生成用例、在容器里运行并出报告。</div>';
+        loadWorkbench();
+      }
+    } catch (e) { alert("确认失败：" + e.message); }
   };
   const box = $("wb-cases");
   box.innerHTML = (cases.cases.length ? cases.cases.map(c => {
@@ -471,6 +490,78 @@ async function addCase() {
 async function toggleCase(id) {
   try { await api(`/cases/${id}/toggle`, { method: "POST", body: "{}" }); loadWorkbench(); }
   catch (e) { alert(e.message); loadWorkbench(); }
+}
+
+/* ---------- 阶段一实时监控（用户反馈：确认后"这期间的事情都去哪了"）----------
+   确认=授权阶段一自动启动（克隆/摸底/考纲/出题），这里把全过程反馈给用户：
+   状态徽章 + 节点日志流实时滚动；ready_for_review→跳评审页入口；failed→弹窗+红条显示原因。 */
+let CONFIRM_TIMER = null;
+let CONFIRM_ALERT_FAIL = null;   // 该任务阶段一失败要弹窗（confirm 点击时设；弹一次即清——
+                                 // loadWorkbench 恢复分支会重启 alertOnFail=false 的监控，直接传参会互相覆盖）
+function stopConfirmWatch() {
+  if (CONFIRM_TIMER) { clearTimeout(CONFIRM_TIMER); CONFIRM_TIMER = null; }
+}
+
+function renderConfirmDone(tid, status, error) {
+  const box = $("wb-progress");
+  if (status === "failed") {
+    box.innerHTML = `<div style="background:#fdecec;border:1px solid #f5c6c6;color:#b91c1c;` +
+      `border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7">` +
+      `<b>❌ 准备阶段失败</b>｜原因：${esc(error || "（详见下方日志）")}` +
+      `<div style="margin-top:4px">可在日志里定位是哪一步出的错；修好后重新确认即可重跑阶段一。</div></div>`;
+    return;
+  }
+  box.innerHTML = `<div style="background:#e8f7ee;border:1px solid #bbe7cb;border-radius:8px;` +
+    `padding:10px 12px;font-size:12.5px;line-height:1.8">` +
+    `<b style="color:#15803d">✅ 准备阶段完成</b>——Agent 已完成克隆/摸底/考纲/出题，任务停在<b>待审查</b>。` +
+    `用例等你逐条审：可勾选启停、手动插入、或用右侧对话框让 AI 增补。` +
+    `<div style="margin-top:6px"><a href="#/review/${tid}" class="btn btn-primary btn-sm" ` +
+    `style="text-decoration:none;display:inline-block">进入用例评审页 →</a></div></div>`;
+}
+
+async function watchStage1(tid, alertOnFail, tries = 0) {
+  stopConfirmWatch();
+  if (tries > 200) return;                               // 200×3s = 10 分钟封顶
+  try {
+    const [detail, logs] = await Promise.all([
+      api(`/tasks/${tid}`), api(`/tasks/${tid}/logs`).catch(() => [])]);
+    const st = detail.status;
+    if (st === "queued" && tries >= 10) {                 // 确认 30s 仍未起步：后台线程丢了（服务重启过）
+      $("wb-progress").innerHTML = '<div class="confirm-bar" style="margin-top:0">阶段一未启动（服务可能重启过，后台线程已丢）——' +
+        '重新点「人工确认」即可重跑准备阶段。</div>';
+      return;
+    }
+    const node = { cloning: "正在克隆仓库…", analyzing: "正在摸底（语言占比/复杂度热点/准出标准）…",
+                   provisioning: "正在准备环境…", generating: "正在按考纲出题…",
+                   running: "正在容器里执行…", reporting: "正在写报告…" }[st] || st;
+    const ok = st !== "failed";
+    $("wb-progress").innerHTML = ok
+      ? `<div style="background:var(--run-weak);border:1px solid #c3d7fe;border-radius:8px;` +
+        `padding:10px 12px;font-size:12.5px"><span class="badge badge-run">${esc(STATUS_CN[st] || st)}</span> ` +
+        `<b>${esc(node)}</b> <span class="hint" style="margin:0">——全过程输出见下方日志，跑完自动停在待审查等你审查</span></div>`
+      : "";
+    $("wb-progress-logs").innerHTML = (logs || []).slice(-40).map(l =>
+      `<div class="log-line"><b>[${l.seq}]</b> ${esc(l.content)}</div>`).join("") ||
+      '<div class="hint">日志加载中…</div>';
+    const box = $("wb-progress-logs");
+    box.scrollTop = box.scrollHeight;
+    if (st === "ready_for_review") {
+      renderConfirmDone(tid, "ready_for_review", null);
+      return;                                            // 终态：停轮询
+    }
+    if (st === "failed") {
+      renderConfirmDone(tid, "failed", detail.error);
+      if (alertOnFail || Number(tid) === CONFIRM_ALERT_FAIL) {
+        CONFIRM_ALERT_FAIL = null;
+        alert("阶段一（准备阶段）失败\n\n原因：" + (detail.error || "详见工作台日志") +
+              "\n\n日志区已定位到出错步骤；修复后可重新确认重跑。");
+      }
+      return;
+    }
+    CONFIRM_TIMER = setTimeout(() => watchStage1(tid, alertOnFail, tries + 1), 3000);
+  } catch (_) {
+    CONFIRM_TIMER = setTimeout(() => watchStage1(tid, alertOnFail, tries + 1), 5000);   // 网络抖动重试
+  }
 }
 
 /* ---------- 任务列表 ---------- */
@@ -563,8 +654,38 @@ function renderTasks() {
   });
 }
 
-async function confirmTask(id) { try { await api(`/tasks/${id}/confirm`, { method: "POST", body: "{}" }); pollTasks(); } catch (e) { alert(e.message); } }
-async function runTask(id) { try { await api(`/tasks/${id}/run`, { method: "POST", body: "{}" }); pollTasks(); } catch (e) { alert(e.message); } }
+async function confirmTask(id) {
+  try {
+    const b = await api(`/tasks/${id}/confirm`, { method: "POST", body: "{}" });
+    pollTasks();
+    if (b.stage1_started) watchTaskFinal(id, "阶段一（克隆/摸底/考纲/出题）");
+  } catch (e) { alert("确认失败：" + e.message); }
+}
+async function runTask(id) {
+  try {
+    const b = await api(`/tasks/${id}/run`, { method: "POST", body: "{}" });
+    pollTasks();
+    watchTaskFinal(id, b.stage === 2 ? "阶段二（布考场/开考/判卷/报告/复审）" : "执行");
+  } catch (e) { alert("下发失败：" + e.message); }
+}
+
+/* 终态监听（用户反馈：运行失败要弹窗说原因）——后台线程跑图，前端只能靠轮询拿终态；
+   failed 弹窗带 error 字段；done/待审查静默（列表徽章已显示）；20 分钟封顶防永久轮询。 */
+const FINAL_WATCH = {};
+async function watchTaskFinal(tid, label, tries = 0) {
+  clearTimeout(FINAL_WATCH[tid]);
+  if (tries > 300) return;                               // 300×4s = 20 分钟
+  try {
+    const d = await api(`/tasks/${tid}`);
+    if (d.status === "failed") {
+      alert(`${label}失败（任务 #${tid}）\n\n原因：${d.error || "详见该任务日志"}\n\n` +
+            `可到「报告」页看日志定位出错步骤。`);
+      return;
+    }
+    if (["done", "cancelled", "ready_for_review"].includes(d.status)) return;
+  } catch (_) { /* 网络抖动继续 */ }
+  FINAL_WATCH[tid] = setTimeout(() => watchTaskFinal(tid, label, tries + 1), 4000);
+}
 function viewReport(id) { location.hash = "#/reports"; setTimeout(() => { $("rp-task").value = String(id); loadReport(); }, 150); }
 async function viewLogs(id) { location.hash = "#/reports"; setTimeout(() => { $("rp-task").value = String(id); switchRp("logs"); loadReport(); }, 150); }
 

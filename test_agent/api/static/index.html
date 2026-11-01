@@ -106,7 +106,10 @@
               <div>确认后 Agent 才能下发执行——将按下方<b>测试方案</b>自动生成用例并运行</div>
               <button id="wb-confirm" class="btn btn-primary btn-sm">人工确认（允许下发）</button>
             </div>
-            <div class="confirm-ok hidden" id="wb-confirm-ok">✅ 已确认。下一步：到<b>任务列表</b>点【下发执行】——Agent 将按测试方案拆解需求、生成用例（复用已有用例）、在容器里运行并出报告。</div>
+            <div class="hidden" id="wb-confirm-ok">
+              <div id="wb-progress" style="margin-top:12px"></div>
+              <div id="wb-progress-logs" class="log-list" style="max-height:220px;overflow:auto;margin-top:8px"></div>
+            </div>
           </div>
           <div class="card">
             <h3>测试框架 / 插件</h3>
