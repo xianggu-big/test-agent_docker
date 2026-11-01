@@ -43,6 +43,7 @@
     <nav id="nav">
       <a href="#/new" class="nav-item active" data-page="new">⊕ 新建测试</a>
       <a href="#/workbench" class="nav-item" data-page="workbench">⌨ 脚本工作台</a>
+      <a href="#/review" class="nav-item" data-page="review">✎ 用例评审</a>
       <a href="#/tasks" class="nav-item" data-page="tasks">≡ 任务列表</a>
       <a href="#/reports" class="nav-item" data-page="reports">▤ 报告</a>
       <a href="#/settings" class="nav-item" data-page="settings">⚙ 设置</a>
@@ -70,6 +71,15 @@
           <label class="chk-row" title="勾选后开局自动拉取/构建执行镜像（首次可能需数分钟）；不勾选则缺镜像时下发会被提示，需手动点「一键准备」">
             <input id="new-auto-prepare" type="checkbox"> 自动准备环境（一条龙模式：开局自动拉取镜像，需等待）
           </label>
+          <label class="chk-row" title="两阶段人机协作：确认后 Agent 先跑准备阶段（克隆/摸底/考纲/出题），停下来等你审查用例集（可增删、可对话增补），放行后才执行">
+            <input id="new-two-stage" type="checkbox" checked> 两阶段模式（确认 → 准备 → 人工审查 → 执行）
+          </label>
+          <label class="fld-label">AI 代审（批量任务可选：AI 代替人工完成审查，决策理由全部留档可追责）</label>
+          <select id="new-ai-reviewer">
+            <option value="off" selected>off · 关闭（人工审查，默认）</option>
+            <option value="hybrid">hybrid · AI 先审 + 人工 20% 抽检</option>
+            <option value="auto">auto · AI 全权代审（批量大量任务用）</option>
+          </select>
           <button id="new-submit" class="btn btn-primary btn-block">生成测试任务 (AI)</button>
           <div id="new-result" class="hint hidden"></div>
         </div>
@@ -134,14 +144,68 @@
       <div class="tabs" id="task-tabs">
         <button class="tab active" data-f="all">全部</button>
         <button class="tab" data-f="running">运行中</button>
+        <button class="tab" data-f="review">待审查</button>
         <button class="tab" data-f="done">已通过</button>
         <button class="tab" data-f="failed">有缺陷</button>
       </div>
-      <div style="margin:10px 0">
+      <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <input id="pg-search" class="inp" type="text" placeholder="搜索项目名 / 需求关键词"
                style="width:280px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+        <span id="batch-bar" class="hidden" style="display:inline-flex;gap:8px;align-items:center">
+          <span class="hint">批量代审：</span>
+          <button class="btn btn-sm" onclick="batchReviewer('hybrid')">开 hybrid</button>
+          <button class="btn btn-sm" onclick="batchReviewer('auto')">开 auto</button>
+          <button class="btn btn-sm" onclick="batchReviewer('off')">关代审</button>
+          <button class="btn btn-sm btn-primary" onclick="batchAutoRun()">批量启动代审链</button>
+        </span>
       </div>
       <div id="project-groups"></div>
+    </section>
+
+    <!-- ③b 用例评审页（两阶段·阶段一停等点：方案链+用例清单+对话框+决策卡+日志） -->
+    <section id="page-review" class="page hidden">
+      <div class="stepper" id="stepper-review"></div>
+      <div id="rv-hero" class="card"></div>
+      <div class="card" id="rv-plan" style="margin-bottom:12px">
+        <h3>测试方案（需求 → 测试条件 → 用例 → 测试目标）</h3>
+        <div id="rv-plan-body" class="hint">（加载中…）</div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <div class="card">
+            <h3><span class="ai-chip">AI</span> 对话增补（告诉 AI 你想要什么用例）</h3>
+            <textarea id="rv-fb-text" rows="3" placeholder="例：补充除零的边界用例；购物车为空时下单应该报错——把你的审查意见写给 AI，它会定向增补用例（不动已批准的用例，上限 5 轮）"></textarea>
+            <button id="rv-fb-send" class="btn btn-primary btn-block">发送反馈并增补生成</button>
+            <div id="rv-fb-result" class="hint"></div>
+          </div>
+          <div class="card">
+            <h3>手动插入用例</h3>
+            <input id="rv-ac-name" placeholder="用例名称，如：除零保护测试">
+            <input id="rv-ac-method" placeholder="方法标签（可选）：等价类/边界值/判定表/覆盖/错误推测">
+            <textarea id="rv-ac-code" rows="4" placeholder="def test_div_zero():&#10;    from calc import div&#10;    import pytest&#10;    with pytest.raises(ZeroDivisionError):&#10;        div(1, 0)"></textarea>
+            <button id="rv-ac-submit" class="btn btn-primary btn-block">插入用例（写入工作区）</button>
+            <div id="rv-ac-result" class="hint"></div>
+          </div>
+          <div class="card">
+            <h3>Agent 日志（准备阶段全过程输出）</h3>
+            <div id="rv-logs" class="log-list" style="max-height:260px;overflow:auto"></div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h3>用例清单（勾选=启用 · 待审查态可增删）</h3>
+            <div id="rv-cases" class="case-list"></div>
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <button id="rv-release" class="btn btn-primary">✅ 审查完毕，下发执行（进入阶段二）</button>
+            </div>
+            <div id="rv-release-result" class="hint"></div>
+          </div>
+          <div class="card">
+            <h3>审查意见书（AI 代审决策 · 每条可追责）</h3>
+            <div id="rv-decisions" class="hint">（AI 代审关闭时为空；hybrid 模式下抽检条目会标出）</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ④ 报告 -->

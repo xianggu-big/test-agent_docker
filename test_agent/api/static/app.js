@@ -6,9 +6,12 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
 
 const ROLE_CN = { admin: "管理员", developer: "开发者", caller: "调用者" };
 const STATUS_CN = { queued: "待下发", cloning: "克隆中", analyzing: "分析中", provisioning: "准备环境",
-  generating: "生成用例", running: "执行中", reporting: "出报告中", done: "已完成",
-  failed: "失败", cancelled: "已取消" };
+  generating: "生成用例", ready_for_review: "待审查", running: "执行中", reporting: "出报告中",
+  done: "已完成", failed: "失败", cancelled: "已取消" };
 const STEPS = ["输入项目信息", "AI 生成测试任务", "脚本工作台", "人工确认", "下发执行", "查看报告"];
+// 两阶段两段式 stepper（设计文档 §6：零新发明，节点状态→格子三态）
+const STAGE1_STEPS = ["克隆", "摸底", "考纲", "出题"];
+const STAGE2_STEPS = ["布考场", "开考", "判卷", "报告", "复审"];
 
 let ME = null;
 let TASKS = [];
@@ -53,31 +56,227 @@ function applyRole() {
   badge.className = "badge badge-" + (ME.role === "developer" ? "dev" : ME.role);
   const isStaff = ME.role === "admin" || ME.role === "developer";
   document.querySelector('[data-page="workbench"]').style.display = isStaff ? "" : "none";
+  document.querySelector('[data-page="review"]').style.display = isStaff ? "" : "none";
   document.querySelector('[data-page="settings"]').style.display = ME.role === "admin" ? "" : "none";
 }
 
 /* ---------- 路由 ---------- */
-const PAGES = ["new", "workbench", "tasks", "reports", "settings"];
+const PAGES = ["new", "workbench", "review", "tasks", "reports", "settings"];
 let TASK_TID = 0;                            // F03 详情页当前任务
+let REVIEW_TID = 0;                          // 评审页当前任务
+let REVIEW_POLL = null;                      // 评审页轮询（阶段一跑动时实时刷新）
 function route() {
   let page = (location.hash || "#/new").replace("#/", "");
   if (page.startsWith("task/")) {           // F03 任务详情路由 #/task/{tid}
     page = "taskdetail";
     TASK_TID = parseInt(page.split("/") ? (location.hash.split("/")[2] || "0") : "0", 10);
   }
+  if (page.startsWith("review/")) {         // 评审页路由 #/review/{tid}
+    page = "review";
+    REVIEW_TID = parseInt(location.hash.split("/")[2] || "0", 10) || 0;
+  }
   if (!PAGES.includes(page) && page !== "taskdetail") page = "new";
   if (!ME) return;   // /api/me 未返回前先不渲染（whoami 返回后 808 行会重入 route()）
   if (page === "settings" && ME.role !== "admin") page = "new";
-  if (page === "workbench" && !(ME.role === "admin" || ME.role === "developer")) page = "new";
+  if ((page === "workbench" || page === "review") && !(ME.role === "admin" || ME.role === "developer")) page = "new";
   PAGES.forEach(p => $("page-" + p).classList.toggle("hidden", p !== page));
   document.querySelectorAll(".nav-item").forEach(a => a.classList.toggle("active", a.dataset.page === page));
   if (page === "workbench") refreshWorkbench();
+  if (page === "review") { if (REVIEW_TID) loadReview(REVIEW_TID); else pickReviewTask(); }
   if (page === "tasks") pollTasks();
   if (page === "reports") refreshReports();
   if (page === "settings") refreshSettings();
   if (page === "new" && NEW_TASK_ID) pollNewCases(NEW_TASK_ID);
   if (page === "taskdetail" && TASK_TID) loadTaskDetail(TASK_TID);
   if (page !== "tasks" && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (page !== "review" && REVIEW_POLL) { clearInterval(REVIEW_POLL); REVIEW_POLL = null; }
+}
+
+/* ---------- 两阶段评审页（阶段一停等点） ---------- */
+// 两段式 stepper：格子三态（done/active/queued）由任务状态+日志前缀推导，零新发明
+function renderStageStepper(status, logs) {
+  const doneNodes = new Set();
+  (logs || []).forEach(l => {
+    ["[clone]", "[analyze]", "[plan]", "[generate 第", "[provision]", "[run]", "[evaluate", "[report", "[review"]
+      .forEach(k => { if ((l.content || "").includes(k)) doneNodes.add(k); });
+  });
+  const s1Done = k => doneNodes.has(k);
+  const s1 = [
+    { n: "克隆", d: s1Done("[clone]") },
+    { n: "摸底", d: s1Done("[analyze]") },
+    { n: "考纲", d: s1Done("[plan]") },
+    { n: "出题", d: s1Done("[generate 第") || status === "ready_for_review" },
+  ];
+  const stage2Active = ["provisioning", "running", "reporting", "done", "failed"].includes(status);
+  const s2 = [
+    { n: "布考场", d: s1Done("[provision]") },
+    { n: "开考", d: s1Done("[run]") },
+    { n: "判卷", d: s1Done("[evaluate") },
+    { n: "报告", d: s1Done("[report") },
+    { n: "复审", d: s1Done("[review") || ["done", "failed"].includes(status) },
+  ];
+  const seg = (steps, stage) => {
+    let activeMarked = false;
+    return steps.map(s => {
+      let cls = s.d ? "done" : (!activeMarked && stage === 1 ? "active" :
+        (!activeMarked && stage2Active ? "active" : ""));
+      if (cls === "active") activeMarked = true;
+      if (status === "ready_for_review" && stage === 1 && !s.d) cls = "";
+      return `<span class="step ${cls}"><span class="n">${s.d ? "✓" : "·"}</span>${s.n}</span>`;
+    }).join('<span class="step-arrow">—›</span>');
+  };
+  $("stepper-review").innerHTML =
+    `<span class="hint" style="margin-right:8px">阶段一</span>` + seg(s1, 1) +
+    `<span class="step-arrow" style="margin:0 14px;color:var(--info)">═›</span>` +
+    `<span class="hint" style="margin-right:8px">阶段二</span>` + seg(s2, 2);
+}
+
+function decisionCard(d) {
+  const DCN = { approve: ["通过", "badge-ok"], reject: ["删除", "badge-fail"],
+                regenerate: ["再生成", "badge-run"], insert: ["插入", "badge-queued"] };
+  const [cn, cls] = DCN[d.decision] || [d.decision, "badge-queued"];
+  const role = d.reviewer_role === "ai_proxy" ? "AI 代审" : "人工";
+  const ev = d.evidence && d.evidence.condition_ids && d.evidence.condition_ids.length
+    ? ` <span class="hint">证据：条件 ${d.evidence.condition_ids.join("、")}</span>` : "";
+  const spot = d.spotcheck
+    ? `<span class="badge" style="background:#fde9c8;color:#b45309">待抽检</span>
+       <button class="op-link" onclick="spotcheck(${d.id}, 'uphold')">同意</button>
+       <button class="op-link" onclick="spotcheck(${d.id}, 'override')">推翻</button>` : "";
+  return `<div style="padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px">
+    <span class="badge ${cls}">${cn}</span> <code>${esc(d.target === "task" ? "（任务准入）" : d.target)}</code>
+    <span class="hint">${role} · 第${d.round}轮${d.decision === "reject" && d.reviewer_role === "ai_proxy" ? "（已停用，可勾选恢复）" : ""}</span> ${spot}
+    <div style="margin:4px 0 0 4px;color:var(--text)">${esc(d.reasoning)}${ev}</div></div>`;
+}
+
+async function loadReview(tid) {
+  const [detail, cases, rtm, dec, logs] = await Promise.all([
+    api(`/tasks/${tid}`).catch(() => null),
+    api(`/tasks/${tid}/cases`).catch(() => null),
+    api(`/tasks/${tid}/rtm`).catch(() => null),
+    api(`/tasks/${tid}/review-decisions`).catch(() => null),
+    api(`/tasks/${tid}/logs`).catch(() => []),
+  ]);
+  if (!detail) { $("rv-hero").innerHTML = '<div class="hint">任务不存在</div>'; return; }
+  renderStageStepper(detail.status, logs);
+  const name = detail.project_name || `任务 ${tid}`;
+  const aiCn = { off: "关", hybrid: "AI 先审+抽检", auto: "AI 全权" }[detail.ai_reviewer] || detail.ai_reviewer;
+  $("rv-hero").innerHTML =
+    `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><span style="font-size:20px;font-weight:800">${esc(name)}</span>
+        <span class="badge badge-queued">任务 #${tid}</span>
+        <span class="badge ${detail.status === "ready_for_review" ? "badge-run" : "badge-queued"}">${esc(STATUS_CN[detail.status] || detail.status)}</span>
+        <span class="hint">代审：${esc(aiCn)}${detail.two_stage ? " · 两阶段" : ""}</span></div>
+      <a href="#/task/${tid}" class="hint">任务详情 →</a></div>
+    <div style="border-left:4px solid var(--ok2);padding-left:12px;margin-top:8px;font-size:13.5px">${esc(detail.requirement_text || "—")}</div>`;
+  // 方案链（wb-plan 渲染器平移，目标容器参数化指向 rv-plan-body）
+  if (rtm && (rtm.conditions_total || (rtm.matrix || []).length)) {
+    renderWbPlan(rtm, detail, "rv-plan-body");
+  } else {
+    $("rv-plan-body").innerHTML = "该任务尚无测试条件数据（准备阶段的考纲在 plan 节点产出后出现）";
+  }
+  // 用例清单（勾选=启用；待审查态可增删，布考场按勾选结论重建文件）
+  const box = $("rv-cases");
+  box.innerHTML = (cases && cases.cases.length ? cases.cases.map(c => {
+    const src = c.source === "ai" ? "AI" : c.source === "imported" ? "人工" : "内置";
+    const desc = c.expected ? esc(String(c.expected).slice(0, 52)) : "";
+    const basis = c.expected_basis ? `<span class="badge badge-queued" style="font-size:10px;padding:1px 6px">${esc(c.expected_basis)}</span>` : "";
+    return `<div class="case-item" style="flex-wrap:wrap;align-items:flex-start">
+      <label style="display:flex;gap:6px;align-items:center;flex:1 1 100%;cursor:pointer">
+        <input type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleReviewCase(${c.id})">
+        <code>${esc(c.name)}</code>
+        <span class="m">${src}·${esc(c.method) || "-"}</span></label>
+      ${desc ? `<div style="flex:1 1 100%;padding-left:26px;font-size:12px">${desc} ${basis}</div>` : ""}
+    </div>`;
+  }).join("") : '<div class="hint">暂无用例（准备阶段出题后出现）</div>');
+  // 日志
+  $("rv-logs").innerHTML = (logs || []).map(l =>
+    `<div class="log-line"><b>[${l.seq}]</b> ${esc(l.content)}</div>`).join("") || '<div class="hint">暂无日志</div>';
+  // 决策卡片
+  const dwrap = $("rv-decisions");
+  if (dec && dec.decisions.length) {
+    dwrap.innerHTML = `<div class="hint" style="margin-bottom:6px">共 ${dec.decisions.length} 条决策（最新轮抽检 ${dec.pending_spotcheck} 条待人工复核，比例 20%）</div>` +
+      dec.decisions.map(decisionCard).join("");
+  } else {
+    dwrap.innerHTML = '<div class="hint">暂无代审决策（off 模式=人工审查；hybrid/auto 模式的 AI 决策会在这里逐条列出，理由+证据可追责）</div>';
+  }
+  // 放行按钮：仅待审查态可点
+  $("rv-release").disabled = detail.status !== "ready_for_review";
+  $("rv-release").onclick = async () => {
+    try {
+      await api(`/tasks/${tid}/run`, { method: "POST", body: "{}" });
+      $("rv-release-result").innerHTML = '<span style="color:#16a34a">✅ 已放行——阶段二启动（布考场→开考→判卷→报告→复审），进度看任务详情页。</span>';
+      loadReview(tid);
+    } catch (e) { $("rv-release-result").textContent = "放行失败：" + e.message; }
+  };
+  // 阶段一跑动中：5s 轮询刷新（粘性，离开页面即清）
+  clearTimeout(REVIEW_POLL);
+  if (["cloning", "analyzing", "generating"].includes(detail.status)) {
+    REVIEW_POLL = setTimeout(() => loadReview(tid), 5000);
+  }
+}
+
+async function pickReviewTask() {
+  const tasks = await api("/tasks");
+  const rv = tasks.find(t => t.status === "ready_for_review");
+  if (rv) { location.hash = "#/review/" + rv.id; return; }
+  $("rv-hero").innerHTML = '<div class="hint">当前没有待审查的任务——两阶段任务在确认后自动跑准备阶段，跑完会出现在这里。</div>';
+  $("stepper-review").innerHTML = "";
+}
+
+async function sendFeedback() {
+  const tid = REVIEW_TID;
+  const text = $("rv-fb-text").value.trim();
+  if (!tid || !text) { $("rv-fb-result").textContent = "先写一句你想补充/修改的审查意见"; return; }
+  $("rv-fb-send").disabled = true;
+  $("rv-fb-result").textContent = "AI 正在按反馈增补生成（走同一三道闸，稍候）…";
+  try {
+    const b = await api(`/tasks/${tid}/feedback`, { method: "POST",
+      body: JSON.stringify({ feedback: text }) });
+    $("rv-fb-result").innerHTML = `<span style="color:#16a34a">✅ 增补 ${b.generated} 条 → ${esc(b.file || "")}</span>` +
+      (b.static_rejected && b.static_rejected.length ? `；闸门剔除 ${b.static_rejected.length} 条` : "");
+    $("rv-fb-text").value = "";
+    loadReview(tid);
+  } catch (e) { $("rv-fb-result").textContent = "增补失败：" + e.message; }
+  finally { $("rv-fb-send").disabled = false; }
+}
+
+async function toggleReviewCase(id) {
+  try { await api(`/cases/${id}/toggle`, { method: "POST", body: "{}" }); loadReview(REVIEW_TID); }
+  catch (e) { alert(e.message); loadReview(REVIEW_TID); }
+}
+
+async function spotcheck(decisionId, verdict) {
+  try {
+    const b = await api(`/review-decisions/${decisionId}/spotcheck`, { method: "POST",
+      body: JSON.stringify({ verdict }) });
+    alert(verdict === "uphold" ? "已记录：同意 AI 决策（对齐信号落库）"
+      : `已推翻${b.restored ? "，用例 " + b.restored + " 已恢复" : ""}（推翻也落库）`);
+    loadReview(REVIEW_TID);
+  } catch (e) { alert(e.message); }
+}
+
+async function batchReviewer(mode) {
+  const ids = TASKS.filter(t => t.status !== "cloning" && t.status !== "running").map(t => t.id);
+  if (!ids.length) { alert("没有可设置的任务"); return; }
+  if (!confirm(`对 ${ids.length} 个任务批量设置代审模式 = ${mode}？`)) return;
+  try {
+    const b = await api("/tasks/batch/ai-reviewer", { method: "POST",
+      body: JSON.stringify({ mode, task_ids: ids }) });
+    alert(`已应用 ${b.results.filter(r => r.applied).length}/${ids.length} 个`);
+    pollTasks();
+  } catch (e) { alert(e.message); }
+}
+
+async function batchAutoRun() {
+  const ids = TASKS.filter(t => t.ai_reviewer === "auto" && t.confirmed !== 1).map(t => t.id);
+  if (!ids.length) { alert("没有「已开 auto 且未确认」的任务——先批量开 auto"); return; }
+  if (!confirm(`批量启动 ${ids.length} 个任务的 AI 代审全链（D1 准入→出题→用例集代审→执行）？\n任何任务停在等待点都会如实停下交人工（fail-closed）。`)) return;
+  try {
+    const b = await api("/tasks/batch/auto-run", { method: "POST",
+      body: JSON.stringify({ task_ids: ids }) });
+    alert(`已启动 ${b.results.filter(r => r.started).length}/${ids.length} 条代审链`);
+    pollTasks();
+  } catch (e) { alert(e.message); }
 }
 
 function renderStepper(elId, active) {
@@ -94,11 +293,16 @@ async function createTask() {
   $("new-submit").disabled = true;
   try {
     const autoPrepare = $("new-auto-prepare") && $("new-auto-prepare").checked ? 1 : 0;
+    const twoStage = $("new-two-stage") && $("new-two-stage").checked ? 1 : 0;
+    const aiReviewer = $("new-ai-reviewer") ? $("new-ai-reviewer").value : "off";
     const b = await api("/tasks", { method: "POST",
-      body: JSON.stringify({ repo_url: repo, requirement: req, auto_prepare: autoPrepare }) });
+      body: JSON.stringify({ repo_url: repo, requirement: req, auto_prepare: autoPrepare,
+                             two_stage: twoStage, ai_reviewer: aiReviewer }) });
     NEW_TASK_ID = b.task_id;
     $("new-result").innerHTML = `任务 <b>#${b.task_id}</b> 已创建（项目：${esc(b.project_name)}）。` +
-      `下一步：<a href="#/workbench">进入脚本工作台</a> 确认后下发执行。`;
+      (twoStage
+        ? `两阶段模式：到 <a href="#/workbench">脚本工作台</a> 人工确认后，Agent 自动跑准备阶段（克隆/摸底/考纲/出题），跑完在 <a href="#/review/${b.task_id}">用例评审页</a> 等你审查。`
+        : `下一步：<a href="#/workbench">进入脚本工作台</a> 确认后下发执行。`);
     $("new-result").classList.remove("hidden");
     renderStepper("stepper-new", 1);
     pollNewCases(b.task_id);
@@ -153,8 +357,8 @@ function wbTargets(code) {
   return out.slice(0, 4);
 }
 
-function renderWbPlan(rtm, detail) {
-  const box = $("wb-plan-body");
+function renderWbPlan(rtm, detail, targetId = "wb-plan-body") {
+  const box = $(targetId);
   if (!rtm || (!rtm.conditions_total && !(rtm.matrix || []).length)) {
     box.innerHTML = detail.status === "queued"
       ? "该任务尚未下发执行。<b>确认并下发后</b>，Agent 会：①把你的需求拆解成一条条可验证的测试条件（测试分析）；②按条件生成用例或复用已有用例（测试设计）；③在容器里运行（执行）；④出报告并标注哪些条件没覆盖到（评估）。本面板届时展示完整链路。"
@@ -272,6 +476,7 @@ function renderTasks() {
     if (PG_SEARCH && pname.toLowerCase().indexOf(q) === -1 &&
         !tasks.some(t => (t.requirement_text || "").toLowerCase().indexOf(q) > -1)) return;
     if (TASK_FILTER === "running" && !tasks.some(t => t.progress < 100 && t.status !== "queued" && t.status !== "cancelled" && t.status !== "done")) return;
+    if (TASK_FILTER === "review" && !tasks.some(t => t.status === "ready_for_review")) return;
     if (TASK_FILTER === "done" && !tasks.some(t => t.status === "done")) return;
     if (TASK_FILTER === "failed" && !tasks.some(t => t.status === "failed")) return;
     idx++; shown++;
@@ -283,17 +488,20 @@ function renderTasks() {
     tasks.forEach(t => {
       const confirmable = isStaff && t.confirmed !== 1 && t.progress < 100;
       const runnable = isStaff && t.confirmed === 1 && t.progress < 100;
+      const reviewable = isStaff && t.status === "ready_for_review";
       rows += `<tr class="pg-task" data-tid="${t.id}">
         <td><span class="hint">#${t.id}</span></td>
         <td>${esc((t.requirement_text || "").slice(0, 46))}${(t.requirement_text || "").length > 46 ? "…" : ""}</td>
         <td><span class="badge ${stCls(t)}">${STATUS_CN[t.status] || t.status}${t.progress < 100 && t.status !== "queued" && t.status !== "cancelled" && t.status !== "done" ? " " + t.progress + "%" : ""}</span>
-            ${t.confirmed !== 1 ? '<div class="hint">未确认 · 禁止下发</div>' : ""}</td>
+            ${t.confirmed !== 1 ? '<div class="hint">未确认 · 禁止下发</div>' : ""}
+            ${t.ai_reviewer && t.ai_reviewer !== "off" ? `<div class="hint">代审:${t.ai_reviewer}</div>` : ""}</td>
         <td class="hint">${t.cases != null ? t.cases : "—"}</td>
         <td class="hint">${t.coverage != null ? Math.round(t.coverage * 100) + "%" : "—"}</td>
         <td class="hint hide-sm">${esc(t.created_at || "")}</td>
         <td>
           <button class="op-link" onclick="event.stopPropagation();viewReport(${t.id})">报告</button>
           <button class="op-link" ${confirmable ? "" : "disabled"} onclick="event.stopPropagation();confirmTask(${t.id})">人工确认</button>
+          ${reviewable ? `<button class="op-link" onclick="event.stopPropagation();location.hash='#/review/${t.id}'">评审</button>` : ""}
           <button class="op-link" ${runnable ? "" : "disabled"} onclick="event.stopPropagation();runTask(${t.id})">下发执行</button>
           <button class="op-link" onclick="event.stopPropagation();viewLogs(${t.id})">日志</button>
         </td></tr>`;
@@ -787,6 +995,17 @@ $("login-btn").onclick = doLogin;
 $("login-pass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
 $("new-submit").onclick = createTask;
 $("ac-submit").onclick = addCase;
+$("rv-fb-send").onclick = sendFeedback;
+$("rv-ac-submit").onclick = async () => {
+  const tid = REVIEW_TID;
+  if (!tid) { $("rv-ac-result").textContent = "请先从任务列表进入某条待审查任务"; return; }
+  try {
+    const b = await api(`/tasks/${tid}/cases`, { method: "POST", body: JSON.stringify({
+      name: $("rv-ac-name").value.trim(), method: $("rv-ac-method").value.trim(), code: $("rv-ac-code").value }) });
+    $("rv-ac-result").textContent = `已插入：${b.case_name} → ${b.file}`;
+    loadReview(tid);
+  } catch (e) { $("rv-ac-result").textContent = "插入失败：" + e.message; }
+};
 $("wb-confirm").onclick = null;   // 真实 handler 在 loadWorkbench 按任务绑定
 document.querySelectorAll("#task-tabs .tab").forEach(b => b.onclick = () => {
   TASK_FILTER = b.dataset.f;

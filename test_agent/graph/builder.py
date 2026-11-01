@@ -350,8 +350,20 @@ def run_feedback_round(task_id: int, feedback_text: str, runner=None) -> dict:
         "WHERE task_id=? AND framework='pytest'", (task_id,)).fetchone()
     from ..skills.gen_tests import generate_tests
     if runner is None:
-        from ..sandbox.runner import SandboxRunner
-        runner = SandboxRunner()
+        try:
+            from ..sandbox.runner import SandboxRunner
+            runner = SandboxRunner()
+        except Exception as e:  # noqa: BLE001 —— Docker 未就绪：出题不需容器（两阶段本意），
+            # collect 闸/回灌在 gen_tests 内诚实顺延到布考场；这里只保证 runner 可传
+            log.warning("feedback 轮 Docker 未就绪（%s: %s），collect 闸顺延", type(e).__name__, e)
+
+            class _DeferredRunner:
+                client = None
+
+                def exec_in(self, *_a, **_k):
+                    raise RuntimeError("Docker 未就绪")
+
+            runner = _DeferredRunner()
     summary = generate_tests(api_key, {
         "workspace": str(ws),
         "requirement": task["requirement_text"] or "",

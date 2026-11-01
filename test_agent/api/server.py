@@ -610,16 +610,19 @@ def api_toggle_case(case_id: int, user: dict = Depends(staff)):
         raise HTTPException(409, "AI 生成脚本为不可变版本（仅两阶段待审查态可启停）")
     conn.execute("UPDATE test_cases SET enabled=? WHERE id=?", (0 if row["enabled"] else 1, case_id))
     conn.commit()
+    ws = Path(config.DATA_DIR) / "workspaces" / f"task_{row['task_id']}"
+    if not ws.exists():
+        # 工作区不存在（阶段一未完成或已被清理）：评审结论已落库即生效——
+        # 库是唯一真源，文件只是投影，布考场（阶段二 provision）会以库为准重建，此处不炸
+        return {"case_id": case_id, "enabled": 0 if row["enabled"] else 1, "file_deferred": True}
     if row["source"] == "imported":
-        content = _rebuild_imported_file(conn, row["task_id"],
-                                         Path(config.DATA_DIR) / "workspaces" / f"task_{row['task_id']}")
+        content = _rebuild_imported_file(conn, row["task_id"], ws)
         conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
                      (content, hashlib.sha256(content.encode()).hexdigest()[:16], row["script_id"]))
         conn.commit()
     else:
         from ..skills.gen_tests import rebuild_gen_files_from_db
-        rebuild_gen_files_from_db(conn, row["task_id"],
-                                  Path(config.DATA_DIR) / "workspaces" / f"task_{row['task_id']}")
+        rebuild_gen_files_from_db(conn, row["task_id"], ws)
     return {"case_id": case_id, "enabled": 0 if row["enabled"] else 1}
 
 

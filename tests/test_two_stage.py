@@ -260,3 +260,18 @@ def test_toggle_ai_case_allowed_only_at_ready_for_review(task_env):
     resp = server.api_toggle_case(case_id, None)
     assert resp["enabled"] == 0
     assert "def test_a" not in (ws / "test_gen_r1.py").read_text(encoding="utf-8")
+
+
+def test_toggle_ai_case_without_workspace_defers_file(task_env):
+    """工作区缺失（阶段一未完成/已清理）：评审结论落库即生效，文件重建顺延布考场——不炸 500
+    （Playwright 验收实锤：seed 任务无工作区时 toggle 曾 FileNotFoundError）。库是唯一真源。"""
+    conn, tid, ws = task_env
+    assert not ws.exists()
+    sid = _seed_gen_script(conn, tid, "test_gen_r1.py", [("test_a", 1)])
+    case_id = conn.execute("SELECT id FROM test_cases WHERE script_id=?", (sid,)).fetchone()["id"]
+    conn.execute("UPDATE test_tasks SET status='ready_for_review' WHERE id=?", (tid,))
+    conn.commit()
+    from test_agent.api import server
+    resp = server.api_toggle_case(case_id, None)
+    assert resp["enabled"] == 0 and resp.get("file_deferred") is True
+    assert conn.execute("SELECT enabled FROM test_cases WHERE id=?", (case_id,)).fetchone()["enabled"] == 0
