@@ -49,7 +49,10 @@ def build_run_cmd(round_no: int = 1, gen_files: list[str] | None = None) -> list
     （永远修不好→熔断/预算耗尽）。修复：round_no>1 起 cmd 限定生成物+imported 文件——
     R-Loop 的 passed/failed 只衡量生成用例质量；首轮保持全目录（自带测试基线）。"""
     cmd = ["pytest", "-q", "--tb=short", "-rfE", "--continue-on-collection-errors",
-           "--cov=.", "--cov-report=term-missing:skip-covered"]
+           "--cov=.", "--cov-report=term-missing:skip-covered",
+           # 任务C：逐用例结果（junitxml→test_case_results 表，实时看板数据源）；
+           # 与 stdout 解析互不影响（--junitxml 只写文件）；超时/崩溃无文件=诚实缺席
+           f"--junitxml={config.JUNIT_PATH}"]
     if round_no > 1 and gen_files:
         cmd += gen_files
     return cmd
@@ -480,6 +483,24 @@ def make_nodes(deps: GraphDeps) -> dict:
         else:
             out = res.output
         r = json.loads(out)
+        # 任务C：逐用例结果落库（轮次级粒度，每轮跑完即出现——看板数据源）
+        try:
+            from ..skills.case_results import parse_jest_results, parse_junit_xml, store_case_results
+            if lang == "javascript":
+                rows = parse_jest_results(r.get("stdout", ""))   # 转换前抽原始 jest JSON
+            else:
+                jc = runner.exec_in(
+                    runner.client.containers.get(state["container_name"]),
+                    ["cat", config.JUNIT_PATH], timeout_s=30)
+                rows = parse_junit_xml(jc.stdout) if jc.ok else []
+            n_stored = store_case_results(conn, tid, state.get("round_no", 1), rows) if rows else 0
+            if n_stored:
+                msg(state["session_id"], "assistant",
+                    f"[run 第{state.get('round_no', 1)}轮] 逐用例结果 {n_stored} 条落库"
+                    f"（通过 {sum(1 for x in rows if x['status'] == 'passed')}"
+                    f" / 失败 {sum(1 for x in rows if x['status'] == 'failed')}）")
+        except Exception as e:              # noqa: BLE001 —— 看板数据缺失不炸执行主链路
+            log.warning("逐用例结果落库失败 task=%s: %s", tid, e)
         if lang == "javascript" and r.get("stdout"):
             from ..skills.js_adapter import jest_json_to_pytest_text
             r["stdout"] = jest_json_to_pytest_text(r["stdout"], r.get("stderr", ""))

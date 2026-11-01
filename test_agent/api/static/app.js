@@ -66,6 +66,7 @@ let TASK_TID = 0;                            // F03 详情页当前任务
 let REVIEW_TID = 0;                          // 评审页当前任务
 let REVIEW_POLL = null;                      // 评审页轮询（阶段一跑动时实时刷新）
 let TD_POLL = null;                          // 任务详情页轮询（活跃态 3s 刷新流水线）
+let EXEC_POLL = null;                        // 实时用例执行面板轮询（活跃态 2s）
 function route() {
   let page = (location.hash || "#/new").replace("#/", "");
   if (page.startsWith("task/")) {           // F03 任务详情路由 #/task/{tid}
@@ -95,6 +96,7 @@ function route() {
   if (page !== "tasks" && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (page !== "review" && REVIEW_POLL) { clearInterval(REVIEW_POLL); REVIEW_POLL = null; }
   if (page !== "taskdetail" && TD_POLL) { clearTimeout(TD_POLL); TD_POLL = null; }
+  if (page !== "taskdetail" && EXEC_POLL) { clearTimeout(EXEC_POLL); EXEC_POLL = null; }
   if (page !== "workbench") stopConfirmWatch();         // 离开工作台停阶段一监控（终态监听 watchTaskFinal 跨页保留）
 }
 
@@ -1300,10 +1302,70 @@ async function loadTaskDetail(tid) {
   $("td-levels").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "测试级别计划（黑盒 + 白盒双轨）</div>" +
     (renderLevelCards(lv && lv.levels) || '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>');
+  await renderExecPanel(tid);
   // 任务A4：活跃态自动轮询（3s，终态/离开页面即停——上面提示语写了"自动轮询"，说到做到）
   clearTimeout(TD_POLL);
   if (["provisioning", "running", "reporting", "cloning", "analyzing", "generating"].includes(t.status)) {
     TD_POLL = setTimeout(() => { if (TASK_TID === tid) loadTaskDetail(tid); }, 3000);
+  }
+}
+
+// 任务C：实时用例执行面板（详情页流水线区域下方）——逐用例状态/耗时/失败证据可展开。
+// 粒度诚实标注：按轮次更新（每轮跑完出现该轮明细），不伪装逐用例实时流。
+const EXEC_STATUS = {
+  passed:  ["✓ 通过", "badge-ok"], failed: ["✗ 失败", "badge-fail"],
+  error:   ["⚠ 错误", "badge-fail"], skipped: ["− 跳过", "badge-queued"],
+};
+async function renderExecPanel(tid) {
+  const box = $("td-exec");
+  const snap = await api(`/tasks/${tid}/execution`).catch(() => null);
+  if (!snap) { box.innerHTML = '<div class="hint">实时用例执行面板加载失败</div>'; return; }
+  const active = ["cloning", "analyzing", "generating", "provisioning", "running", "reporting"]
+    .includes(snap.status);
+  const roundsTxt = (snap.rounds || []).map(r =>
+    `第${r.round_no}轮 通过${r.passed}/失败${r.failed}` +
+    (r.coverage_line != null ? `·覆盖${Math.round(r.coverage_line * 100)}%` : "")).join("｜");
+  let body;
+  if ((snap.cases || []).length) {
+    // 最新一轮的用例集（历史轮次在轮次轨迹行里）
+    const maxRound = Math.max(...snap.cases.map(c => c.round_no));
+    const cur = snap.cases.filter(c => c.round_no === maxRound);
+    const pass = cur.filter(c => c.status === "passed").length;
+    body = `<div class="hint" style="margin:2px 0 8px">当前展示第 ${maxRound} 轮（${cur.length} 条：` +
+      `<span style="color:var(--ok2)">${pass} 通过</span> / ` +
+      `<span style="color:var(--fail,#dc2626)">${cur.length - pass} 失败·错误·跳过</span>）` +
+      `——失败行点击展开失败消息</div>` +
+      `<div class="table-wrap"><table class="tbl"><tr><th>用例</th><th>状态</th><th>耗时</th><th>轮次</th><th>来源</th></tr>` +
+      cur.map(c => {
+        const [cn, cls] = EXEC_STATUS[c.status] || [c.status, "badge-queued"];
+        const failRow = c.status !== "passed" && c.status !== "skipped";
+        return `<tr${failRow ? ' style="background:#fef2f2"' : ""}>` +
+          `<td><code>${esc(c.name)}</code>${failRow && c.message
+            ? `<details style="margin-top:4px"><summary class="hint" style="cursor:pointer;margin:0">失败消息</summary>` +
+              `<pre class="code-view" style="white-space:pre-wrap;font-size:11px;margin-top:4px">${esc(c.message)}</pre></details>`
+            : ""}</td>` +
+          `<td><span class="badge ${cls}">${cn}</span></td>` +
+          `<td class="hint" style="margin:0">${c.duration_ms != null ? c.duration_ms + "ms" : "—"}</td>` +
+          `<td>${c.round_no}</td>` +
+          `<td class="hint" style="margin:0">${c.origin === "generated" ? "生成用例" : "自带测试"}</td></tr>`;
+      }).join("") + "</table></div>";
+  } else if (active) {
+    body = `<div class="hint">尚未执行到用例阶段——跑到「开考」节点后这里逐用例出结果（按轮次更新）。</div>`;
+  } else {
+    body = `<div class="hint">该任务没有逐用例结果（未执行/静态模式/旧任务在本机制上线前运行）。</div>`;
+  }
+  box.innerHTML =
+    `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">` +
+    `<div style="font-size:16px;font-weight:800">实时用例执行</div>` +
+    (active ? '<span class="badge badge-run">执行中 · 2s 轮询</span>' : "") +
+    `<span class="badge badge-queued">粒度：按轮次更新</span></div>` +
+    (roundsTxt ? `<div class="hint" style="margin:0 0 6px">轮次轨迹：${esc(roundsTxt)}</div>` : "") +
+    `<div class="hint" style="margin:0 0 8px;color:var(--muted)">最近动作：${esc((snap.log_tail || []).slice(-2).join(" ⏐ ") || "—").slice(0, 200)}</div>` +
+    body;
+  // 活跃态 2s 轮询刷新本面板（终态停；与详情页 3s 整页轮询错开，只刷面板减闪烁）
+  clearTimeout(EXEC_POLL);
+  if (active && TASK_TID === tid) {
+    EXEC_POLL = setTimeout(() => renderExecPanel(tid), 2000);
   }
 }
 

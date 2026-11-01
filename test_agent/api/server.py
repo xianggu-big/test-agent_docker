@@ -495,6 +495,19 @@ def api_rtm(tid: int, user: dict = Depends(current_user)):
             "cases": cases}
 
 
+@app.get("/api/tasks/{tid}/execution")
+def api_execution(tid: int, user: dict = Depends(current_user)):
+    """任务C：实时执行看板——任务态 + 逐用例结果（test_case_results）+ 轮次轨迹 + 日志尾。
+    粒度=轮次级（每轮跑完出现该轮明细，granularity 字段如实标注），前端 2s 轮询。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    from ..skills.case_results import execution_snapshot
+    snap = execution_snapshot(conn, tid)
+    if "error" in snap:
+        raise HTTPException(404, "任务不存在")
+    return snap
+
+
 @app.get("/api/tasks/{tid}/trace")
 def api_trace(tid: int, scenario_id: int | None = None,
               user: dict = Depends(current_user)):

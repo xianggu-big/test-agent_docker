@@ -7,9 +7,10 @@
 --   * 时间统一 TEXT ISO8601（UTC）；比值/覆盖率用 REAL（0~1）；耗时毫秒 INTEGER
 --   * 枚举用 TEXT + CHECK，不建字典表（本科规模，简单优先）
 --   * 外键运行时开启：PRAGMA foreign_keys = ON
---   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 23 张
+--   * 覆盖学院要求：≥7 张表，且含 智能体 / 会话 / 工具 / 日志 / 评测 —— 本稿 24 张
 --     （18 张 L1 全链路 + 19-22 张四级双轨 P1/P2：test_levels / interface_endpoints / call_edges / scenario_cases
---      + 第 23 张 review_decisions：AI 代审/人工审查决策台账，决策必须结构化+可解释）
+--      + 第 23 张 review_decisions：AI 代审/人工审查决策台账，决策必须结构化+可解释
+--      + 第 24 张 test_case_results：逐用例执行结果（实时执行看板数据源）)
 -- ============================================================================
 
 PRAGMA journal_mode = WAL;
@@ -379,3 +380,22 @@ CREATE TABLE IF NOT EXISTS review_decisions (
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_review_decisions_task ON review_decisions(task_id);
+
+-- 24) 逐用例执行结果（任务C/2026-11-01：实时执行看板——每轮跑完逐用例落库，
+--     前端轮询展示；pytest --junitxml / jest --json 确定性解析，零 LLM）
+CREATE TABLE IF NOT EXISTS test_case_results (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id      INTEGER NOT NULL REFERENCES test_tasks(id),
+  round_no     INTEGER NOT NULL DEFAULT 1,
+  level        TEXT NOT NULL DEFAULT 'L1',
+  nodeid       TEXT NOT NULL,             -- pytest path::name / jest fullName
+  name         TEXT NOT NULL,             -- 剥路径的用例名（与 test_cases.name 对齐判 origin）
+  status       TEXT NOT NULL
+               CHECK (status IN ('passed','failed','error','skipped')),
+  duration_ms  INTEGER,
+  message      TEXT,                      -- 失败/错误消息摘要（截断存档）
+  origin       TEXT NOT NULL DEFAULT 'generated'
+               CHECK (origin IN ('generated','repo')),
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_case_results_task ON test_case_results(task_id, round_no);

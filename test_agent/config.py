@@ -38,6 +38,9 @@ SNAPSHOT_EXCLUDE_DIRS = {                      # 内置排除（gitignore 之外
     ".gradle", ".cache", "htmlcov", ".next", ".nuxt", "coverage", "*.egg-info",
 }
 
+# —— 逐用例执行结果（任务C/2026-11-01：实时执行看板） ——
+JUNIT_PATH = "/tmp/mta_junit.xml"              # 容器内 pytest --junitxml 输出（每轮覆盖）
+
 # —— 容器默认资源限额（对应 container_jobs 表默认值） ——
 DEFAULT_CPU_LIMIT = 1.0
 DEFAULT_MEM_LIMIT_MB = 1024
