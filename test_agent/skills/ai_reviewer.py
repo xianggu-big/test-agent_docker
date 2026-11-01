@@ -276,7 +276,19 @@ def record_spotcheck(conn, decision_id: int, verdict: str, note: str, user_id: i
     """抽检结论落库（reviewer_role='human'）：
     - uphold：同意 AI 决策——追加一条同决策的人工记录（对齐信号）；
     - override：推翻——追加反向决策的人工记录；reject 类推翻同时恢复用例启用
-      （人工意志即时生效，AI 的删除不覆盖人工结论）。返回 {decision, restored}。"""
+      （人工意志即时生效，AI 的删除不覆盖人工结论）。返回 {decision, restored}。
+    幂等防重：同一决策同一结论已存在时直接返回既有记录不重复落行
+    （E2E 实锤：前端无原地反馈时用户会重复点击，台账堆重复行）。
+    匹配走 json_extract 精确相等——首版用 LIKE '%"spotcheck_of": 6%' 被 65/64 前缀命中
+    误判重复（真机实锤），字符串 LIKE 不可做数值匹配。"""
+    dup = conn.execute(
+        """SELECT id, decision FROM review_decisions
+           WHERE reviewer_role='human'
+             AND json_extract(evidence, '$.spotcheck_of') = ?
+             AND json_extract(evidence, '$.verdict') = ?
+           ORDER BY id DESC LIMIT 1""", (decision_id, verdict)).fetchone()
+    if dup:
+        return {"decision": dup["decision"], "restored": None, "duplicate": True}
     row = conn.execute("SELECT * FROM review_decisions WHERE id=?", (decision_id,)).fetchone()
     if not row:
         raise LookupError(f"决策 {decision_id} 不存在")

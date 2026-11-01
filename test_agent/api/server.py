@@ -649,18 +649,40 @@ def api_feedback(tid: int, body: dict, user: dict = Depends(staff)):
 
 @app.get("/api/tasks/{tid}/review-decisions")
 def api_review_decisions(tid: int, user: dict = Depends(current_user)):
-    """审查意见书（AI 代审决策台账）：决策/对象/理由/证据/角色/轮次 + hybrid 抽检标记。"""
+    """审查意见书（AI 代审决策台账）：决策/对象/理由/证据/角色/轮次 + hybrid 抽检标记与复核状态。
+
+    spotcheck: True=该条在最新轮 20% 抽检清单且尚未复核；
+    spotcheck_status: done=已被人工复核（附 verdict/结论/时间——从人工落库行反查），
+    前端据此把卡片就地变成"已复核"形态。"""
     conn = get_conn()
     _task_or_404(conn, tid)
     rows = [dict(r) for r in conn.execute(
         """SELECT id, decision, target, reasoning, evidence, reviewer_role, round, created_at
            FROM review_decisions WHERE task_id=? ORDER BY id""", (tid,))]
     latest_round = max((r["round"] for r in rows), default=0)
-    sample = spotcheck_sample(tid, [r["id"] for r in rows if r["round"] == latest_round]) \
+    # 抽样池只含 AI 决策——人工落库行加入后 ids 池变化会让抽检集合重排（E2E 实锤）
+    sample = spotcheck_sample(tid, [r["id"] for r in rows
+                                    if r["round"] == latest_round and r["reviewer_role"] == "ai_proxy"]) \
         if latest_round else set()
+    # 人工抽检落库行（evidence.spotcheck_of=被复核的 AI 决策 id）反查复核状态
+    reviewed: dict[int, dict] = {}
+    for r in rows:
+        if r["reviewer_role"] != "human":
+            continue
+        ev = _safe_json(r["evidence"]) or {}
+        of = ev.get("spotcheck_of")
+        if of is not None:
+            verdict = ev.get("verdict") or ("uphold" if str(r["reasoning"]).startswith("【抽检同意】") else "override")
+            reviewed[of] = {"verdict": verdict, "human_decision": r["decision"],
+                            "note": str(r["reasoning"]).split("】", 1)[-1], "at": r["created_at"]}
     for r in rows:
         r["evidence"] = _safe_json(r["evidence"])
-        r["spotcheck"] = r["id"] in sample and r["reviewer_role"] == "ai_proxy"
+        is_ai = r["reviewer_role"] == "ai_proxy"
+        r["spotcheck"] = r["id"] in sample and is_ai and r["id"] not in reviewed
+        r["spotcheck_status"] = ("done" if r["id"] in reviewed
+                                 else "pending" if (r["id"] in sample and is_ai) else None)
+        if r["id"] in reviewed:
+            r["spotcheck_review"] = reviewed[r["id"]]
     return {"decisions": rows, "spotcheck_ratio": 0.2,
             "pending_spotcheck": sum(1 for r in rows if r["spotcheck"])}
 

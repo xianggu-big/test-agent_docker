@@ -138,10 +138,18 @@ function decisionCard(d) {
   const role = d.reviewer_role === "ai_proxy" ? "AI 代审" : "人工";
   const ev = d.evidence && d.evidence.condition_ids && d.evidence.condition_ids.length
     ? ` <span class="d-ev">证据：条件 ${d.evidence.condition_ids.join("、")}</span>` : "";
-  const spot = d.spotcheck
-    ? `<span class="badge badge-cancel">待抽检</span>
-       <button class="op-link" onclick="spotcheck(${d.id}, 'uphold')">同意</button>
-       <button class="op-link" onclick="spotcheck(${d.id}, 'override')">推翻</button>` : "";
+  // 抽检三形态：pending=可点；done=就地变已复核（按钮消失，显示人工结论）；普通=无抽检位
+  let spot = "";
+  if (d.spotcheck_status === "done") {
+    const rv = d.spotcheck_review || {};
+    const ok = rv.verdict === "uphold";
+    spot = `<span class="badge ${ok ? "badge-ok" : "badge-cancel"}">人工已${ok ? "同意" : "推翻"}</span>` +
+      `<span class="d-ev">${esc(rv.note || "")}${rv.at ? " · " + esc(rv.at) : ""}</span>`;
+  } else if (d.spotcheck) {
+    spot = `<span class="badge badge-cancel">待抽检</span>
+       <button class="op-link" onclick="spotcheck(${d.id}, 'uphold', this)">同意</button>
+       <button class="op-link" onclick="spotcheck(${d.id}, 'override', this)">推翻</button>`;
+  }
   return `<div class="decision">
     <div class="d-head"><span class="badge ${cls}">${cn}</span>
       <code>${esc(d.target === "task" ? "（任务准入）" : d.target)}</code>
@@ -191,10 +199,13 @@ async function loadReview(tid) {
   // 日志
   $("rv-logs").innerHTML = (logs || []).map(l =>
     `<div class="log-line"><b>[${l.seq}]</b> ${esc(l.content)}</div>`).join("") || '<div class="hint">暂无日志</div>';
-  // 决策卡片
+  // 决策卡片（卡头解释：抽检是干什么的、记录去哪看）
   const dwrap = $("rv-decisions");
   if (dec && dec.decisions.length) {
-    dwrap.innerHTML = `<div class="hint" style="margin-bottom:6px">共 ${dec.decisions.length} 条决策（最新轮抽检 ${dec.pending_spotcheck} 条待人工复核，比例 20%）</div>` +
+    dwrap.innerHTML = `<div class="hint" style="margin:0 0 6px">共 ${dec.decisions.length} 条决策（最新轮抽检 ${dec.pending_spotcheck} 条待人工复核，比例 20%）。` +
+      `<b>「同意/推翻」= hybrid 抽检</b>：你的结论作为人机对齐信号永久记录在 review_decisions 台账（论文对比实验的数据源），` +
+      `推翻删除会即时恢复用例；复核结论直接显示在对应条目上，不用另找。</div>` +
+      `<div id="rv-spot-toast" class="hidden" style="margin-bottom:8px"></div>` +
       dec.decisions.map(decisionCard).join("");
   } else {
     dwrap.innerHTML = '<div class="hint">暂无代审决策（off 模式=人工审查；hybrid/auto 模式的 AI 决策会在这里逐条列出，理由+证据可追责）</div>';
@@ -245,14 +256,30 @@ async function toggleReviewCase(id) {
   catch (e) { alert(e.message); loadReview(REVIEW_TID); }
 }
 
-async function spotcheck(decisionId, verdict) {
+async function spotcheck(decisionId, verdict, btn) {
+  // 原地反馈：按钮即变处理中，成功后整卡刷新为「人工已同意/已推翻」形态（不弹窗）
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = verdict === "uphold" ? "同意中…" : "推翻中…";
+  }
   try {
     const b = await api(`/review-decisions/${decisionId}/spotcheck`, { method: "POST",
       body: JSON.stringify({ verdict }) });
-    alert(verdict === "uphold" ? "已记录：同意 AI 决策（对齐信号落库）"
-      : `已推翻${b.restored ? "，用例 " + b.restored + " 已恢复" : ""}（推翻也落库）`);
-    loadReview(REVIEW_TID);
-  } catch (e) { alert(e.message); }
+    await loadReview(REVIEW_TID);
+    const toast = $("rv-spot-toast");
+    if (toast) {
+      toast.className = "";
+      toast.style.cssText = "background:#e8f7ee;border:1px solid #bbe7cb;color:#15803d;" +
+        "border-radius:8px;padding:8px 12px;font-size:12.5px";
+      toast.textContent = verdict === "uphold"
+        ? "✅ 已同意——结论已记入台账（对齐信号），本条卡片已更新为「人工已同意」"
+        : `✅ 已推翻——结论已记入台账${b.restored ? "，用例 " + b.restored + " 已恢复启用" : ""}，本条卡片已更新`;
+      setTimeout(() => { toast.classList.add("hidden"); }, 6000);
+    }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = verdict === "uphold" ? "同意" : "推翻"; }
+    alert("复核失败：" + e.message);
+  }
 }
 
 async function batchReviewer(mode) {

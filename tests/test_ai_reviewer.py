@@ -214,6 +214,32 @@ def test_record_spotcheck_uphold_and_override(tmp_path, monkeypatch):
     conn.close()
 
 
+def test_record_spotcheck_idempotent_no_prefix_false_positive(tmp_path, monkeypatch):
+    """幂等防重必须 json_extract 精确匹配（真机实锤：LIKE '%"spotcheck_of": 6%' 被
+    65/64 前缀命中误判重复——字符串 LIKE 不可做数值匹配）。6 与 65 互不误伤。"""
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
+    db.init_db()
+    conn = db.get_conn()
+    uid = conn.execute("INSERT INTO users(username, password_hash) VALUES ('u', 'x')").lastrowid
+    conn.execute("INSERT INTO projects(user_id, repo_url, name) VALUES (?, 'r', 'n')", (uid,))
+    tid = conn.execute("INSERT INTO test_tasks(project_id, user_id) VALUES (1, ?)", (uid,)).lastrowid
+    # AI 决策 #6 与 #65（全局自增 id 跨任务同池；显式指定 id 复现前缀场景）
+    for did in (6, 65):
+        conn.execute(
+            """INSERT INTO review_decisions(id, task_id, decision, target, reasoning, reviewer_role, round)
+               VALUES (?, ?, 'approve', 't', 'r', 'ai_proxy', 1)""", (did, tid))
+    conn.commit()
+    out6 = ar.record_spotcheck(conn, 6, "uphold", "", uid)
+    assert out6.get("duplicate") is None                       # 首次正常落库
+    out6b = ar.record_spotcheck(conn, 6, "uphold", "", uid)
+    assert out6b.get("duplicate") is True                      # 同条同结论 → 幂等
+    out65 = ar.record_spotcheck(conn, 65, "uphold", "", uid)
+    assert out65.get("duplicate") is None                      # 65 ≠ 6：前缀不得误判（真机坑）
+    n = conn.execute("SELECT COUNT(*) AS n FROM review_decisions WHERE reviewer_role='human'").fetchone()["n"]
+    assert n == 2                                              # 恰两行，无重复
+    conn.close()
+
+
 def test_token_budget_exceeded(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
     db.init_db()
