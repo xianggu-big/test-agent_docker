@@ -194,13 +194,23 @@ async function loadReview(tid) {
   renderStageStepper(detail.status, logs);
   const name = detail.project_name || `任务 ${tid}`;
   const aiCn = { off: "关", hybrid: "AI 先审+抽检", auto: "AI 全权" }[detail.ai_reviewer] || detail.ai_reviewer;
+  // 右上角入口按状态给"下一步该去哪"（用户反馈：原"任务详情→"不知道去干嘛）：
+  // 执行中→详情页看流水线实时进度；已完成/失败→报告页看判决与分析；待审查→本页就是主场，不另给入口
+  const stActive = ["provisioning", "running", "reporting"].includes(detail.status);
+  const stFinal = ["done", "failed"].includes(detail.status);
+  const nextLink = stActive
+    ? `<a href="#/task/${tid}" class="btn btn-ghost btn-sm" style="text-decoration:none" title="执行流水线实时进度、四级接力状态、溯源链">▶ 查看执行进度</a>`
+    : stFinal
+      ? `<a href="javascript:viewReport(${tid})" class="btn btn-ghost btn-sm" style="text-decoration:none" title="判决卡、失败原因与 AI 分析、覆盖率与图表">📄 查看测试报告</a>`
+      : detail.status === "ready_for_review" ? ""
+        : `<a href="#/task/${tid}" class="hint" style="margin:0" title="任务头/四级卡/执行流水线/溯源链/归因面板">任务详情 →</a>`;
   $("rv-hero").innerHTML =
     `<div class="rv-hero-top">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="rv-title">${esc(name)}</span>
         <span class="badge badge-queued">任务 #${tid}</span>
         <span class="badge ${detail.status === "ready_for_review" ? "badge-run" : "badge-queued"}">${esc(STATUS_CN[detail.status] || detail.status)}</span>
         <span class="hint" style="margin:0">代审：${esc(aiCn)}${detail.two_stage ? " · 两阶段" : ""}</span></div>
-      <a href="#/task/${tid}" class="hint" style="margin:0">任务详情 →</a></div>
+      ${nextLink}</div>
     <div class="rv-req">${esc(detail.requirement_text || "—")}</div>`;
   // 方案链（wb-plan 渲染器平移，目标容器参数化指向 rv-plan-body）
   if (rtm && (rtm.conditions_total || (rtm.matrix || []).length)) {
@@ -248,7 +258,8 @@ async function loadReview(tid) {
   $("rv-release").onclick = async () => {
     try {
       await api(`/tasks/${tid}/run`, { method: "POST", body: "{}" });
-      $("rv-release-result").innerHTML = '<span style="color:#16a34a">✅ 已放行——阶段二启动（布考场→开考→判卷→报告→复审），进度看任务详情页；跑挂会弹窗告诉你原因。</span>';
+      $("rv-release-result").innerHTML = `<span style="color:#16a34a">✅ 已放行——阶段二启动（布考场→开考→判卷→报告→复审）。` +
+        `<a href="#/task/${tid}" class="btn btn-primary btn-sm" style="text-decoration:none;margin-left:8px">▶ 去看执行进度</a> 跑挂会弹窗告诉你原因，跑完去「报告」看判决。</span>`;
       watchTaskFinal(tid, "阶段二（布考场/开考/判卷/报告/复审）");
       loadReview(tid);
     } catch (e) { $("rv-release-result").textContent = "放行失败：" + e.message; }
