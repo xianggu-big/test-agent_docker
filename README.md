@@ -46,6 +46,38 @@ uvicorn test_agent.api.server:app --host 127.0.0.1 --port 8000
 # 浏览器 http://127.0.0.1:8000  演示账号 admin/admin123 · dev/dev123 · caller/caller123
 ```
 
+### Windows 桌面一键启动
+
+已提供桌面启动器（`scripts/start_ui.ps1`）：
+
+1. 双击桌面 **「Test Agent」** 图标；
+2. 弹窗输入 **DeepSeek API Key**（仅本次进程使用，不落盘；只看已有报告可点“仅看界面”）；
+3. 自动检测并启动 **Docker Desktop**，等待 daemon 就绪；
+4. 自动启动服务并打开 **http://127.0.0.1:8000**；
+5. **关闭启动器控制台窗口 = 停止服务**（也可 Ctrl+C）。
+6. 如果端口已有本项目的旧服务，会弹窗询问：**停止旧服务并重新输入 Key**，或直接打开现有界面。
+
+首次/重建快捷方式：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/create_desktop_shortcut.ps1
+```
+
+配置：`scripts/launcher.config.json`（端口、Docker Desktop/CLI 路径、Docker 等待秒数、是否弹 Key、启动前命令）。
+“拉取任务”等启动前动作填到 `pre_start_commands`，例如：
+
+```json
+"pre_start_commands": [
+  { "command": "powershell -File C:\\path\\pull_tasks.ps1", "working_dir": "C:\\path" }
+]
+```
+
+诊断（不启动服务/不弹窗）：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/start_ui.ps1 -CheckOnly
+```
+
 CLI 等价链路（答辩演示/脚本化）：
 
 ```bash

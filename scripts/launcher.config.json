@@ -1,0 +1,9 @@
+{
+  "port": 8000,
+  "key_prompt": true,
+  "open_browser": true,
+  "docker_desktop_path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
+  "docker_cli_path": "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe",
+  "docker_wait_seconds": 90,
+  "pre_start_commands": []
+}
