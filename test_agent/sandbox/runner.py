@@ -9,9 +9,12 @@
 future.result(timeout) 实现"超时返回"，超时后底层 exec 仍会占用直到
 容器回收 —— 因此超时任务由调用方（L4 队列）负责 cleanup，不得复用。
 """
+import fnmatch
 import io
 import logging
+import os
 import tarfile
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import dataclass
@@ -25,6 +28,107 @@ from .. import config
 log = logging.getLogger(__name__)
 
 _pool = ThreadPoolExecutor(max_workers=4)
+
+
+# —— 工作区快照：排除 + 预算 + 流式打包（任务B/2026-11-01，#281 MemoryError 根修） ——
+
+def _load_gitignore_spec(src: Path):
+    """读工作区顶层 .gitignore → pathspec 匹配器。v1 诚实边界：只认顶层
+    .gitignore（#281 的 data/、node_modules/ 都在顶层，已够用），嵌套 .gitignore
+    不递归；pathspec 未安装时返回 None（只走内置排除，不炸主链路）。"""
+    gi = src / ".gitignore"
+    if not gi.is_file():
+        return None
+    try:
+        import pathspec  # 声明依赖见 requirements.txt；缺库降级不阻塞
+    except ImportError:
+        log.warning("pathspec 未安装，快照不解析 .gitignore（pip install pathspec 启用）")
+        return None
+    lines = [ln for ln in gi.read_text(encoding="utf-8", errors="replace").splitlines()
+             if ln.strip() and not ln.lstrip().startswith("#")]
+    return pathspec.GitIgnoreSpec.from_lines("gitignore", lines) if lines else None
+
+
+def _dir_size(p: Path) -> int:
+    """目录逻辑大小（纯 stat 走查，不读内容；出错按 0 计）。"""
+    total = 0
+    for root, _dirs, files in os.walk(p, onerror=lambda e: None):
+        for f in files:
+            try:
+                total += (Path(root) / f).lstat().st_size
+            except OSError:
+                pass
+    return total
+
+
+def _fmt_bytes(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.1f}{unit}" if unit != "B" else f"{n}B"
+        n /= 1024
+    return f"{n}B"
+
+
+def snapshot_plan(src_dir: str | Path, max_total: int | None = None,
+                  max_file: int | None = None,
+                  exclude_dirs: set | None = None) -> dict:
+    """快照预扫描（纯函数，不打 tar）：.gitignore + 内置排除 + 单文件/总量预算。
+
+    返回 {files, total_bytes, skipped_files, excluded_dirs, gitignore_used}；
+    总量超预算 raise RuntimeError（fail-fast：错误信息含最大纳入项/总量/上限/处理建议，
+    绝不把 MemoryError 留给进程）。"""
+    src = Path(src_dir)
+    max_total = config.SNAPSHOT_MAX_TOTAL_BYTES if max_total is None else max_total
+    max_file = config.SNAPSHOT_MAX_FILE_BYTES if max_file is None else max_file
+    excludes = set(config.SNAPSHOT_EXCLUDE_DIRS if exclude_dirs is None else exclude_dirs)
+    spec = _load_gitignore_spec(src)
+    files: list[Path] = []
+    sizes: dict[str, int] = {}
+    total = 0
+    skipped_files: list[tuple[str, int]] = []
+    excluded_dirs: list[tuple[str, int]] = []
+
+    def _excluded(name: str) -> bool:
+        return any(fnmatch.fnmatch(name, pat) for pat in excludes)
+
+    for root, dirs, names in os.walk(src, onerror=lambda e: None):
+        rel_root = Path(root).relative_to(src)
+        keep = []
+        for d in dirs:
+            rel_d = (rel_root / d).as_posix()
+            if _excluded(d) or (spec is not None and spec.match_file(rel_d + "/")):
+                excluded_dirs.append((rel_d, _dir_size(Path(root) / d)))
+                continue
+            keep.append(d)
+        dirs[:] = keep
+        for f in names:
+            rel_f = (rel_root / f).as_posix()
+            if spec is not None and spec.match_file(rel_f):
+                continue
+            p = Path(root) / f
+            try:
+                sz = p.lstat().st_size
+            except OSError:
+                continue
+            if sz > max_file:
+                skipped_files.append((rel_f, sz))
+                continue
+            files.append(p)
+            sizes[rel_f] = sz
+            total += sz
+
+    if total > max_total:
+        top = sorted(sizes.items(), key=lambda kv: -kv[1])[:5]
+        top_txt = "、".join(f"{k}({_fmt_bytes(v)})" for k, v in top)
+        raise RuntimeError(
+            f"工作区快照预算超限：排除后仍需打包 {_fmt_bytes(total)} > 上限 "
+            f"{_fmt_bytes(max_total)}。最大的纳入项：{top_txt}。"
+            f"处理建议：①在项目 .gitignore 排除大目录/大文件（快照尊重 .gitignore）"
+            f"②调大 config.SNAPSHOT_MAX_TOTAL_BYTES 后重跑 ③清理工作区后重跑。"
+            f"已排除目录：{[d for d, _ in excluded_dirs[:8]] or '（无）'}")
+
+    return {"files": files, "total_bytes": total, "skipped_files": skipped_files,
+            "excluded_dirs": excluded_dirs, "gitignore_used": spec is not None}
 
 
 @dataclass
@@ -127,17 +231,37 @@ class SandboxRunner:
 
     # —— 快照落地 ——
 
-    def copy_dir_into(self, container, src_dir: str | Path, dest_path: str = "/work") -> None:
-        """把宿主目录快照进容器（打 tar → put_archive），随后 chown 给 tester。"""
+    def copy_dir_into(self, container, src_dir: str | Path, dest_path: str = "/work") -> dict:
+        """把宿主目录快照进容器（预扫描排除+预算 → 临时文件流式 tar → put_archive
+        文件句柄流式上传），随后 chown 给 tester。返回快照摘要（供 provision 节点
+        写 agent_messages：跳过了什么、打了多大——界面可查，任务B 要求）。
+
+        根修背景（#281 实锤）：旧实现 io.BytesIO + 整目录 tar 在内存里拼，
+        7.7GB 工作区直接把宿主进程顶到 MemoryError——现在 tar 落临时文件，
+        峰值内存 = 单文件读缓冲，与工作区大小无关。"""
+        plan = snapshot_plan(src_dir)
         src = Path(src_dir)
-        buf = io.BytesIO()
-        with tarfile.open(fileobj=buf, mode="w") as tar:
-            for p in src.rglob("*"):
-                tar.add(p, arcname=p.relative_to(src))
-        buf.seek(0)
-        container.put_archive(dest_path, buf)
+        fd, tmp = tempfile.mkstemp(suffix=".tar", prefix="mta_snap_")
+        os.close(fd)
+        try:
+            with tarfile.open(tmp, "w") as tar:
+                for p in plan["files"]:
+                    tar.add(p, arcname=p.relative_to(src))
+            with open(tmp, "rb") as fh:            # 文件句柄 → requests 流式上传
+                container.put_archive(dest_path, fh)
+        finally:
+            os.unlink(tmp)
         # put_archive 以 root 写入，收个归属让非 root 的 tester 可写（缓存/覆盖率文件）
         container.exec_run(["chown", "-R", "tester:tester", dest_path], user="root")
+        summary = {"total_bytes": plan["total_bytes"], "file_count": len(plan["files"]),
+                   "skipped_files": plan["skipped_files"], "excluded_dirs": plan["excluded_dirs"],
+                   "gitignore_used": plan["gitignore_used"]}
+        if plan["skipped_files"] or plan["excluded_dirs"]:
+            log.info("快照摘要 task-dir=%s：打包 %d 文件 %s；跳过单文件 %d；排除目录 %d "
+                     "(gitignore=%s)", src, summary["file_count"], _fmt_bytes(plan["total_bytes"]),
+                     len(plan["skipped_files"]), len(plan["excluded_dirs"]),
+                     plan["gitignore_used"])
+        return summary
 
     # —— 执行 ——
 

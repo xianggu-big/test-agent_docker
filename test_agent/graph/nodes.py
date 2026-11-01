@@ -359,7 +359,20 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 上一轮执行超时（exit=-1）说明容器里有 exec 残留，必须重建（A2），否则新旧任务争抢 CPU
         fresh = state.get("last_exit") == -1 and state.get("round_no", 0) > 0
         container = runner.ensure_container(state["image"], state["container_name"], fresh=fresh)
-        runner.copy_dir_into(container, state["workspace"])
+        # 任务B：快照摘要落 agent_messages——跳过了什么/打了多大，界面可查
+        # （#281 教训：7.7GB 工作区静默 OOM，用户只看到 MemoryError 不知道为什么）
+        snap = runner.copy_dir_into(container, state["workspace"])
+        from ..sandbox.runner import _fmt_bytes
+        snap_bits = [f"[provision] 工作区快照：{snap['file_count']} 个文件 "
+                     f"{_fmt_bytes(snap['total_bytes'])} 进考场"
+                     + (f"；尊重 .gitignore 排除 {len(snap['excluded_dirs'])} 个目录"
+                        + (f"（{ '、'.join(d for d, _ in snap['excluded_dirs'][:5]) }…）"
+                           if len(snap['excluded_dirs']) > 5 else
+                           f"（{'、'.join(d for d, _ in snap['excluded_dirs'])}）")
+                        if snap['excluded_dirs'] else "")
+                     + (f"；跳过超限单文件 {len(snap['skipped_files'])} 个"
+                        if snap['skipped_files'] else "")]
+        msg(state["session_id"], "assistant", "".join(snap_bits))
         if state.get("two_stage_rebuild"):
             from ..skills.gen_tests import collect_gate_files
             dropped = collect_gate_files(runner, container, conn, tid, Path(state["workspace"]))

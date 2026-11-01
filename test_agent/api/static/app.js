@@ -917,6 +917,20 @@ const FK_META = {
 
 function renderVerdict(t, latest, an) {
   if (!latest) {
+    // 任务B：失败任务无报告 ≠ "等着就好"——给 error/死在哪一步/为什么没有报告与 RTM，
+    // 禁止"不兼容/无数据"含糊话（#281 用户实况：概览和 RTM 生成不出来不知道为什么）
+    if (t && t.status === "failed") {
+      return `<div class="verdict" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c">
+        <div class="v-title">⛔ 任务失败——未执行到评估阶段，故无报告</div>
+        <div class="v-sub" style="margin-top:6px">失败原因：<code>${esc(String(t.error || "（未记录，看日志 tab 定位阶段）").slice(0, 400))}</code></div>
+        <div class="v-advice" style="margin-top:8px"><b>为什么没有报告和 RTM</b>
+        <div class="hint" style="margin:4px 0 0">报告与需求追踪（RTM）快照在评估（判卷）阶段之后才产出；该任务在评估之前就停了，所以这里没有——<b>不是项目不兼容</b>。
+        左侧 RTM tab 里已产出的测试条件会标「未映射（未评估）」。</div></div>
+        <div class="v-advice" style="margin-top:8px"><b>怎么处理</b><ol>
+          <li>看「日志」tab 找最后一个带节点前缀的行（= 死在哪一步）</li>
+          <li>按失败原因处理（环境/预算类问题修复后重提任务；${esc(String(t.error || "").includes("预算超限") ? "快照预算可在 config.SNAPSHOT_MAX_TOTAL_BYTES 调整或 .gitignore 排除大目录" : "")}）</li>
+          <li>重跑后在「报告」页看判决</li></ol></div></div>`;
+    }
     return `<div class="verdict" style="background:#f3f4f6;border-color:#e2e5ea;color:#52525b">
       <div class="v-title">⏳ 暂无报告</div><div class="v-sub">任务 ${esc(STATUS_CN[t?.status] || t?.status || "")}——跑完评估阶段后这里给结论</div></div>`;
   }
@@ -1062,13 +1076,19 @@ async function loadReport() {
   // RTM 矩阵（测试条件 ↔ 用例映射）——用例六要素移至「测试用例库」tab（D9 分离关注点）
   if (rtm && (rtm.matrix.length || rtm.cases.length)) {
     const covered = rtm.matrix.filter(m => m.status === "covered").length;
+    const noMap = !rtm.map_source;   // 任务B：无映射快照=评估没跑，标「未映射（未评估）」中性态，
+                                     // 不给红色「缺口」（缺口=评估跑过发现漏覆盖，两回事）
     $("rp-rtm-badge").textContent = `条件覆盖 ${covered}/${rtm.conditions_total}` +
-      (rtm.map_source ? `（映射方式：${rtm.map_source === "llm" ? "LLM 辅助" : "启发式"}）` : "（任务未跑评估阶段，无映射快照）");
+      (noMap ? "（条件已产出但评估未运行，故无映射快照——条件本身是健康的，跑完评估即有映射）"
+             : `（映射方式：${rtm.map_source === "llm" ? "LLM 辅助" : "启发式"}）`);
     $("rp-rtm-table").innerHTML =
       "<tr><th>测试条件</th><th>优先级</th><th>关联用例</th><th>状态</th></tr>" +
       rtm.matrix.map(m => `<tr><td>${esc(m.condition)}</td><td>${esc(m.priority || "中")}</td>` +
         `<td>${m.cases.length ? m.cases.map(esc).join("<br>") : '<span class="hint">无用例覆盖</span>'}</td>` +
-        `<td><span class="badge ${m.status === "covered" ? "badge-ok" : "badge-fail"}">${m.status === "covered" ? "已覆盖" : "缺口"}</span></td></tr>`).join("");
+        (noMap
+          ? '<td><span class="badge badge-queued">未映射（未评估）</span></td>'
+          : `<td><span class="badge ${m.status === "covered" ? "badge-ok" : "badge-fail"}">${m.status === "covered" ? "已覆盖" : "缺口"}</span></td>`) +
+        `</tr>`).join("");
   } else {
     $("rp-rtm-badge").textContent = "该任务尚无测试条件数据（plan 节点需需求文本与 LLM Key）";
     $("rp-rtm-table").innerHTML = "";

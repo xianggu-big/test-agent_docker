@@ -482,8 +482,15 @@ def api_rtm(tid: int, user: dict = Depends(current_user)):
                   c.expected_basis, c.source, c.enabled, c.content
            FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
            WHERE s.task_id=? AND c.enabled=1 ORDER BY c.id""", (tid,))]
+    if latest:
+        matrix = json.loads(latest["matrix"])
+    else:
+        # 任务B：无映射快照（评估未跑）≠ 条件不存在——用已落库条件构建「未映射」行，
+        # 前端标「未映射（未评估）」中性态；不写 rtm_maps（不伪造快照，map_source=None）
+        matrix = [{"condition": c["condition"], "priority": c["priority"],
+                   "cases": [], "status": "unmapped"} for c in conditions]
     return {"conditions_total": len(conditions),
-            "matrix": json.loads(latest["matrix"]) if latest else [],
+            "matrix": matrix,
             "map_source": latest["source"] if latest else None,
             "cases": cases}
 

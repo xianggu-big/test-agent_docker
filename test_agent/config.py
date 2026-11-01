@@ -28,6 +28,16 @@ EXEC_LANGUAGES = {"python": IMAGE_PY, "javascript": IMAGE_JS, "java": IMAGE_JAVA
 # —— 噪声目录（clone 快照 / 语言统计 / 源码收集共用一份定义） ——
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "dist", "build", ".idea"}
 
+# —— 工作区快照预算（任务B/2026-11-01：#281 7.7GB 工作区 io.BytesIO 打 tar 宿主 OOM 实锤） ——
+# copy_dir_into 尊重 .gitignore（pathspec）+ 内置排除 + 以下预算；总量超限复制前 fail-fast
+SNAPSHOT_MAX_TOTAL_BYTES = 512 * 1024 * 1024   # 快照总预算（默认 512MB，超限报错不 OOM）
+SNAPSHOT_MAX_FILE_BYTES = 64 * 1024 * 1024     # 单文件预算（超限跳过该文件并记录）
+SNAPSHOT_EXCLUDE_DIRS = {                      # 内置排除（gitignore 之外的兜底；可追加）
+    ".git", "node_modules", "__pycache__", ".venv", "venv", ".pytest_cache",
+    ".mypy_cache", ".ruff_cache", ".tox", "dist", "build", "target",
+    ".gradle", ".cache", "htmlcov", ".next", ".nuxt", "coverage", "*.egg-info",
+}
+
 # —— 容器默认资源限额（对应 container_jobs 表默认值） ——
 DEFAULT_CPU_LIMIT = 1.0
 DEFAULT_MEM_LIMIT_MB = 1024
