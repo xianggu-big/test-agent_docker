@@ -1,5 +1,7 @@
 # 毕设：基于大模型 Agent 的黑盒白盒测试研究（题目已定稿，导师已同意四级方向）
 
+- **✅ 任务卡 A/B/C 全清（2026-11-01 深夜，docs/zcode任务卡-UI与执行环境-20261101.md，三提交 a3599e6/9c2535d/6662ae4）：**A=评审页三修（taskdetail 路由根修=不在 PAGES 显式 toggle；/cases?all=1 分组契约+feedback 附 cases 明细；「本轮新增 N 条」面板；失败/执行中/准备中状态提示分化+详情页 3s 轮询）｜B=#281 MemoryError 根修（copy_dir_into 重写=snapshot_plan 预扫描[顶层 .gitignore via pathspec 0.12.1+内置排除+64MB 单文件跳过+512MB 总量 fail-fast 带可行动错误]→临时文件流式 tar→put_archive 文件句柄流式；**dry-run 实测 #281 工作区 7.75GB→139 文件 1.6MB**（其 .gitignore 本就排除 data/）；失败诊断空态=判决卡红诊断卡「未执行到评估阶段故无报告，不是项目不兼容」+RTM 无快照用条件构建 unmapped 行不伪造 rtm_maps+前端「未映射（未评估）」中性态；#278 SQL 绑定 bug=d35b8de 已修[278 踩的是提交前开发态]，277/276/274/275/280 语义确认不改）｜C=实时执行看板（**第 24 张表 test_case_results**=逐用例结果[表数契约 23→24 同步]；case_results.py=junitxml[内置]/jest --json 确定性解析+round≤1 delete-first+origin 分类；run 节点每轮落库留痕不炸主链路；GET /execution；详情页「实时用例执行」面板=四态徽章/失败行展开/轮次轨迹/2s 轮询，**粒度诚实标注按轮次更新**）；回归 **435 绿/守卫 136（24 表契约）**；Playwright A19+B6+C12 全过；上会话遗留三修另提交 500ca07（defect_analysis 的 s.session_id 笔误实锤修复）；报告=docs/任务{A,B,C}-*.md；**剩余=D 环境调研/E 独立复查/用户全局改进评估（前端多版 HTML+后端多版计划）**
+
 - **✅ 报告概览判决先行（2026-11-01 晚，用户反馈“太直白/最快知道结果/失败要原因+分析+怎么修”，1cef622）：**判决卡五态（通过绿/疑似缺陷红/用例问题橙/环境灰/静态蓝）+KPI；成功=全部展开，失败=判决+失败框为主其余折叠；失败框=原因+依据分布+per-case 表（预期〔依据〕vs 实际消息）+按归因的确定性建议+**AI 详细分析按钮**（skills/defect_analysis.py：证据包确定性→LLM 逐条 root_cause/fix/confidence+summary，纪律=引用证据+标推测+判别用例预期错 vs 产品缺陷；缓存 test_reports.analysis 列；phase=defect_analysis）；evaluate 失败行补消息（failure_summary_of）；**真机 js-calc AI 分析全对**：4 条 clamp 判产品缺陷给出“改 >= 为 >”置信高、NaN 条判用例预期错置信中——oracle 两情形判别正确=论文素材；回归 **413 绿**；守卫 136；累计 21 commit 待 push
 
 
