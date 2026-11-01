@@ -1015,10 +1015,12 @@ function renderDefectsPanel(latest, defectsApi) {
   const fk = defects.failure_kind || "none";
   const cls = { product_defect: "background:#fee2e2;color:#dc2626",
                 case_defect: "background:#fef3c7;color:#b45309",
-                env: "background:#f3f4f6;color:#6b7280" }[fk] || "background:#f3f4f6;color:#6b7280";
+                env: "background:#f3f4f6;color:#6b7280",
+                static: "background:#dbeafe;color:#2563eb" }[fk] || "background:#f3f4f6;color:#6b7280";
   const failedLines = ((defectsApi && defectsApi.failed_cases) || [])
     .map(fc => `[${fc.origin === "generated" ? "生成" : "自带"}] ${esc(fc.nodeid.slice(0, 90))}`);  return `<div style="margin-bottom:10px"><span class="badge" style="${cls}">` +
-    `${{ product_defect: "疑似产品缺陷", case_defect: "用例自身缺陷", env: "环境问题", none: "无缺陷归因" }[fk]}</span>` +
+    `${{ product_defect: "疑似产品缺陷", case_defect: "用例自身缺陷", env: "环境问题",
+         static: "静态模式（未执行）", none: "无缺陷归因" }[fk]}</span>` +
     ` <span class="hint">${esc(defects.stop_reason || "")}</span></div>` +
     (failedLines.length
       ? `<div style="font-size:12px;color:var(--muted);max-height:180px;overflow:auto">` +

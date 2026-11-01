@@ -72,11 +72,33 @@ def _is_noise_source(p: Path) -> bool:
     return p.name.startswith("test_") or p.name.endswith("_test.py")
 
 
-def _iter_source_files(ws: Path):
-    for p in sorted(ws.rglob("*.py")):
+JS_SOURCE_EXTS = (".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs")
+JS_NOISE_SUFFIXES = (".test.js", ".spec.js", ".test.ts", ".spec.ts", ".d.ts", ".min.js",
+                     ".config.js", ".config.ts")
+# jest 用例声明：test("test_xxx" / it('test_xxx'（提示词强制名字以 test_ 开头无空格）
+JS_CASE_RE = re.compile(r'\b(?:test|it)\s*\(\s*[\'"]test_\w+')
+
+
+def _is_js_noise(p: Path) -> bool:
+    """JS 项目的非被测文件：测试/声明/压缩/配置/生成物。"""
+    name = p.name.lower()
+    if name.endswith(JS_NOISE_SUFFIXES) or name.startswith("test_gen_"):
+        return True
+    return name in ("jest.config.js", "babel.config.js", "webpack.config.js", "vite.config.js")
+
+
+def _iter_source_files(ws: Path, lang: str = "python"):
+    """按目标语言枚举被测源码：python=*.py；javascript/typescript=JS_SOURCE_EXTS。"""
+    exts = JS_SOURCE_EXTS if lang in ("javascript", "typescript") else (".py",)
+    for p in sorted(ws.rglob("*")):
+        if not p.is_file() or p.suffix.lower() not in exts:
+            continue
         if any(part in config.SKIP_DIRS for part in p.parts):
             continue
-        if _is_noise_source(p):
+        if lang in ("javascript", "typescript"):
+            if _is_js_noise(p):
+                continue
+        elif _is_noise_source(p):
             continue
         try:
             text = p.read_text(encoding="utf-8", errors="ignore")
@@ -117,16 +139,28 @@ def _split_top_level(text: str) -> list[tuple[str, str]]:
     return chunks
 
 
-def _collect_sources_detailed(ws: Path) -> tuple[list[tuple[str, str]], list[str]]:
+def _collect_sources_detailed(ws: Path, lang: str = "python") -> tuple[list[tuple[str, str]], list[str]]:
     """被测源码收集（带跳过台账）：小文件整收、大文件按顶层符号切片、预算截断如实记录。
 
-    旧版整文件收录 + 超预算静默 continue——真实项目（源码 >8KB）只喂到 setup.py，
-    生成器盲写期望 → 假缺陷上报（docs/真实项目跑测/20261030-H1-python-titlecase-基线.md）。"""
+    JS/TS 无 Python AST：不切片、按预算顺序整收，超出的文件截断尾部并留台账（诚实呈现）。"""
     sources: list[tuple[str, str]] = []
     skipped: list[str] = []
     used = 0
-    for p, text in _iter_source_files(ws):
+    is_js = lang in ("javascript", "typescript")
+    for p, text in _iter_source_files(ws, lang):
         rel = p.relative_to(ws).as_posix()
+        if is_js:
+            # JS：无 AST 切片。语法可粗检（花括号平衡）不拦——语法闸在容器内 node --check。
+            budget_left = MAX_SOURCE_CHARS - used
+            if len(text) > budget_left:
+                kept = text[:budget_left]
+                sources.append((rel + "（预算截断）", kept + "\n/* …（超出预算截断，完整文件见仓库）*/"))
+                skipped.append(f"{rel}（{len(text)} 字符超预算，截断收录 {len(kept)}）")
+                used += budget_left
+            else:
+                sources.append((rel, text))
+                used += len(text)
+            continue
         if len(text) > WHOLE_FILE_LIMIT or used + len(text) > MAX_SOURCE_CHARS:
             # 大文件或预算吃紧：按顶层 def/class 切片逐段收录（放得下多少收多少）
             placed = False
@@ -152,9 +186,9 @@ def _collect_sources_detailed(ws: Path) -> tuple[list[tuple[str, str]], list[str
     return sources, skipped
 
 
-def _collect_sources(ws: Path) -> list[tuple[str, str]]:
+def _collect_sources(ws: Path, lang: str = "python") -> list[tuple[str, str]]:
     """被测源码（兼容壳，repair_strategy 复写路径共用）；需要跳过台账用 _collect_sources_detailed。"""
-    return _collect_sources_detailed(ws)[0]
+    return _collect_sources_detailed(ws, lang)[0]
 
 
 def _loads_tolerant(s: str):
@@ -195,8 +229,10 @@ def _parse_cases(text: str) -> dict | None:
     cases = data.get("cases")
     if not isinstance(cases, list):
         return None
+    # 用例代码两种语言形态：Python def test_… / jest test("test_…" 或 it("test_…"
     cleaned = [c for c in cases if isinstance(c, dict) and (
-        (isinstance(c.get("code"), str) and re.search(r"def\s+test_\w+", c["code"]))
+        (isinstance(c.get("code"), str) and (re.search(r"def\s+test_\w+", c["code"])
+                                              or JS_CASE_RE.search(c["code"])))
         or (isinstance(c.get("template"), str) and isinstance(c.get("slots"), dict)))]
     if not cleaned:
         # 顶层槽位形态容错（D8 补跑实锤）：LLM 偶尔把整个响应用 T2 槽位格式返回
@@ -348,7 +384,11 @@ def _module_top_level(ws: Path) -> dict[str, set[str]]:
 
 def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
     """生成后静态闸（§3.6 第 1 道，确定性、零成本）：
-    语法可解析 + from-import 的符号在被测模块顶层存在。剔除理由如实返回。"""
+    语法可解析 + from-import 的符号在被测模块顶层存在。剔除理由如实返回。
+    JS/TS 分支：Python AST 不适用——v1 跳过静态闸（JS 的安全闸=容器内 node --check
+    语法检查，在收集闸步骤执行），理由如实标注。"""
+    if cases and any(JS_CASE_RE.search((c.get("code") or "")) for c in cases):
+        return cases, []   # JS 形态：闸移交收集步骤（node --check），这里不做 AST 审计
     table = _module_top_level(ws)
     kept, rejected = [], []
     for c in cases:
@@ -715,7 +755,9 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     feedback = (args.get("feedback") or "").strip()
     fb_no = args.get("fb_no")
     phase = "gen_feedback" if feedback else "gen_tests"
-    sources, source_skipped = _collect_sources_detailed(ws)
+    lang = (args.get("module_hint") or "python").lower()
+    is_js = lang == "javascript"          # JS 执行链路 Tier2：jest 形态生成 + node --check 闸
+    sources, source_skipped = _collect_sources_detailed(ws, lang)
     if source_skipped:
         # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
         log.warning("gen_tests task=%s 源码预算截断 %d 段: %s",
@@ -763,6 +805,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   feedback_text=feedback or None,
                                                   pitfalls=config.PITFALL_KB_ENABLED,
                                                   module_lang=args.get("module_hint", ""),
+                                                  target_language=lang,
                                                   existing_cases=(args.get("existing_names") or None)
                                                   if feedback else None))])
     log_llm_call(task_id, phase, resp)
@@ -795,13 +838,18 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
 
     # —— def 名对齐（A5）：用规整后的 name 重写首个 def，nodeid 从此可反查用例 ——
     # 对话增补轮：防撞池=任务全域已有用例名（增补文件与已批准文件同名函数会让归因反查失准）
+    # JS 分支：重写 test("…")/it("…") 的名字参数（jest nodeid=文件::用例名，与 Python 同口径）
     used_names: set[str] = set(args.get("existing_names") or [])
     for i, c in enumerate(data["cases"]):
         def_name = _sanitize_name(c.get("name"), i, used_names)
         code = c["code"].strip()
-        m = re.search(r"def\s+\w+", code)
-        if m:
-            code = code[:m.start()] + f"def {def_name}" + code[m.end():]
+        if is_js:
+            code = re.sub(r'(\b(?:test|it)\s*\(\s*)([\'"])[^\'"]*\2',
+                          lambda m: f'{m.group(1)}"{def_name}"', code, count=1)
+        else:
+            m = re.search(r"def\s+\w+", code)
+            if m:
+                code = code[:m.start()] + f"def {def_name}" + code[m.end():]
         c["code"], c["name"] = code, def_name
 
     # —— 方案C·条件缺口回灌（Gotel&Finkelstein post-traceability 的生成侧闭环）：
@@ -821,8 +869,13 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                 data["imports"] = (old + "\n" + extra_imports).strip()
 
     # —— 方案A·断言质量审计（度量恒算）+ 可选闸：全弱断言用例 = 无证伪能力 ——
-    data["cases"], gate_rejected, assertion_stats = apply_assertion_gate(
-        data["cases"], gate=config.ASSERTION_GATE_ENABLED)
+    # JS 分支：审计器是 Python AST，对 jest 代码会整案判"语法不可解析"→ gate 开时全剔。
+    # v1 跳过（stats 标 skipped 诚实留痕）；JS 断言质量闸属后续工作。
+    if is_js:
+        gate_rejected, assertion_stats = [], {"cases": len(data["cases"]), "skipped": "js_v1"}
+    else:
+        data["cases"], gate_rejected, assertion_stats = apply_assertion_gate(
+            data["cases"], gate=config.ASSERTION_GATE_ENABLED)
     if gate_rejected:
         rejected += gate_rejected
     if not data["cases"]:
@@ -846,16 +899,20 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                "cond_feedback": cond_feedback,
                                "cross_review": cross_info}, ensure_ascii=False)
 
-    # —— 写入工作区（常规轮 test_gen_r{N}.py；对话增补轮独立 test_gen_fb{N}.py，不动已批准文件） ——
+    # —— 写入工作区（常规轮 test_gen_r{N}；对话增补轮独立 test_gen_fb{N}，不动已批准文件）
+    # JS 用 .test.js 后缀（jest 默认 testMatch），framework='jest' ——
     round_no = args.get("round_no", 1)
+    ext = ".test.js" if is_js else ".py"
+    framework = "jest" if is_js else "pytest"
     if feedback and fb_no:
-        fname = f"test_gen_fb{fb_no}.py"
-        header = f'"""AI 增补用例（审查反馈第 {fb_no} 轮 · 两阶段评审对话）"""'
+        fname = f"test_gen_fb{fb_no}{ext}"
+        header_text = f"AI 增补用例（审查反馈第 {fb_no} 轮 · 两阶段评审对话）"
         version = int(args.get("version") or (100 + fb_no))
     else:
-        fname = f"test_gen_r{round_no}.py"
-        header = f'"""AI 生成用例（第 {round_no} 轮 · 五种方法知识库）"""'
+        fname = f"test_gen_r{round_no}{ext}"
+        header_text = f"AI 生成用例（第 {round_no} 轮 · 五种方法知识库）"
         version = round_no
+    header = f"// {header_text}" if is_js else f'"""{header_text}"""'
     imports = (data.get("imports") or "").strip()
     body = "\n\n".join(c["code"].strip() for c in data["cases"])
     content = (header + "\n"
@@ -866,8 +923,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     # filename 落列：两阶段"布考场"按审查结论重建生成文件的键 ——
     cur = conn.execute(
         """INSERT INTO test_scripts(task_id, module_id, framework, version, filename, content, content_hash)
-           VALUES (?, ?, 'pytest', ?, ?, ?, ?)""",
-        (task_id, args.get("module_id"), version, fname, content,
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (task_id, args.get("module_id"), framework, version, fname, content,
          hashlib.sha256(content.encode()).hexdigest()[:16]))
     script_id = cur.lastrowid
     for c in data["cases"]:
@@ -890,12 +947,15 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     except Exception as e:  # noqa: BLE001 —— 容器缺失/守护进程未起：阶段一出题的合法形态
         collect_deferred = f"容器未就绪（{type(e).__name__}），collect 闸顺延到阶段二布考场"
 
-    # —— 第二道闸（§3.6 第 2 道）：容器内 --collect-only 可收集性检查 ——
-    # 收集失败是文件级问题（模块级 import 等），无法按用例归责 → 整体废案（诚实降级），
-    # 绝不把注定 ERROR 的生成物交给执行轮。
+    # —— 第二道闸（§3.6 第 2 道）：容器内可收集性检查 ——
+    # Python: pytest --collect-only；JS: node --check（语法闸，jest 收集=语法可解析+require 可达，
+    # require 失败在执行轮按 ImportError 归因进 repair，不在此预���）。
+    # 收集失败是文件级问题，无法按用例归责 → 整体废案（诚实降级），绝不把注定 ERROR 的生成物交给执行轮。
     r = None
     if collect_deferred is None:
-        r = runner.exec_in(container, ["pytest", "--collect-only", "-q", fname], timeout_s=120)
+        gate_cmd = (["node", "--check", fname] if is_js
+                    else ["pytest", "--collect-only", "-q", fname])
+        r = runner.exec_in(container, gate_cmd, timeout_s=120)
     if r is not None and r.exit_code != 0:
         (ws / fname).unlink(missing_ok=True)
         conn.execute("DELETE FROM test_cases WHERE script_id=?", (script_id,))
@@ -930,12 +990,18 @@ def rebuild_gen_files_from_db(conn, task_id: int, ws: Path) -> int:
     """
     rows = conn.execute(
         """SELECT id, filename, content FROM test_scripts
-           WHERE task_id=? AND framework='pytest' AND filename LIKE 'test_gen%'
+           WHERE task_id=? AND framework IN ('pytest', 'jest') AND filename LIKE 'test_gen%'
            ORDER BY id""", (task_id,)).fetchall()
     rewritten = 0
     for row in rows:
         fname = row["filename"]
         if not fname:
+            continue
+        if not fname.endswith(".py"):
+            # JS 文件无 Python AST：v1 不做用例级摘除，原样写回（评审勾选结论留在库台账，
+            # 执行层对 JS 暂不生效——Tier2 诚实边界，README 已注明）
+            (Path(ws) / fname).write_text(row["content"], encoding="utf-8")
+            rewritten += 1
             continue
         enabled = {r["name"] for r in conn.execute(
             "SELECT name FROM test_cases WHERE script_id=? AND enabled=1", (row["id"],))}
@@ -958,16 +1024,19 @@ def rebuild_gen_files_from_db(conn, task_id: int, ws: Path) -> int:
 
 
 def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[str]:
-    """阶段一顺延的收集闸（两阶段执行图 provision 快照后补跑）：逐生成文件 --collect-only，
-    失败文件整体废案（删文件+删该脚本行与用例行），返回废案文件名清单。
+    """阶段一顺延的收集闸（两阶段执行图 provision 快照后补跑）：逐生成文件做容器内收集闸
+    （Python: pytest --collect-only / JS: node --check），失败文件整体废案，返回废案文件名清单。
     test_imported.py 只报告不删库（人工插入用例保留审计，交由人工在评审页处理）。"""
     names = sorted(p.name for p in Path(ws).glob("test_gen_r*.py")) \
-        + sorted(p.name for p in Path(ws).glob("test_gen_fb*.py"))
+        + sorted(p.name for p in Path(ws).glob("test_gen_fb*.py")) \
+        + sorted(p.name for p in Path(ws).glob("test_gen_*.test.js"))
     if (Path(ws) / "test_imported.py").exists():
         names.append("test_imported.py")
     dropped: list[str] = []
     for fname in names:
-        r = runner.exec_in(container, ["pytest", "--collect-only", "-q", fname], timeout_s=120)
+        gate_cmd = (["node", "--check", fname] if fname.endswith(".test.js")
+                    else ["pytest", "--collect-only", "-q", fname])
+        r = runner.exec_in(container, gate_cmd, timeout_s=120)
         if r.exit_code == 0:
             continue
         dropped.append(fname)

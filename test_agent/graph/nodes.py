@@ -55,6 +55,18 @@ def build_run_cmd(round_no: int = 1, gen_files: list[str] | None = None) -> list
     return cmd
 
 
+def build_run_cmd_js(round_no: int = 1, gen_files: list[str] | None = None) -> list[str]:
+    """JS 执行链路（Tier2）jest 命令：--json 供宿主侧适配器转 pytest 文本，--coverage 取
+    istanbul coverageMap；--ci 关交互 / 快照写入。首轮全目录（自带 tests 基线，同 Python
+    口径）；round>1 位置参数限定生成物（jest 把位置参数当 testPathPattern）——Loop-9 同语义。
+    --ignore-scripts 类安全：jest 不执行 package 脚本；依赖安装阶段已 --ignore-scripts。"""
+    cmd = ["jest", "--json", "--coverage", "--ci", "--silent", "--forceExit",
+           "--testLocationInResults"]
+    if round_no > 1 and gen_files:
+        cmd += gen_files
+    return cmd
+
+
 def _validate_repo_url(src: str) -> None:
     """Loop-6/TODO-13（体检红队四问降级项）：repo_url 白名单校验——git clone 的 src
     以位置参数传入，option 形态注入实测不执行但防御性收敛：只允许 http(s)/git@/ssh URL
@@ -135,6 +147,8 @@ def make_deps() -> GraphDeps:
     # 论文"工具调用成功率"指标就只剩 run_tests 一个工具——全部 skills 必须注册
     from .l2 import build_l2_skills
     skills = {**build_skills(runner), **build_eval_skills(), **build_l2_skills(runner)}
+    from ..skills.static_scan import _static_scan_skill
+    skills["static_scan"] = _static_scan_skill()
     for s in skills.values():
         registry.register(s)
     return GraphDeps(conn=conn, runner=runner, registry=registry, skills=skills)
@@ -271,7 +285,11 @@ def make_nodes(deps: GraphDeps) -> dict:
 
         conn.execute("UPDATE projects SET primary_language=?, language_ratios=?, clone_status='ok' WHERE id=?",
                      (primary, json.dumps(ratios, ensure_ascii=False), pid))
-        strategy = "full" if primary in ("python", "java") else "static_only"
+        # 分级（2026-11-01 用户拍板）：python/javascript=容器执行（Tier1/Tier2）；
+        # typescript 暂列静态模式（ts 源的 jest transform 需项目级配置，全局镜像跑不了——v1 边界）；
+        # java 移出"假 full"（镜像已备但生成/执行链路未接）→ 全部走静态扫描兜底（Tier3），
+        # 不再直接放弃：扫描+测试设计草稿落库，报告明示"未执行"
+        strategy = "full" if primary in ("python", "javascript") else "static_only"
         # upsert：A4 允许重跑 done/failed 任务，重跑时模块行必须幂等（否则 UNIQUE 崩）
         cur = conn.execute(
             """INSERT INTO modules(project_id, path, language, loc, strategy) VALUES (?, '.', ?, ?, ?)
@@ -290,7 +308,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             f"准出标准冻结：行覆盖率 ≥ {config.COVERAGE_TARGET:.0%} 或预算耗尽")
         out = {"primary_language": primary, "module_id": cur.lastrowid,
                "coverage_target": config.COVERAGE_TARGET,
-               "image": config.IMAGE_PY if primary == "python" else config.IMAGE_JAVA}
+               "image": config.EXEC_LANGUAGES.get(primary, config.IMAGE_PY)}
         # W4 圈复杂度热点（radon 宿主侧确定性扫描）：注入 plan 提示词做风险分级倾斜；
         # 落库 complexity_hotspots（报告"热点未覆盖"指标的数据源，第 17 张表）
         if primary == "python":
@@ -310,8 +328,10 @@ def make_nodes(deps: GraphDeps) -> dict:
                     "; ".join(f"{h['file']}::{h['name']}={h['complexity']}({h['rank']})"
                               for h in hotspots)[:300])
         if strategy != "full":
-            return {**out, "done": True, "verdict": "stop",
-                    "stop_reason": f"主语言 {primary} 不在深度支持范围，v1 诚实降级（Tier2 静态扫描属后续工作）"}
+            msg(state["session_id"], "assistant",
+                f"[analyze] 主语言 {primary} 无容器执行链路 → 静态模式（Tier3 兜底）：确定性扫描 + "
+                f"AI 测试设计草稿（不执行、无覆盖率），报告将明示未验证")
+            return {**out, "static_only": True}   # 不再 done 短路：走 plan→static_draft→report
         return out
 
     # ---------- 3. 环境供给（容器 + 快照 + 依赖安装，全部留台账） ----------
@@ -413,18 +433,26 @@ def make_nodes(deps: GraphDeps) -> dict:
     def run(state: TaskState) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "running")
-        if state["primary_language"] != "python":
-            # Java 链路占位：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
+        lang = state["primary_language"]
+        if lang not in ("python", "javascript"):
+            # 其余语言（java 镜像已备但链路未接）：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
             return {"done": True, "verdict": "stop",
-                    "stop_reason": "Java/Maven 执行链路 v1 未接入（诚实降级），任务终止"}
-        # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
-        # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）；
-        # 两阶段对话增补文件（test_gen_fb*.py）同属生成物，一并纳入
-        gen_files = sorted(p.name for p in Path(state["workspace"]).glob("test_gen_r*.py"))
-        gen_files += sorted(p.name for p in Path(state["workspace"]).glob("test_gen_fb*.py"))
-        if (Path(state["workspace"]) / "test_imported.py").exists():
-            gen_files.append("test_imported.py")
-        cmd = build_run_cmd(round_no=state.get("round_no", 1), gen_files=gen_files)
+                    "stop_reason": f"{lang} 执行链路 v1 未接入（诚实降级：static_only 路径走静态扫描），任务终止"}
+        ws = Path(state["workspace"])
+        if lang == "javascript":
+            # JS 执行链路（Tier2）：jest --json 输出经宿主侧适配器转 pytest 风格文本，
+            # 下游 evaluate/repair/report 零改动（docs：js_adapter 模块头）
+            gen_files = sorted(p.name for p in ws.glob("test_gen_*.test.js"))
+            cmd = build_run_cmd_js(round_no=state.get("round_no", 1), gen_files=gen_files)
+        else:
+            # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
+            # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）；
+            # 两阶段对话增补文件（test_gen_fb*.py）同属生成物，一并纳入
+            gen_files = sorted(p.name for p in ws.glob("test_gen_r*.py"))
+            gen_files += sorted(p.name for p in ws.glob("test_gen_fb*.py"))
+            if (ws / "test_imported.py").exists():
+                gen_files.append("test_imported.py")
+            cmd = build_run_cmd(round_no=state.get("round_no", 1), gen_files=gen_files)
         res = registry.invoke(tid, skills["run_tests"],
                               {"container_name": state["container_name"], "cmd": cmd})
         if res.status == "denied":
@@ -439,6 +467,9 @@ def make_nodes(deps: GraphDeps) -> dict:
         else:
             out = res.output
         r = json.loads(out)
+        if lang == "javascript" and r.get("stdout"):
+            from ..skills.js_adapter import jest_json_to_pytest_text
+            r["stdout"] = jest_json_to_pytest_text(r["stdout"], r.get("stderr", ""))
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"]}
 
     # ---------- 6. 判读（Evaluator 在宿主侧：解析 + 归因 + R-Loop 判定） ----------
@@ -489,6 +520,11 @@ def make_nodes(deps: GraphDeps) -> dict:
         msg(state["session_id"], "assistant",
             f"[evaluate 第{round_no}轮] 通过{passed} 失败{failed} 跳过{skipped} "
             f"覆盖率{coverage if coverage is not None else 'N/A'} 指纹{fp[:8] or '无'} → {verdict}（{reason}）")
+        # per-case 失败明细进日志（/defects API 与归因面板的数据源——此前从未写入，
+        # F18-c 的 FAILED 行提取一直为空；Python/JS 同口径：nodeid - 错误类）
+        for nid in repair.failing_nodeids(stdout)[:20]:
+            msg(state["session_id"], "assistant",
+                f"[evaluate·failed] FAILED {nid} - {repair.error_class_of(stdout, nid) or 'Error'}")
         return {"passed": passed, "failed": failed, "skipped": skipped,
                 "coverage_line": coverage, "per_file": _parse_per_file_coverage(stdout),
                 "fingerprint": fp, "failure_kind": kind,
@@ -562,6 +598,34 @@ def make_nodes(deps: GraphDeps) -> dict:
             "; ".join(f"[{c.get('priority') or '中'}]{c['condition'][:36]}"
                       for c in conds)[:400])
         return {}
+
+    # ---------- 2.6 静态模式兜底（Tier3，2026-11-01）：扫描 + AI 设计草稿，不执行 ----------
+    def static_draft(state: TaskState) -> dict:
+        tid = state["task_id"]
+        set_status(conn, tid, "generating")   # 复用"生成"语义：生成的是设计草稿非可执行用例
+        ws = Path(state["workspace"])
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        summary: dict
+        if api_key:
+            from ..skills.static_scan import generate_static_drafts
+            out = generate_static_drafts(api_key, tid, ws, state.get("requirement", ""), conn)
+            summary = json.loads(out)
+            msg(state["session_id"], "assistant",
+                f"[static-draft] 扫描+设计草稿：{summary.get('drafts', 0)} 条草稿落库"
+                f"（framework=static_draft），扫描 {summary.get('scan', {}).get('files', '?')} 文件/"
+                f"{summary.get('scan', {}).get('risk_count', '?')} 风险线索"
+                if summary.get("drafts") else f"[static-draft] {summary.get('reason', out[:200])}")
+        else:
+            registry.invoke(tid, skills["static_scan"], {"workspace": str(ws)})
+            summary = {"drafts": 0}
+            msg(state["session_id"], "assistant",
+                "[static-draft] 无 API Key：仅完成确定性扫描（详见审计台账），草稿跳过（诚实降级）")
+        conn.commit()
+        return {"done": True, "verdict": "pass",
+                "failure_kind": "static",
+                "stop_reason": ("静态模式（Tier3）：确定性扫描+测试设计草稿已落库，未在容器执行——"
+                                "无覆盖率/R-Loop 数据，报告明示未验证"),
+                "static_summary": summary}
 
     # ---------- 8. 评估阶段：五工具编排 + 报告二次审查（vision §1.6 双闸回炉） ----------
     def review(state: TaskState) -> dict:
@@ -646,4 +710,4 @@ def make_nodes(deps: GraphDeps) -> dict:
 
     return {"clone": clone, "analyze": analyze, "plan": plan, "provision": provision,
             "generate": generate, "run": run, "evaluate": evaluate, "report": report,
-            "review": review}
+            "review": review, "static_draft": static_draft}

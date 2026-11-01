@@ -98,7 +98,7 @@ def test_prep_graph_compiles(tmp_path):
     exec_g = builder.build_exec_graph(deps)
     prep_nodes = set(prep.get_graph().nodes) - {"__end__", "__start__"}
     exec_nodes = set(exec_g.get_graph().nodes) - {"__end__", "__start__"}
-    assert prep_nodes == {"clone", "analyze", "plan", "generate"}
+    assert prep_nodes == {"clone", "analyze", "plan", "generate", "static_draft"}
     assert exec_nodes == {"provision", "generate", "run", "evaluate", "report", "review"}
     conn.close()
 

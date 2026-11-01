@@ -46,6 +46,18 @@ uvicorn test_agent.api.server:app --host 127.0.0.1 --port 8000
 # 浏览器 http://127.0.0.1:8000  演示账号 admin/admin123 · dev/dev123 · caller/caller123
 ```
 
+### 语言支持分级（2026-11-01）
+
+| 级别 | 语言 | 能力 | 镜像 |
+|---|---|---|---|
+| Tier1 全链路 | Python | 五法生成 → 三道闸 → 容器 pytest → 覆盖率 → R-Loop 归因/证人 → 评估五工具 → 四级接力 | `mta-test:py312` |
+| Tier2 执行链路 | JavaScript | jest 用例生成 → node --check 闸 → 容器 jest → 覆盖率 → R-Loop 归因（jest 输出经 `js_adapter` 转 pytest 文本，下游零改动） | `mta-test:node20-jest` |
+| Tier3 静态模式 | 其余（Java/TS/Go/C…） | 语言无关确定性扫描（符号/风险词/空 catch/超长函数/深嵌套）+ AI 测试设计草稿（六要素落库，`framework=static_draft`）；**不执行、无覆盖率，报告明示未验证** | 无需容器 |
+
+诚实边界：TypeScript 的 jest transform 需项目级 ts-jest 配置，全局镜像跑不了 → 暂列 Tier3；
+Java 镜像（`mta-test:jdk17-maven`）已备但 JUnit 生成/surefire 解析链路未接 → Tier3；
+JS 两阶段评审的"勾选停用"只落台账、暂不摘除 jest 文件内的用例（无 JS AST 摘除器）。
+
 ### Windows 桌面一键启动
 
 已提供桌面启动器（`scripts/start_ui.ps1`）：

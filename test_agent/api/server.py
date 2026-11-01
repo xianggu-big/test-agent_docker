@@ -60,9 +60,9 @@ _ENV_STATE: dict = {"state": "idle", "message": "尚未检测", "result": None,
 
 def _env_worker() -> None:
     try:
-        # L1 一键准备只补 Python 执行镜像（Java 链路 v1 未接入，其镜像仅设置页手动构建）——
+        # L1 一键准备补齐 Python + JS 两个执行镜像（Java 链路 v1 未接入，其镜像仅设置页手动构建）——
         # 任务级按需供给：真正缺什么由 provision 在 analyze 测出语言后决定
-        result = preflight.ensure(auto_repair=True, images=[config.IMAGE_PY])
+        result = preflight.ensure(auto_repair=True, images=[config.IMAGE_PY, config.IMAGE_JS])
     except Exception as e:  # noqa: BLE001 —— 自检自身失败也不能炸服务
         log.error("环境自检异常: %s: %s", type(e).__name__, e)
         result = {"ready": False, "items": [], "repaired": [], "failed": ["internal"],

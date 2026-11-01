@@ -328,7 +328,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       usage_examples: str | None = None,
                       feedback_text: str | None = None,
                       pitfalls: bool = False,
-                      module_lang: str = "") -> str:
+                      module_lang: str = "",
+                      target_language: str = "") -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -425,6 +426,21 @@ docstring 没写的行为，按需求文档推断，禁止猜。
                   "（对话增补轮另有第六项「用户反馈」：预期直接来自审查反馈但需求原文无依据时诚实标注）——"
                   if feedback_text else
                   "五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」——")
+    # 目标语言输出形态（JS/TS 执行链路 Tier2）：jest 用例名写成 test_xxx（无空格），
+    # 与 Python nodeid 口径一致——归因/剪枝/证人冻结按 name 反查全部复用
+    is_js = target_language in ("javascript", "typescript")
+    if is_js:
+        lang_rules = """
+语言：JavaScript（jest）。每条用例是一个顶层 test("test_xxx_方法名", () => {...})，
+用例名必须以 test_ 开头、**不含空格**；被测模块用 require("./相对路径")（路径以被测文件
+相对工作区根目录为准，去掉扩展名）；断言用 expect(...).toBe/toEqual/toThrow 等具体比较，
+禁止只写 expect(x).toBeDefined() 这类弱断言。imports 字段放文件顶部的 require 语句。"""
+        code_example = 'test("test_xxx_等价类划分", () => {\\n  expect(fn(1)).toBe(2);\\n});'
+        imports_hint = "测试文件顶部所需的全部 require 语句"
+    else:
+        lang_rules = ""
+        code_example = "def test_xxx_等价类划分():\\n    ..."
+        imports_hint = "测试文件顶部所需的全部 import 语句"
     return f"""## 被测源码
 {src_text}
 
@@ -435,14 +451,14 @@ docstring 没写的行为，按需求文档推断，禁止猜。
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}
 
 ## 输出格式
-只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。
+只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。{lang_rules}
 expected = 预期结果（断言依据，必须先于执行确定）；expected_basis = 该预期值的出处，
 {basis_note}
 预期值不得从实际运行结果反推。
 「需求明示」仅限预期值能在需求原文中直接找到依据时使用；凭你的知识/经验推断的一律
 标「源码推导」「常识」或「模型推断」（系统会对「需求明示」做需求重叠确定性校验，
 无依据的假标注会被降级为「模型推断」并留痕——错误标注会污染归因）。
-{{"imports": "测试文件顶部所需的全部 import 语句",
+{{"imports": "{imports_hint}",
   "cases": [{{"name": "test_xxx_等价类划分",
     "method": "等价类划分",
     "priority": "高/中/低",
@@ -450,4 +466,4 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "steps": "操作步骤",
     "expected": "预期输出/状态变化",
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
-    "code": "def test_xxx_等价类划分():\\n    ..."}}]}}"""
+    "code": "{code_example}"}}]}}"""

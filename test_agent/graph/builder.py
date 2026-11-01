@@ -34,14 +34,18 @@ def build_graph(deps: GraphDeps):
     nodes = make_nodes(deps)
     g = StateGraph(TaskState)
     for name in ("clone", "analyze", "plan", "provision", "generate", "run",
-                 "evaluate", "report", "review"):
+                 "evaluate", "report", "review", "static_draft"):
         g.add_node(name, nodes[name])
     g.set_entry_point("clone")
     g.add_edge("clone", "analyze")
     g.add_conditional_edges("analyze",
                             lambda s: "report" if s.get("done") else "plan",
                             {"report": "report", "plan": "plan"})
-    g.add_edge("plan", "provision")
+    # 静态模式（Tier3 分级，2026-11-01）：无容器执行链路的项目 plan 后进扫描+设计草稿，直达报告
+    g.add_conditional_edges("plan",
+                            lambda s: "static_draft" if s.get("static_only") else "provision",
+                            {"static_draft": "static_draft", "provision": "provision"})
+    g.add_edge("static_draft", "report")
     # provision 可能诚实短路（镜像未就绪且未开自动准备，沙箱自适应模式①）：直接进 report
     g.add_conditional_edges("provision",
                             lambda s: "report" if s.get("done") else "generate",
@@ -82,7 +86,7 @@ def build_prep_graph(deps: GraphDeps):
     nodes = make_nodes(deps)
     conn = deps.conn
     g = StateGraph(TaskState)
-    for name in ("clone", "analyze", "plan", "generate"):
+    for name in ("clone", "analyze", "plan", "generate", "static_draft"):
         g.add_node(name, nodes[name])
     g.set_entry_point("clone")
     g.add_edge("clone", "analyze")
@@ -90,7 +94,11 @@ def build_prep_graph(deps: GraphDeps):
     g.add_conditional_edges("analyze",
                             lambda s: END if s.get("done") else "plan",
                             {"__end__": END, "plan": "plan"})
-    g.add_edge("plan", "generate")
+    # 静态模式项目：plan 后进扫描+草稿（生成的是设计草稿非可执行用例），停在待审查
+    g.add_conditional_edges("plan",
+                            lambda s: "static_draft" if s.get("static_only") else "generate",
+                            {"static_draft": "static_draft", "generate": "generate"})
+    g.add_edge("static_draft", END)
 
     def _gen_ok(s: TaskState) -> str:
         n = conn.execute(
@@ -328,7 +336,7 @@ def run_task_exec(task_id: int) -> dict:
         "fingerprints": [],
         "workspace": str(ws),
         "primary_language": primary,
-        "image": config.IMAGE_PY if primary == "python" else config.IMAGE_JAVA,
+        "image": config.EXEC_LANGUAGES.get(primary, config.IMAGE_PY),
         "module_id": module_row["id"] if module_row else None,
         "auto_prepare": bool(task["auto_prepare"]) if "auto_prepare" in task.keys() else False,
         "two_stage_rebuild": True,

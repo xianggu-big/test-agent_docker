@@ -256,6 +256,30 @@ def part1_completion() -> list[Item]:
         "代审 token 停车线", "缺失")
     (ok if getattr(config, "FEEDBACK_MAX_ROUNDS", 0) == 5 else miss)(
         "对话增补预算 5 轮", "缺失")
+
+    # 12c) 多语言分级（2026-11-01 用户拍板）：Tier3 静态扫描兜底 + JS 执行链路 Tier2
+    from test_agent.skills import js_adapter as js_adapter_mod, static_scan as static_scan_mod
+    (ok if all(callable(getattr(static_scan_mod, n, None)) for n in
+               ("scan_workspace", "generate_static_drafts", "parse_drafts", "_static_scan_skill")) else miss)(
+        "static_scan 机制函数（Tier3 扫描+草稿）", "缺失")
+    (ok if callable(getattr(js_adapter_mod, "jest_json_to_pytest_text", None)) else miss)(
+        "js_adapter（jest→pytest 文本，下游零改动）", "缺失")
+    src_nodes_tier = inspect.getsource(__import__("test_agent.graph.nodes",
+                                                  fromlist=["make_nodes"]).make_nodes)
+    (ok if 'strategy = "full" if primary in ("python", "javascript") else "static_only"' in src_nodes_tier
+     else miss)("分级名单 full=python/javascript（java 移出假 full，typescript 暂静态）", "漂移")
+    (ok if "static_draft" in src_nodes_tier and "[static-draft]" in src_nodes_tier else miss)(
+        "static_draft 节点在位", "缺失")
+    exec_langs = getattr(config, "EXEC_LANGUAGES", {})
+    (ok if exec_langs.get("javascript") == getattr(config, "IMAGE_JS", None)
+     and "typescript" not in exec_langs else miss)("EXEC_LANGUAGES 镜像映射契约", "漂移")
+    (ok if (config.ROOT / "docker" / "js-test" / "Dockerfile").exists() else miss)(
+        "docker/js-test/Dockerfile", "缺失")
+    state_src = (config.ROOT / "test_agent" / "graph" / "state.py").read_text(encoding="utf-8")
+    (ok if "static_only: bool" in state_src else miss)(
+        "TaskState.static_only 声明（LangGraph 按 schema 过滤未声明键——真机实锤）", "缺失")
+    (ok if "[evaluate·failed] FAILED" in src_nodes_tier else miss)(
+        "evaluate per-case FAILED 行进日志（/defects 数据源）", "缺失")
     demo_spec = config.ROOT / "data" / "demo" / "L2场景-coupon-api" / "openapi.json"
     (ok if demo_spec.exists() else miss)("L2 冒烟 demo 项目（openapi.json）", "缺失")
     sys_gen = getattr(prompt_library, "SYSTEM_PROMPT", None)

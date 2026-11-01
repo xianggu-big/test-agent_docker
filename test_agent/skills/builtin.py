@@ -19,14 +19,16 @@ log = logging.getLogger(__name__)
 def probe_deps_manifest(workspace: str | Path) -> str | None:
     """探测被测项目的依赖清单类型（provision 探测、install_deps 分流安装）。
 
-    返回 "requirements" | "pyproject" | "setup_py" | None。requirements.txt 优先：
-    显式清单最常见且安装最便宜；pyproject.toml / setup.py 项目走 `pip install .`
-    装项目声明的依赖。三类都缺返回 None（诚实跳过，不猜依赖）。
+    返回 "requirements" | "pyproject" | "setup_py" | "package_json" | None。
+    requirements.txt 优先：显式清单最常见且安装最便宜；pyproject.toml / setup.py 项目走
+    `pip install .`；package.json（JS 执行链路 Tier2）走 npm ci/install --ignore-scripts。
+    全部缺返回 None（诚实跳过，不猜依赖）。
     """
     ws = Path(workspace)
     for name, kind in (("requirements.txt", "requirements"),
                        ("pyproject.toml", "pyproject"),
-                       ("setup.py", "setup_py")):
+                       ("setup.py", "setup_py"),
+                       ("package.json", "package_json")):
         if (ws / name).exists():
             return kind
     return None
@@ -50,8 +52,18 @@ def build_skills(runner) -> dict[str, Skill]:
             # 构建失败时 exit_code 如实上报（诚实降级，不吞错）
             r = runner.exec_in(container, ["pip", "install", "."], timeout_s=300)
             parts.append(f"{manifest} exit={r.exit_code}\n{r.stdout[-1500:]}{r.stderr[-500:]}")
+        elif manifest == "package_json":
+            # JS：有 lock 走 npm ci（可复现），否则 npm install；--ignore-scripts 防 postinstall
+            # 执行仓库任意脚本（提示注入/供应链防线，与 P1-4a import 白名单同哲学）
+            has_lock = runner.exec_in(container, ["test", "-f", "package-lock.json"],
+                                      timeout_s=10).exit_code == 0
+            npm_cmd = ["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"] if has_lock \
+                else ["npm", "install", "--ignore-scripts", "--no-audit", "--no-fund"]
+            r = runner.exec_in(container, npm_cmd, timeout_s=600)
+            parts.append(f"package_json({'ci' if has_lock else 'install'}) exit={r.exit_code}\n"
+                         f"{r.stdout[-1200:]}{r.stderr[-600:]}")
         else:
-            parts.append("未发现依赖清单（requirements.txt / pyproject.toml / setup.py），跳过项目依赖安装")
+            parts.append("未发现依赖清单（requirements.txt / pyproject.toml / setup.py / package.json），跳过项目依赖安装")
         # 方案B：属性测试用例依赖 hypothesis——随开关装进容器（宿主侧由实验环境自备）
         if config.PBT_ENABLED:
             h = runner.exec_in(container, ["pip", "install", "hypothesis"], timeout_s=300)

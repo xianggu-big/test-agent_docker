@@ -14,10 +14,16 @@ SCHEMA_PATH = ROOT / "docs" / "layer5-data-schema.sql"  # 建库脚本（22 张�
 # —— L4 执行镜像（与 docker/ 下 Dockerfile 对应；注册表供镜像管理/自动补齐用） ——
 IMAGE_PY = "mta-test:py312"
 IMAGE_JAVA = "mta-test:jdk17-maven"
+IMAGE_JS = "mta-test:node20-jest"     # JS/TS 执行链路（jest Tier2，2026-11-01）
 IMAGE_BUILD_CTX = {
     IMAGE_PY: ROOT / "docker" / "python-test",
     IMAGE_JAVA: ROOT / "docker" / "java-test",
+    IMAGE_JS: ROOT / "docker" / "js-test",
 }
+# 分级（analyze 判定）：可容器执行的语言 → 执行镜像；其余走 static_scan 兜底（Tier3）。
+# typescript 暂列 Tier3：ts 源码的 jest transform 需项目级 ts-jest 配置，全局镜像跑不了
+# （v1 诚实边界）；javascript=完整执行链路；java=镜像已备、生成/执行链路 v1 未接。
+EXEC_LANGUAGES = {"python": IMAGE_PY, "javascript": IMAGE_JS, "java": IMAGE_JAVA}
 
 # —— 噪声目录（clone 快照 / 语言统计 / 源码收集共用一份定义） ——
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "dist", "build", ".idea"}
