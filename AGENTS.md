@@ -1,5 +1,8 @@
 # 毕设：基于大模型 Agent 的黑盒白盒测试研究（题目已定稿，导师已同意四级方向）
 
+- **✅ 多语言分级落地（2026-11-01 晚，用户拍板"Tier3 静态扫描+JS 执行链路"，d35b8de）：**Tier1 Python 全链路 / **Tier2 JavaScript**（docker/js-test node20+jest 镜像；gen_tests jest 形态=按语言扫源码+提示词 target_language+JS_CASE_RE+test() 名字重写+静态闸移交 node --check；run 节点 jest --json→**js_adapter 转 pytest 文本**，下游 evaluate/repair/report 零改动；npm ci --ignore-scripts）/ **Tier3 静态模式**（static_scan.py 语言无关扫描=符号正则/风险词/空 catch/超长函数/深嵌套 + AI 设计草稿 framework=static_draft 六要素落库；static_draft 节点接主图与准备图 plan 后分流；报告明示未执行）；分级名单 full=python/javascript（java 移出假 full、typescript 暂静态=ts-jest 需项目配置）；真机=Java 项目 done 10 草稿抓到 TODO+空 catch / js-calc 14 过 6 败覆盖 100% **4 条 clamp AssertionError=埋的闭区间缺陷被抓**；顺手修既有缺口=evaluate 写 per-case FAILED 行进日志（/defects 此前一直空）；**两枚坑**=static_only 未在 TaskState 声明被 LangGraph schema 过滤（条件边永远看不到）/graph 包内相对导入 skills 炸后台线程；守卫 **136 OK**；回归 **407 绿**；demo=data/demo/js-calc + java-static；累计 18 commit 待 push
+
+
 - **✅ 评审页任务选择器（2026-11-01 晚，用户实测：只显示最新一个/并发切不了，7a8221f）：**下拉全量任务按「待审查(N)★」/「其他（只读）」分组+待审查胶囊一键切换（当前高亮）+下拉/URL/胶囊三方同步；非待审查任务只读态禁增补插入放行；无tid自动选第一个待审查；Playwright 10 项 ALL PASS；回归 392 绿；累计 15 commit 待 push
 
 
