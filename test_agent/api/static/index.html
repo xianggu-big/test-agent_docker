@@ -41,7 +41,8 @@
 <div class="layout">
   <aside class="sidebar">
     <nav id="nav">
-      <a href="#/new" class="nav-item active" data-page="new">⊕ 新建测试</a>
+      <a href="#/dashboard" class="nav-item active" data-page="dashboard">◈ 指挥台</a>
+      <a href="#/new" class="nav-item" data-page="new">⊕ 新建测试</a>
       <a href="#/workbench" class="nav-item" data-page="workbench">⌨ 脚本工作台</a>
       <a href="#/review" class="nav-item" data-page="review">✎ 用例评审</a>
       <a href="#/tasks" class="nav-item" data-page="tasks">≡ 任务列表</a>
@@ -58,9 +59,42 @@
 
   <main class="main">
 
-    <!-- ① 新建测试 -->
-    <section id="page-new" class="page">
+    <!-- ⓪ 指挥台（V1：KPI + 实时执行 + 项目概览 + 待审查/动态） -->
+    <section id="page-dashboard" class="page">
+      <div id="dash-kpis" class="dash-kpis"></div>
+      <div class="dash-grid">
+        <div class="dash-main">
+          <div id="dash-running" class="card"></div>
+          <div id="dash-projects" class="card"></div>
+        </div>
+        <aside class="dash-rail">
+          <div id="dash-review" class="card"></div>
+          <div id="dash-feed" class="card"></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ① 新建测试（V2：三步向导） -->
+    <section id="page-new" class="page hidden">
       <div class="stepper" id="stepper-new"></div>
+      <!-- V2 三步向导（2026-11-02）：新用户先看清"三步各干什么"，再落到表单 -->
+      <div class="wizard-steps">
+        <div class="wiz-step hot">
+          <span class="no">1</span><b>填需求，选项目</b>
+          <p>贴仓库地址（或本地路径）+ 一句话需求；可选两阶段（AI 先出题、你审完再开考）</p>
+          <div class="mini">判断规则：需求写"要验证什么行为/边界"，比写"测一下"出题质量高得多</div>
+        </div>
+        <div class="wiz-step">
+          <span class="no">2</span><b>审用例，可增补</b>
+          <p>AI 按需求拆测试条件并出用例（带预期依据）；可对话增补、勾选取舍，或交给 AI 代审+抽检</p>
+          <div class="mini" id="wiz-mini-2">待审查任务见「指挥台」右侧栏</div>
+        </div>
+        <div class="wiz-step">
+          <span class="no">3</span><b>看报告，判缺陷</b>
+          <p>判决卡先给结论：通过 / 疑似缺陷 / 用例问题 / 环境问题；失败有逐条原因与修复建议</p>
+          <div class="mini">多语言分级：JS/Python 容器执行，其余语言静态扫描+设计草稿（报告明示未执行）</div>
+        </div>
+      </div>
       <div class="grid-2">
         <div class="card">
           <h3>1. 项目信息与需求</h3>
@@ -144,12 +178,12 @@
 
     <!-- ③ 任务列表 -->
     <section id="page-tasks" class="page hidden">
-      <div class="tabs" id="task-tabs">
-        <button class="tab active" data-f="all">全部</button>
-        <button class="tab" data-f="running">运行中</button>
-        <button class="tab" data-f="review">待审查</button>
-        <button class="tab" data-f="done">已通过</button>
-        <button class="tab" data-f="failed">有缺陷</button>
+      <div class="task-filters" id="task-tabs">
+        <button class="fchip on" data-f="all">全部</button>
+        <button class="fchip" data-f="running">执行中</button>
+        <button class="fchip" data-f="review">待审查</button>
+        <button class="fchip" data-f="done">已完成</button>
+        <button class="fchip" data-f="failed">失败 / 缺陷</button>
       </div>
       <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <input id="pg-search" class="inp" type="text" placeholder="搜索项目名 / 需求关键词"

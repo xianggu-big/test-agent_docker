@@ -61,14 +61,14 @@ function applyRole() {
 }
 
 /* ---------- 路由 ---------- */
-const PAGES = ["new", "workbench", "review", "tasks", "reports", "settings"];
+const PAGES = ["dashboard", "new", "workbench", "review", "tasks", "reports", "settings"];
 let TASK_TID = 0;                            // F03 详情页当前任务
 let REVIEW_TID = 0;                          // 评审页当前任务
 let REVIEW_POLL = null;                      // 评审页轮询（阶段一跑动时实时刷新）
 let TD_POLL = null;                          // 任务详情页轮询（活跃态 3s 刷新流水线）
 let EXEC_POLL = null;                        // 实时用例执行面板轮询（活跃态 2s）
 function route() {
-  let page = (location.hash || "#/new").replace("#/", "");
+  let page = (location.hash || "#/dashboard").replace("#/", "");
   if (page.startsWith("task/")) {           // F03 任务详情路由 #/task/{tid}
     page = "taskdetail";
     TASK_TID = parseInt(page.split("/") ? (location.hash.split("/")[2] || "0") : "0", 10);
@@ -77,15 +77,16 @@ function route() {
     page = "review";
     REVIEW_TID = parseInt(location.hash.split("/")[2] || "0", 10) || 0;
   }
-  if (!PAGES.includes(page) && page !== "taskdetail") page = "new";
+  if (!PAGES.includes(page) && page !== "taskdetail") page = "dashboard";
   if (!ME) return;   // /api/me 未返回前先不渲染（whoami 返回后 808 行会重入 route()）
-  if (page === "settings" && ME.role !== "admin") page = "new";
-  if ((page === "workbench" || page === "review") && !(ME.role === "admin" || ME.role === "developer")) page = "new";
+  if (page === "settings" && ME.role !== "admin") page = "dashboard";
+  if ((page === "workbench" || page === "review") && !(ME.role === "admin" || ME.role === "developer")) page = "dashboard";
   PAGES.forEach(p => $("page-" + p).classList.toggle("hidden", p !== page));
   // 任务A3：taskdetail 不在 PAGES 里，上面那行永远碰不到它——初始 hidden 就永远摘不掉，
   // #/task/{tid} 变成"点了没反应"（所有「查看执行进度」链接全指这里）。显式 toggle：
   $("page-taskdetail").classList.toggle("hidden", page !== "taskdetail");
   document.querySelectorAll(".nav-item").forEach(a => a.classList.toggle("active", a.dataset.page === page));
+  if (page === "dashboard") loadDashboard();
   if (page === "workbench") refreshWorkbench();
   if (page === "review") { if (REVIEW_TID) loadReview(REVIEW_TID); else pickReviewTask(); }
   if (page === "tasks") pollTasks();
@@ -284,11 +285,11 @@ async function loadReview(tid) {
     if (detail.status === "failed") {
       hint = `<div class="hint" style="margin-top:8px;color:#b91c1c"><b>任务已失败</b>（未走完执行链）` +
         (detail.error ? `——失败原因：<code>${esc(String(detail.error).slice(0, 300))}</code>` : "") +
-        `<br>下一步：去 <a href="#/task/${tid}" style="color:var(--link,#2563eb)">详情页</a> 看各节点日志定位阶段，` +
+        `<br>下一步：去 <a href="#/task/${tid}" style="color:var(--primary,#0e7c5a)">详情页</a> 看各节点日志定位阶段，` +
         `或修正后在「新建任务」重提；失败任务不会再产生报告/RTM。</div>`;
     } else if (["provisioning", "running", "reporting"].includes(detail.status)) {
       hint = `<div class="hint" style="margin-top:8px;color:#b45309">该任务正在执行阶段二（${esc(STATUS_CN[detail.status] || detail.status)}）——` +
-        `用例清单此刻只读；<a href="#/task/${tid}" style="color:var(--link,#2563eb)">▶ 详情页可看实时进度</a>。</div>`;
+        `用例清单此刻只读；<a href="#/task/${tid}" style="color:var(--primary,#0e7c5a)">▶ 详情页可看实时进度</a>。</div>`;
     } else if (["cloning", "analyzing", "generating"].includes(detail.status)) {
       hint = `<div class="hint" style="margin-top:8px;color:#b45309">该任务正在跑准备阶段（${esc(STATUS_CN[detail.status] || detail.status)}）——` +
         `出题完成后本页自动出现用例与审查控件（5 秒轮询）。</div>`;
@@ -670,12 +671,141 @@ async function watchStage1(tid, alertOnFail, tries = 0) {
   }
 }
 
-/* ---------- 任务列表 ---------- */
+/* ---------- V1 指挥台（2026-11-02：一次请求拿全，服务端聚合） ---------- */
+function relTime(ts) {
+  if (!ts) return "";
+  const d = new Date(String(ts).replace(" ", "T"));
+  if (isNaN(d)) return String(ts).slice(0, 16);
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (s < 60) return "刚刚";
+  if (s < 3600) return Math.floor(s / 60) + " 分钟前";
+  if (s < 86400) return Math.floor(s / 3600) + " 小时前";
+  if (s < 86400 * 7) return Math.floor(s / 86400) + " 天前";
+  return String(ts).slice(0, 10);
+}
+
+const DASH_NODES = ["[clone]", "[analyze]", "[plan]", "[generate 第", "[provision]", "[run]", "[evaluate", "[report", "[review"];
+function dashPipeline(logs) {
+  const done = new Set();
+  (logs || []).forEach(l => DASH_NODES.forEach(k => { if ((l.content || "").includes(k)) done.add(k); }));
+  const steps = [["克隆", "[clone]"], ["摸底", "[analyze]"], ["考纲", "[plan]"],
+                 ["出题", "[generate 第"], ["布考场", "[provision]"], ["开考", "[run]"],
+                 ["判卷", "[evaluate"], ["报告", "[report"], ["复审", "[review"]];
+  let nowMarked = false;
+  return steps.map(([cn, key]) => {
+    const d = done.has(key);
+    let cls = d ? "dn" : "";
+    if (!d && !nowMarked) { cls = "now"; nowMarked = true; }
+    return `<span class="st ${cls}">${d ? "✓ " : (cls === "now" ? "◉ " : "")}${cn}</span>`;
+  }).join('<span class="ar">›</span>');
+}
+
+async function loadDashboard() {
+  if (!ME) return;
+  const d = await api("/dashboard").catch(() => null);
+  if (!d) { $("dash-kpis").innerHTML = '<div class="hint">指挥台数据加载失败</div>'; return; }
+  const k = d.kpi || {};
+  $("dash-kpis").innerHTML = [
+    [`${k.total ?? 0}`, `任务总数 · 今日 +${k.today ?? 0}`, ""],
+    [k.pass_rate != null ? Math.round(k.pass_rate * 100) + "%" : "—", "通过率（近 30 个已评估任务）", "color:var(--ok)"],
+    [`${k.defects ?? 0}`, "疑似产品缺陷（报告）", (k.defects ? "color:var(--fail)" : "")],
+    [`${((k.tokens_today ?? 0) / 1000).toFixed(1)}k`, "LLM token（今日）", ""],
+  ].map(([v, label, st]) => `<div class="dash-kpi"><div class="v" style="${st}">${esc(String(v))}</div><div class="k">${label}</div></div>`).join("");
+
+  // 正在执行（准备阶段 + 执行阶段都算）
+  const running = d.running || [];
+  if (running.length) {
+    $("dash-running").className = "card exec-live";
+    $("dash-running").innerHTML = running.map(t => {
+      const act = ["provisioning", "running", "reporting"].includes(t.status);
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="live-dot"></span><b>#${t.id} ${esc(t.project_name || "")}</b>
+          <span class="hint" style="margin:0">${esc((t.requirement_text || "").slice(0, 40))}</span>
+          <span class="badge badge-run" style="margin-left:auto">${esc(STATUS_CN[t.status] || t.status)} ${t.progress || 0}%</span>
+          <a href="#/task/${t.id}" class="btn btn-sm" style="text-decoration:none">看实时进度 →</a>
+        </div>
+        <div class="pipe">${dashPipeline([])}</div>
+        <div class="hint" style="margin:4px 0 0">${act
+          ? "执行中：逐用例结果在详情页「实时用例执行」面板（按轮次更新）"
+          : "准备阶段：克隆/摸底/考纲/出题跑完会停在「待审查」，等你审用例"}</div>
+      </div>`;
+    }).join("");
+    // 首个任务补真实流水线（拉该任务日志，避免每张卡一次请求）
+    const t0 = running[0];
+    api(`/tasks/${t0.id}/logs`).then(logs => {
+      const el = $("dash-running").querySelector(".pipe");
+      if (el) el.innerHTML = dashPipeline(logs || []);
+    }).catch(() => {});
+  } else {
+    $("dash-running").className = "card";
+    $("dash-running").innerHTML = '<div style="display:flex;align-items:center;gap:10px">' +
+      '<b>当前没有在跑的任务</b><span class="hint" style="margin:0">新建一个，或去任务列表看历史</span>' +
+      '<a href="#/new" class="btn btn-sm btn-primary" style="text-decoration:none;margin-left:auto">＋ 新建测试</a></div>';
+  }
+
+  // 项目概览
+  const projs = d.projects || [];
+  $("dash-projects").innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <b style="font-size:15px">项目概览</b>
+      <a href="#/tasks" class="hint" style="margin:0 0 0 auto;text-decoration:none">全部任务 →</a></div>` +
+    (projs.length ? `<div class="table-wrap"><table class="dash-tbl">
+      <tr><th>项目</th><th>语言</th><th>任务</th><th>通过 / 失败 / 在跑 / 待审</th><th>最近</th><th></th></tr>
+      ${projs.map(p => `<tr class="clickable" onclick="location.hash='#/tasks'">
+        <td><b>${esc((p.name || "").split(/[\/\\]/).filter(Boolean).pop() || p.name || "")}</b></td>
+        <td class="hint" style="margin:0">${esc(p.primary_language || "—")}</td>
+        <td class="tabular-nums">${p.n ?? 0}</td>
+        <td><span class="badge badge-ok">${p.done ?? 0}</span>
+            ${p.failed ? `<span class="badge badge-fail">${p.failed}</span>` : ""}
+            ${p.active ? `<span class="badge badge-run">${p.active} 在跑</span>` : ""}
+            ${p.review ? `<span class="badge badge-queued">${p.review} 待审</span>` : ""}</td>
+        <td class="hint" style="margin:0">${relTime(p.last)}</td>
+        <td style="text-align:right"><a href="#/tasks" class="t-ops" style="text-decoration:none;color:var(--primary);font-weight:700">进项目</a></td>
+      </tr>`).join("")}</table></div>`
+      : '<div class="hint">还没有项目——新建一个测试任务即自动登记项目</div>');
+
+  // 待审查
+  const pend = d.pending_review || [];
+  $("dash-review").innerHTML = `<b style="font-size:14px">待你审查（${pend.length}）</b>` +
+    (pend.length ? pend.map(t => `<div class="rev-item" style="margin-top:8px">
+        <b>#${t.id} ${esc((t.requirement_text || "").slice(0, 30))}</b>
+        <div class="meta">${esc(t.project_name || "")} · ${t.cases ?? 0} 条用例${t.ai_reviewer && t.ai_reviewer !== "off" ? " · 代审 " + esc(t.ai_reviewer) : ""}</div>
+        <div class="acts"><a href="#/review/${t.id}" class="btn btn-sm btn-primary" style="text-decoration:none">去审查</a>
+          <a href="#/task/${t.id}" class="btn btn-sm" style="text-decoration:none">看用例</a></div>
+      </div>`).join("")
+      : '<div class="hint" style="margin-top:6px">没有待审查任务——两阶段任务跑完准备阶段会出现在这里</div>');
+
+  // 动态
+  const feed = d.feed || [];
+  $("dash-feed").innerHTML = '<b style="font-size:14px">动态</b>' +
+    (feed.length ? feed.map(t => `<div class="feed-item">
+        <b>#${t.id}</b><span>${esc(STATUS_CN[t.status] || t.status)}${t.cases ? " · " + t.cases + " 条用例" : ""}${t.coverage != null ? " · 覆盖 " + Math.round(t.coverage * 100) + "%" : ""}</span>
+        <time>${relTime(t.updated_at || t.created_at)}</time></div>`).join("")
+      : '<div class="hint" style="margin-top:6px">暂无活动</div>');
+}
+
+/* ---------- 任务列表（V3 精修 + B3 服务端分页筛选） ---------- */
+const TASK_FILTER_STATUS = {
+  all: "", running: "cloning,analyzing,generating,provisioning,running,reporting,queued",
+  review: "ready_for_review", done: "done", failed: "failed",
+};
+const TASK_PAGE = { limit: 60, offset: 0, total: 0, counts: {}, loading: false };
+
 async function pollTasks() {
+  if (TASK_PAGE.loading) return;
+  TASK_PAGE.loading = true;
   try {
-    TASKS = await api("/tasks");
+    const st = TASK_FILTER_STATUS[TASK_FILTER] || "";
+    const qs = new URLSearchParams({ limit: TASK_PAGE.limit, offset: TASK_PAGE.offset });
+    if (st) qs.set("status", st);
+    if (PG_SEARCH.trim()) qs.set("q", PG_SEARCH.trim());
+    const d = await api("/tasks/page?" + qs.toString());
+    TASKS = d.items || [];
+    TASK_PAGE.total = d.total ?? TASKS.length;
+    TASK_PAGE.counts = d.counts || {};
     renderTasks();
   } catch (_) {}
+  finally { TASK_PAGE.loading = false; }
   if (!pollTimer) pollTimer = setInterval(pollTasks, 3000);
 }
 
@@ -699,10 +829,6 @@ function renderTasks() {
     const q = PG_SEARCH.toLowerCase();
     if (PG_SEARCH && pname.toLowerCase().indexOf(q) === -1 &&
         !tasks.some(t => (t.requirement_text || "").toLowerCase().indexOf(q) > -1)) return;
-    if (TASK_FILTER === "running" && !tasks.some(t => t.progress < 100 && t.status !== "queued" && t.status !== "cancelled" && t.status !== "done")) return;
-    if (TASK_FILTER === "review" && !tasks.some(t => t.status === "ready_for_review")) return;
-    if (TASK_FILTER === "done" && !tasks.some(t => t.status === "done")) return;
-    if (TASK_FILTER === "failed" && !tasks.some(t => t.status === "failed")) return;
     idx++; shown++;
     const okN = tasks.filter(t => t.status === "done").length;
     const failN = tasks.filter(t => t.status === "failed").length;
@@ -713,22 +839,25 @@ function renderTasks() {
       const confirmable = isStaff && t.confirmed !== 1 && t.progress < 100;
       const runnable = isStaff && t.confirmed === 1 && t.progress < 100;
       const reviewable = isStaff && t.status === "ready_for_review";
-      rows += `<tr class="pg-task" data-tid="${t.id}">
-        <td><span class="hint">#${t.id}</span></td>
-        <td>${esc((t.requirement_text || "").slice(0, 46))}${(t.requirement_text || "").length > 46 ? "…" : ""}</td>
-        <td><span class="badge ${stCls(t)}">${STATUS_CN[t.status] || t.status}${t.progress < 100 && t.status !== "queued" && t.status !== "cancelled" && t.status !== "done" ? " " + t.progress + "%" : ""}</span>
-            ${t.confirmed !== 1 ? '<div class="hint">未确认 · 禁止下发</div>' : ""}
-            ${t.ai_reviewer && t.ai_reviewer !== "off" ? `<div class="hint">代审:${t.ai_reviewer}</div>` : ""}</td>
-        <td class="hint">${t.cases != null ? t.cases : "—"}</td>
-        <td class="hint">${t.coverage != null ? Math.round(t.coverage * 100) + "%" : "—"}</td>
-        <td class="hint hide-sm">${esc(t.created_at || "")}</td>
-        <td>
-          <button class="op-link" onclick="event.stopPropagation();viewReport(${t.id})">报告</button>
-          <button class="op-link" ${confirmable ? "" : "disabled"} onclick="event.stopPropagation();confirmTask(${t.id})">人工确认</button>
-          ${reviewable ? `<button class="op-link" onclick="event.stopPropagation();location.hash='#/review/${t.id}'">评审</button>` : ""}
-          <button class="op-link" ${runnable ? "" : "disabled"} onclick="event.stopPropagation();runTask(${t.id})">下发执行</button>
-          <button class="op-link" onclick="event.stopPropagation();viewLogs(${t.id})">日志</button>
-        </td></tr>`;
+      // V3 精修：状态=点线态（比徽章更快扫读）、覆盖率=进度条、操作只留主次两条
+      const sd = stDot(t);
+      const cov = t.coverage != null
+        ? `<span class="cov-bar"><span class="tr"><span class="fl" style="width:${Math.round(t.coverage * 100)}%"></span></span><small>${Math.round(t.coverage * 100)}%</small></span>`
+        : '<span class="hint" style="margin:0">—</span>';
+      const primaryOp = reviewable
+        ? `<a href="#/review/${t.id}">去审查 ★</a>`
+        : (t.status === "failed" ? `<a href="#/task/${t.id}">失败原因</a>`
+          : (t.progress < 100 && t.status !== "queued" && t.status !== "cancelled" && t.status !== "done"
+            ? `<a href="#/task/${t.id}">实时进度</a>` : `<a href="javascript:viewReport(${t.id})">报告</a>`));
+      rows += `<tr class="pg-task row" data-tid="${t.id}">
+        <td class="tabular-nums"><span class="hint" style="margin:0">#${t.id}</span></td>
+        <td><b style="font-size:12.5px">${esc((t.requirement_text || "").slice(0, 34))}${(t.requirement_text || "").length > 34 ? "…" : ""}</b>
+            <div class="req-line">${t.confirmed !== 1 ? "未确认 · 禁止下发" : (t.ai_reviewer && t.ai_reviewer !== "off" ? "AI 代审 · " + esc(t.ai_reviewer) : "人工审查")}</div></td>
+        <td><span class="st-dot ${sd.cls}"><i></i>${sd.txt}</span></td>
+        <td class="tabular-nums">${t.cases != null ? t.cases : "—"} 条</td>
+        <td>${cov}</td>
+        <td class="hint hide-sm" style="margin:0">${relTime(t.updated_at || t.created_at)}</td>
+        <td><div class="t-ops">${primaryOp}<a href="javascript:viewLogs(${t.id})" class="mut">日志</a></div></td></tr>`;
     });
     html += `<div class="pg-group ${open ? "open" : ""}">
       <div class="pg-head" role="button" tabindex="0" aria-expanded="${open}" data-p="${esc(pname)}">
@@ -740,12 +869,20 @@ function renderTasks() {
           <span class="mini mut">${tasks.length} 次运行</span></span>
         <span class="hint pg-last">最近 ${esc(tasks[0].created_at || "")}</span>
       </div>
-      <div class="pg-tbl ${open ? "" : "hidden"}"><table class="tbl">
-        <thead><tr><th>#</th><th>需求 / 测试标题</th><th>状态</th><th>用例</th><th>覆盖率</th><th class="hide-sm">时间</th><th>操作</th></tr></thead>
+      <div class="pg-tbl ${open ? "" : "hidden"}"><table class="task-tbl">
+        <thead><tr><th style="width:58px">#</th><th>需求</th><th>状态</th><th>用例</th><th>覆盖率</th><th class="hide-sm">最近</th><th style="text-align:right">操作</th></tr></thead>
         <tbody>${rows}</tbody></table></div></div>`;
   });
-  $("project-groups").innerHTML = html ||
-    '<div class="card hint" style="padding:24px;text-align:center">没有匹配的项目或任务——换个关键词或筛选条件</div>';
+  const total = TASK_PAGE.total || 0;
+  const pages = Math.max(1, Math.ceil(total / TASK_PAGE.limit));
+  const curPage = Math.floor(TASK_PAGE.offset / TASK_PAGE.limit) + 1;
+  const pager = total > TASK_PAGE.limit
+    ? `<div class="t-pager">共 ${total} 个任务 · 第 ${curPage} / ${pages} 页
+        <button class="btn btn-sm" ${curPage <= 1 ? "disabled" : ""} onclick="taskPage(${curPage - 1})">‹ 上一页</button>
+        <button class="btn btn-sm" ${curPage >= pages ? "disabled" : ""} onclick="taskPage(${curPage + 1})">下一页 ›</button></div>`
+    : (total ? `<div class="t-pager">共 ${total} 个任务</div>` : "");
+  $("project-groups").innerHTML = (html ||
+    '<div class="card hint" style="padding:24px;text-align:center">没有匹配的项目或任务——换个关键词或筛选条件</div>') + pager;
   document.querySelectorAll(".pg-head").forEach(h => {
     const toggle = () => {
       const name = h.dataset.p;
@@ -758,6 +895,24 @@ function renderTasks() {
   document.querySelectorAll(".pg-task").forEach(tr => {
     tr.onclick = e => { if (e.target.closest("button")) return; viewReport(Number(tr.dataset.tid)); };
   });
+}
+
+function stDot(t) {
+  const running = t.progress < 100 && !["queued", "cancelled", "done", "failed"].includes(t.status);
+  if (t.status === "done") return { cls: "ok", txt: "完成" };
+  if (t.status === "failed") {
+    const product = (t.error || "").includes("疑似产品缺陷");
+    return { cls: "er", txt: product ? "疑似缺陷" : "失败" };
+  }
+  if (t.status === "ready_for_review") return { cls: "wa", txt: "待审查" };
+  if (running) return { cls: "blu", txt: (STATUS_CN[t.status] || t.status) + (t.progress ? " " + t.progress + "%" : "") };
+  if (t.status === "cancelled") return { cls: "er", txt: "已取消" };
+  return { cls: "wa", txt: STATUS_CN[t.status] || t.status };
+}
+
+function taskPage(n) {
+  TASK_PAGE.offset = Math.max(0, (n - 1) * TASK_PAGE.limit);
+  pollTasks();
 }
 
 async function confirmTask(id) {
@@ -1137,7 +1292,7 @@ const LV_META = { L1: ["单元测试", "var(--ok2)"], L2: ["集成测试", "var(
 function lvBadge(l) {
   if (l.status === "done" && l.verdict === "pass") return '<span class="badge" style="background:#d9f2e5;color:#16a34a">已完成 ✓</span>';
   if (["running", "cloning", "generating", "provisioning", "analyzing", "reporting"].includes(l.status))
-    return '<span class="badge" style="background:#dbeafe;color:#2563eb">● 运行中</span>';
+    return '<span class="badge" style="background:var(--run-weak,#e7f6fa);color:var(--run,#0e7490)">● 运行中</span>';
   if (l.level === "L3" && (l.summary ? (l.summary.pending_confirm > 0) : false))
     return '<span class="badge" style="background:#fde9c8;color:#b45309">待人工确认</span>';
   if (l.level === "L4" && l.verdict !== "pass") return '<span class="badge" style="background:#f3f4f6;color:#9ca3af">清单待审</span>';
@@ -1222,7 +1377,7 @@ function renderDefectsPanel(latest, defectsApi) {
   const cls = { product_defect: "background:#fee2e2;color:#dc2626",
                 case_defect: "background:#fef3c7;color:#b45309",
                 env: "background:#f3f4f6;color:#6b7280",
-                static: "background:#dbeafe;color:#2563eb" }[fk] || "background:#f3f4f6;color:#6b7280";
+                static: "background:var(--run-weak,#e7f6fa);color:var(--run,#0e7490)" }[fk] || "background:#f3f4f6;color:#6b7280";
   const failedLines = ((defectsApi && defectsApi.failed_cases) || [])
     .map(fc => `[${fc.origin === "generated" ? "生成" : "自带"}] ${esc(fc.nodeid.slice(0, 90))}`);  return `<div style="margin-bottom:10px"><span class="badge" style="${cls}">` +
     `${{ product_defect: "疑似产品缺陷", case_defect: "用例自身缺陷", env: "环境问题",
@@ -1471,17 +1626,27 @@ $("rv-ac-submit").onclick = async () => {
   } catch (e) { $("rv-ac-result").textContent = "插入失败：" + e.message; }
 };
 $("wb-confirm").onclick = null;   // 真实 handler 在 loadWorkbench 按任务绑定
-document.querySelectorAll("#task-tabs .tab").forEach(b => b.onclick = () => {
+document.querySelectorAll("#task-tabs .tab, #task-tabs .fchip").forEach(b => b.onclick = () => {
   TASK_FILTER = b.dataset.f;
-  document.querySelectorAll("#task-tabs .tab").forEach(x => x.classList.toggle("active", x === b));
-  renderTasks();
+  TASK_PAGE.offset = 0;          // 换筛选回第一页（服务端筛选，不再本地过滤）
+  document.querySelectorAll("#task-tabs .tab, #task-tabs .fchip").forEach(x => {
+    x.classList.toggle("on", x === b); x.classList.toggle("active", x === b);
+  });
+  pollTasks();
 });
 
 const pgSearch = document.getElementById("pg-search");
-if (pgSearch) pgSearch.addEventListener("input", e => {
-  PG_SEARCH = e.target.value.trim().toLowerCase();
-  renderTasks();
-});
+if (pgSearch) {
+  let S_T = null;
+  pgSearch.addEventListener("input", e => {     // 防抖 280ms：服务端搜索，避免每键一次请求
+    clearTimeout(S_T);
+    S_T = setTimeout(() => {
+      PG_SEARCH = e.target.value.trim();
+      TASK_PAGE.offset = 0;
+      pollTasks();
+    }, 280);
+  });
+}
 document.querySelectorAll("[data-rp]").forEach(b => b.onclick = () => switchRp(b.dataset.rp));
 window.addEventListener("hashchange", route);
 
