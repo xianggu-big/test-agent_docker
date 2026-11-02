@@ -157,7 +157,7 @@ def part1_completion() -> list[Item]:
         "test_conditions", "test_reports", "feedback_annotations", "rtm_maps",
         "evaluation_rounds", "complexity_hotspots", "llm_calls",
         "test_levels", "interface_endpoints", "call_edges", "scenario_cases",
-        "review_decisions", "test_case_results", "exec_queue", "image_recipes"}
+        "review_decisions", "test_case_results", "exec_queue", "image_recipes", "login_events"}
     (ok if created == expected_tables else miss)(
         "L5 schema 27 表契约",
         "27 表齐备" if created == expected_tables else

@@ -420,6 +420,37 @@ def run_feedback_round(task_id: int, feedback_text: str, runner=None) -> dict:
 
 # ==================== AI 代审 auto 模式（docs/AI代审设计-20261031.md） ====================
 
+def post_prep_review_hook(task_id: int) -> None:
+    """阶段一停等点钩子（B1 队列化后从 server._prep_worker 迁入——晚间实验实锤：
+    队列 worker 只跑 prep 丢钩子，auto 任务停在待审查无人接管）。
+    off→停等人工；hybrid→AI 先审一轮（决策落库）停等抽检；
+    auto→D2 代审循环→收敛后自动入队阶段二（保持单 worker 串行纪律）。"""
+    conn = get_conn()
+    row = conn.execute("SELECT ai_reviewer, status FROM test_tasks WHERE id=?", (task_id,)).fetchone()
+    if not row or row["status"] != "ready_for_review":
+        return
+    mode = row["ai_reviewer"]
+    if mode == "hybrid":
+        try:
+            from ..skills.ai_reviewer import reviewer_llm, run_review_once
+            summary = run_review_once(reviewer_llm(), conn, task_id, round_no=1)
+            if summary:
+                log.info("hybrid 代审完成 task=%s: %s", task_id,
+                         {k: summary[k] for k in ("approved", "deleted", "regenerate", "inserted")})
+        except Exception as e:  # noqa: BLE001 —— 代审失败=无决策落库，人工照常审查
+            log.warning("hybrid 代审失败 task=%s: %s: %s", task_id, type(e).__name__, e)
+    elif mode == "auto":
+        from types import SimpleNamespace
+        from ..sandbox.runner import SandboxRunner
+        deps = SimpleNamespace(conn=get_conn(), runner=SandboxRunner())
+        _auto_review_loop(deps, task_id)
+        if conn.execute("SELECT status FROM test_tasks WHERE id=?",
+                        (task_id,)).fetchone()["status"] == "ready_for_review":
+            from ..store.queue import QueueWorker   # 函数内延迟 import 防循环
+            QueueWorker.enqueue(task_id, "exec")
+            _reviewer_msg(conn, task_id, "[ai-review] D2 收敛，已自动入队阶段二")
+
+
 def _reviewer_msg(conn, task_id: int, content: str) -> None:
     """代审轨迹写进最新会话日志（前端日志流可见——AI 的思考过程对人可见）。"""
     row = conn.execute("SELECT id FROM agent_sessions WHERE task_id=? ORDER BY id DESC LIMIT 1",

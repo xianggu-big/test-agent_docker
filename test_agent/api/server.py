@@ -788,10 +788,18 @@ def api_add_case(tid: int, body: dict, user: dict = Depends(staff)):
     method = str(body.get("method", "")).strip() or None
     if not name or not code:
         raise HTTPException(422, "用例名称与代码必填")
-    if "def test_" not in code:
+    conn = get_conn()
+    # 按项目语言校验形态（晚间实验实锤：JS 项目插 Python 形态被 422，插用例对 Tier2 不可用）
+    lang_row = conn.execute(
+        """SELECT p.primary_language FROM test_tasks t JOIN projects p ON p.id=t.project_id
+           WHERE t.id=?""", (tid,)).fetchone()
+    is_js = bool(lang_row) and lang_row["primary_language"] == "javascript"
+    js_case = re.search(r"""\b(?:test|it)\s*\(\s*['"]test_\w+""", code)
+    if is_js and not js_case:
+        raise HTTPException(422, "JS 项目用例需为 jest 形态：test(\"test_用例名\", () => {...})，且用例名以 test_ 开头")
+    if not is_js and "def test_" not in code:
         raise HTTPException(422, "代码必须包含 def test_ 开头的测试函数")
 
-    conn = get_conn()
     row = _task_or_404(conn, tid)
     if row["status"] in ACTIVE:
         raise HTTPException(409, "任务执行中，禁止编辑用例（避免污染本轮执行）")

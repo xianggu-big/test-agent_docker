@@ -153,12 +153,24 @@ class QueueWorker:
         ok, err = True, None
         try:
             if kind == "prep":
-                from ..graph.builder import run_task_prep
+                from ..graph.builder import run_task_prep, post_prep_review_hook
                 run_task_prep(tid)
+                # 停等点钩子（off/hybrid/auto 分流）：B1 队列化时曾丢失，晚间实验实锤补回
+                post_prep_review_hook(tid)
                 self._hybrid_review_after_prep(tid)
             elif kind == "exec":
-                from ..graph.builder import run_task_exec
-                run_task_exec(tid)
+                # 分流（晚间实验实锤 287/288：单阶段任务也进 exec 队列被 run_task_exec 拒，
+                # 卡 queued）：两阶段任务走执行图，单阶段走完整主图
+                from ..store.db import get_conn as _get_conn   # 别名：不遮蔽本函数外层 get_conn（UnboundLocalError 实锤）
+                _conn = _get_conn()
+                _ts = _conn.execute("SELECT two_stage FROM test_tasks WHERE id=?", (tid,)).fetchone()
+                _conn.close()
+                if _ts and _ts["two_stage"] == 1:
+                    from ..graph.builder import run_task_exec
+                    run_task_exec(tid)
+                else:
+                    from ..graph.builder import run_task
+                    run_task(tid)
             else:
                 from ..graph.builder import run_task_auto
                 run_task_auto(tid)
