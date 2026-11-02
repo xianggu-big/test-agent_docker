@@ -833,7 +833,8 @@ def api_add_case(tid: int, body: dict, user: dict = Depends(staff)):
         conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
                      (file_content, hashlib.sha256(file_content.encode()).hexdigest()[:16], script_id))
         conn.commit()
-    return {"task_id": tid, "case_name": def_name, "file": "test_imported.py"}
+    return {"task_id": tid, "case_name": def_name,
+            "file": "test_imported.test.js" if is_js else "test_imported.py"}
 
 
 @app.post("/api/cases/{case_id}/toggle")

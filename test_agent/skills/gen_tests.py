@@ -539,13 +539,29 @@ def _condition_gaps(conditions: list[dict], cases: list[dict]) -> list[dict]:
 
 
 def _rebuild_imported_file(conn, tid: int, ws: Path) -> str:
-    """以库为准重建 test_imported.py（仅 enabled=1），随下次 provision 快照进容器。"""
+    """以库为准重建人工/AI 插入用例文件（仅 enabled=1），随下次 provision 快照进容器。
+    文件名按项目语言分流（晚间遗留实锤：JS 项目写 test_imported.py jest 不收集）——
+    JS → test_imported.test.js（jest testMatch 收集 + // 注释头）；其余 → test_imported.py。"""
     imported = conn.execute(
         """SELECT c.content FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
            WHERE s.task_id=? AND c.source='imported' AND c.enabled=1 ORDER BY c.id""", (tid,)).fetchall()
-    content = '"""人工/AI 插入用例（test_cases.source=imported，enabled=1）"""\n\n' + \
-              "\n\n".join(r["content"].strip() for r in imported) + "\n"
-    (Path(ws) / "test_imported.py").write_text(content, encoding="utf-8")
+    lang_row = None
+    try:
+        lang_row = conn.execute(
+            """SELECT p.primary_language FROM test_tasks t JOIN projects p ON p.id=t.project_id
+               WHERE t.id=?""", (tid,)).fetchone()
+    except Exception:  # noqa: BLE001 —— 轻量测试环境可能无 tasks/projects 表：默认 python 命名
+        pass
+    is_js = bool(lang_row) and lang_row["primary_language"] == "javascript"
+    fname = "test_imported.test.js" if is_js else "test_imported.py"
+    header = ("// 人工/AI 插入用例（test_cases.source=imported，enabled=1）" if is_js
+              else '"""人工/AI 插入用例（test_cases.source=imported，enabled=1）"""')
+    content = header + "\n\n" + "\n\n".join(r["content"].strip() for r in imported) + "\n"
+    # 清掉另一种语言的旧文件（语言判定不随任务重跑变化，防御性清理残留）
+    for stale in ("test_imported.py", "test_imported.test.js"):
+        if stale != fname:
+            (Path(ws) / stale).unlink(missing_ok=True)
+    (Path(ws) / fname).write_text(content, encoding="utf-8")
     return content
 
 
@@ -1035,8 +1051,9 @@ def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[
     names = sorted(p.name for p in Path(ws).glob("test_gen_r*.py")) \
         + sorted(p.name for p in Path(ws).glob("test_gen_fb*.py")) \
         + sorted(p.name for p in Path(ws).glob("test_gen_*.test.js"))
-    if (Path(ws) / "test_imported.py").exists():
-        names.append("test_imported.py")
+    for imported_name in ("test_imported.py", "test_imported.test.js"):
+        if (Path(ws) / imported_name).exists():
+            names.append(imported_name)
     dropped: list[str] = []
     for fname in names:
         gate_cmd = (["node", "--check", fname] if fname.endswith(".test.js")

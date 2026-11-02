@@ -527,6 +527,8 @@ def make_nodes(deps: GraphDeps) -> dict:
             # JS 执行链路（Tier2）：jest --json 输出经宿主侧适配器转 pytest 风格文本，
             # 下游 evaluate/repair/report 零改动（docs：js_adapter 模块头）
             gen_files = sorted(p.name for p in ws.glob("test_gen_*.test.js"))
+            if (ws / "test_imported.test.js").exists():
+                gen_files.append("test_imported.test.js")   # 人工/插入用例（按语言命名）
             cmd = build_run_cmd_js(round_no=state.get("round_no", 1), gen_files=gen_files)
         else:
             # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
