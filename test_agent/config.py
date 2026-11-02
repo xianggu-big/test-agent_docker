@@ -118,3 +118,36 @@ L2_WHITEBOX_ENABLED = True   # 白盒轨：调用图+顺序场景（False=只留
 TRACE_ENABLED = True         # 跨级溯源确定性建链（False=build_task_traces 返回空+gaps 标注）
 L2_SERVICE_PORT = 8000       # v0 单容器：被测服务与测试执行同容器，localhost 端口
 L2_SERVICE_WAIT_S = 30       # 服务健康检查等待上限（秒）
+
+# —— 环境自适应 recipe（任务F / 2026-11-02，docs/环境自适应调研与设计.md §6） ——
+RECIPE_ENABLED = False              # 默认关：关=EXEC_LANGUAGES 旧路径逐字节不变（可回滚）
+RECIPE_MAX_BUILD_S = 900            # 单次镜像构建超时（秒）
+RECIPE_MAX_DOCKERFILE_LINES = 40    # Dockerfile 行数预算（>此值拒）
+RECIPE_MAX_IMAGE_MB = 2048          # 镜像大小预算（构建后 inspect 校验）
+RECIPE_REPAIR_ROUNDS = 2            # 构建失败自修复轮数上限（失败日志回灌提案）
+# 基础镜像池：recipe 只能从这里选（LLM 不得自造镜像名）
+RECIPE_IMAGE_POOL = {
+    "python": {"3.9": "python:3.9-slim", "3.10": "python:3.10-slim",
+               "3.11": "python:3.11-slim", "3.12": "python:3.12-slim",
+               "3.13": "python:3.13-slim"},
+    "javascript": {"18": "node:18-bookworm-slim", "20": "node:20-bookworm-slim",
+                   "22": "node:22-bookworm-slim"},
+}
+# 允许的安装命令前缀（正则全匹配；其余一律拒绝——LLM 不能写任意命令）
+RECIPE_ALLOWED_INSTALL = [
+    r"pip install -r [A-Za-z0-9._/\-]+",
+    r"pip install --no-cache-dir -r [A-Za-z0-9._/\-]+",
+    r"pip install \.(\[dev\])?",
+    r"pip install --no-cache-dir \.(\[dev\])?",
+    r"pip install (pytest|coverage|pytest-cov|pytest-mock|pytest-asyncio|httpx|requests|hypothesis)(==[\w.]+)?",
+    r"pip install poetry && poetry install( --no-root)?",
+    r"npm ci",
+    r"npm install --no-save --ignore-scripts( jest)?",
+    r"npm install --ignore-scripts",
+    # 测试工具链组合（多个白名单包一起装；仍限定在固定包集合内，不含任意第三方）
+    r"pip install ((pytest|pytest-cov|coverage|pytest-mock|pytest-asyncio|hypothesis|"
+    r"httpx|requests)( (pytest|pytest-cov|coverage|pytest-mock|pytest-asyncio|"
+    r"hypothesis|httpx|requests))*)",
+    r"yarn install --frozen-lockfile --ignore-scripts",
+    r"pnpm install --frozen-lockfile --ignore-scripts",
+]
