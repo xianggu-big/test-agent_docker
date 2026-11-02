@@ -147,13 +147,54 @@ def api_login(body: dict):
         raise HTTPException(422, "用户名与密码必填")
     result = auth.login(username, password)
     if result is None:
+        auth.record_event(username, "failed")          # 失败尝试也记（使用记录完整性）
         raise HTTPException(401, "用户名或密码错误")
+    auth.record_event(username, "login", result["user_id"])
     return result
+
+
+@app.post("/api/logout")
+def api_logout(request: Request, user: dict = Depends(current_user)):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    auth.TOKENS.pop(token, None)
+    auth.record_event(user["username"], "logout", user["user_id"])
+    return {"ok": True}
+
+
+@app.post("/api/register")
+def api_register(body: dict):
+    """开放注册（任务 4）：默认 caller 角色。"""
+    result = auth.register(str(body.get("username", "")).strip(),
+                           str(body.get("password", "")))
+    if result is None:
+        raise HTTPException(422, "注册失败：用户名需 3-24 位字母/数字/下划线且未被占用，口令至少 6 位")
+    return {"ok": True, "username": result["username"]}
 
 
 @app.get("/api/me")
 def api_me(user: dict = Depends(current_user)):
     return user
+
+
+@app.get("/api/me/usage")
+def api_my_usage(user: dict = Depends(current_user)):
+    """个人信息页（任务 4）：我的测试任务（建立/开始/状态）+ 我的登录记录。"""
+    conn = get_conn()
+    uid = user["user_id"]
+    tasks = [dict(r) for r in conn.execute(
+        """SELECT t.id, t.status, t.created_at, t.updated_at,
+                  p.name AS project_name, t.requirement_text,
+                  (SELECT MIN(m.created_at) FROM agent_messages m
+                    JOIN agent_sessions s ON s.id = m.session_id
+                    WHERE s.task_id = t.id) AS first_run_at
+           FROM test_tasks t JOIN projects p ON p.id = t.project_id
+           WHERE t.user_id=? ORDER BY t.id DESC LIMIT 100""", (uid,))]
+    events = [dict(r) for r in conn.execute(
+        """SELECT event, created_at FROM login_events
+           WHERE user_id=? ORDER BY id DESC LIMIT 50""", (uid,))]
+    return {"tasks": tasks, "events": events,
+            "registered_at": conn.execute("SELECT created_at FROM users WHERE id=?",
+                                          (uid,)).fetchone()["created_at"]}
 
 
 @app.get("/api/users")

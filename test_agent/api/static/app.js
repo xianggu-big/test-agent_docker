@@ -32,13 +32,26 @@ async function api(path, opts = {}) {
 }
 
 /* ---------- 登录 ---------- */
+let REGISTER_MODE = false;
+function toggleRegister() {
+  REGISTER_MODE = !REGISTER_MODE;
+  $("login-btn").textContent = REGISTER_MODE ? "注 册" : "登 录";
+  $("login-err").textContent = REGISTER_MODE ? "注册后默认为「调用者」角色；口令至少 6 位" : "";
+}
 function showLogin() { $("login-mask").classList.remove("hidden"); }
 async function doLogin() {
   $("login-err").textContent = "";
   try {
-    const b = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
+    const b = await fetch("/api" + (REGISTER_MODE ? "/register" : "/login"), { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: $("login-user").value.trim(), password: $("login-pass").value }) });
-    const data = await b.json();
+    let data = await b.json();
+    if (REGISTER_MODE) {                                   // 注册成功自动登录
+      const lb = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: $("login-user").value.trim(), password: $("login-pass").value }) });
+      data = await lb.json();
+      if (!lb.ok) throw new Error(data.detail || "自动登录失败");
+      REGISTER_MODE = false; $("login-btn").textContent = "登 录";
+    }
     if (!b.ok) throw new Error(data.detail || "登录失败");
     localStorage.setItem("token", data.token);
     ME = data;
@@ -61,7 +74,7 @@ function applyRole() {
 }
 
 /* ---------- 路由 ---------- */
-const PAGES = ["dashboard", "new", "workbench", "review", "tasks", "reports", "settings"];
+const PAGES = ["dashboard", "new", "workbench", "review", "tasks", "reports", "profile", "settings"];
 let TASK_TID = 0;                            // F03 详情页当前任务
 let REVIEW_TID = 0;                          // 评审页当前任务
 let REVIEW_POLL = null;                      // 评审页轮询（阶段一跑动时实时刷新）
@@ -92,6 +105,7 @@ function route() {
   if (page === "tasks") pollTasks();
   if (page === "reports") refreshReports();
   if (page === "settings") refreshSettings();
+  if (page === "profile") loadProfile();
   if (page === "new" && NEW_TASK_ID) pollNewCases(NEW_TASK_ID);
   if (page === "taskdetail" && TASK_TID) loadTaskDetail(TASK_TID);
   if (page !== "tasks" && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -1285,6 +1299,31 @@ async function loadReport() {
       `\n\n## 轨迹\n\n` + logs.map(l => `- [${l.seq}] ${l.content}`).join("\n");
     $("rp-export-view").textContent = md; $("rp-export-view").classList.remove("hidden");
   };
+}
+
+// ---------- 个人中心（任务4：使用记录 = 我的测试任务 + 登录记录） ----------
+const EVT_CN = { login: "登录", logout: "退出", register: "注册", failed: "登录失败" };
+async function loadProfile() {
+  const usage = await api("/me/usage").catch(() => null);
+  $("pf-me").innerHTML = `<b>${esc(ME.username)}</b>（${ROLE_CN[ME.role] || ME.role}）· 注册于 ${esc((usage && usage.registered_at) || "—")}` +
+    ` <button class="btn btn-ghost btn-sm" style="margin-left:10px" onclick="doLogout()">退出登录</button>`;
+  const rows = ((usage && usage.tasks) || []).map(x =>
+    `<tr><td class="hint">#${x.id}</td><td>${esc(x.project_name)}</td>` +
+    `<td>${esc((x.requirement_text || "").slice(0, 40))}</td>` +
+    `<td class="hint">${esc(x.created_at || "")}</td><td class="hint">${esc(x.first_run_at || "未开始")}</td>` +
+    `<td><span class="badge ${x.status === "done" ? "badge-ok" : x.status === "failed" ? "badge-fail" : "badge-run"}">${esc(STATUS_CN[x.status] || x.status)}</span></td></tr>`).join("");
+  $("pf-tasks").innerHTML = "<tr><th>#</th><th>项目</th><th>需求</th><th>建立时间</th><th>开始执行</th><th>状态</th></tr>" +
+    (rows || '<tr><td colspan="6" class="hint">还没有测试任务</td></tr>');
+  $("pf-events").innerHTML = "<tr><th>事件</th><th>时间</th></tr>" +
+    (((usage && usage.events) || []).map(e =>
+      `<tr><td>${EVT_CN[e.event] || e.event}</td><td class="hint">${esc(e.created_at)}</td></tr>`).join("")
+    || '<tr><td colspan="2" class="hint">暂无记录</td></tr>');
+}
+async function doLogout() {
+  try { await api("/logout", { method: "POST", body: "{}" }); } catch (_) {}
+  localStorage.removeItem("token");
+  ME = null;
+  showLogin();
 }
 
 /* ---------- 设置（仅管理员） ---------- */

@@ -17,6 +17,7 @@
     <button id="login-btn" class="btn btn-primary btn-block">登 录</button>
     <div class="login-hint">演示账号：admin/admin123（管理员）· dev/dev123（开发者）· caller/caller123（调用者）</div>
     <div id="login-err" class="login-err"></div>
+    <div class="hint" style="text-align:center;margin-top:4px">没有账号？<a href="javascript:void(0)" onclick="toggleRegister()">注册一个</a>（默认调用者角色）</div>
   </div>
 </div>
 
@@ -41,6 +42,7 @@
       <a href="#/review" class="nav-item" data-page="review">✎ 用例评审</a>
       <a href="#/tasks" class="nav-item" data-page="tasks">≡ 任务列表</a>
       <a href="#/reports" class="nav-item" data-page="reports">▤ 报告</a>
+      <a href="#/profile" class="nav-item" data-page="profile">👤 个人中心</a>
       <a href="#/settings" class="nav-item" data-page="settings">⚙ 设置</a>
     </nav>
     <div class="role-legend">
@@ -285,6 +287,15 @@
         <div id="td-trace" class="card"></div>
         <div id="td-defects" class="card"><div class="hint">缺陷归因清单（F10 接线）</div></div>
       </div>
+    </section>
+
+    <!-- ④c 个人中心（使用记录：测试任务 + 登录记录） -->
+    <section id="page-profile" class="page hidden">
+      <div class="card"><h3>账号</h3><div id="pf-me" class="hint" style="margin:0"></div></div>
+      <div class="card"><h3>我的测试任务（建立 / 开始执行 / 状态）</h3>
+        <div class="table-wrap"><table class="tbl" id="pf-tasks"></table></div></div>
+      <div class="card"><h3>登录记录（最近 50 条）</h3>
+        <div class="table-wrap"><table class="tbl" id="pf-events"></table></div></div>
     </section>
 
     <!-- ⑤ 设置（仅管理员可见完整页） -->

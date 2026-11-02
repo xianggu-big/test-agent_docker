@@ -60,3 +60,34 @@ def login(username: str, password: str) -> dict | None:
     user = {"user_id": row["id"], "username": row["username"], "role": row["role"]}
     TOKENS[token] = user
     return {"token": token, **user}
+
+
+def record_event(username: str, event: str, user_id: int | None = None) -> None:
+    """登录/退出/注册/失败尝试 埋点（个人信息页使用记录的数据源）。失败吞掉不炸主链路。"""
+    try:
+        conn = get_conn()
+        conn.execute("INSERT INTO login_events(user_id, username, event) VALUES (?,?,?)",
+                     (user_id, username, event))
+        conn.commit()
+        conn.close()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def register(username: str, password: str) -> dict | None:
+    """开放注册（任务 3）：默认 caller 角色（管理员可在 users 管理里人工提权——v1 无管理界面，
+    直接改库）。用户名 3-24 位字母数字下划线；口令 ≥6 位。冲突返回 None。"""
+    import re as _re
+    if not _re.fullmatch(r"\w{3,24}", username or "") or len(password or "") < 6:
+        return None
+    conn = get_conn()
+    dup = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if dup:
+        conn.close()
+        return None
+    uid = conn.execute("INSERT INTO users(username, password_hash, role) VALUES (?,?,'caller')",
+                       (username, hash_password(password))).lastrowid
+    conn.commit()
+    conn.close()
+    record_event(username, "register", uid)
+    return {"user_id": uid, "username": username, "role": "caller"}

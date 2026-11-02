@@ -433,3 +433,13 @@ CREATE TABLE IF NOT EXISTS image_recipes (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_image_recipes_task ON image_recipes(task_id);
+
+-- 24) 登录/使用记录（个人信息页：登录、退出、注册、失败尝试；任务 4）
+CREATE TABLE IF NOT EXISTS login_events (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER REFERENCES users(id),
+  username   TEXT NOT NULL,            -- 冗余存名（用户被删仍可读）
+  event      TEXT NOT NULL CHECK (event IN ('login','logout','register','failed')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_login_events_user ON login_events(user_id, created_at);
