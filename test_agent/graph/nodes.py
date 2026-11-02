@@ -194,6 +194,58 @@ def _parse_per_file_coverage(stdout: str) -> list[dict]:
     return rows
 
 
+def _try_recipe_image(state, tid: int, runner, msg) -> str | None:
+    """任务F：探测→确定性配方→构建+自检，成功返回镜像 tag，失败返回 None（回退预置镜像）。
+
+    全程落 image_recipes 台账（配方原文/来源/阶段/错误）——供应链可审计。
+    任何异常都只 WARN 不上抛：环境增强失败不得拖垮任务。
+    """
+    try:
+        from ..skills.recipe import try_build_recipe
+        from ..skills.stack_detect import detect_stack, deterministic_recipe
+        ws = Path(state["workspace"])
+        stack = detect_stack(ws)
+        rec = deterministic_recipe(stack)
+        if not rec:
+            msg(state["session_id"], "assistant",
+                f"[provision·recipe] 探测结果不足以生成配方"
+                f"（语言={stack.get('language')} 版本={stack.get('runtime_version')}）→ 用预置镜像")
+            return None
+        if stack.get("conflicts"):
+            msg(state["session_id"], "assistant",
+                f"[provision·recipe] 探测注意：{'；'.join(stack['conflicts'])}")
+        res = try_build_recipe(rec, runner)
+        conn = get_conn()
+        try:
+            conn.execute(
+                """INSERT INTO image_recipes(task_id, source, recipe, image_tag, status, stage, error)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (tid, rec.get("source", "deterministic"), json.dumps(rec, ensure_ascii=False),
+                 res.get("tag"), "built" if res["ok"] else "failed",
+                 res.get("stage"), (res.get("error") or "")[:800] or None))
+            conn.commit()
+        finally:
+            conn.close()
+        if res["ok"]:
+            msg(state["session_id"], "assistant",
+                f"[provision·recipe] 环境配方构建通过（{rec['language']} "
+                f"{rec['runtime_version']} / {rec['package_manager']}）→ 镜像 {res['tag']}"
+                f"；依据：{', '.join(rec['evidence']['detected_from'][:4]) or '—'}")
+            return res["tag"]
+        msg(state["session_id"], "assistant",
+            f"[provision·recipe] 配方在 {res.get('stage')} 阶段失败，回退预置镜像："
+            f"{(res.get('error') or '')[:200]}")
+        return None
+    except Exception as e:      # noqa: BLE001 —— 环境增强失败不拖垮任务
+        log.warning("recipe 流程异常 task=%s: %s: %s", tid, type(e).__name__, e)
+        try:
+            msg(state["session_id"], "assistant",
+                f"[provision·recipe] 流程异常（{type(e).__name__}），回退预置镜像")
+        except Exception:       # noqa: BLE001
+            pass
+        return None
+
+
 def prepare_task_image(runner, image: str, auto: bool) -> tuple[bool, str]:
     """沙箱自适应的镜像门（模块级纯函数便于单测）：
 
@@ -262,7 +314,18 @@ def make_nodes(deps: GraphDeps) -> dict:
             _rebuild_imported_file(conn, tid, ws)
             msg(state["session_id"], "assistant",
                 f"[clone] 从库重建 test_imported.py（imported 用例 {n_imported} 条，重跑语义恢复）")
-        msg(state["session_id"], "assistant", f"[clone] {how} → {ws}")
+        # B7 clone 预算：工作区体积超限 fail-fast（不让巨型仓库把磁盘拖满后
+        # 在后续阶段以各种奇怪方式失败）；阈值复用任务B 的快照预算
+        ws_bytes = sum(f.stat().st_size for f in ws.rglob("*") if f.is_file())
+        from ..sandbox.runner import _fmt_bytes
+        if ws_bytes > config.SNAPSHOT_MAX_TOTAL_BYTES:
+            raise RuntimeError(
+                f"克隆后工作区 {_fmt_bytes(ws_bytes)} 超过预算 "
+                f"{_fmt_bytes(config.SNAPSHOT_MAX_TOTAL_BYTES)}："
+                f"请把大目录/大文件加入项目 .gitignore（快照会尊重它），"
+                f"或调大 config.SNAPSHOT_MAX_TOTAL_BYTES 后重试")
+        msg(state["session_id"], "assistant",
+            f"[clone] {how} → {ws}（{_fmt_bytes(ws_bytes)}）")
         return {"workspace": str(ws)}
 
     # ---------- 2. 分析（语言占比 / 模块分级 / 准出标准冻结） ----------
@@ -341,16 +404,21 @@ def make_nodes(deps: GraphDeps) -> dict:
     def provision(state: TaskState) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "provisioning")
+        # 环境 recipe（任务F）：确定性探测→白名单配方→构建+自检。成功=用更贴合项目
+        # 版本的镜像；失败=回退预置镜像（老路径不变，不引入新失败面）。开关默认关。
+        image = state["image"]
+        if config.RECIPE_ENABLED:
+            image = _try_recipe_image(state, tid, runner, msg) or image
         # 沙箱自适应（设计文档 §6）：镜像按需供给——任务级判定，缺镜像按模式分流
         auto = config.AUTO_PREPARE_ENV or bool(state.get("auto_prepare"))
-        ready, how = prepare_task_image(runner, state["image"], auto)
+        ready, how = prepare_task_image(runner, image, auto)
         if not ready:
             reason = ("执行镜像未就绪且未开启自动准备（模式①手动感知）："
                       "请在界面点「一键准备」或到设置页构建镜像，"
                       "或新建任务时勾选「自动准备环境」后重跑")
             msg(state["session_id"], "assistant", f"[provision] {reason}")
             return {"done": True, "verdict": "stop", "stop_reason": reason}
-        msg(state["session_id"], "assistant", f"[provision] 执行镜像 {state['image']} 就绪（{how}）")
+        msg(state["session_id"], "assistant", f"[provision] 执行镜像 {image} 就绪（{how}）")
         # 两阶段"布考场"（docs/两阶段人机协作流程设计-20261031.md）：快照前按审查结论
         # 重写生成用例文件（评审页勾掉/增补的用例以库为准），再补跑阶段一顺延的收集闸
         if state.get("two_stage_rebuild"):
@@ -361,7 +429,7 @@ def make_nodes(deps: GraphDeps) -> dict:
                     f"[provision] 布考场：按审查结论重写 {n_files} 个生成用例文件（停用用例已摘除）")
         # 上一轮执行超时（exit=-1）说明容器里有 exec 残留，必须重建（A2），否则新旧任务争抢 CPU
         fresh = state.get("last_exit") == -1 and state.get("round_no", 0) > 0
-        container = runner.ensure_container(state["image"], state["container_name"], fresh=fresh)
+        container = runner.ensure_container(image, state["container_name"], fresh=fresh)
         # 任务B：快照摘要落 agent_messages——跳过了什么/打了多大，界面可查
         # （#281 教训：7.7GB 工作区静默 OOM，用户只看到 MemoryError 不知道为什么）
         snap = runner.copy_dir_into(container, state["workspace"])
@@ -389,7 +457,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             """INSERT INTO container_jobs(task_id, module_id, image, status, cpu_limit, mem_limit_mb,
                                           priority, timeout_at, container_id, started_at)
                VALUES (?, ?, ?, 'running', ?, ?, ?, datetime('now', '+' || ? || ' seconds'), ?, datetime('now'))""",
-            (tid, state.get("module_id"), state["image"],
+            (tid, state.get("module_id"), image,
              config.DEFAULT_CPU_LIMIT, config.DEFAULT_MEM_LIMIT_MB,
              5, config.DEFAULT_JOB_TIMEOUT_S, container.id))
         conn.commit()
@@ -606,8 +674,8 @@ def make_nodes(deps: GraphDeps) -> dict:
             why = "无需求文本" if not requirement else "未配置 DEEPSEEK_API_KEY"
             msg(state["session_id"], "assistant", f"[plan] {why}：跳过测试条件拆解（诚实降级）")
             return {}
-        from langchain_openai import ChatOpenAI  # 延迟导入，无 Key 时零开销
-        llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+        from ..skills.llm_client import make_chat  # B5：带退避重试的同签名构造
+        llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                          base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
                          timeout=60, max_retries=2)
         resp = llm.invoke([("system", PLAN_SYSTEM),

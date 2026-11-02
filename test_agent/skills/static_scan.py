@@ -15,7 +15,7 @@ import logging
 import re
 from pathlib import Path
 
-from langchain_openai import ChatOpenAI
+from ..skills.llm_client import make_chat
 
 from .. import config
 from .llm_usage import log_llm_call
@@ -185,7 +185,7 @@ def generate_static_drafts(api_key: str, task_id: int, ws: Path, requirement: st
     if not conditions:
         return json.dumps({"drafts": 0, "reason": "无测试条件（plan 未产出），仅完成静态扫描"},
                           ensure_ascii=False)
-    llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+    llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                      base_url=config.DEEPSEEK_BASE_URL, temperature=0.2,
                      timeout=90, max_retries=2)
     resp = llm.invoke([("system", SYSTEM_PROMPT),

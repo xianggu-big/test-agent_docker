@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 from typing import TypedDict
 
-from langchain_openai import ChatOpenAI
+from ..skills.llm_client import make_chat
 
 from .. import config
 from ..skills.callgraph import (build_call_edges, collect_functions,
@@ -141,7 +141,7 @@ def build_l2_skills(runner) -> dict[str, Skill]:
             api_key = os.environ.get("DEEPSEEK_API_KEY")
             requirement = args.get("requirement") or ""
             if api_key and requirement and config.L2_BLACKBOX_ENABLED:
-                llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+                llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                                  base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
                                  timeout=60, max_retries=2)
                 body_eps = [e for e in endpoints
@@ -380,7 +380,9 @@ def make_l2_nodes(deps):
         tid = state["task_id"]
         res = registry.invoke(tid, deps.skills["run_tests"],
                               {"container_name": state["container_name"],
-                               "cmd": ["pytest", "-q", "--tb=short", "-rfE", "test_api_r1.py"]})
+                               # C 后继：L2 也落逐用例结果（level='L2'，看板可按级展示）
+                               "cmd": ["pytest", "-q", "--tb=short", "-rfE",
+                                       f"--junitxml={config.JUNIT_PATH}", "test_api_r1.py"]})
         if res.status == "denied":
             raise RuntimeError("run_tests 被确认门拒绝：主流程不应在未确认时到达此节点")
         if res.status != "ok":
@@ -389,6 +391,18 @@ def make_l2_nodes(deps):
         else:
             out = res.output
         r = json.loads(out)
+        # 逐用例结果（L2 leg）落库：与 L1 同解析器，失败不炸主链路
+        try:
+            from ..skills.case_results import parse_junit_xml, store_case_results
+            jc = deps.runner.exec_in(
+                deps.runner.client.containers.get(state["container_name"]),
+                ["cat", config.JUNIT_PATH], timeout_s=30)
+            rows = parse_junit_xml(jc.stdout) if jc.ok else []
+            if rows:
+                store_case_results(deps.conn, tid,
+                                   int(state.get("round_no", 1) or 1), rows, level="L2")
+        except Exception as e:      # noqa: BLE001
+            log.warning("L2 逐用例结果落库失败 task=%s: %s", tid, e)
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"]}
 
     def evaluate(state: L2State) -> dict:

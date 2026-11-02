@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS projects (
   language_ratios  TEXT,                 -- JSON：{"python":0.72,"java":0.11,"other":0.17}
   clone_status     TEXT NOT NULL DEFAULT 'pending'
                    CHECK (clone_status IN ('pending','ok','failed')),
+  repo_key         TEXT,                 -- B2 项目归一键（normalize_repo_key：本地路径 resolve+normcase / URL 去 .git 小写 host）
   created_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -399,3 +400,36 @@ CREATE TABLE IF NOT EXISTS test_case_results (
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_case_results_task ON test_case_results(task_id, round_no);
+
+-- 25) 执行队列（B1/2026-11-02：container_jobs 台账非真队列——并发下发多任务同时跑，
+--     容器互挤 + SQLite 写竞争。本表=真队列：单 worker 串行消费，重启可恢复）
+CREATE TABLE IF NOT EXISTS exec_queue (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id     INTEGER NOT NULL REFERENCES test_tasks(id),
+  kind        TEXT NOT NULL CHECK (kind IN ('prep','exec','auto')),
+  status      TEXT NOT NULL DEFAULT 'queued'
+              CHECK (status IN ('queued','running','done','failed','cancelled')),
+  enqueued_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at  TEXT,
+  finished_at TEXT,
+  error       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_exec_queue_status ON exec_queue(status, id);
+CREATE INDEX IF NOT EXISTS idx_exec_queue_task ON exec_queue(task_id);
+
+-- 26) 环境 recipe 台账（任务F/2026-11-02）：探测→配方→校验→构建→自检全链留痕，
+--     供应链可审计（同 review_decisions 纪律）；source=deterministic|llm，stage 记录死在哪一步
+CREATE TABLE IF NOT EXISTS image_recipes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id     INTEGER NOT NULL REFERENCES test_tasks(id),
+  source      TEXT NOT NULL DEFAULT 'deterministic'
+              CHECK (source IN ('deterministic','llm','user')),
+  recipe      TEXT NOT NULL,          -- JSON 原文（含 evidence.detected_from）
+  image_tag   TEXT,
+  status      TEXT NOT NULL DEFAULT 'pending'
+              CHECK (status IN ('pending','built','failed','rejected')),
+  stage       TEXT,                   -- validate/dockerfile/build/health/done
+  error       TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_image_recipes_task ON image_recipes(task_id);

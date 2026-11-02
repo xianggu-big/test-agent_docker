@@ -77,7 +77,7 @@ def test_run_defect_analysis_caches(env, monkeypatch):
                 {"case": "test_clamp_hi", "observed": "返回 9", "expected": "返回 10",
                  "root_cause": "clamp 用 x >= hi 返回 hi-1", "fix": "改为 x > hi", "confidence": "高"}]},
                 ensure_ascii=False), usage_metadata=None)
-    monkeypatch.setattr(da, "ChatOpenAI", lambda **kw: FakeLLM())
+    monkeypatch.setattr(da, "make_chat", lambda **kw: FakeLLM())
     out = da.run_defect_analysis("k", conn, tid, ws=None)
     assert out["defects"][0]["fix"] == "改为 x > hi" and out["evidence_count"] == 2
     assert "推测" in out["note"]

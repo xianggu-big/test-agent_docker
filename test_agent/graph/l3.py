@@ -103,8 +103,8 @@ def make_l3_nodes(deps):
                         finished_at=_now())
             msg(state["session_id"], "[L3·gen] 无 Key：场景生成跳过（诚实降级）")
             return {"done": True, "verdict": "skipped", "stop_reason": "无 LLM 密钥"}
-        from langchain_openai import ChatOpenAI
-        llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+        from ..skills.llm_client import make_chat
+        llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                          base_url=config.DEEPSEEK_BASE_URL, temperature=0.2,
                          timeout=90, max_retries=2)
         eps = state["endpoints"]

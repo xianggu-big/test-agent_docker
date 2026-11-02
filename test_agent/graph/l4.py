@@ -84,8 +84,8 @@ def run_l4_task(task_id: int, trace_from: int | None = None) -> dict:
         e["params"] = json.loads(e.get("params") or "[]")
         e["request_schema"] = json.loads(e["request_schema"]) if e.get("request_schema") else None
 
-    from langchain_openai import ChatOpenAI
-    llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+    from ..skills.llm_client import make_chat
+    llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                      base_url=config.DEEPSEEK_BASE_URL, temperature=0.2,
                      timeout=90, max_retries=2)
     resp = llm.invoke([("system", ACCEPTANCE_SYSTEM),

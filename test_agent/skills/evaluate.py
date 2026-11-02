@@ -241,8 +241,8 @@ def map_requirements(conn, task_id: int, api_key: str | None = None) -> dict:
     source, mapping, note = "heuristic", None, ""
     if conditions and cases and api_key:
         try:
-            from langchain_openai import ChatOpenAI  # 延迟导入，无 Key 时零开销
-            llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+            from ..skills.llm_client import make_chat  # B5：带退避重试的同签名构造
+            llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                              base_url=config.DEEPSEEK_BASE_URL, temperature=0,
                              timeout=60, max_retries=2)
             resp = llm.invoke([("system",
@@ -327,8 +327,8 @@ def gen_report(conn, task_id: int, metrics: dict, rtm: dict,
     text = None
     if api_key:
         try:
-            from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+            from ..skills.llm_client import make_chat
+            llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                              base_url=config.DEEPSEEK_BASE_URL, temperature=0.2,
                              timeout=60, max_retries=2)
             prompt = f"""## 指标包（数字唯一来源，禁止出现数据之外的数字）
@@ -444,8 +444,8 @@ def review_report(conn, task_id: int, report_id: int, narrative: str,
     reviewer = "rules"
     if not reasons and api_key:
         try:
-            from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+            from ..skills.llm_client import make_chat
+            llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                              base_url=config.DEEPSEEK_BASE_URL, temperature=0,
                              timeout=60, max_retries=2)
             resp = llm.invoke([("system", REVIEW_SYSTEM), ("user", f"""## 报告叙述

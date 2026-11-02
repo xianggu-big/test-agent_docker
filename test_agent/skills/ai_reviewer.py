@@ -21,11 +21,11 @@ log = logging.getLogger(__name__)
 def reviewer_llm():
     """代审专用 LLM（同模型角色分离；跨模型列展望）。延迟导入，无 Key 时由调用方兜底。"""
     import os
-    from langchain_openai import ChatOpenAI
+    from ..skills.llm_client import make_chat
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
         raise RuntimeError("未配置 DEEPSEEK_API_KEY，AI 代审不可用（fail-closed 交人工）")
-    return ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+    return make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                       base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
                       timeout=90, max_retries=2)
 

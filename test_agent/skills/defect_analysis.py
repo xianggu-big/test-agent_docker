@@ -13,7 +13,7 @@ import logging
 import re
 from pathlib import Path
 
-from langchain_openai import ChatOpenAI
+from ..skills.llm_client import make_chat
 
 from .. import config
 from .llm_usage import log_llm_call
@@ -136,7 +136,7 @@ def run_defect_analysis(api_key: str, conn, task_id: int, ws: Path | None = None
     if ws and Path(ws).exists():
         from .gen_tests import _collect_sources
         sources_text = "\n\n".join(f"### {p}\n{t}" for p, t in _collect_sources(Path(ws), lang)[:6])
-    llm = ChatOpenAI(model=config.DEEPSEEK_MODEL, api_key=api_key,
+    llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                      base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
                      timeout=120, max_retries=2)
     resp = llm.invoke([("system", DEFECT_ANALYST_SYSTEM),

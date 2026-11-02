@@ -199,7 +199,7 @@ def _make_env(tmp_path, monkeypatch):
     ws.mkdir(parents=True)
     (ws / "m.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
     c.commit()   # seed 不 commit：连接持有写事务，log_llm_call 短连接写库撞 database is locked
-    monkeypatch.setattr(gt, "ChatOpenAI", _ChatFactory)
+    monkeypatch.setattr(gt, "make_chat", _ChatFactory)
     _ChatFactory.queue, _ChatFactory.n_calls = [], 0
     args = {"workspace": str(ws), "requirement": "add 应返回两数之和",
             "module_hint": "python", "container_name": "c1", "module_id": None,

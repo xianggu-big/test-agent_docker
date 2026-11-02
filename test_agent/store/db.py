@@ -25,6 +25,7 @@ def get_conn(db_path: Path | None = None) -> sqlite3.Connection:
 
 # 轻量列迁移：老库缺列则 ALTER（新库由 schema 直接建出）。加列时同步改 schema 文件。
 _MIGRATIONS = {
+    "projects": {"repo_key": "TEXT"},     # B2 项目归一：老库补键列（backfill 脚本写实+合并重复）
     "test_tasks": {"coverage_target": "REAL",    # A1：准出标准在分析阶段冻结进任务
                    "auto_prepare": "INTEGER NOT NULL DEFAULT 0",  # 沙箱自适应：任务级「自动准备环境」开关
                    "two_stage": "INTEGER NOT NULL DEFAULT 0",     # 两阶段人机协作：确认=启动阶段一，停在 ready_for_review

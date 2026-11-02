@@ -194,7 +194,7 @@ def test_generate_static_drafts_end_to_end(tmp_path, monkeypatch):
                 {"condition_id": 1, "name": "test_add_正常", "method": "等价类划分",
                  "input": "1,2", "steps": "调用 add(1,2)", "expected": "返回 3", "expected_basis": "需求明示"}]},
                 ensure_ascii=False), usage_metadata=None)
-    monkeypatch.setattr(ss, "ChatOpenAI", lambda **kw: FakeLLM())
+    monkeypatch.setattr(ss, "make_chat", lambda **kw: FakeLLM())
     out = json.loads(ss.generate_static_drafts("k", tid, ws, "需求", conn))
     assert out["drafts"] == 1 and out["framework"] == "static_draft"
     row = conn.execute("SELECT framework, filename FROM test_scripts WHERE task_id=?", (tid,)).fetchone()

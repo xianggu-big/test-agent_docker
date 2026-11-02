@@ -176,9 +176,10 @@ def api_create_task(body: dict, user: dict = Depends(current_user)):  # 调用�
     if ai_reviewer not in ("off", "hybrid", "auto"):
         raise HTTPException(422, "ai_reviewer 必须是 off/hybrid/auto")
     conn = get_conn()
-    name = repo_url.rstrip("/").split("/")[-1] or "project"
-    pid = conn.execute("INSERT INTO projects(user_id, repo_url, name) VALUES (?,?,?)",
-                       (user["user_id"], repo_url, name)).lastrowid
+    # B2 项目归一：同一仓库/路径复用同一项目行（此前每次重跑都新建"项目"，
+    # 280 任务散在几十个单任务组里——列表分组失去意义）
+    from ..store.projects import ensure_project
+    pid, name, _created = ensure_project(conn, user["user_id"], repo_url)
     tid = conn.execute(
         """INSERT INTO test_tasks(project_id, user_id, requirement_text, auto_prepare,
                                   two_stage, ai_reviewer) VALUES (?,?,?,?,?,?)""",
@@ -201,10 +202,21 @@ def api_confirm(tid: int, user: dict = Depends(staff)):
     conn.commit()
     started = False
     if row["two_stage"] == 1 and row["status"] not in ("ready_for_review",):
-        # 阶段一自动启动（hybrid/off：跑完停等人工；auto：停等点由代审接管——见 _prep_worker）
-        threading.Thread(target=_prep_worker, args=(tid,), daemon=True).start()
+        # 阶段一入队（hybrid/off：跑完停等人工；auto：停等点由代审接管——见 _prep_worker）
+        _enqueue(tid, "prep")
         started = True
     return {"task_id": tid, "confirmed": 1, "stage1_started": started}
+
+
+def _enqueue(tid: int, kind: str) -> dict:
+    """B1：把工作交给执行队列（单 worker 串行），不再每任务开一个线程同时跑。
+    并发下发时任务排队而不是互挤容器/SQLite。"""
+    from ..store.queue import start_worker
+    start_worker()
+    from ..store.queue import QueueWorker
+    qid = QueueWorker.enqueue(tid, kind)
+    return {"queued": True, "queue_id": qid,
+            "position": QueueWorker.pending_count()}
 
 
 def _prep_worker(tid: int) -> None:
@@ -258,11 +270,11 @@ def api_run(tid: int, user: dict = Depends(staff)):
                                      "当前状态：" + row["status"])
         # L1 环境守卫：Docker/工作区缺失时自动开始补齐，不把"环境没准备"留到图里炸
         env_gate()
-        threading.Thread(target=_exec_worker, args=(tid,), daemon=True).start()
-        return {"task_id": tid, "started": True, "stage": 2}
+        q = _enqueue(tid, "exec")
+        return {"task_id": tid, "started": True, "stage": 2, **q}
     env_gate()
-    threading.Thread(target=_run_worker, args=(tid,), daemon=True).start()
-    return {"task_id": tid, "started": True}
+    q = _enqueue(tid, "exec")
+    return {"task_id": tid, "started": True, **q}
 
 
 def _run_worker(tid: int) -> None:
@@ -310,6 +322,110 @@ def api_tasks(user: dict = Depends(current_user)):
            FROM test_tasks t JOIN projects p ON p.id = t.project_id
            ORDER BY t.id DESC""").fetchall()
     return [dict(r, progress=PROGRESS.get(r["status"], 0)) for r in rows]
+
+
+_TASK_ROW_SQL = """SELECT t.id, t.status, t.confirmed, t.two_stage, t.ai_reviewer,
+              t.requirement_text, t.error, t.created_at, t.updated_at, t.project_id,
+              p.name AS project_name, p.repo_url, p.primary_language,
+              (SELECT COUNT(*) FROM test_cases c
+                JOIN test_scripts sc ON sc.id = c.script_id WHERE sc.task_id = t.id) AS cases,
+              (SELECT r.coverage_line FROM test_reports r WHERE r.task_id = t.id
+                ORDER BY r.id DESC LIMIT 1) AS coverage
+       FROM test_tasks t JOIN projects p ON p.id = t.project_id"""
+
+
+@app.get("/api/tasks/page")
+def api_tasks_page(limit: int = 50, offset: int = 0, status: str = "", q: str = "",
+                   user: dict = Depends(current_user)):
+    """B3 分页任务列表（280+ 任务量级下全量返回会拖垮页面）。
+
+    status: 逗号分隔的多状态过滤（如 `running,ready_for_review`）；
+    q: 项目名/需求关键词（LIKE，参数化防注入）。
+    返回 {items, total, limit, offset, counts}；counts=各状态计数（筛选条数字用，不受分页影响）。
+    """
+    conn = get_conn()
+    limit = max(1, min(int(limit or 50), 500))
+    offset = max(0, int(offset or 0))
+    where, args = [], []
+    sts = [s.strip() for s in (status or "").split(",") if s.strip()]
+    if sts:
+        where.append(f"t.status IN ({','.join('?' * len(sts))})")
+        args += sts
+    if q.strip():
+        where.append("(p.name LIKE ? OR t.requirement_text LIKE ? OR CAST(t.id AS TEXT) = ?)")
+        like = f"%{q.strip()}%"
+        args += [like, like, q.strip()]
+    wsql = ("WHERE " + " AND ".join(where)) if where else ""
+    total = conn.execute(
+        f"SELECT COUNT(*) AS n FROM test_tasks t JOIN projects p ON p.id=t.project_id {wsql}",
+        args).fetchone()["n"]
+    rows = conn.execute(
+        _TASK_ROW_SQL + f" {wsql} ORDER BY t.id DESC LIMIT ? OFFSET ?",
+        args + [limit, offset]).fetchall()
+    counts = {r["status"]: r["n"] for r in conn.execute(
+        "SELECT status, COUNT(*) AS n FROM test_tasks GROUP BY status")}
+    return {"items": [dict(r, progress=PROGRESS.get(r["status"], 0)) for r in rows],
+            "total": total, "limit": limit, "offset": offset, "counts": counts}
+
+
+@app.get("/api/dashboard")
+def api_dashboard(user: dict = Depends(current_user)):
+    """V1 指挥台聚合（一次请求拿全，避免前端拉 280 行全量自己算）。"""
+    conn = get_conn()
+    counts = {r["status"]: r["n"] for r in conn.execute(
+        "SELECT status, COUNT(*) AS n FROM test_tasks GROUP BY status")}
+    total = sum(counts.values())
+    today = conn.execute(
+        "SELECT COUNT(*) AS n FROM test_tasks WHERE date(created_at)=date('now')").fetchone()["n"]
+    # 通过率：最近 30 个有评估轮次的任务（按任务均值，不按用例加权——口径与报告判决卡一致）
+    pr = conn.execute(
+        """SELECT AVG(rate) AS r FROM (
+             SELECT e.task_id, AVG(CASE WHEN e.passed+e.failed>0
+                    THEN e.passed*1.0/(e.passed+e.failed) ELSE NULL END) AS rate
+             FROM evaluation_rounds e WHERE e.level='L1' GROUP BY e.task_id
+             ORDER BY e.task_id DESC LIMIT 30)""").fetchone()["r"]
+    defects = conn.execute(
+        """SELECT COUNT(*) AS n FROM test_reports WHERE defects LIKE '%product_defect%'""").fetchone()["n"]
+    tok = conn.execute(
+        "SELECT COALESCE(SUM(total_tokens),0) AS t FROM llm_calls "
+        "WHERE date(created_at)=date('now')").fetchone()["t"]
+    # 在跑：准备阶段与执行阶段都算（前端据此显示实时执行卡）
+    running = [dict(r) for r in conn.execute(
+        _TASK_ROW_SQL + " WHERE t.status IN ('cloning','analyzing','generating',"
+                        " 'provisioning','running','reporting','queued') ORDER BY t.id DESC LIMIT 6")]
+    pending = [dict(r) for r in conn.execute(
+        _TASK_ROW_SQL + " WHERE t.status='ready_for_review' ORDER BY t.id DESC LIMIT 8")]
+    projects = [dict(r) for r in conn.execute(
+        """SELECT p.id, p.name, p.primary_language, COUNT(t.id) AS n,
+                  SUM(CASE WHEN t.status='done' THEN 1 ELSE 0 END) AS done,
+                  SUM(CASE WHEN t.status='failed' THEN 1 ELSE 0 END) AS failed,
+                  SUM(CASE WHEN t.status='ready_for_review' THEN 1 ELSE 0 END) AS review,
+                  SUM(CASE WHEN t.status IN ('cloning','analyzing','generating',
+                            'provisioning','running','reporting','queued') THEN 1 ELSE 0 END) AS active,
+                  MAX(t.updated_at) AS last
+           FROM projects p LEFT JOIN test_tasks t ON t.project_id=p.id
+           GROUP BY p.id HAVING n > 0 ORDER BY last DESC LIMIT 8""")]
+    feed = [dict(r) for r in conn.execute(
+        _TASK_ROW_SQL + " ORDER BY COALESCE(t.updated_at, t.created_at) DESC LIMIT 8")]
+    return {
+        "kpi": {"total": total, "today": today,
+                "pass_rate": round(pr, 3) if pr is not None else None,
+                "defects": defects, "tokens_today": tok,
+                "review": counts.get("ready_for_review", 0),
+                "active": sum(counts.get(s, 0) for s in
+                              ("cloning", "analyzing", "generating", "provisioning",
+                               "running", "reporting", "queued"))},
+        "counts": counts,
+        "running": running, "pending_review": pending,
+        "projects": projects, "feed": feed,
+    }
+
+
+@app.get("/api/queue")
+def api_queue(limit: int = 20, user: dict = Depends(current_user)):
+    """B1 执行队列状态（单 worker 串行；前端显示"排队中 N 个"）。"""
+    from ..store.queue import QueueWorker
+    return {"pending": QueueWorker.pending_count(), "items": QueueWorker.queue_snapshot(limit)}
 
 
 @app.get("/api/tasks/{tid}")
@@ -844,12 +960,12 @@ def api_batch_auto_run(body: dict, user: dict = Depends(staff)):
         elif row["status"] in ACTIVE:
             out.append({"task_id": tid, "started": False, "reason": "执行中"})
         elif row["status"] == "ready_for_review" and row["confirmed"] == 1:
-            threading.Thread(target=_exec_worker, args=(tid,), daemon=True).start()
+            _enqueue(tid, "exec")
             out.append({"task_id": tid, "started": True, "stage": 2})
         elif row["confirmed"] == 1:
             out.append({"task_id": tid, "started": False, "reason": f"状态 {row['status']} 无需代审"})
         else:
-            threading.Thread(target=_auto_worker, args=(tid,), daemon=True).start()
+            _enqueue(tid, "auto")
             out.append({"task_id": tid, "started": True, "stage": "auto"})
     return {"results": out}
 
@@ -996,4 +1112,10 @@ def _startup() -> None:
     db.init_db()
     auth.ensure_default_users()
     _sweep_orphan_containers()
+    # B1：启动执行队列 worker（单线程串行；重启把遗留 running 行标中断，queued 继续消费）
+    try:
+        from ..store.queue import start_worker
+        start_worker()
+    except Exception as e:      # noqa: BLE001 —— 队列起不来不阻断服务（单项下发仍可走旧路径）
+        log.error("执行队列启动失败: %s: %s", type(e).__name__, e)
     log.info("L1 服务就绪：http://127.0.0.1:8000（演示账号 admin/admin123 · dev/dev123 · caller/caller123）")
