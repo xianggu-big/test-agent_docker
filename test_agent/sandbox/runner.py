@@ -46,7 +46,7 @@ def _load_gitignore_spec(src: Path):
         return None
     lines = [ln for ln in gi.read_text(encoding="utf-8", errors="replace").splitlines()
              if ln.strip() and not ln.lstrip().startswith("#")]
-    return pathspec.GitIgnoreSpec.from_lines("gitignore", lines) if lines else None
+    return pathspec.GitIgnoreSpec.from_lines("gitwildmatch", lines) if lines else None
 
 
 def _dir_size(p: Path) -> int:
