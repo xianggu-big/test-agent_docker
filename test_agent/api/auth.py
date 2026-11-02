@@ -91,3 +91,25 @@ def register(username: str, password: str) -> dict | None:
     conn.close()
     record_event(username, "register", uid)
     return {"user_id": uid, "username": username, "role": "caller"}
+
+
+# ---------- 速率限制（上线安全审计实锤：登录无速率限制可被爆破） ----------
+import time as _time
+
+_ATTEMPTS: dict[str, list[float]] = {}   # key -> 时间戳窗口
+
+
+def rate_limit(key: str, limit: int, window_s: float) -> bool:
+    """滑动窗口限速（进程内存；多实例部署时换 Redis——见上线方案）。
+    超限返回 False。key 形如 'login:ip:1.2.3.4' / 'register:ip:…'。"""
+    now = _time.time()
+    bucket = [t for t in _ATTEMPTS.get(key, []) if now - t < window_s]
+    if len(bucket) >= limit:
+        _ATTEMPTS[key] = bucket
+        return False
+    bucket.append(now)
+    _ATTEMPTS[key] = bucket
+    if len(_ATTEMPTS) > 10_000:          # 防内存膨胀：过期清理（global 名重绑）
+        globals()["_ATTEMPTS"] = {k: v for k, v in _ATTEMPTS.items()
+                                  if v and now - v[-1] < window_s * 2}
+    return True

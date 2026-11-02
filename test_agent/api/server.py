@@ -139,8 +139,15 @@ def _task_or_404(conn, tid: int):
 
 # ---------- 认证与用户 ----------
 
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
 @app.post("/api/login")
-def api_login(body: dict):
+def api_login(body: dict, request: Request):
+    ip = _client_ip(request)
+    if not auth.rate_limit(f"login:{ip}", 20, 300):
+        raise HTTPException(429, "尝试过于频繁，请 5 分钟后再试")
     username = str(body.get("username", "")).strip()
     password = str(body.get("password", ""))
     if not username or not password:
@@ -162,8 +169,11 @@ def api_logout(request: Request, user: dict = Depends(current_user)):
 
 
 @app.post("/api/register")
-def api_register(body: dict):
-    """开放注册（任务 4）：默认 caller 角色。"""
+def api_register(body: dict, request: Request):
+    """开放注册（任务 4）：默认 caller 角色。每 IP 每小时 10 次（防刷库）。"""
+    ip = _client_ip(request)
+    if not auth.rate_limit(f"register:{ip}", 10, 3600):
+        raise HTTPException(429, "注册过于频繁，请稍后再试")
     result = auth.register(str(body.get("username", "")).strip(),
                            str(body.get("password", "")))
     if result is None:
@@ -216,16 +226,17 @@ def api_create_task(body: dict, user: dict = Depends(current_user)):  # 调用�
     ai_reviewer = str(body.get("ai_reviewer") or "off").strip()
     if ai_reviewer not in ("off", "hybrid", "auto"):
         raise HTTPException(422, "ai_reviewer 必须是 off/hybrid/auto")
-    conn = get_conn()
+    from ..store.db import write_conn
     # B2 项目归一：同一仓库/路径复用同一项目行（此前每次重跑都新建"项目"，
-    # 280 任务散在几十个单任务组里——列表分组失去意义）
+    # 280 任务散在几十个单任务组里——列表分组失去意义）；
+    # 写连接用 write_conn（安全审计实锤：连接不 close 时 500 悬挂持锁雪崩）
     from ..store.projects import ensure_project
-    pid, name, _created = ensure_project(conn, user["user_id"], repo_url)
-    tid = conn.execute(
-        """INSERT INTO test_tasks(project_id, user_id, requirement_text, auto_prepare,
-                                  two_stage, ai_reviewer) VALUES (?,?,?,?,?,?)""",
-        (pid, user["user_id"], requirement, auto_prepare, two_stage, ai_reviewer)).lastrowid
-    conn.commit()
+    with write_conn() as conn:
+        pid, name, _created = ensure_project(conn, user["user_id"], repo_url)
+        tid = conn.execute(
+            """INSERT INTO test_tasks(project_id, user_id, requirement_text, auto_prepare,
+                                      two_stage, ai_reviewer) VALUES (?,?,?,?,?,?)""",
+            (pid, user["user_id"], requirement, auto_prepare, two_stage, ai_reviewer)).lastrowid
     return {"task_id": tid, "project_name": name}
 
 

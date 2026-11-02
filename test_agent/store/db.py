@@ -17,7 +17,7 @@ def get_conn(db_path: Path | None = None) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA busy_timeout = 15000")   # 并发写雪崩实锤后上调（安全审计 20 并发创建 19 locked）
     conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
@@ -108,5 +108,24 @@ def init_db(db_path: Path | None = None) -> int:
             "SELECT COUNT(*) AS n FROM sqlite_master "
             "WHERE type='table' AND name != 'sqlite_sequence'"
         ).fetchone()["n"]
+    finally:
+        conn.close()
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def write_conn(db_path: Path | None = None):
+    """写端点专用连接（安全审计实锤：api_create_task 等写端点不 close，
+    500 时未提交事务悬挂持锁 → 并发创建 19/20 database is locked 雪崩）。
+    用法：with write_conn() as conn: ...（异常自动 rollback+close）。"""
+    conn = get_conn(db_path)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
