@@ -622,6 +622,12 @@ def make_nodes(deps: GraphDeps) -> dict:
         msg(state["session_id"], "assistant",
             f"[evaluate 第{round_no}轮] 通过{passed} 失败{failed} 跳过{skipped} "
             f"覆盖率{coverage if coverage is not None else 'N/A'} 指纹{fp[:8] or '无'} → {verdict}（{reason}）")
+        # 0/0 轮根因留痕（853刷题系统实锤：jest 输出解析不到时 0/0/N/A，用户只看到
+        # "环境类失败"却不知道 jest 到底报了什么）——把原始输出尾部写进日志
+        if passed == 0 and failed == 0:
+            tail = (stdout or stderr or "")[-400:].strip()
+            msg(state["session_id"], "assistant",
+                "[evaluate·raw] 0 用例 0 失败（解析不到测试计数），执行输出尾部：" + (tail or "（空输出）"))
         # per-case 失败明细进日志（/defects API 与归因面板的数据源——此前从未写入，
         # F18-c 的 FAILED 行提取一直为空；Python/JS 同口径：nodeid - 错误类: 失败消息摘要）
         for nid in repair.failing_nodeids(stdout)[:20]:

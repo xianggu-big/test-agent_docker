@@ -37,7 +37,7 @@ GRID = {
     "L2E1": {"L2_BLACKBOX_ENABLED": False},     # E6：无黑盒轨（契约/需求用例跳过，只留顺序场景）
     "L2E2": {"L2_WHITEBOX_ENABLED": False},     # E6：无白盒轨（调用图/顺序场景跳过，只留契约用例）
     "L2E3": {"TRACE_ENABLED": False},           # E6：无跨级追踪（溯源建链关）
-    "X8": {"FINGERPRINT_BREAKER": 3},           # 熔断阈值对照：3 轮同指纹（用户 2026-10-31 拍板"按建议来"；三角色 23/30 在第 2 轮熔断的对照）
+    "X8": {"FINGERPRINT_BREAKER": 4},           # 熔断阈值对照（默认 3，2026-11-02 起；历史 2 阈值数据见 D8 聚合表）           # 熔断阈值对照：3 轮同指纹（用户 2026-10-31 拍板"按建议来"；三角色 23/30 在第 2 轮熔断的对照）
     # —— 三源知识注入消融三格（docs/领域知识注入调研-20261031.md；df8d573 声称的 XC 格
     # 实际缺失，本轮补齐——提交信息与实现不符的第 2 例，引用前先 grep 实锤）——
     "XC": {"DOCSTRING_GROUNDING_ENABLED": True},  # C源：docstring grounding（预期冲突以文档为准）

@@ -147,7 +147,9 @@ def test_decide_product_defect_stops_immediately_as_witness():
     assert "证人" in reason or "疑似产品缺陷" in reason
 
 
-def test_decide_breaker_on_repeated_case_defect_fingerprint():
+def test_decide_breaker_on_repeated_case_defect_fingerprint(monkeypatch):
+    from test_agent import config as _cfg
+    monkeypatch.setattr(_cfg, "FINGERPRINT_BREAKER", 2)   # 同上：钉阈值
     """指纹熔断对用例自身缺陷生效：同指纹出现 2 次即停。"""
     fp = "abc123"
     verdict, kind, reason = _decide(exit_code=2, stderr=COLLECT_ERROR_STDERR,
@@ -156,7 +158,9 @@ def test_decide_breaker_on_repeated_case_defect_fingerprint():
     assert "熔断" in reason
 
 
-def test_decide_breaker_on_repeated_env_fingerprint():
+def test_decide_breaker_on_repeated_env_fingerprint(monkeypatch):
+    from test_agent import config as _cfg
+    monkeypatch.setattr(_cfg, "FINGERPRINT_BREAKER", 2)   # 阈值语义单测：显式钉阈值不随默认漂移
     fp = "e999"
     verdict, _, reason = _decide(exit_code=4, stderr="pipeline crash",
                                  fingerprints=[fp], fingerprint=fp)
@@ -243,8 +247,10 @@ def test_decide_v8_budget_exhausted_stops_with_witness():
     assert verdict == "stop" and "预算" in reason and "证人" in reason
 
 
-def test_decide_v8_new_non_witness_failure_breaks_normally():
+def test_decide_v8_new_non_witness_failure_breaks_normally(monkeypatch):
     """证人不豁免新失败：非证人同指纹重复仍熔断（防真打转被 V8 掩护）。"""
+    from test_agent import config as _cfg
+    monkeypatch.setattr(_cfg, "FINGERPRINT_BREAKER", 2)   # 阈值语义显式钉住，不随默认漂移
     stdout = ("FAILED test_calc.py::test_div_wrong_expectation - AssertionError: assert 2.0 == 5\n"
               "FAILED t.py::test_new - TypeError: boom\n")
     fp = repair.fingerprint_of(stdout, "",

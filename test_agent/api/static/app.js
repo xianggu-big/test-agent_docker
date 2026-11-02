@@ -168,9 +168,26 @@ function decisionCard(d) {
 
 /* 评审页任务选择器（用户反馈：只显示最新一个、多任务并发切不了）：
    下拉列全部任务（待审查排最前并标★），待审查快捷胶囊一键切换；当前任务高亮。 */
+// 任务1：下拉按两阶段流水线排序——阶段二执行中 > 待审查 > 阶段一执行中 > 待下发 > 其他终态，
+// 组内按最近活动倒序（对应 stepper 从左到右、从上到下的推进方向）
+function orderTasksByPipeline(tasks) {
+  const GROUP = { provisioning: 0, running: 0, reporting: 0,          // 阶段二执行中
+                  ready_for_review: 1,                                // 待审查
+                  cloning: 2, analyzing: 2, generating: 2,            // 阶段一执行中
+                  queued: 3 };                                        // 待下发
+  const key = t => [GROUP[t.status] ?? 4, String(t.updated_at || t.created_at || "")].slice(0, 1)
+    .concat([]); // 占位
+  return [...tasks].sort((a, b) => {
+    const ga = GROUP[a.status] ?? 4, gb = GROUP[b.status] ?? 4;
+    if (ga !== gb) return ga - gb;
+    return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""));
+  });
+}
+
 async function renderReviewPicker(currentTid) {
   let tasks = [];
   try { tasks = await api("/tasks"); } catch (_) { return []; }
+  tasks = orderTasksByPipeline(tasks);
   const pending = tasks.filter(t => t.status === "ready_for_review");
   const others = tasks.filter(t => t.status !== "ready_for_review");
   const sel = $("rv-task");
@@ -473,7 +490,7 @@ async function pollNewCases(tid) {
 async function refreshWorkbench() {
   renderStepper("stepper-wb", 2);
   const sel = $("wb-task");
-  const tasks = await api("/tasks");
+  const tasks = orderTasksByPipeline(await api("/tasks"));
   sel.innerHTML = `<option value="">— 选择任务 —</option>` +
     tasks.map(t => `<option value="${t.id}">#${t.id} ${esc(t.project_name)}（${STATUS_CN[t.status]}）</option>`).join("");
   sel.onchange = loadWorkbench;

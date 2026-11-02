@@ -369,3 +369,17 @@ textarea { resize: vertical; }
 .t-ops a { font-size: 11.5px; color: var(--primary); font-weight: 700; text-decoration: none; }
 .t-ops a.mut { color: var(--muted); font-weight: 500; }
 .t-pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; font-size: 11.5px; color: var(--muted); }
+
+/* ---------- 动效层（任务12：轻量，纯 CSS，无 JS 开销；prefers-reduced-motion 尊重系统设置） ---------- */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes popIn { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: none; } }
+.page { animation: fadeUp .28s ease both; }
+.card, .pg-group { transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
+.card:hover, .pg-group:hover { box-shadow: var(--shadow-lift); }
+.verdict { animation: popIn .3s ease both; }
+.step.active .n { animation: stepPulse 1.6s ease-in-out infinite; }
+@keyframes stepPulse { 0%,100% { box-shadow: 0 0 0 3px rgba(16,185,129,.25); } 50% { box-shadow: 0 0 0 7px rgba(16,185,129,.08); } }
+.btn { will-change: transform; }
+.pg-task td { transition: background .1s; }
+details.v-details, details[open] { animation: fadeUp .2s ease both; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

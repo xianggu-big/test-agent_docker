@@ -48,7 +48,8 @@ DEFAULT_JOB_TIMEOUT_S = 600          # 单次容器任务超时（秒）
 
 # —— R-Loop 补测闭环预算（第 4 步启用） ——
 MAX_REPAIR_ROUNDS = 3                # 同一模块最多补测轮数
-FINGERPRINT_BREAKER = 2              # 相同失败指纹出现次数 >= 此值即熔断
+FINGERPRINT_BREAKER = 3              # 相同失败指纹出现次数 >= 此值即熔断（2026-11-02 用户改：
+                                     # 三次再熔断，多一轮自愈；X8 对照格同步调 4）
 COVERAGE_TARGET = 0.70               # 准出标准：行覆盖率阈值（分析阶段冻结进任务）
 
 # —— ②定向修复策略（调研报告 §8 行2/行3；三链路对比见 benchmarks/compare_pipelines.py） ——
