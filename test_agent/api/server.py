@@ -354,7 +354,7 @@ def api_tasks(user: dict = Depends(current_user)):
     conn = get_conn()
     rows = conn.execute(
         """SELECT t.id, t.status, t.confirmed, t.two_stage, t.ai_reviewer,
-                  t.requirement_text, t.error, t.created_at,
+                  t.requirement_text, t.error, t.created_at, t.updated_at,
                   p.name AS project_name, p.repo_url, p.primary_language,
                   (SELECT COUNT(*) FROM test_cases c
                     JOIN test_scripts sc ON sc.id = c.script_id WHERE sc.task_id = t.id) AS cases,

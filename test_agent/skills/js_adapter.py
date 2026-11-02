@@ -125,6 +125,11 @@ def jest_json_to_pytest_text(stdout: str, stderr: str = "") -> str:
         out.extend(cov_rows)
         pct = round((tot_s - tot_m) / tot_s * 100) if tot_s else 0
         out.append(f"{'TOTAL':<28}{tot_s:>8}{tot_m:>7}{pct:>6}%")
+    # 套件崩溃计入 failed（853刷题系统实锤：无工程文件的散装 JS 套件 require 崩溃，
+    # 0 passed/0 failed 只有 errors 行 → evaluate 判"没解析到"走 repair_env 循环熔断；
+    # 计入 failed 后归因走 case_defect——生成用例与项目模块系统不匹配是用例侧问题）
+    if errors and failed == 0:
+        failed = errors
     parts = []
     if failed:
         parts.append(f"{failed} failed")
