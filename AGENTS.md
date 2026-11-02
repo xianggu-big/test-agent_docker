@@ -1,5 +1,8 @@
 # 毕设：基于大模型 Agent 的黑盒白盒测试研究（题目已定稿，导师已同意四级方向）
 
+- **✅ 晚间任务包 19 项（2026-11-03，报告=docs/晚间任务包报告-20261103.md，push 至 9c7573a）：**批1=下拉按流水线排序/0轮根因留痕/删顶栏导航/熔断2→3（X8=4+单测钉阈值）/CSS动效层；批2=开放注册+个人中心（login_events 第39表+login/logout/register/failed 埋点+/me/usage+退出登录，表数27）；批3=GitHub 四语言真机（tomli auto 五轮 D2 126决策/flat hybrid 停等/Java+Go Tier3 done 30 草稿，token 4.2元超单项目线如实）修4真bug=队列单双阶段分流+prep钩子迁入worker（B1队列化丢钩子）+get_conn遮蔽+插入用例按语言校验（退格坑）；批4=报告含 DB 选型（本地SQLite/云端PG）/黑盒白盒缺口调研（pairwise·断言强化·self-consistency 等5向）/开源对比（EvoSuite=Java捷径+语言适配器注册表）/Redis 四设想/OCR-VLM 评估（值得做1-1.5天）/UX 五条建议；回归 467 绿守卫 136；**遗留**=JS imported 文件名 pytest 化（jest 不收集）/286 hybrid 新钩子未真机复验/D1 仅批量入口触发
+
+
 - **✅ 增补下拉数据源收尾（2026-11-02，f0ea38a）：**用户五连反馈对账——①增补用例看不到=昨晚会话前端「本轮新增」面板已做但 **gen_tests summary 缺 cases 字段=面板永远空**（前端先行后端断头），本轮补 summary.cases 明细+契约单测（fake-LLM 走 make_chat 退避形态）②「去看执行进度」点了没反应=taskdetail 不在 PAGES 被昨日会话修（本轮 Playwright 复验真实可见）③实时用例执行/④失败诊断空态/⑤环境自适应 recipe 均已由昨日会话落地；晚间六模块回归脚本 24/25（C5=js_adapter 贪婪正则被前缀 `{}` 带偏→_extract_trailing_json raw_decode 最长匹配已修）；**push 仍失败**：代理在 URL 级配置（http.https://github.com.proxy=127.0.0.1:7890，-c http.proxy= 清不掉）且 7890 未开=**需用户开 Clash 后 git push**（直连 reset）；回归 **467 绿**/守卫 136；累计 38 commit 待 push
 
 
