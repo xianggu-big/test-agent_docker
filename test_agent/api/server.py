@@ -771,7 +771,7 @@ def api_cases(tid: int, all: bool = False, user: dict = Depends(current_user)):
                 for sc in out_scripts for c in sc["cases"]]
         return {"scripts": out_scripts, "cases": flat}
     script = conn.execute(
-        "SELECT id, framework, version, content FROM test_scripts WHERE task_id=? "
+        "SELECT id, framework, version, filename, content FROM test_scripts WHERE task_id=? "
         "ORDER BY version DESC LIMIT 1", (tid,)).fetchone()
     if script is None:
         return {"script": None, "cases": []}
