@@ -970,6 +970,11 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
 
     summary = {"generated": len(data["cases"]), "file": fname, "script_id": script_id,
                "static_rejected": rejected,
+               # 用例明细（对话增补结果下拉的数据源）：每条是什么、验证什么、依据什么
+               "cases": [{"name": c.get("name"), "method": c.get("method"),
+                          "expected": (c.get("expected") or "")[:160],
+                          "input": (c.get("input") or "")[:120],
+                          "expected_basis": c.get("expected_basis")} for c in data["cases"]],
                "methods": [c.get("method") for c in data["cases"]],
                "template_rejected": template_rejected,
                "assertion": assertion_stats, "cond_feedback": cond_feedback,

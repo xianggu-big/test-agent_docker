@@ -285,3 +285,49 @@ def test_toggle_ai_case_without_workspace_defers_file(task_env):
     resp = server.api_toggle_case(case_id, None)
     assert resp["enabled"] == 0 and resp.get("file_deferred") is True
     assert conn.execute("SELECT enabled FROM test_cases WHERE id=?", (case_id,)).fetchone()["enabled"] == 0
+
+
+def test_feedback_summary_carries_case_details(tmp_path, monkeypatch):
+    """增补结果下拉的数据源契约（晚间用户实测：前端「本轮新增」面板消费 b.cases，
+    但 gen_tests summary 曾无此字段=面板永远空）。fake-LLM 走通 generate_tests，
+    断言 summary.cases 每条含 name/method/expected/input/expected_basis。"""
+    import json as _json
+    from types import SimpleNamespace
+    from test_agent.skills import gen_tests as gt
+
+    class FakeLLM:
+        def invoke(self, messages):
+            return SimpleNamespace(content=_json.dumps({"imports": "from calc import add",
+                "cases": [{"name": "test_add_补边界", "method": "边界值分析",
+                           "input": "add(0,1)", "expected": "返回 1",
+                           "expected_basis": "用户反馈",
+                           "code": "def test_add_补边界():\n    assert add(0, 1) == 1"}]},
+                ensure_ascii=False), usage_metadata=None)
+    class RobustFake:                     # B5 退避包装形态：.invoke 可调
+        def __init__(self, inner): self.inner = inner
+        def invoke(self, messages): return self.inner.invoke(messages)
+    monkeypatch.setattr(gt, "make_chat", lambda **kw: RobustFake(FakeLLM()))
+
+    class FakeRunner:                       # client 抛错 → collect 闸顺延（阶段一出题形态）
+        @property
+        def client(self):
+            raise RuntimeError("no docker in test")
+
+    ws = tmp_path / "ws"; ws.mkdir()
+    (ws / "calc.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
+    db.init_db()
+    conn = db.get_conn()
+    uid = conn.execute("INSERT INTO users(username, password_hash) VALUES ('u','x')").lastrowid
+    conn.execute("INSERT INTO projects(user_id, repo_url, name, primary_language) VALUES (1, 'r', 'n', 'python')")
+    tid = conn.execute("INSERT INTO test_tasks(project_id, user_id, confirmed) VALUES (1, ?, 1)", (uid,)).lastrowid
+    conn.commit()
+    out = _json.loads(gt.generate_tests("k", {"workspace": str(ws), "requirement": "需求",
+                                              "module_hint": "python", "container_name": "none",
+                                              "round_no": 1, "feedback": "补一条边界",
+                                              "fb_no": 1, "version": 101}, tid, FakeRunner()))
+    assert out["generated"] == 1 and len(out["cases"]) == 1
+    case = out["cases"][0]
+    assert case["name"].startswith("test_") and case["method"] == "边界值分析"
+    assert case["expected"] == "返回 1" and case["expected_basis"] == "用户反馈" and "input" in case
+    conn.close()
