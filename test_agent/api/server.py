@@ -1192,11 +1192,31 @@ def _sweep_orphan_containers() -> None:
         log.warning("孤儿容器清扫跳过: %s", e)
 
 
+def _sweep_orphan_active_tasks() -> None:
+    """服务重启清掉 worker 线程后，ACTIVE 态任务会变砖（348 实锤：卡 cloning 无法确认，
+    要 admin 手动解卡）——启动时自动标记 failed 并给出重跑指引（ready_for_review 是
+    合法停等态，不清扫）。"""
+    conn = get_conn()
+    n = 0
+    for r in conn.execute(
+            f"SELECT id FROM test_tasks WHERE status IN ({','.join('?' * len(ACTIVE))})",
+            tuple(ACTIVE)).fetchall():
+        conn.execute(
+            "UPDATE test_tasks SET status='failed', error='服务重启导致任务中断——请重新确认（会自动重跑对应阶段）', "
+            "updated_at=datetime('now') WHERE id=?", (r["id"],))
+        n += 1
+    conn.commit()
+    conn.close()
+    if n:
+        log.warning("启动清扫：%d 个 ACTIVE 态孤儿任务已标记 failed（服务重启变砖防护）", n)
+
+
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
     auth.ensure_default_users()
     _sweep_orphan_containers()
+    _sweep_orphan_active_tasks()
     # B1：启动执行队列 worker（单线程串行；重启把遗留 running 行标中断，queued 继续消费）
     try:
         from ..store.queue import start_worker

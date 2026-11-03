@@ -331,3 +331,22 @@ def test_feedback_summary_carries_case_details(tmp_path, monkeypatch):
     assert case["name"].startswith("test_") and case["method"] == "边界值分析"
     assert case["expected"] == "返回 1" and case["expected_basis"] == "用户反馈" and "input" in case
     conn.close()
+
+
+def test_startup_sweeps_orphan_active_tasks(tmp_path, monkeypatch):
+    """启动清扫（348 变砖实锤）：重启后 ACTIVE 态任务自动 failed+重跑指引；ready_for_review 不动。"""
+    from test_agent.api import server
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
+    db.init_db()
+    conn = db.get_conn()
+    uid = conn.execute("INSERT INTO users(username, password_hash) VALUES ('u','x')").lastrowid
+    conn.execute("INSERT INTO projects(user_id, repo_url, name) VALUES (?, 'r', 'n')", (uid,))
+    for i, st in enumerate(("cloning", "running", "ready_for_review", "done")):
+        conn.execute("INSERT INTO test_tasks(project_id, user_id, status) VALUES (1, ?, ?)", (uid, st))
+    conn.commit()
+    server._sweep_orphan_active_tasks()
+    states = {r["status"] for r in conn.execute("SELECT status FROM test_tasks").fetchall()}
+    assert "cloning" not in states and "running" not in states          # ACTIVE 已清扫
+    assert "ready_for_review" in states and "done" in states            # 停等/终态不动
+    assert conn.execute("SELECT COUNT(*) AS n FROM test_tasks WHERE status='failed'").fetchone()["n"] == 2
+    conn.close()
