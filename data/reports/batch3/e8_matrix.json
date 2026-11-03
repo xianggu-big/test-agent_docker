@@ -1,0 +1,37 @@
+{
+ "e8_matrix": {
+  "task_id": 365,
+  "legs": [
+   {
+    "level": "L1",
+    "status": "done",
+    "verdict": "stop",
+    "summary": {
+     "passed": 31,
+     "failed": 7,
+     "coverage_line": 0.95,
+     "verdict": "stop"
+    },
+    "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+   },
+   {
+    "level": "L2",
+    "status": "failed",
+    "verdict": "stop",
+    "summary": {
+     "passed": 7,
+     "failed": 8,
+     "requirement_failures": 2,
+     "contract_violations": 6,
+     "endpoints_total": 6,
+     "endpoints_covered": 2
+    },
+    "stop_reason": "疑似需求级缺陷：需求断言失败 2 条保留为证人（不回炉迁就，人工定性）"
+   }
+  ],
+  "l2_contract_violations": 6,
+  "relay": "L1→L2（v1 深度支持两级；L3/L4 半自动腿在 LEVELS_L3/L4_ENABLED 开启后接入）",
+  "target": "corpus003",
+  "json": "e8_r1.json"
+ }
+}

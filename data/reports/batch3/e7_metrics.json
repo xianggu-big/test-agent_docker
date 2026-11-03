@@ -1,0 +1,18 @@
+{
+ "e7_hit_rate": {
+  "rates": [
+   0.6,
+   0.4,
+   0.6
+  ],
+  "mean": 0.5333,
+  "std": 0.1155,
+  "n": 3,
+  "method": "答案键命中率（分母=defects_real 真缺陷，decoy 已在生成侧剔除；details 交叉核验通过）",
+  "source": [
+   "e7_task_362.json",
+   "e7_task_363.json",
+   "e7_task_364.json"
+  ]
+ }
+}

@@ -1,0 +1,41 @@
+{
+ "cell": "L2E2",
+ "task_id": 360,
+ "verdict": "failed",
+ "legs": [
+  {
+   "level": "L1",
+   "status": "done",
+   "verdict": "stop",
+   "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+  },
+  {
+   "level": "L2",
+   "status": "failed",
+   "verdict": "stop",
+   "stop_reason": "疑似需求级缺陷：需求断言失败 2 条保留为证人（不回炉迁就，人工定性）"
+  }
+ ],
+ "rounds": [
+  {
+   "round_no": 1,
+   "passed": 34,
+   "failed": 9,
+   "skipped": 0,
+   "coverage_line": 0.96,
+   "verdict": "stop",
+   "failure_kind": "product_defect"
+  },
+  {
+   "round_no": 1,
+   "passed": 6,
+   "failed": 7,
+   "skipped": 0,
+   "coverage_line": null,
+   "verdict": "stop",
+   "failure_kind": "product_defect"
+  }
+ ],
+ "relay_real": true,
+ "note": "levels 接力修复后重跑（run_task_levels L1→L2），对照单阶段 356 见 N2"
+}

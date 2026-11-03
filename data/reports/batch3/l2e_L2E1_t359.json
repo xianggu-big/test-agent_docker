@@ -1,0 +1,41 @@
+{
+ "cell": "L2E1",
+ "task_id": 359,
+ "verdict": "failed",
+ "legs": [
+  {
+   "level": "L1",
+   "status": "done",
+   "verdict": "stop",
+   "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+  },
+  {
+   "level": "L2",
+   "status": "failed",
+   "verdict": "stop",
+   "stop_reason": "无可执行用例（pytest exit=5，收集/环境失败）：容器内测试未真正运行，无法判定契约语义（诚实降级）"
+  }
+ ],
+ "rounds": [
+  {
+   "round_no": 1,
+   "passed": 13,
+   "failed": 6,
+   "skipped": 0,
+   "coverage_line": 0.96,
+   "verdict": "stop",
+   "failure_kind": "product_defect"
+  },
+  {
+   "round_no": 1,
+   "passed": 0,
+   "failed": 0,
+   "skipped": 0,
+   "coverage_line": null,
+   "verdict": "stop",
+   "failure_kind": "none"
+  }
+ ],
+ "relay_real": true,
+ "note": "levels 接力修复后重跑（run_task_levels L1→L2），对照单阶段 356 见 N2"
+}
