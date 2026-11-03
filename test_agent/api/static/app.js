@@ -562,21 +562,43 @@ function renderWbPlan(rtm, detail, targetId = "wb-plan-body") {
     if (c.steps && /^(GET|POST|PUT|DELETE|PATCH)\s/.test(c.steps)) tg.push("API " + c.steps);
     nameTargets[c.name] = tg;
   });
+  // 每条条件=一行可折叠条（用户反馈：182 条全铺开太长）——标题行常显
+  // （条件文本+覆盖徽章+用例数），用例明细默认收起，点行展开/再点收起（像任务列表分组）
+  const PLAN_COLLAPSED = (window._planCollapsed ||= new Set());   // 跨渲染粘性：重渲染不丢展开状态
   let rows = "";
-  (rtm.matrix || []).forEach(r => {
-    const casesHtml = (r.cases || []).length
-      ? r.cases.map(n => {
-          const tg = (nameTargets[n] || []).map(t => `<code>${esc(t)}</code>`).join(" ");
-          return `<div style="margin:3px 0 3px 18px"><span class="badge badge-queued" style="font-size:10px;padding:1px 6px">用例</span> <code>${esc(n)}</code>`
+  (rtm.matrix || []).forEach((r, idx) => {
+    const n = (r.cases || []).length;
+    const collapsed = PLAN_COLLAPSED.has(idx);
+    const casesHtml = n
+      ? r.cases.map(cn => {
+          const tg = (nameTargets[cn] || []).map(t => `<code>${esc(t)}</code>`).join(" ");
+          return `<div style="margin:3px 0 3px 22px"><span class="badge badge-queued" style="font-size:10px;padding:1px 6px">用例</span> <code>${esc(cn)}</code>`
             + (tg ? ` <span class="hint">→ 目标：${tg}</span>` : "") + "</div>";
         }).join("")
-      : '<div style="margin:3px 0 3px 18px"><span class="badge badge-fail" style="font-size:10px;padding:1px 6px">缺口</span> <span class="hint">无用例覆盖——下发执行后 Agent 优先为它生成用例</span></div>';
-    rows += `<div style="padding:7px 0;border-bottom:1px dashed var(--line)">`
-      + `<b style="font-weight:500">${esc(r.condition || "")}</b> `
-      + `<span class="badge ${r.status === "covered" ? "badge-ok" : "badge-fail"}" style="font-size:10px;padding:1px 6px">${r.status === "covered" ? "已覆盖" : "缺口"}</span>${casesHtml}</div>`;
+      : '<div style="margin:3px 0 3px 22px"><span class="badge badge-fail" style="font-size:10px;padding:1px 6px">缺口</span> <span class="hint">无用例覆盖——下发执行后 Agent 优先为它生成用例</span></div>';
+    const headCls = r.status === "covered" ? "badge-ok" : "badge-fail";
+    const head = `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">`
+      + `<b style="font-weight:500">${esc((r.condition || "").slice(0, 90))}${(r.condition || "").length > 90 ? "…" : ""}</b></span>`
+      + `<span class="badge ${headCls}" style="font-size:10px;padding:1px 6px">${r.status === "covered" ? "已覆盖" : "缺口"}</span>`
+      + `<span class="hint" style="margin:0;white-space:nowrap">${n} 条用例 ${collapsed ? "▸" : "▾"}</span>`;
+    rows += `<div style="border-bottom:1px dashed var(--line)">`
+      + `<div data-plan-idx="${idx}" style="display:flex;align-items:center;gap:10px;padding:7px 4px;cursor:pointer"`
+      + ` onclick="togglePlanRow(${idx}, this.parentElement)" title="点击展开/收起用例明细">${head}</div>`
+      + `<div class="plan-cases" style="display:${collapsed ? "none" : "block"};padding-bottom:${n ? 7 : 7}px">${casesHtml}</div></div>`;
   });
-  box.innerHTML = `<div class="hint" style="margin-bottom:6px">需求共拆解 <b>${rtm.conditions_total}</b> 条测试条件，已覆盖 <b>${rtm.matrix.filter(x => x.status === "covered").length}</b> 条（映射方式：${src}）。"
-    + "每条用例标注了它测的目标函数——这就是"你的需求 ↔ 用例 ↔ 脚本目标"的对应关系。</div>${rows}`;
+  const coveredN = rtm.matrix.filter(x => x.status === "covered").length;
+  box.innerHTML = `<div class="hint" style="margin-bottom:6px">需求共拆解 <b>${rtm.conditions_total}</b> 条测试条件，已覆盖 <b>${coveredN}</b> 条（映射方式：${src}）。`
+    + `每条条件一行——<b>点行展开/收起用例明细</b>；每条用例标注它测的目标函数。</div>${rows}`;
+}
+
+function togglePlanRow(idx, rowWrap) {
+  const body = rowWrap.querySelector(".plan-cases");
+  const open = body.style.display !== "none";
+  body.style.display = open ? "none" : "block";
+  const set = (window._planCollapsed ||= new Set());
+  open ? set.add(idx) : set.delete(idx);
+  const counter = rowWrap.querySelector(".hint:last-child");
+  if (counter) counter.textContent = counter.textContent.replace(/[▸▾]$/, open ? "▸" : "▾");
 }
 
 async function loadWorkbench() {
