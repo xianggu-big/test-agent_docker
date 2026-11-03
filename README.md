@@ -40,6 +40,7 @@ L5 数据    store/ 22 张表 SQLite（WAL + 外键 + 幂等迁移）：docs/lay
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
 python scripts/build_images.py            # 预构建沙箱镜像（首次约 2 分钟）
+# 回归基线数字不手写：`python scripts/module_check.py`（守卫+完成度）与 `python -m pytest -q` 为唯一真源
 set DEEPSEEK_API_KEY=sk-...               # LLM Key（无 Key 时全链路诚实降级，仍可跑）
 
 uvicorn test_agent.api.server:app --host 127.0.0.1 --port 8000

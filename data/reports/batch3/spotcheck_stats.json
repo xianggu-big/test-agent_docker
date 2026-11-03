@@ -1,0 +1,10 @@
+{
+ "spotcheck": {
+  "uphold": 21,
+  "override": 2
+ },
+ "override_rate": 0.087,
+ "threshold": 0.3,
+ "verdict": "声明成立（推翻率 9% < 30% 阈值，n=23）",
+ "note": "F2（七维度镜头1）：AI 代审可靠性首次有了自己的数据——同意 21/推翻 2"
+}
