@@ -248,16 +248,40 @@ def api_confirm(tid: int, user: dict = Depends(staff)):
     row = _task_or_404(conn, tid)
     if row["status"] in ACTIVE:
         raise HTTPException(409, "任务执行中，禁止变更确认状态")
-    conn.execute(
-        "UPDATE test_tasks SET confirmed=1, confirmed_by=?, confirmed_at=datetime('now') WHERE id=?",
-        (user["user_id"], tid))
-    conn.commit()
+    # A3（必做项工作包）：D1 准入代审扩展到单任务入口——auto 任务确认时先走 AI 意见书，
+    # approve 才置 confirmed_by=agent:reviewer-*；reject/fail-closed 停在未确认交人工
+    d1_done = False
+    if row["ai_reviewer"] == "auto" and row["confirmed"] != 1:
+        from ..skills.ai_reviewer import reviewer_llm, run_d1_review
+        d1 = None
+        try:
+            d1 = run_d1_review(reviewer_llm(), conn, tid,
+                               row["requirement_text"] or "",
+                               conn.execute("SELECT repo_url FROM projects WHERE id=?",
+                                            (row["project_id"],)).fetchone()["repo_url"])
+        except Exception as e:  # noqa: BLE001 —— D1 失败 fail-closed 停等人工
+            log.warning("单任务 D1 代审失败 task=%s: %s: %s", tid, type(e).__name__, e)
+        if d1 is None or d1["decision"] != "approve":
+            auth.record_event(user["username"], "failed", user["user_id"])
+            raise HTTPException(409, "D1 准入代审未通过（" +
+                                (d1["reasoning"][:150] if d1 else "代审不可用/输出不可解析") +
+                                "）——任务保持未确认，人工复核后可再次确认")
+        conn.execute(
+            "UPDATE test_tasks SET confirmed=1, confirmed_by=?, confirmed_at=datetime('now') WHERE id=?",
+            (f"agent:reviewer-{tid}-d1", tid))
+        conn.commit()
+        d1_done = True
+    else:
+        conn.execute(
+            "UPDATE test_tasks SET confirmed=1, confirmed_by=?, confirmed_at=datetime('now') WHERE id=?",
+            (user["user_id"], tid))
+        conn.commit()
     started = False
     if row["two_stage"] == 1 and row["status"] not in ("ready_for_review",):
         # 阶段一入队（hybrid/off：跑完停等人工；auto：停等点由代审接管——见 _prep_worker）
         _enqueue(tid, "prep")
         started = True
-    return {"task_id": tid, "confirmed": 1, "stage1_started": started}
+    return {"task_id": tid, "confirmed": 1, "stage1_started": started, "d1_by_ai": d1_done}
 
 
 def _enqueue(tid: int, kind: str) -> dict:

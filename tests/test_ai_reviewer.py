@@ -255,3 +255,70 @@ def test_token_budget_exceeded(tmp_path, monkeypatch):
     conn.commit()
     assert ar.token_budget_exceeded(conn, tid) is True
     conn.close()
+
+
+def test_confirm_endpoint_runs_d1_for_auto(tmp_path, monkeypatch):
+    """A3（必做项工作包）：auto 任务单任务确认走 D1——approve 置 confirmed_by=agent:reviewer-*，
+    reject 409 且保持未确认；off 任务不触发 D1（行为不变）。"""
+    import json as _json
+    from types import SimpleNamespace
+    from test_agent.skills import ai_reviewer as ar
+    from test_agent.api import server
+    import fastapi
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
+    db.init_db()
+    conn = db.get_conn()
+    uid = conn.execute("INSERT INTO users(username, password_hash) VALUES ('u','x')").lastrowid
+    conn.execute("INSERT INTO projects(user_id, repo_url, name, primary_language) VALUES (?, 'r', 'n', 'python')", (uid,))
+    tid = conn.execute("INSERT INTO test_tasks(project_id, user_id, requirement_text, two_stage, ai_reviewer) "
+                       "VALUES (1, ?, '需求', 1, 'auto')", (uid,)).lastrowid
+    conn.commit()
+
+    class FakeLLM:
+        def __init__(self, decision): self.d = decision
+        def invoke(self, messages):
+            return SimpleNamespace(content=_json.dumps(
+                {"decision": self.d, "reasoning": "需求可测", "evidence": {}}, ensure_ascii=False),
+                usage_metadata=None)
+    monkeypatch.setattr(ar, "reviewer_llm", lambda: None)
+    import test_agent.api.server as srv
+
+    # reject → 409 且保持未确认
+    # server 内是 from ..skills.ai_reviewer import reviewer_llm, run_d1_review（函数内 import）
+    # → monkeypatch ar.run_d1_review 即可（函数内 import 每次取模块属性）
+    monkeypatch.setattr(ar, "run_d1_review", lambda *a, **k: {"decision": "reject", "reasoning": "不可测", "evidence": {}})
+    monkeypatch.setattr(ar, "reviewer_llm", lambda: object())
+    with pytest.raises(fastapi.HTTPException) as ei:
+        server.api_confirm(tid, {"user_id": uid, "username": "u", "role": "admin"})
+    assert ei.value.status_code == 409 and "不可测" in ei.value.detail
+    assert conn.execute("SELECT confirmed FROM test_tasks WHERE id=?", (tid,)).fetchone()["confirmed"] == 0
+
+    # approve → confirmed_by=agent:reviewer-* + D1 决策落库（走真实 run_d1_review + FakeLLM）
+    monkeypatch.setattr(ar, "run_d1_review", ar.run_d1_review.__wrapped__ if hasattr(ar.run_d1_review, "__wrapped__") else None)
+    # 恢复真实落库函数（reject 分支 patch 掉了）：直接引用模块原函数
+    import importlib
+    real_run_d1 = importlib.reload(ar).run_d1_review
+    monkeypatch.setattr(ar, "run_d1_review", real_run_d1)
+    class FakeLLM2:
+        def invoke(self, messages):
+            return SimpleNamespace(content=_json.dumps(
+                {"decision": "approve", "reasoning": "值得测", "evidence": {}}, ensure_ascii=False),
+                usage_metadata=None)
+    monkeypatch.setattr(ar, "reviewer_llm", lambda: FakeLLM2())
+    out = server.api_confirm(tid, {"user_id": uid, "username": "u", "role": "admin"})
+    assert out["d1_by_ai"] is True
+    row = conn.execute("SELECT confirmed_by FROM test_tasks WHERE id=?", (tid,)).fetchone()
+    assert str(row["confirmed_by"]).startswith("agent:reviewer-")
+    n = conn.execute("SELECT COUNT(*) AS n FROM review_decisions WHERE task_id=? AND decision='approve'", (tid,)).fetchone()["n"]
+    assert n == 1
+
+    # off 任务：不触发 D1（直接人工确认）
+    tid2 = conn.execute("INSERT INTO test_tasks(project_id, user_id, two_stage, ai_reviewer) "
+                        "VALUES (1, ?, 1, 'off')", (uid,)).lastrowid
+    conn.commit()
+    called = []
+    monkeypatch.setattr(ar, "run_d1_review", lambda *a, **k: called.append(1) or {"decision": "approve", "reasoning": "x", "evidence": {}})
+    server.api_confirm(tid2, {"user_id": uid, "username": "u", "role": "admin"})
+    assert called == []
+    conn.close()
+
