@@ -89,6 +89,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         for col, ddl in cols.items():
             if have and col not in have:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+    _backfill_project_names(conn)   # 幂等：路径形态项目名→末段（用户反馈 2026-11-03）——必须在 commit 前
     conn.commit()
 
 
@@ -113,6 +114,23 @@ def init_db(db_path: Path | None = None) -> int:
 
 
 from contextlib import contextmanager
+
+
+def _backfill_project_names(conn) -> None:
+    """存量项目名修复（用户反馈：本地路径做项目名太长）：name 为路径形态
+    （含 / 或反斜杠）的一次性更新为末段；幂等（已是末段的不命中）。"""
+    bs = chr(92)                     # 反斜杠（规避转义坑：不用正则，纯字符串分段）
+    for r in conn.execute("SELECT id, name, repo_url FROM projects").fetchall():
+        name = r["name"] or ""
+        if "/" not in name and bs not in name:
+            continue
+        src = (r["repo_url"] or name).strip()
+        while src and src[-1] in ("/", bs):
+            src = src[:-1]
+        seg = [x for x in src.replace(bs, "/").split("/") if x]
+        new_name = seg[-1] if seg else name
+        if new_name and new_name != name:
+            conn.execute("UPDATE projects SET name=? WHERE id=?", (new_name, r["id"]))
 
 
 @contextmanager

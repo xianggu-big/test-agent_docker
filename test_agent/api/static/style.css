@@ -383,3 +383,16 @@ textarea { resize: vertical; }
 .pg-task td { transition: background .1s; }
 details.v-details, details[open] { animation: fadeUp .2s ease both; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- 长项目名标题条（用户反馈：路径名太长看不到，做一个条可拉回去看） ---------- */
+.rv-title, .td-hero .task-name {
+  max-width: min(52vw, 720px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: pointer; transition: color .15s;
+  border-bottom: 1px dashed transparent;
+}
+.rv-title:hover, .td-hero .task-name:hover { color: var(--primary); border-bottom-color: var(--primary); }
+.rv-title.expanded, .td-hero .task-name.expanded {
+  white-space: normal; word-break: break-all; overflow: visible; max-width: 100%;
+}
+.title-hint { font-size: 11px; color: var(--muted); }

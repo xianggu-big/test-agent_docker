@@ -245,7 +245,7 @@ async function loadReview(tid) {
         : `<a href="#/task/${tid}" class="hint" style="margin:0" title="任务头/四级卡/执行流水线/溯源链/归因面板">任务详情 →</a>`;
   $("rv-hero").innerHTML =
     `<div class="rv-hero-top">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="rv-title">${esc(name)}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="rv-title" title="${esc(name)}（点击展开/收起全文）" onclick="this.classList.toggle('expanded')">${esc(name)}</span>
         <span class="badge badge-queued">任务 #${tid}</span>
         <span class="badge ${detail.status === "ready_for_review" ? "badge-run" : "badge-queued"}">${esc(STATUS_CN[detail.status] || detail.status)}</span>
         <span class="hint" style="margin:0">代审：${esc(aiCn)}${detail.two_stage ? " · 两阶段" : ""}</span></div>
@@ -1479,7 +1479,7 @@ async function loadTaskDetail(tid) {
     if (ms > 0 && !isNaN(ms)) dur = `｜已运行 ${ms >= 60000 ? Math.floor(ms/60000) + "m" : ""}${Math.round(ms%60000/1000)}s`;
   }
   $("td-hero").innerHTML =
-    `<div style="font-size:26px;font-weight:800">${esc(name)}</div>` +
+    `<div class="task-name" style="font-size:26px;font-weight:800" title="${esc(name)}（点击展开/收起全文）" onclick="this.classList.toggle('expanded')">${esc(name)}</div>` +
     `<span class="badge badge-queued">任务 #${tid}</span>` +
     `<div class="hint" style="margin-top:6px">${esc(lang)}｜状态：${esc(STATUS_CN[t.status] || t.status)}${dur}` +
     (ex ? `｜执行方式：${esc(ex.mode)}｜执行者：系统自动（${esc(ex.sandbox)}+LLM ${esc(ex.llm)}）` : "") + `</div>` +
