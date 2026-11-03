@@ -1352,11 +1352,16 @@ async function loadProfile() {
   const usage = await api("/me/usage").catch(() => null);
   $("pf-me").innerHTML = `<b>${esc(ME.username)}</b>（${ROLE_CN[ME.role] || ME.role}）· 注册于 ${esc((usage && usage.registered_at) || "—")}` +
     ` <button class="btn btn-ghost btn-sm" style="margin-left:10px" onclick="doLogout()">退出登录</button>`;
-  const rows = ((usage && usage.tasks) || []).map(x =>
-    `<tr><td class="hint">#${x.id}</td><td>${esc(x.project_name)}</td>` +
-    `<td>${esc((x.requirement_text || "").slice(0, 40))}</td>` +
-    `<td class="hint">${esc(x.created_at || "")}</td><td class="hint">${esc(x.first_run_at || "未开始")}</td>` +
-    `<td><span class="badge ${x.status === "done" ? "badge-ok" : x.status === "failed" ? "badge-fail" : "badge-run"}">${esc(STATUS_CN[x.status] || x.status)}</span></td></tr>`).join("");
+  // 项目/需求列 30 字截断 + title 悬停全文（与三处下拉同规则，用户二反馈）
+  const rows = ((usage && usage.tasks) || []).map(x => {
+    const pn = truncName(x.project_name);
+    const rq = truncName(x.requirement_text || "");
+    return `<tr><td class="hint">#${x.id}</td>` +
+    `<td title="${esc(x.project_name)}">${esc(pn)}</td>` +
+    `<td title="${esc(x.requirement_text || "")}">${esc(rq)}</td>` +
+    `<td class="hint nowrap">${esc(x.created_at || "")}</td><td class="hint nowrap">${esc(x.first_run_at || "未开始")}</td>` +
+    `<td><span class="badge ${x.status === "done" ? "badge-ok" : x.status === "failed" ? "badge-fail" : "badge-run"}">${esc(STATUS_CN[x.status] || x.status)}</span></td></tr>`;
+  }).join("");
   $("pf-tasks").innerHTML = "<tr><th>#</th><th>项目</th><th>需求</th><th>建立时间</th><th>开始执行</th><th>状态</th></tr>" +
     (rows || '<tr><td colspan="6" class="hint">还没有测试任务</td></tr>');
   $("pf-events").innerHTML = "<tr><th>事件</th><th>时间</th></tr>" +

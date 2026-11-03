@@ -400,3 +400,9 @@ details.v-details, details[open] { animation: fadeUp .2s ease both; }
 /* select 免撑爆（用户反馈：长项目名选项把整页撑爆——原生下拉列表宽度跟随 select 元素） */
 select { max-width: min(60vw, 900px); }
 #rv-task, #wb-task, #rp-task { max-width: min(52vw, 760px); }
+
+/* 个人中心表格列宽约束（与下拉截断同批：长名不再撑爆表格） */
+#pf-tasks { table-layout: fixed; width: 100%; }
+#pf-tasks td, #pf-tasks th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#pf-tasks td:nth-child(2), #pf-tasks td:nth-child(3) { max-width: 260px; }
+#pf-tasks td.nowrap, #pf-tasks td:nth-child(5), #pf-tasks td:nth-child(6) { white-space: nowrap; }
