@@ -396,3 +396,7 @@ details.v-details, details[open] { animation: fadeUp .2s ease both; }
   white-space: normal; word-break: break-all; overflow: visible; max-width: 100%;
 }
 .title-hint { font-size: 11px; color: var(--muted); }
+
+/* select 免撑爆（用户反馈：长项目名选项把整页撑爆——原生下拉列表宽度跟随 select 元素） */
+select { max-width: min(60vw, 900px); }
+#rv-task, #wb-task, #rp-task { max-width: min(52vw, 760px); }

@@ -5,6 +5,19 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
   (m) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[m]));
 
 const ROLE_CN = { admin: "管理员", developer: "开发者", caller: "调用者" };
+
+// 任务名截断：下拉选项最长 30 字（超长加 …，完整名放 option title 原生悬停即显全文）——
+// 用户反馈：路径名太长把下拉/页面撑爆。字数按显示宽度近似（中文 2 列），30 字≈60 列
+function truncName(s, max = 30) {
+  s = String(s || "");
+  let w = 0, out = "";
+  for (const ch of s) {
+    w += /[⺀-鿿豈-舘＀-￯]/.test(ch) ? 2 : 1;
+    if (w > max * 2) return out + "…";
+    out += ch;
+  }
+  return s;
+}
 const STATUS_CN = { queued: "待下发", cloning: "克隆中", analyzing: "分析中", provisioning: "准备环境",
   generating: "生成用例", ready_for_review: "待审查", running: "执行中", reporting: "出报告中",
   done: "已完成", failed: "失败", cancelled: "已取消" };
@@ -205,8 +218,10 @@ async function renderReviewPicker(currentTid) {
   const pending = tasks.filter(t => t.status === "ready_for_review");
   const others = tasks.filter(t => t.status !== "ready_for_review");
   const sel = $("rv-task");
-  const opt = t => `<option value="${t.id}">#${t.id} ${esc(t.project_name)}（${esc(STATUS_CN[t.status] || t.status)}）` +
+  const opt = t => { const pn = truncName(t.project_name);
+    return `<option value="${t.id}" title="${esc(t.project_name)}">#${t.id} ${esc(pn)}（${esc(STATUS_CN[t.status] || t.status)}）` +
     `${t.status === "ready_for_review" ? " ★待审查" : ""}${t.ai_reviewer && t.ai_reviewer !== "off" ? " ·代审" + t.ai_reviewer : ""}</option>`;
+  };
   sel.innerHTML = `<option value="">— 选择要评审的任务 —</option>` +
     (pending.length ? `<optgroup label="待审查（${pending.length}）">${pending.map(opt).join("")}</optgroup>` : "") +
     `<optgroup label="其他任务（只读查看）">${others.map(opt).join("")}</optgroup>`;
@@ -512,7 +527,8 @@ async function refreshWorkbench() {
   const sel = $("wb-task");
   const tasks = orderTasksByPipeline(await api("/tasks"));
   sel.innerHTML = `<option value="">— 选择任务 —</option>` +
-    tasks.map(t => `<option value="${t.id}">#${t.id} ${esc(t.project_name)}（${STATUS_CN[t.status]}）</option>`).join("");
+    tasks.map(t => { const pn = truncName(t.project_name);
+      return `<option value="${t.id}" title="${esc(t.project_name)}">#${t.id} ${esc(pn)}（${STATUS_CN[t.status]}）</option>`; }).join("");
   sel.onchange = loadWorkbench;
 }
 
@@ -990,7 +1006,8 @@ async function viewLogs(id) { location.hash = "#/reports"; setTimeout(() => { $(
 /* ---------- 报告 ---------- */
 async function refreshReports() {
   const tasks = await api("/tasks");
-  $("rp-task").innerHTML = tasks.map(t => `<option value="${t.id}">#${t.id} ${esc(t.project_name)}（${STATUS_CN[t.status]}）</option>`).join("");
+  $("rp-task").innerHTML = tasks.map(t => { const pn = truncName(t.project_name);
+      return `<option value="${t.id}" title="${esc(t.project_name)}">#${t.id} ${esc(pn)}（${STATUS_CN[t.status]}）</option>`; }).join("");
   $("rp-task").onchange = loadReport;
   if (tasks.length) { $("rp-task").value = String(tasks[0].id); await loadReport(); }
 }
