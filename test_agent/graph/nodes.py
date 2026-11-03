@@ -472,6 +472,24 @@ def make_nodes(deps: GraphDeps) -> dict:
         dep = registry.invoke(tid, skills["install_deps"], {
             "container_name": state["container_name"],
             "deps_manifest": probe_deps_manifest(state["workspace"])})
+        # DB 感知测试环境 v1（用户需求：带库程序测试时库要参与）：检测 DB 依赖 →
+        # sqlite 家族自动建库/迁移/种子；服务端库如实降级提示。fail-open 不炸 provision。
+        try:
+            from ..skills.db_probe import detect_db_usage, prepare_database
+            msg(state["session_id"], "assistant", f"[provision·db] 探针执行（工作区 {state['workspace']}）")
+            det = detect_db_usage(Path(state["workspace"]))
+            if det["family"]:
+                msg(state["session_id"], "assistant",
+                    f"[provision·db] 检测到数据库依赖：{det['family']}"
+                    f"（证据 {len(det['evidence'])} 条，"
+                    f"全家族 {det['all_families']}，备库脚本 {det['scripts'] or '无'}，"
+                    f"SQL 文件 {det['sql_files'] or '无'}）")
+                prep = prepare_database(runner, container, det, Path(state["workspace"]),
+                                        state.get("primary_language", ""))
+                msg(state["session_id"], "assistant",
+                    f"[provision·db] {prep.get('status')}：{prep.get('note', '')[:200]}")
+        except Exception as e:  # noqa: BLE001 —— 备库失败如实留提示，不炸主链路
+            log.warning("DB 感知预备失败（不影响主链路）: %s: %s", type(e).__name__, e)
         cur = conn.execute(
             """INSERT INTO container_jobs(task_id, module_id, image, status, cpu_limit, mem_limit_mb,
                                           priority, timeout_at, container_id, started_at)
