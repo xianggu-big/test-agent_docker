@@ -204,10 +204,10 @@
       </div>
       <div class="stepper" id="stepper-review"></div>
       <div id="rv-hero" class="card"></div>
-      <div class="card" id="rv-plan" style="margin-bottom:12px">
-        <h3>测试方案（需求 → 测试条件 → 用例 → 测试目标）</h3>
-        <div id="rv-plan-body" class="hint">（加载中…）</div>
-      </div>
+      <details class="card" id="rv-plan" style="margin-bottom:12px">
+        <summary style="cursor:pointer;user-select:none;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px">测试方案（需求 → 测试条件 → 用例 → 测试目标）<span id="rv-plan-badge" class="badge badge-queued" style="font-size:11px;padding:1px 8px">加载中…</span><span class="hint" style="margin:0">点标题展开/收起——条件多时收起它页面清爽</span></summary>
+        <div id="rv-plan-body" class="hint" style="margin-top:10px">（加载中…）</div>
+      </details>
       <div class="grid-2">
         <div>
           <div class="card">

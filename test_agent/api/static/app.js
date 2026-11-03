@@ -251,11 +251,17 @@ async function loadReview(tid) {
         <span class="hint" style="margin:0">代审：${esc(aiCn)}${detail.two_stage ? " · 两阶段" : ""}</span></div>
       ${nextLink}</div>
     <div class="rv-req">${esc(detail.requirement_text || "—")}</div>`;
-  // 方案链（wb-plan 渲染器平移，目标容器参数化指向 rv-plan-body）
+  // 方案链（wb-plan 渲染器平移，目标容器参数化指向 rv-plan-body）；
+  // 折叠卡（用户反馈：条件太多）：标题徽章显示条件数/覆盖数，内容默认收起点标题展开
   if (rtm && (rtm.conditions_total || (rtm.matrix || []).length)) {
     renderWbPlan(rtm, detail, "rv-plan-body");
+    const covered = (rtm.matrix || []).filter(x => x.status === "covered").length;
+    $("rv-plan-badge").textContent = `${rtm.conditions_total} 条 · 覆盖 ${covered}`;
+    $("rv-plan-badge").className = "badge " + (covered === rtm.conditions_total ? "badge-ok" : "badge-cancel");
   } else {
     $("rv-plan-body").innerHTML = "该任务尚无测试条件数据（准备阶段的考纲在 plan 节点产出后出现）";
+    $("rv-plan-badge").textContent = "无条件数据";
+    $("rv-plan-badge").className = "badge badge-queued";
   }
   // 用例清单（勾选=启用；待审查态可增删，布考场按勾选结论重建文件）
   // 任务A1：改用 ?all=1 按脚本分组——只看最新脚本会把原始用例整个藏掉（增补写在
