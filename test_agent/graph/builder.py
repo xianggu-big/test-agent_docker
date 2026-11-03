@@ -270,8 +270,8 @@ def run_task_prep(task_id: int) -> dict:
         # analyze 诚实降级：准备阶段无报告可出，如实失败（不做伪装的"待审查"）
         _fail_task(conn, task_id, final.get("stop_reason") or "准备阶段诚实降级终止")
     else:
-        conn.execute("UPDATE test_tasks SET status='ready_for_review', updated_at=datetime('now') WHERE id=?",
-                     (task_id,))
+        conn.execute("UPDATE test_tasks SET status='ready_for_review', error=NULL, updated_at=datetime('now') WHERE id=?",
+                     (task_id,))   # error 一并清空（348 实锤：重跑成功后界面仍显示上一轮失败原因）
         conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?", (session_id,))
         # 空集停等要给用户自愈指引（E2E 实锤：超长提示词可致两轮出题均不可解析，
         # 此时评审页对话框增补就是补救通道——指出来，别让人对着空清单发呆）

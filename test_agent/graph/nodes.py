@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import fnmatch
 import shutil
 import subprocess
 import tarfile
@@ -284,9 +285,27 @@ def make_nodes(deps: GraphDeps) -> dict:
         src = state["repo_url"]
         _validate_repo_url(src)  # Loop-6/TODO-13：非法 URL/路径 fail-closed
         if os.path.isdir(src):
-            shutil.copytree(src, ws, dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns(*config.SKIP_DIRS))
-            how = "本地目录快照"
+            # 本地路径：copytree 本身尊重源项目 .gitignore（晚间实锤 348：项目 .gitignore
+            # 已排除 data/ 7.4GB，但此前的裸 copytree 照拷不误，clone 后预算检查又不尊重
+            # .gitignore → 把用户按提示做了的事直接否定）——spec 命中目录/文件直接不复制
+            from ..sandbox.runner import _load_gitignore_spec
+            spec = _load_gitignore_spec(Path(src))
+            src_root = Path(src).resolve()
+
+            def _gi_ignore(directory, names):
+                rel_base = Path(directory).resolve().relative_to(src_root)
+                skip = []
+                for n in names:
+                    rel = (rel_base / n).as_posix()
+                    is_dir = (Path(directory) / n).is_dir()
+                    if any(fnmatch.fnmatch(n, pat) for pat in config.SKIP_DIRS):
+                        skip.append(n)
+                    elif spec is not None and spec.match_file(rel + ("/" if is_dir else "")):
+                        skip.append(n)
+                return skip
+
+            shutil.copytree(src, ws, dirs_exist_ok=True, ignore=_gi_ignore)
+            how = "本地目录快照（尊重 .gitignore）"
         else:
             r = subprocess.run(["git", "clone", "--depth", "1", src, str(ws)],
                                capture_output=True, text=True, timeout=300)
