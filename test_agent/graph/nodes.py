@@ -549,6 +549,19 @@ def make_nodes(deps: GraphDeps) -> dict:
             if (ws / "test_imported.test.js").exists():
                 gen_files.append("test_imported.test.js")   # 人工/插入用例（按语言命名）
             cmd = build_run_cmd_js(round_no=state.get("round_no", 1), gen_files=gen_files)
+            # 散装前端 JS（853刷题系统实锤：无 package.json/jest.config → 全局 jest 报
+            # "Could not find a config file" 拒跑 → 0/0 循环熔断）：无任何 jest 配置时
+            # 注入最小内联配置（不动项目文件；有配置的项目走自己的）
+            has_jest_cfg = any((ws / n).exists() for n in
+                               ("jest.config.js", "jest.config.ts", "jest.config.mjs",
+                                "jest.config.cjs", "jest.config.json"))
+            if not has_jest_cfg and not (ws / "package.json").exists():
+                cmd += ["--config", json.dumps({
+                    "testMatch": ["**/*.test.js"],
+                    "testEnvironment": "node",
+                    "moduleFileExtensions": ["js", "json"]})]
+                msg(state["session_id"], "assistant",
+                    "[run] 项目无 jest 配置/package.json：注入最小内联配置执行（纯 JS 散装项目兜底）")
         else:
             # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
             # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）；
