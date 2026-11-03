@@ -1,0 +1,58 @@
+{
+  "task_id": 355,
+  "chains": 0,
+  "defects_real": 5,
+  "hits": 0,
+  "hit_rate": 0.0,
+  "codes": 0,
+  "details": [
+    {
+      "defect": "D1",
+      "location": "booking.py::validate_duration",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    },
+    {
+      "defect": "D2",
+      "location": "booking.py::quote_total",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    },
+    {
+      "defect": "D3",
+      "location": "app.py::read_booking",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    },
+    {
+      "defect": "D4",
+      "location": "booking.py::has_overlap",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    },
+    {
+      "defect": "D5",
+      "location": "app.py::cancel_booking",
+      "matched_scenario": null,
+      "matched_title": null,
+      "hit": false,
+      "rank": null,
+      "candidates": 0
+    }
+  ],
+  "chain_gaps": {},
+  "run": 1,
+  "status": "ok"
+}

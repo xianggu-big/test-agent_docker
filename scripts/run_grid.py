@@ -74,7 +74,13 @@ def main() -> int:
         setattr(config, k, v)
     print(f"[grid {cell}/{corpus}] 任务 {tid} 启动，开关覆盖：{overrides or '（默认组）'}")
     try:
-        final = run_task(tid)
+        if cell.startswith("L2"):
+            # L2E 消融格必须走 levels 接力（L1→L2）——run_task 只有 L1 主图，
+            # L2 消融开关根本不会参与（质量检验实锤：三格 L2 腿 None=数据无效）
+            from test_agent.graph.levels import run_task_levels
+            final = run_task_levels(tid, levels=("L1", "L2"))
+        else:
+            final = run_task(tid)
     except Exception as e:  # noqa: BLE001 —— 实验格失败也要留痕继续
         print(f"[grid {cell}] 任务 {tid} 异常终止：{type(e).__name__}: {e}")
         return 1
