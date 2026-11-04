@@ -1553,9 +1553,10 @@ async function loadTaskDetail(tid) {
   $("td-pipeline").innerHTML = "<div style=\"font-size:16px;font-weight:800;margin-bottom:10px\">" +
     "执行流水线（固定图编排 · 容器沙箱）</div>" + renderPipeline(logs, lv);
   const defectsApi = await api(`/tasks/${tid}/defects`).catch(() => null);
+  TD_HANDOFF = await api(`/tasks/${tid}/handoff`).catch(() => null);
   $("td-defects").innerHTML = "<div style=\"font-size:16px;font-weight:800\">缺陷归因清单</div>" +
     "<div class=\"hint\" style=\"margin-bottom:6px\">env / case / product 三分类 · 不确定时宁可误报不可造假</div>" +
-    renderDefectsPanel(latest, defectsApi);
+    handoffButtons(tid) + renderDefectsPanel(latest, defectsApi);
   const trace = await api(`/tasks/${tid}/trace`).catch(() => null);
   $("td-trace").innerHTML = "<div style=\"font-size:16px;font-weight:800\">跨级 RTM 溯源链</div>" +
     `<div class="hint">失败自动沿 [验收场景 → 系统场景 → 集成用例 → 单元用例 → 代码行] 反向定位｜共 ${(trace && trace.chains || []).length} 条</div>` +
@@ -1573,6 +1574,40 @@ async function loadTaskDetail(tid) {
 
 // 任务C：实时用例执行面板（详情页流水线区域下方）——逐用例状态/耗时/失败证据可展开。
 // 粒度诚实标注：按轮次更新（每轮跑完出现该轮明细），不伪装逐用例实时流。
+
+// ---------- 缺陷交接（2026-11-04 用户「测试→开发/AI 迭代闭环」）----------
+// 产物=确定性导出（零 LLM）：报告单交开发；修复提示词整段复制给任意 AI（内置三护栏：
+// 禁改断言 / AI 可反驳预期但须证据交人工裁决 / 修复后验证全绿）。
+// 404=无疑似缺陷 → 不出按钮（诚实）；高置信(需求明示/docstring)可直接修，中低置信先复核预期。
+let TD_HANDOFF = null;
+function handoffButtons(tid) {
+  if (!TD_HANDOFF) return "";
+  return `<div style="margin:8px 0 4px">` +
+    `<button class="btn btn-sm" onclick="downloadHandoffReport(${tid})">⬇ 导出缺陷单（${TD_HANDOFF.defects} 条）</button>` +
+    `<button class="btn btn-sm" style="margin-left:8px" onclick="copyFixPrompt(this)">⧉ 复制 AI 修复提示词</button>` +
+    `<span class="hint" style="margin-left:8px">高置信 ${TD_HANDOFF.high}/${TD_HANDOFF.defects}——中低置信先复核预期，再交给 AI/开发</span></div>`;
+}
+function downloadHandoffReport(tid) {
+  const blob = new Blob([TD_HANDOFF.report], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `task_${tid}_缺陷报告单.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+async function copyFixPrompt(btn) {
+  try {
+    await navigator.clipboard.writeText(TD_HANDOFF.prompt);
+    btn.textContent = "✓ 已复制——去 AI 对话框粘贴即可";
+    setTimeout(() => { btn.textContent = "⧉ 复制 AI 修复提示词"; }, 2500);
+  } catch (e) {  // 剪贴板不可用（权限/旧浏览器）：新窗口展示全文供手动全选复制
+    const w = window.open("", "_blank");
+    w.document.write("<pre style='white-space:pre-wrap;font-size:12px'>"
+      + TD_HANDOFF.prompt.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</pre>");
+    w.document.close();
+  }
+}
+
 const EXEC_STATUS = {
   passed:  ["✓ 通过", "badge-ok"], failed: ["✗ 失败", "badge-fail"],
   error:   ["⚠ 错误", "badge-fail"], skipped: ["− 跳过", "badge-queued"],

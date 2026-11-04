@@ -299,20 +299,32 @@ def render_fix_prompt(meta: dict, defects: list[dict]) -> str:
     return "\n".join(head + body + tail) + "\n"
 
 
-def export_handoff(conn, task_id: int, out_dir: Path) -> dict | None:
-    """导出两份交付物到 out_dir；无疑似缺陷时返回 None（诚实空手，不造文档）。"""
+def build_handoff(conn, task_id: int) -> dict | None:
+    """渲染两份交付物（不落盘）——API 与文件导出共用的单一真源。
+
+    无疑似缺陷返回 None（诚实空手，不造文档）；任务不存在抛 ValueError。
+    """
     meta = _load_meta(conn, task_id)
     if meta is None:
         raise ValueError(f"任务 {task_id} 不存在")
     defects = load_defects(conn, task_id)
     if not defects:
         return None
+    return {"report": render_defect_report(meta, defects),
+            "prompt": render_fix_prompt(meta, defects),
+            "defects": len(defects),
+            "high": sum(1 for d in defects if d["confidence"] == "高")}
+
+
+def export_handoff(conn, task_id: int, out_dir: Path) -> dict | None:
+    """导出两份交付物到 out_dir；无疑似缺陷时返回 None（诚实空手，不造文档）。"""
+    built = build_handoff(conn, task_id)
+    if built is None:
+        return None
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     report = out_dir / f"task_{task_id}_缺陷报告单.md"
     prompt = out_dir / f"task_{task_id}_AI修复提示词.md"
-    report.write_text(render_defect_report(meta, defects), encoding="utf-8")
-    prompt.write_text(render_fix_prompt(meta, defects), encoding="utf-8")
-    return {"report": str(report), "prompt": str(prompt),
-            "defects": len(defects),
-            "high": sum(1 for d in defects if d["confidence"] == "高")}
+    report.write_text(built["report"], encoding="utf-8")
+    prompt.write_text(built["prompt"], encoding="utf-8")
+    return {**built, "report_path": str(report), "prompt_path": str(prompt)}

@@ -34,8 +34,8 @@ def main() -> int:
         return 0
     print(f"任务 {args.task}：导出 {result['defects']} 条疑似产品缺陷"
           f"（高置信 {result['high']} 条）")
-    print(f"  缺陷报告单：{result['report']}")
-    print(f"  AI 修复提示词：{result['prompt']}")
+    print(f"  缺陷报告单：{result['report_path']}")
+    print(f"  AI 修复提示词：{result['prompt_path']}")
     return 0
 
 

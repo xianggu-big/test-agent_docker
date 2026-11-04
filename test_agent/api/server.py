@@ -26,6 +26,7 @@ from ..graph.builder import run_task
 from ..sandbox import preflight
 from ..sandbox.runner import SandboxRunner
 from ..skills.ai_reviewer import spotcheck_sample
+from ..skills.defect_handoff import build_handoff
 from ..skills.evaluate import hotspot_coverage
 from ..skills.gen_tests import _rebuild_imported_file, _sanitize_name
 from ..skills.traceability import build_task_traces, build_trace_chain
@@ -657,6 +658,25 @@ def api_charts(tid: int, user: dict = Depends(current_user)):
                         "data_url": "data:image/png;base64,"
                                     + base64.b64encode(p.read_bytes()).decode()})
     return out
+
+
+@app.get("/api/tasks/{tid}/handoff")
+def api_handoff(tid: int, user: dict = Depends(current_user)):
+    """缺陷交接（用户 2026-11-04「测试→开发/AI 迭代闭环」）：确定性导出两份交付物文本。
+
+    - report=标准缺陷报告单（交开发）；prompt=AI 修复提示词（复制即用，带三护栏）。
+    - 无疑似产品缺陷 → 404 诚实告知（不造文档）；内容全部来自 SQL 与缓存，零 LLM。
+    """
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    try:
+        built = build_handoff(conn, tid)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    if built is None:
+        raise HTTPException(status_code=404,
+                            detail="该任务无疑似产品缺陷（generated 用例无失败行），无需交接")
+    return built
 
 
 @app.get("/api/tasks/{tid}/rtm")
