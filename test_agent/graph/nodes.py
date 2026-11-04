@@ -452,7 +452,10 @@ def make_nodes(deps: GraphDeps) -> dict:
         container = runner.ensure_container(image, state["container_name"], fresh=fresh)
         # 任务B：快照摘要落 agent_messages——跳过了什么/打了多大，界面可查
         # （#281 教训：7.7GB 工作区静默 OOM，用户只看到 MemoryError 不知道为什么）
-        snap = runner.copy_dir_into(container, state["workspace"])
+        # 缺口②修复（2026-11-05）：差分闸开启时 .git 必须随行进考场，否则
+        # run_diff_gate 在容器内恒 no_git（真机验证实锤）；默认关=语义不变
+        snap = runner.copy_dir_into(container, state["workspace"],
+                                    keep_git=config.DIFF_GATE_ENABLED)
         from ..sandbox.runner import _fmt_bytes
         snap_bits = [f"[provision] 工作区快照：{snap['file_count']} 个文件 "
                      f"{_fmt_bytes(snap['total_bytes'])} 进考场"
@@ -689,7 +692,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                         cmd, timeout_s=timeout_s)
                 diff = attribution.run_diff_gate(
                     _exec, lang, failed_files,
-                    state.get("diff_ref") or config.DIFF_GATE_REF)
+                    state.get("diff_ref") or config.DIFF_GATE_REF,
+                    bug_stderr=state.get("last_stderr", ""))
                 if diff["label"] == "case_defect":
                     kind = "case_defect"
                     # detail 自带「对照 <ref> 上…」全句，这里不再重复拼接（真机验证实锤）

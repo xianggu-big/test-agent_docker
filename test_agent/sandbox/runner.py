@@ -231,15 +231,22 @@ class SandboxRunner:
 
     # —— 快照落地 ——
 
-    def copy_dir_into(self, container, src_dir: str | Path, dest_path: str = "/work") -> dict:
+    def copy_dir_into(self, container, src_dir: str | Path, dest_path: str = "/work",
+                      keep_git: bool = False) -> dict:
         """把宿主目录快照进容器（预扫描排除+预算 → 临时文件流式 tar → put_archive
         文件句柄流式上传），随后 chown 给 tester。返回快照摘要（供 provision 节点
         写 agent_messages：跳过了什么、打了多大——界面可查，任务B 要求）。
 
+        keep_git（2026-11-05，缺口②修复；开源先例 SWE-bench harness=仓库带 .git 进
+        容器）：默认仍剥 .git（Task B 体积/安全语义不变）；差分闸场景显式 True——
+        容器内 git checkout 对照 ref 需要 .git（前置=宿主工作区本身有 .git，本地
+        目录快照类任务无解，见三闸真机验证报告）。git 操作为只读 ref 切换。
+
         根修背景（#281 实锤）：旧实现 io.BytesIO + 整目录 tar 在内存里拼，
         7.7GB 工作区直接把宿主进程顶到 MemoryError——现在 tar 落临时文件，
         峰值内存 = 单文件读缓冲，与工作区大小无关。"""
-        plan = snapshot_plan(src_dir)
+        excludes = (config.SNAPSHOT_EXCLUDE_DIRS - {".git"}) if keep_git else None
+        plan = snapshot_plan(src_dir, exclude_dirs=excludes)
         src = Path(src_dir)
         fd, tmp = tempfile.mkstemp(suffix=".tar", prefix="mta_snap_")
         os.close(fd)

@@ -82,7 +82,7 @@ def test_run_diff_gate_no_ref_honest_unavailable():
     assert out["status"] == "no_ref" and out["label"] is None
 
 
-def _git_happy_exec(ref_fails: bool, restore_ok: bool = True):
+def _git_happy_exec(ref_fails: bool, restore_ok: bool = True, canary_ok: bool = True):
     """构造差分闸 happy-path 的容器执行脚本（按命令内容分流）。"""
     def exec_fn(cmd, timeout_s=30):
         joined = " ".join(cmd)
@@ -97,6 +97,9 @@ def _git_happy_exec(ref_fails: bool, restore_ok: bool = True):
         if joined.startswith("python -m pytest"):
             return _R(1 if ref_fails else 0,
                       "1 failed\n" if ref_fails else "1 passed\n", "")
+        if "CANARY_OK" in joined:   # 双败格细分：金丝雀复跑（2026-11-05）
+            return (_R(0, "CANARY_OK\n", "") if canary_ok
+                    else _R(1, "", "pytest: not found"))
         if "checkout" in joined and "orig999" in joined:
             return _R(0 if restore_ok else 1, "", "conflict" if not restore_ok else "")
         raise AssertionError(f"未预期的命令: {joined}")
@@ -108,6 +111,29 @@ def test_run_diff_gate_ref_fails_downgrades_to_case_defect():
                                     ["test_gen_r1.py"], "HEAD~1")
     assert out["status"] == "ok" and out["ref_failed"] is True
     assert out["label"] == "case_defect" and out["confidence"] == "低"
+    assert "金丝雀复跑通过" in out["detail"]       # 双败格细分证据在 detail
+
+
+def test_run_diff_gate_double_fail_env_evidence_split():
+    """双败格细分：环境特征错（ECONNREFUSED）→ evidence 指向环境；金丝雀挂 → 更强。"""
+    out = attribution.run_diff_gate(
+        _git_happy_exec(ref_fails=True, canary_ok=False), "python",
+        ["test_gen_r1.py"], "HEAD~1",
+        bug_stderr="connect ECONNREFUSED 127.0.0.1:3306")
+    assert out["label"] == "case_defect"
+    assert "环境特征错：ECONNREFUSED" in out["detail"]
+    assert "金丝雀复跑未通过" in out["detail"]
+
+
+def test_run_diff_gate_double_fail_case_evidence_split():
+    """双败格细分：Cannot find module 特征 + 金丝雀健康 → evidence 指向用例错。"""
+    out = attribution.run_diff_gate(
+        _git_happy_exec(ref_fails=True), "python",
+        ["test_gen_r1.py"], "HEAD~1",
+        bug_stderr="ModuleNotFoundError: No module named 'mylib'")
+    assert out["label"] == "case_defect"
+    assert "用例特征错：ModuleNotFoundError" in out["detail"]
+    assert "金丝雀复跑通过" in out["detail"]
 
 
 def test_run_diff_gate_ref_passes_confirms_product_defect():
@@ -235,12 +261,14 @@ def test_evaluate_diff_gate_downgrades_when_ref_also_fails(env, monkeypatch):
         (lambda cmd: cmd[-2:] == ["rev-parse", "HEAD"], lambda: _R(0, "orig999\n", "")),
         (lambda cmd: "--detach" in cmd, lambda: _R(0, "", "")),
         (lambda cmd: cmd[:3] == ["python", "-m", "pytest"], lambda: _R(1, "1 failed\n", "")),
+        (lambda cmd: "CANARY_OK" in " ".join(cmd), lambda: _R(0, "CANARY_OK\n", "")),
         (lambda cmd: "checkout" in cmd and "orig999" in cmd, lambda: _R(0, "", "")),
     ])
     nodes = make_nodes(GraphDeps(conn=c, runner=runner, registry=None, skills={}))
     out = nodes["evaluate"](_eval_state(tid, ses))
     assert out["failure_kind"] == "case_defect"
     assert "差分闸降级" in out["stop_reason"]
+    assert "金丝雀复跑通过" in out["stop_reason"]   # 双败格细分证据透传
     row = c.execute("SELECT failure_kind, stop_reason FROM evaluation_rounds "
                     "WHERE task_id=? ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
     assert row["failure_kind"] == "case_defect"
@@ -383,3 +411,45 @@ def test_env_checkup_script_rejects_invalid_manifest(tmp_path):
     p = subprocess.run([sys.executable, str(script), str(bad)],
                        capture_output=True, text=True, encoding="utf-8")
     assert p.returncode == 2 and "manifest 校验失败" in p.stderr
+
+
+# ---------- 生产接线（2026-11-05）：环境变量旗标 + 快照 keep_git ----------
+
+def test_config_gate_flag_defaults_off_and_env_override(monkeypatch):
+    """代码默认关（526 基线保护）；MTA_*=1 开启、0/false/off 关闭、未设=默认。"""
+    assert config.ENV_GATE_ENABLED is False
+    assert config.DIFF_GATE_ENABLED is False
+    assert config.FLAKY_RERUNS == 0
+    assert config._flag("MTA_TEST_UNSET", False) is False
+    monkeypatch.setenv("MTA_TEST_FLAG", "1")
+    assert config._flag("MTA_TEST_FLAG", False) is True
+    monkeypatch.setenv("MTA_TEST_FLAG", "off")
+    assert config._flag("MTA_TEST_FLAG", False) is False
+
+
+def test_config_gate_flags_reload_from_env(monkeypatch):
+    """环境变量在 config 导入时求值：MTA_ENV_GATE=1 + MTA_FLAKY_RERUNS=3 → reload 生效。"""
+    import importlib
+    from test_agent import config as cfg
+    monkeypatch.setenv("MTA_ENV_GATE", "1")
+    monkeypatch.setenv("MTA_FLAKY_RERUNS", "3")
+    importlib.reload(cfg)
+    try:
+        assert cfg.ENV_GATE_ENABLED is True and cfg.FLAKY_RERUNS == 3
+    finally:
+        monkeypatch.delenv("MTA_ENV_GATE")
+        monkeypatch.delenv("MTA_FLAKY_RERUNS")
+        importlib.reload(cfg)          # 还原默认态，不污染其他测试
+    assert cfg.ENV_GATE_ENABLED is False and cfg.FLAKY_RERUNS == 0
+
+
+def test_snapshot_plan_keep_git_includes_dotgit(tmp_path):
+    """缺口②：keep_git 路径=排除集合去掉 .git；默认路径仍剥（Task B 语义不变）。"""
+    from test_agent.sandbox.runner import snapshot_plan
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    default = snapshot_plan(tmp_path)
+    keep = snapshot_plan(tmp_path, exclude_dirs=config.SNAPSHOT_EXCLUDE_DIRS - {".git"})
+    assert not any(".git" in str(p) for p in default["files"])
+    assert any(".git" in str(p) for p in keep["files"])

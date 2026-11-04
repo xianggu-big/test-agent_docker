@@ -95,13 +95,19 @@ def subset_cmd(lang: str, files: Sequence[str]) -> list[str]:
 
 def run_diff_gate(exec_fn: Callable[..., object], lang: str,
                   failed_files: Sequence[str], v_ref: str,
-                  timeout_s: int = 600) -> dict:
+                  timeout_s: int = 600, bug_stderr: str = "") -> dict:
     """差分闸执行器：在容器 /work 内用 git 切到对照 ref 复跑失败子集，再切回。
 
     exec_fn(cmd, timeout_s=...) → 任意带 exit_code/stdout/stderr 属性的对象
     （sandbox.runner.ExecResult 即满足；测试可注入 fake）。
     未跟踪文件（生成用例 test_gen_*）在 git checkout 下天然保留——用例不动，
     只切被测源码，正是 LIBRO 语义。
+
+    双败格细分（2026-11-05，ReportPortal 同 taxonomy 的确定性版）：V_bug/V_ref 双败
+    只能"排除产品缺陷"，用例错与环境错不可分（2×2 理论边界）——现用两个确定性证据
+    收窄：①金丝雀复跑（框架/IO 健康？）②bug/对照两版 stderr 的错误特征表
+    （ECONNREFUSED 系→环境特征；Cannot find module/ImportError 系→用例特征）。
+    零 LLM，只收窄证据不改标签（标签仍 case_defect，细分写进 detail 供人工/统计）。
 
     返回 {"status", "ref_failed", "label", "confidence", "detail"}：
     - status=ok           → label/confidence 有效（classify_2x2 结果）
@@ -133,6 +139,9 @@ def run_diff_gate(exec_fn: Callable[..., object], lang: str,
     ref_exit = getattr(r, "exit_code", 1)
     ref_stdout = getattr(r, "stdout", "") or ""
     ref_failed = not outcome_passed(lang, ref_exit, ref_stdout)
+    evidence = ("；" + _double_fail_evidence(exec_fn, lang, bug_stderr,
+                                            getattr(r, "stderr", "") or "")
+                if ref_failed else "")
 
     r_back = exec_fn(["git", "-C", "/work", "checkout", "-q", orig_head], timeout_s=60)
     label, confidence = classify_2x2(True, ref_failed)
@@ -142,7 +151,7 @@ def run_diff_gate(exec_fn: Callable[..., object], lang: str,
                 "detail": f"差分完成但工作区未能切回 {orig_head[:8]}——必须人工检查 git 状态"}
     return {"status": "ok", "ref_failed": ref_failed, "label": label,
             "confidence": confidence,
-            "detail": f"对照 {v_ref} 上{'同样失败' if ref_failed else '通过'}"}
+            "detail": f"对照 {v_ref} 上{'同样失败' if ref_failed else '通过'}" + evidence}
 
 
 def outcome_passed(lang: str, exit_code: int, stdout: str) -> bool:
@@ -161,3 +170,42 @@ def outcome_passed(lang: str, exit_code: int, stdout: str) -> bool:
         return failed == 0 and passed > 0
     _ = _json
     return exit_code == 0
+
+
+# —— 双败格细分证据表（task_366 教训 + ReportPortal 同 taxonomy 的确定性版）——
+# ENOENT/EACCES 语义两可（缺文件可能是用例引用错也可能是环境），不入表只留原话
+_ENV_FAIL_HINTS = (
+    "ECONNREFUSED", "ETIMEDOUT", "ECONNRESET", "EHOSTUNREACH", "EADDRINUSE",
+    "connection refused", "no route to host", "ConnectionRefusedError",
+    "ConnectionResetError", "socket.timeout", "No space left on device",
+    "out of memory", "OOMKilled",
+)
+_CASE_FAIL_HINTS = (
+    "Cannot find module", "MODULE_NOT_FOUND", "ModuleNotFoundError",
+    "ImportError", "SyntaxError", "ReferenceError", "NameError",
+)
+
+
+def _scan_hints(text: str, table: tuple[str, ...]) -> list[str]:
+    text = text or ""
+    return [h for h in table if h in text]
+
+
+def _double_fail_evidence(exec_fn: Callable[..., object], lang: str,
+                          bug_stderr: str, ref_stderr: str) -> str:
+    """双败格收窄证据（零 LLM，确定性）：金丝雀复跑 + 两版 stderr 特征扫描。
+    只收窄证据不改标签——标签仍是 case_defect（用例错/环境错理论不可分），
+    细分结论供人工裁决与 A 轨统计。"""
+    hints: list[str] = []
+    try:
+        c = exec_fn(canary_cmd(lang), timeout_s=120)
+        hints.append("金丝雀复跑通过（框架/IO 健康）" if canary_ok(c.exit_code, c.stdout)
+                     else f"金丝雀复跑未通过（exit={c.exit_code}）→ 环境健康存疑")
+    except Exception as e:  # noqa: BLE001 —— 探测失败不推翻差分结论，如实留痕
+        hints.append(f"金丝雀探测异常（{type(e).__name__}）")
+    for src, text in (("bug版", bug_stderr), ("对照版", ref_stderr)):
+        if env_h := _scan_hints(text, _ENV_FAIL_HINTS):
+            hints.append(f"{src} stderr 含环境特征错：{env_h[0]}")
+        elif case_h := _scan_hints(text, _CASE_FAIL_HINTS):
+            hints.append(f"{src} stderr 含用例特征错：{case_h[0]}")
+    return "；".join(hints[:4])

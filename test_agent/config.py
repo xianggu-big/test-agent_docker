@@ -3,6 +3,7 @@
 原则：所有可调参数集中在这里；做实验时只改这里，不散落魔数。
 实验预注册纪律：进入实验阶段后以下预算值冻结，中途不得修改。
 """
+import os
 from pathlib import Path
 
 # —— 路径 ——
@@ -121,10 +122,22 @@ L2_SERVICE_PORT = 8000       # v0 单容器：被测服务与测试执行同容�
 L2_SERVICE_WAIT_S = 30       # 服务健康检查等待上限（秒）
 
 # —— 失败归因三闸 v1（11.4 恢复计划 §3；研究先行引用见 skills/attribution.py 模块头） ——
-ENV_GATE_ENABLED = False    # 环境闸：首轮真实用例前跑金丝雀（框架/IO 自检），失败 fail-fast 判环境无效
-DIFF_GATE_ENABLED = False   # 差分闸：疑似产品缺陷在对照 ref 复跑失败子集（2×2 判定；要求工作区 .git）
+# 生产接线（2026-11-05，开源调研：SWE-bench harness 同思路——开关经环境变量进入评估
+# 环境而非改代码默认值）：代码默认保持关（526 基线保护），真实任务一键开启=
+# MTA_ENV_GATE=1 / MTA_DIFF_GATE=1 / MTA_FLAKY_RERUNS=3
+def _flag(env_key: str, default: bool) -> bool:
+    """环境变量覆盖旗标：MTA_*=1/true/y 开，0/false/no/off 关，未设=代码默认。"""
+    v = (os.environ.get(env_key) or "").strip().lower()
+    if not v:
+        return default
+    return v not in ("0", "false", "no", "off")
+
+
+ENV_GATE_ENABLED = _flag("MTA_ENV_GATE", False)     # 环境闸：首轮真实用例前跑金丝雀（框架/IO 自检），失败 fail-fast 判环境无效
+DIFF_GATE_ENABLED = _flag("MTA_DIFF_GATE", False)   # 差分闸：疑似产品缺陷在对照 ref 复跑失败子集（2×2 判定；要求工作区 .git）
 DIFF_GATE_REF = "HEAD~1"    # 差分闸对照 ref（基准场景可指向已知 fix 提交）
-FLAKY_RERUNS = 0            # 连跑：>0 时疑似产品缺陷终判前同命令连跑 N 次，结果不一致在 stop_reason 标 flaky
+FLAKY_RERUNS = int(os.environ.get("MTA_FLAKY_RERUNS", "0") or 0)
+# 连跑：>0 时疑似产品缺陷终判前同命令连跑 N 次，结果不一致在 stop_reason 标 flaky
 
 # —— 环境自适应 recipe（任务F / 2026-11-02，docs/环境自适应调研与设计.md §6） ——
 RECIPE_ENABLED = False              # 默认关：关=EXEC_LANGUAGES 旧路径逐字节不变（可回滚）
