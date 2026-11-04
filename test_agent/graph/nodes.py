@@ -692,9 +692,9 @@ def make_nodes(deps: GraphDeps) -> dict:
                     state.get("diff_ref") or config.DIFF_GATE_REF)
                 if diff["label"] == "case_defect":
                     kind = "case_defect"
+                    # detail 自带「对照 <ref> 上…」全句，这里不再重复拼接（真机验证实锤）
                     reason = (f"差分闸降级（{diff['confidence']}置信）："
-                              f"对照 {state.get('diff_ref') or config.DIFF_GATE_REF} "
-                              f"上{diff['detail']} → 非产品缺陷（用例/环境错）")
+                              f"{diff['detail']} → 非产品缺陷（用例/环境错）")
                 msg(state["session_id"], "assistant",
                     f"[diff-gate] status={diff['status']} {diff['detail']}"
                     f"{('；原归因 product_defect 已降级为 ' + kind) if kind != 'product_defect' else ''}"

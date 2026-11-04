@@ -19,6 +19,14 @@ ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY} \
     NODE_PATH=/usr/local/lib/node_modules \
     CI=true
 
+# git：差分闸（归因三闸 Task G）在容器内 git checkout 对照 ref 复跑失败子集——
+# 真机验证实锤（2026-11-04）：node:20-bookworm-slim 不带 git，差分闸对 JS 任务
+# 恒 no_git 不可用；bookworm-slim 的 apt 源自带 git，装上即修复
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/* \
+ && git --version
+
 RUN npm install -g --no-audit --no-fund jest@29 ts-jest@29 typescript@5 @types/jest@29 \
  && npm cache clean --force
 

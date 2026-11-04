@@ -24,6 +24,14 @@ RUN pip install --no-cache-dir --retries 3 \
       pytest pytest-cov coverage \
       ruff bandit
 
+# git：设计假设变更（2026-11-04 真机验证实锤）——原「沙箱内不跑 git」（见上方约定②），
+# 但归因三闸·差分闸（Task G）需要在容器内 git checkout 对照 ref 复跑失败子集；
+# slim 基镜像不带 git，差分闸对 Python 任务恒 no_git 不可用，装上即修复
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/* \
+ && git --version
+
 WORKDIR /work
 RUN useradd --create-home --shell /bin/bash tester \
  && chown -R tester:tester /work
