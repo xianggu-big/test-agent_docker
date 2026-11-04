@@ -36,8 +36,9 @@
 **差分闸对 Python/JS 任务在原镜像上 100% 不可用**。python-test Dockerfile 头部注释
 「沙箱内不跑 git」是旧设计假设，被差分闸推翻。
 
-修复：两 Dockerfile 各加 `apt-get install git` 层并注明设计假设变更；镜像已重建
-（mta-test:node20-jest 实测 `git version 2.39.5`；py312 构建同步进行）。
+修复：两 Dockerfile 各加 `apt-get install git` 层并注明设计假设变更；镜像已重建并
+实测（mta-test:node20-jest → `git version 2.39.5`；mta-test:py312 → `git version 2.47.3`
+且仍无 node，环境闸负例前提保持）。
 
 ### 缺口 ②：copy_dir_into 内置剥 `.git` → clone 类任务的容器 /work 永远非 git 仓库（待决策）
 
