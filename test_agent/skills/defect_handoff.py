@@ -16,6 +16,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from .. import config
+
 # expected_basis → 置信度（§7 证据分层；子串匹配兜底防 LLM 措辞漂移）
 _CONFIDENCE = [("需求明示", "高"), ("docstring", "高"), ("源码推导", "中"), ("常识", "低")]
 _PRIORITY_ORDER = {"高": 0, "中": 1, "低": 2, "未标注": 3}
@@ -297,6 +299,22 @@ def render_fix_prompt(meta: dict, defects: list[dict]) -> str:
         "按顺序逐条处理；全部完成后给出总结表（缺陷号 / 处置（已修复|待人工裁决）/ 验证结果）。",
     ]
     return "\n".join(head + body + tail) + "\n"
+
+
+def auto_export_handoff(conn, task_id: int, out_dir: Path | None = None,
+                        notify=None) -> dict | None:
+    """任务最后一步（review 节点）自动落盘两份交付物；无疑似缺陷返回 None。
+
+    用户 2026-11-04 硬要求：每个任务执行到最后一步都必须自动生成。
+    out_dir 缺省 = config.DATA_DIR/reports/handoff/（运行产物不入库）；
+    notify(callable[str]) 接收人读摘要供写进 agent_messages 留痕。
+    """
+    out = Path(out_dir) if out_dir else config.DATA_DIR / "reports" / "handoff"
+    built = export_handoff(conn, task_id, out)
+    if built and notify:
+        notify(f"[handoff] 已自动生成缺陷交接：疑似缺陷 {built['defects']} 条"
+               f"（高置信 {built['high']}）→ {built['report_path']} 与 {built['prompt_path']}")
+    return built
 
 
 def build_handoff(conn, task_id: int) -> dict | None:

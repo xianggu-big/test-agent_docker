@@ -273,6 +273,26 @@
       <div id="rp-attach" class="card hidden">
         <button id="rp-export" class="btn btn-primary btn-sm">导出报告 (Markdown)</button>
         <pre id="rp-export-view" class="code-view hidden"></pre>
+        <div id="rp-handoff" class="hidden" style="margin-top:14px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <b style="font-size:15px">缺陷交接（测试 → 开发 / AI）</b>
+            <button id="rp-handoff-copy" class="btn btn-primary btn-sm">⧉ 复制 AI 修复提示词</button>
+            <button id="rp-handoff-dl" class="btn btn-ghost btn-sm">⬇ 下载缺陷报告单</button>
+            <span class="hint" id="rp-handoff-hint"></span>
+          </div>
+          <details class="fold">
+            <summary>📄 缺陷报告单（给人的 · 已自动生成文件）——点开看全文</summary>
+            <pre class="code-view" id="rp-handoff-report"></pre>
+          </details>
+          <details class="fold">
+            <summary>🤖 AI 修复提示词（给 AI 的 · 已自动生成文件）——点开看全文</summary>
+            <pre class="code-view" id="rp-handoff-prompt"></pre>
+          </details>
+          <div class="hint" id="rp-handoff-path" style="margin-top:6px"></div>
+        </div>
+        <div id="rp-handoff-empty" class="hint hidden" style="margin-top:12px">
+          该任务无疑似产品缺陷，未生成缺陷交接文档（报告单与 AI 提示词仅在存在「测试失败且用例有依据」时自动生成）。
+        </div>
       </div>
     </section>
 

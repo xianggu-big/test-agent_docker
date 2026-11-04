@@ -21,6 +21,7 @@ from pathlib import Path
 from .. import config
 from ..sandbox.runner import SandboxRunner
 from ..skills.builtin import build_skills, probe_deps_manifest
+from ..skills.defect_handoff import auto_export_handoff
 from ..skills.evaluate import build_eval_skills
 from ..skills.llm_usage import log_llm_call
 from ..skills.repair_strategy import make_deepseek_fn, run_repair_strategy
@@ -795,11 +796,20 @@ def make_nodes(deps: GraphDeps) -> dict:
         verdict = state.get("verdict", "")
         ok = verdict == "pass"
         try:
-            return _review_body(state, tid, verdict)
+            result = _review_body(state, tid, verdict)
         finally:
             # 终态恢复：report 节点已写 done/failed，review 入口的 reporting 只是过程态；
             # 无论审查 pass/reject，任务终态跟随执行判定（审查结论落 test_reports.review，不改判任务）
             set_status(conn, tid, "done" if ok else "failed")
+        # 缺陷交接自动落盘（用户 2026-11-04 硬要求：每个任务到最后一步必须生成）；
+        # 失败只留痕不上抛——交付物生成问题不允许改判任务终态（诚实边界）
+        session = state.get("session_id")
+        try:
+            auto_export_handoff(conn, tid,
+                                notify=(lambda s: msg(session, "assistant", s)) if session else None)
+        except Exception as e:
+            log.warning("缺陷交接自动落盘失败（不影响任务终态）: %s", e)
+        return result
 
     def _review_body(state: TaskState, tid: int, verdict: str) -> dict:
         # 快照一致性：指标包只 collect 一次，gen_report / review_report 经 args 共用同一份——

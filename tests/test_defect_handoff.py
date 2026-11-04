@@ -133,3 +133,27 @@ def test_export_handoff_writes_and_honest_empty(db, tmp_path):
     assert (out / "task_1_缺陷报告单.md").exists()
     assert (out / "task_1_AI修复提示词.md").exists()
     assert export_handoff(db, 2, out) is None     # 全过任务：诚实空手，不造文档
+
+
+def test_auto_export_writes_files_and_notifies(db, tmp_path):
+    """review 节点自动落盘路径：显式目录写两文件 + notify 收到含计数与路径的摘要。"""
+    from test_agent.skills.defect_handoff import auto_export_handoff
+    notes = []
+    out = tmp_path / "handoff"
+    built = auto_export_handoff(db, 1, out_dir=out, notify=notes.append)
+    assert built is not None and built["defects"] == 2
+    assert (out / "task_1_缺陷报告单.md").exists()
+    assert (out / "task_1_AI修复提示词.md").exists()
+    assert len(notes) == 1 and "[handoff]" in notes[0]
+    assert "疑似缺陷 2 条" in notes[0] and "task_1_缺陷报告单.md" in notes[0]
+
+
+def test_auto_export_default_dir_and_silent_empty(db, tmp_path, monkeypatch):
+    """缺省目录=config.DATA_DIR/reports/handoff；无疑似缺陷→None 且不触发 notify（诚实）。"""
+    from test_agent import config
+    from test_agent.skills.defect_handoff import auto_export_handoff
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    notes = []
+    assert auto_export_handoff(db, 2, notify=notes.append) is None   # 全过任务
+    assert notes == []
+    assert not (tmp_path / "reports" / "handoff" / "task_2_缺陷报告单.md").exists()

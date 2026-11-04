@@ -1034,6 +1034,16 @@ async function refreshReports() {
   if (tasks.length) { $("rp-task").value = String(tasks[0].id); await loadReport(); }
 }
 
+// 全局下载助手：文本内容 → 浏览器下载（缺陷报告单等 Markdown 交付物共用）
+function downloadBlob(filename, text, mime = "text/markdown;charset=utf-8") {
+  const blob = new Blob([text], { type: mime });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function switchRp(which) {
   $("rp-overview").classList.toggle("hidden", which !== "overview");
   $("rp-suite").classList.toggle("hidden", which !== "suite");
@@ -1344,6 +1354,38 @@ async function loadReport() {
       `\n\n## 轨迹\n\n` + logs.map(l => `- [${l.seq}] ${l.content}`).join("\n");
     $("rp-export-view").textContent = md; $("rp-export-view").classList.remove("hidden");
   };
+
+  // 缺陷交接（2026-11-04 用户要求）：附件 tab 展示两份自动生成的交付物，可收起；
+  // AI 提示词一键复制；文件已在任务最后一步自动落盘 data/reports/handoff/。
+  const handoff = await api(`/tasks/${tid}/handoff`).catch(() => null);
+  $("rp-handoff").classList.toggle("hidden", !handoff);
+  $("rp-handoff-empty").classList.toggle("hidden", !!handoff);
+  if (handoff) {
+    $("rp-handoff-report").textContent = handoff.report;
+    $("rp-handoff-prompt").textContent = handoff.prompt;
+    $("rp-handoff-hint").textContent =
+      `共 ${handoff.defects} 条（高置信 ${handoff.high}）——中低置信先复核预期，再交给 AI/开发`;
+    $("rp-handoff-path").textContent =
+      `文件已自动生成：data/reports/handoff/task_${tid}_缺陷报告单.md · task_${tid}_AI修复提示词.md`;
+    $("rp-handoff-dl").onclick = () => downloadBlob(
+      `task_${tid}_缺陷报告单.md`, handoff.report);
+    $("rp-handoff-copy").onclick = async (e) => {
+      const btn = e.currentTarget;
+      try {
+        await navigator.clipboard.writeText(handoff.prompt);
+        btn.textContent = "✓ 已复制——去 AI 对话框粘贴即可";
+        setTimeout(() => { btn.textContent = "⧉ 复制 AI 修复提示词"; }, 2500);
+      } catch (err) {  // 剪贴板不可用：展开提示词全文并选中，供手动复制
+        const folds = document.querySelectorAll("#rp-handoff details");
+        folds[1].open = true;
+        const pre = $("rp-handoff-prompt");
+        const range = document.createRange();
+        range.selectNodeContents(pre);
+        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        btn.textContent = "已展开全文并选中——Ctrl+C 手动复制";
+      }
+    };
+  }
 }
 
 // ---------- 个人中心（任务4：使用记录 = 我的测试任务 + 登录记录） ----------
