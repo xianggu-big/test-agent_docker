@@ -1,0 +1,11 @@
+{
+  "id": "py-requests-smoke",
+  "language": "python",
+  "track": "B",
+  "repo": "https://github.com/psf/requests",
+  "version_anchor": "v2.31.0",
+  "official_test_cmd": "python -m pytest tests/ -q",
+  "setup_cmd": "python -m pip install -e .",
+  "truth_source": "none（B 轨冒烟：无真值，失败归因走归因三闸）",
+  "status": "planned"
+}
