@@ -78,6 +78,29 @@ JS_NOISE_SUFFIXES = (".test.js", ".spec.js", ".test.ts", ".spec.ts", ".d.ts", ".
 # jest 用例声明：test("test_xxx" / it('test_xxx'（提示词强制名字以 test_ 开头无空格）
 JS_CASE_RE = re.compile(r'\b(?:test|it)\s*\(\s*[\'"]test_\w+')
 
+# task_366 实锤：12 条用例全部写 path.join(__dirname, '..')（jest 惯例假设用例在 test/
+# 子目录），但平台把用例文件直接写在仓库根 → 容器内 ROOT='/' → 全部被测脚本
+# "Cannot find module" → exit 1 + stdout 空 → 12 条被误归因"疑似产品缺陷"。
+# 平台布局下该形态 100% 指向仓库外，等价修正=去掉 '..' 段（LLM 本意=仓库根）；
+# 只改路径脚手架，不碰断言与用例逻辑。上跳两级等更深的形态无歧义修正语义，不在此
+# 处理（提示词布局纪律防其出现；真出现时 stderr 诊断段可见，见 js_adapter）。
+_JS_ROOT_SELF = (
+    r"path\.(?:join|resolve)\(\s*__dirname\s*,\s*(['\"])\.\.\1\s*\)")
+# 后续段不含 '..'（tempered：上跳两级等更深形态语义不明，不动）且不含括号（排除嵌套调用）
+_JS_ROOT_DOTDOT = (
+    r"path\.(?:join|resolve)\(\s*__dirname\s*,\s*(['\"])\.\.\1\s*,\s*"
+    r"((?:(?!\.\.)[^()])*?)\)")
+
+
+def _fix_js_scaffold_paths(code: str) -> tuple[str, int]:
+    """JS 用例路径脚手架确定性修正：path.join(__dirname, '..') → __dirname、
+    path.join(__dirname, '..', x) → path.join(__dirname, x)。
+    返回 (修正后代码, 修正处数)。零成本纯字符串变换，修正处由返回 JSON root_fixed 留痕。"""
+    n = len(re.findall(_JS_ROOT_SELF, code))
+    code = re.sub(_JS_ROOT_SELF, "__dirname", code)
+    code, more = re.subn(_JS_ROOT_DOTDOT, r"path.join(__dirname, \2)", code)
+    return code, n + more
+
 
 def _is_js_noise(p: Path) -> bool:
     """JS 项目的非被测文件：测试/声明/压缩/配置/生成物。"""
@@ -626,14 +649,19 @@ def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
     data["cases"], rejected = _static_filter(data["cases"], ws)
     info["static_rejected"] = rejected
     out = []
+    root_fixed = 0
     for c in data["cases"]:
         def_name = _sanitize_name(c.get("name"), len(used_names), used_names)
         code = c["code"].strip()
+        code, n_fixed = _fix_js_scaffold_paths(code)   # JS 脚手架修正（Python 代码无此形态=无操作）
+        root_fixed += n_fixed
         m = re.search(r"def\s+\w+", code)
         if m:
             code = code[:m.start()] + f"def {def_name}" + code[m.end():]
         c["code"], c["name"] = code, def_name
         out.append(c)
+    if root_fixed:
+        info["root_fixed"] = root_fixed
     info["refill_generated"] = len(out)
     info["uncovered_after"] = len(_condition_gaps(conditions, cases + out))
     return out, (data.get("imports") or "").strip(), info
@@ -868,6 +896,19 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                 code = code[:m.start()] + f"def {def_name}" + code[m.end():]
         c["code"], c["name"] = code, def_name
 
+    # —— JS 路径脚手架确定性修正（task_366 实锤，先于写盘：落库/布考场重建同源）——
+    root_fixed = 0
+    if is_js:
+        for c in data["cases"]:
+            c["code"], n_fixed = _fix_js_scaffold_paths(c["code"])
+            root_fixed += n_fixed
+        if data.get("imports"):
+            data["imports"], n_fixed = _fix_js_scaffold_paths(data["imports"])
+            root_fixed += n_fixed
+        if root_fixed:
+            log.info("gen_tests task=%s JS 路径脚手架修正 %d 处（__dirname '..' → 仓库根）",
+                     task_id, root_fixed)
+
     # —— 方案C·条件缺口回灌（Gotel&Finkelstein post-traceability 的生成侧闭环）：
     # 确定性 2-gram 映射查无用例对准的条件 → 定向补生成恰 1 轮（预算纪律）——
     # 与 V4 行覆盖回灌不同层：这里是 RTM 条件层的"覆盖了≠测到了"信号。
@@ -881,6 +922,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         if new_cases:
             data["cases"] += new_cases
             if extra_imports:
+                extra_imports, _ = _fix_js_scaffold_paths(extra_imports)
                 old = (data.get("imports") or "").strip()
                 data["imports"] = (old + "\n" + extra_imports).strip()
 
@@ -994,6 +1036,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                "methods": [c.get("method") for c in data["cases"]],
                "template_rejected": template_rejected,
                "assertion": assertion_stats, "cond_feedback": cond_feedback,
+               "root_fixed": root_fixed,
                "cross_review": cross_info, "source_skipped": source_skipped,
                "basis_downgraded": basis_downgraded, "phase": phase,
                "collect_deferred": collect_deferred,

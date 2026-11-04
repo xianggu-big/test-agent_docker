@@ -441,11 +441,19 @@ docstring 没写的行为，按需求文档推断，禁止猜。
 语言：JavaScript（jest）。每条用例是一个顶层 test("test_xxx_方法名", () => {...})，
 用例名必须以 test_ 开头、**不含空格**；被测模块用 require("./相对路径")（路径以被测文件
 相对工作区根目录为准，去掉扩展名）；断言用 expect(...).toBe/toEqual/toThrow 等具体比较，
-禁止只写 expect(x).toBeDefined() 这类弱断言。imports 字段放文件顶部的 require 语句。"""
+禁止只写 expect(x).toBeDefined() 这类弱断言。imports 字段放文件顶部的 require 语句。
+执行布局（重要）：用例文件将被直接写在项目根目录下（__dirname 即项目根），不会放进
+test/ 子目录——引用同目录文件一律 path.join(__dirname, "xxx.js")；**禁止写
+path.join(__dirname, "..")**（会指向项目外，必然 Cannot find module）。用
+child_process 启动项目内脚本时：cwd 用 __dirname、env 用
+Object.assign({}, process.env, extra)（勿整体替换父环境，否则 PATH 丢失）。"""
         code_example = 'test("test_xxx_等价类划分", () => {\\n  expect(fn(1)).toBe(2);\\n});'
         imports_hint = "测试文件顶部所需的全部 require 语句"
     else:
-        lang_rules = ""
+        lang_rules = """
+执行布局：用例文件将被直接写在项目根目录下（与被测模块同目录），不会放进子目录——
+subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__))，勿假设
+用例位于 test/ 子目录或上跳目录。"""
         code_example = "def test_xxx_等价类划分():\\n    ..."
         imports_hint = "测试文件顶部所需的全部 import 语句"
     return f"""## 被测源码

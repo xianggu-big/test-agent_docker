@@ -11,6 +11,13 @@ term-missing 覆盖表），下游 evaluate / repair（指纹·归因·剪枝）
   SyntaxError / TypeError    → 同名
 nodeid 口径：`<文件名>::<用例名>`——提示词要求 jest 用例名写成 test_xxx（无空格），
 与 Python nodeid 一致，test_cases.name 反查、剪枝���证人冻结全部复用。
+
+stderr 诊断段（task_366 误诊实锤，2026-11-04）：用例内子进程的报错（Cannot find
+module / ECONNREFUSED / ENOENT …）只出现在 jest 进程的 stderr，--json JSON 里只有
+expect 详情——成功解析路径此前把 stderr 丢弃，决定性证据在整条归因链蒸发，子进程级
+失败被误归因"疑似产品缺陷"。现把诊断行去重计数后附在输出尾部独立段：不带 FAILED/ERROR
+前缀（不干扰 per-case 解析与计数），措辞不含 "N failed/errors" 字样（不撞 evaluate
+计数正则），同文本逐轮稳定（不抖动 repair 指纹）。
 """
 import json
 import re
@@ -32,6 +39,26 @@ def _error_class(msg: str) -> str:
         if rx.search(head):
             return cls
     return "Error"
+
+
+# 子进程级诊断行：行首即错误标识（jest stderr 里子进程报错的首行形态；
+# Require stack: / at ... 堆栈行不匹配=自然过滤）
+_STDERR_DIAG_RE = re.compile(
+    r"^\s*((?:Error|Cannot find module|MODULE_NOT_FOUND|ENOENT|ECONNREFUSED"
+    r"|EACCES|EADDRINUSE)[^\n]*)$", re.M)
+_DIAG_HEADER = "---------------------- stderr diagnostics (jest) ----------------------"
+
+
+def stderr_diagnostics(stderr: str) -> str:
+    """从 jest stderr 提取子进程级诊断行（去重计数）；无匹配返回空串（零噪声）。"""
+    seen: dict[str, int] = {}
+    for m in _STDERR_DIAG_RE.finditer(stderr or ""):
+        line = m.group(1).strip()
+        seen[line] = seen.get(line, 0) + 1
+    if not seen:
+        return ""
+    rows = [line if cnt == 1 else f"{line} × {cnt}" for line, cnt in seen.items()]
+    return _DIAG_HEADER + "\n" + "\n".join(rows)
 
 
 def _nodeid(file_path: str, full_name: str, title: str) -> str:
@@ -139,4 +166,7 @@ def jest_json_to_pytest_text(stdout: str, stderr: str = "") -> str:
     if errors:
         parts.append(f"{errors} errors")
     out.append(f"===================== {', '.join(parts)} in jest =====================")
+    diag = stderr_diagnostics(stderr)
+    if diag:
+        out.extend(["", diag])
     return "\n".join(out)
