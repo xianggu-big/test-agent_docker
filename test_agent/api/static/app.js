@@ -1260,6 +1260,8 @@ async function runAnalysis(tid, btn) {
 async function loadReport() {
   const tid = $("rp-task").value;
   if (!tid) return;
+  // 切任务即清上一任务的导出预览（用户截图实锤：366 选中却残留 365 的导出全文，易误读）
+  $("rp-export-view").classList.add("hidden");
   const [reports, logs, rtm, charts, levels, tdetail, an] = await Promise.all([
     api(`/tasks/${tid}/report`).catch(() => []),
     api(`/tasks/${tid}/logs`).catch(() => []),
