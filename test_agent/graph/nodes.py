@@ -561,6 +561,20 @@ def make_nodes(deps: GraphDeps) -> dict:
             return {"done": True, "verdict": "stop",
                     "stop_reason": f"{lang} 执行链路 v1 未接入（诚实降级：static_only 路径走静态扫描），任务终止"}
         ws = Path(state["workspace"])
+        # 环境闸（归因三闸之一，11.4 恢复计划 §3）：真实用例前金丝雀自检，失败 fail-fast——
+        # task_366 教训：环境坏 12 条全错时系统照常产出"疑似产品缺陷"报告。默认关（V 变量惯例）。
+        if config.ENV_GATE_ENABLED and state.get("round_no", 1) <= 1:
+            from ..skills import attribution
+            cres = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                  attribution.canary_cmd(lang), timeout_s=120)
+            if not attribution.canary_ok(cres.exit_code, cres.stdout):
+                msg(state["session_id"], "assistant",
+                    f"[env-gate] 金丝雀未通过（exit={cres.exit_code}）：任务判环境无效，"
+                    f"不产出任何产品缺陷结论（fail-fast）")
+                return {"done": True, "verdict": "stop",
+                        "stop_reason": "环境闸：金丝雀自检未通过（框架/IO），判环境无效——"
+                                       "不产出产品缺陷结论（11.4 归因三闸）"}
+            msg(state["session_id"], "assistant", "[env-gate] 金丝雀通过：框架/IO 自检 OK")
         if lang == "javascript":
             # JS 执行链路（Tier2）：jest --json 输出经宿主侧适配器转 pytest 风格文本，
             # 下游 evaluate/repair/report 零改动（docs：js_adapter 模块头）
@@ -625,7 +639,8 @@ def make_nodes(deps: GraphDeps) -> dict:
         if lang == "javascript" and r.get("stdout"):
             from ..skills.js_adapter import jest_json_to_pytest_text
             r["stdout"] = jest_json_to_pytest_text(r["stdout"], r.get("stderr", ""))
-        return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"]}
+        return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"],
+                "last_cmd": cmd}
 
     # ---------- 6. 判读（Evaluator 在宿主侧：解析 + 归因 + R-Loop 判定） ----------
     def evaluate(state: TaskState) -> dict:
@@ -658,6 +673,54 @@ def make_nodes(deps: GraphDeps) -> dict:
             state.get("round_no", 0), coverage,
             state.get("coverage_target"),
             witness_nodeids=witness if config.WITNESS_CONTINUE_ENABLED else None)
+        # —— 归因三闸·差分闸（11.4 恢复计划 §3；LIBRO buggy/fixed 口径，默认关）——
+        # 疑似产品缺陷先在对照 ref 复跑失败子集：对照也失败 → 排除产品缺陷（用例/环境错），
+        # 对照通过 → 高置信缺陷暴露。不可用（no_git/no_ref）→ 维持原归因，不硬猜。
+        if (config.DIFF_GATE_ENABLED and kind == "product_defect"
+                and state.get("last_exit", 1) != 0):
+            from ..skills import attribution
+            lang = state.get("primary_language", "python")
+            failed_files = sorted({nid.split("::")[0]
+                                   for nid in repair.failing_nodeids(stdout)})
+            if failed_files:
+                def _exec(cmd, timeout_s=600):
+                    return runner.exec_in(
+                        runner.client.containers.get(state["container_name"]),
+                        cmd, timeout_s=timeout_s)
+                diff = attribution.run_diff_gate(
+                    _exec, lang, failed_files,
+                    state.get("diff_ref") or config.DIFF_GATE_REF)
+                if diff["label"] == "case_defect":
+                    kind = "case_defect"
+                    reason = (f"差分闸降级（{diff['confidence']}置信）："
+                              f"对照 {state.get('diff_ref') or config.DIFF_GATE_REF} "
+                              f"上{diff['detail']} → 非产品缺陷（用例/环境错）")
+                msg(state["session_id"], "assistant",
+                    f"[diff-gate] status={diff['status']} {diff['detail']}"
+                    f"{('；原归因 product_defect 已降级为 ' + kind) if kind != 'product_defect' else ''}"
+                    if diff["status"] == "ok" else
+                    f"[diff-gate] 不可用（{diff['status']}）：{diff['detail']}，维持原归因")
+                if diff["status"] == "restore_failed":
+                    msg(state["session_id"], "assistant",
+                        "[diff-gate] ⚠ 工作区未切回原 HEAD——必须人工检查 git 状态后再用该工作区")
+        # —— 归因三闸·flaky 连跑（TestGen-LLM 口径，默认 FLAKY_RERUNS=0 关）——
+        # 疑似产品缺陷终判前同命令连跑 N 次：结果不一致 → stop_reason 标 flaky，
+        # 报告侧据此把该轮不计入缺陷分母（taxonomy 不新增值，v1 靠 reason 携带）。
+        if (config.FLAKY_RERUNS > 0 and kind == "product_defect"
+                and state.get("last_exit", 1) != 0 and state.get("last_cmd")):
+            from ..skills import attribution
+            lang = state.get("primary_language", "python")
+            outcomes = []
+            for _ in range(int(config.FLAKY_RERUNS)):
+                rr = runner.exec_in(
+                    runner.client.containers.get(state["container_name"]),
+                    state["last_cmd"], timeout_s=config.DEFAULT_JOB_TIMEOUT_S)
+                outcomes.append(attribution.outcome_passed(
+                    lang, rr.exit_code, rr.stdout))
+            if outcomes and attribution.is_flaky(outcomes):
+                reason += (f"；flaky 连跑 {config.FLAKY_RERUNS} 次结果不一致"
+                           f"（{sum(outcomes)} 过/{len(outcomes) - sum(outcomes)} 败）"
+                           "→ 证据强度降级，建议人工复跑定性")
         round_no = state.get("round_no", 0)
         # P1-③：每轮评估结构化落库（evaluation_rounds，轨迹唯一真源）——此前只写
         # 叙述消息，collect_metrics 靠正则解析散文取轨迹，措辞一变即静默清空。

@@ -120,6 +120,12 @@ TRACE_ENABLED = True         # 跨级溯源确定性建链（False=build_task_tr
 L2_SERVICE_PORT = 8000       # v0 单容器：被测服务与测试执行同容器，localhost 端口
 L2_SERVICE_WAIT_S = 30       # 服务健康检查等待上限（秒）
 
+# —— 失败归因三闸 v1（11.4 恢复计划 §3；研究先行引用见 skills/attribution.py 模块头） ——
+ENV_GATE_ENABLED = False    # 环境闸：首轮真实用例前跑金丝雀（框架/IO 自检），失败 fail-fast 判环境无效
+DIFF_GATE_ENABLED = False   # 差分闸：疑似产品缺陷在对照 ref 复跑失败子集（2×2 判定；要求工作区 .git）
+DIFF_GATE_REF = "HEAD~1"    # 差分闸对照 ref（基准场景可指向已知 fix 提交）
+FLAKY_RERUNS = 0            # 连跑：>0 时疑似产品缺陷终判前同命令连跑 N 次，结果不一致在 stop_reason 标 flaky
+
 # —— 环境自适应 recipe（任务F / 2026-11-02，docs/环境自适应调研与设计.md §6） ——
 RECIPE_ENABLED = False              # 默认关：关=EXEC_LANGUAGES 旧路径逐字节不变（可回滚）
 RECIPE_MAX_BUILD_S = 900            # 单次镜像构建超时（秒）
