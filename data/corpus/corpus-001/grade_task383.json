@@ -1,0 +1,41 @@
+{
+ "task_id": 383,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_长度边界_边界值分析",
+    "reason": "该用例断言 check_length('A' * 64) is True，恰好命中 max_len 边界处 n >= max_len 的差一错误。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只测了长度 8 的 strength_score，未覆盖长度恰为 64 的密码少得 1 分的场景。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例对长度恰为 max_len 的强密码断言 is_strong 为 True。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_strength_score_仅长度满足_判定表",
+    "reason": "断言仅长度满足时 strength_score('aaaaaaaa') == 1，若实现中长度得分依赖 check_length 且其他条件计分方式不同，可能暴露额外计分缺陷，需核对需求。"
+   }
+  ]
+ }
+}

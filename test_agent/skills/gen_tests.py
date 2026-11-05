@@ -214,11 +214,30 @@ def _collect_sources(ws: Path, lang: str = "python") -> list[tuple[str, str]]:
     return _collect_sources_detailed(ws, lang)[0]
 
 
+# 模型漂移第 3/4 形（2026-11-05 批4 12/12 降级实锤）：JSON 字符串值位置写 Python
+# 表达式——重复 "A" * 65、拼接 "Ab1!" + "aaa"。合法 JSON 中字符串结束引号后只可能
+# 是 , } ] :，出现 + / * 必然非法，因此片段级求值替换不会误伤 code 字段内嵌的
+# '-' * 20（其宿主字符串的结束引号后跟的是 , 或 }，模式匹配不到它）。
+_PY_STR_EXPR_RE = re.compile(
+    r'"(?:[^"\\]|\\.)*"(?:\s*[+*]\s*(?:"(?:[^"\\]|\\.)*"|\d+))*')
+
+
+def _eval_str_expr(m: "re.Match") -> str:
+    """字符串表达式片段求值：片段经正则约束只含字符串/数字字面量与 + *（无名称、
+    无调用、无下标），eval 无注入面；求值失败保持原样交外层容错循环。"""
+    try:
+        val = eval(m.group(0), {"__builtins__": {}}, {})   # noqa: S307 —— 见上，无注入面
+        return json.dumps(val if isinstance(val, str) else str(val))
+    except Exception:                                      # noqa: BLE001
+        return m.group(0)
+
+
 def _loads_tolerant(s: str):
-    """JSON 宽容解析：DeepSeek 模型更新后偶发在 JSON 里输出 Python 字面量
-    True/False/None（2026-10-30 D8 补跑实锤，响应其余部分完全合法）。
+    """JSON 宽容解析：DeepSeek 模型更新后偶发在 JSON 里输出 Python 形态（2026-10-30
+    D8 实锤 True/False/None 字面量；2026-11-05 批4 实锤字符串重复/拼接表达式）。
     只在解析器报错位置做字面量替换——报错点必然在字符串外，因此 code 字符串里
     的 "assert x is True" 不会被误伤；替换后重试，至多 50 次防病态输入。"""
+    s = _PY_STR_EXPR_RE.sub(_eval_str_expr, s)
     for _ in range(50):
         try:
             return json.loads(s)
@@ -927,8 +946,20 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     log_llm_call(task_id, phase, resp)
     data = _parse_cases(resp.content)
     if data is None:
+        # 可观测性（批4 12/12 全降级实锤的教训）：解析失败必须留原始输出，否则
+        # "诚实降级"了却永远查不了因——证据蒸发与 task_366 stderr 丢弃同型
+        import time as _t
+        tail = (resp.content or "")[-500:]
+        log.warning("gen_tests task=%s LLM 输出不可解析（%d 字符），尾部：%s",
+                    task_id, len(resp.content or ""), tail[:200].replace("\n", " ⏎ "))
+        fail_dir = config.DATA_DIR / "reports" / "llm_parse_fail"
+        fail_dir.mkdir(parents=True, exist_ok=True)
+        (fail_dir / f"task{task_id}_{phase}_{_t.strftime('%H%M%S')}.txt").write_text(
+            resp.content or "", encoding="utf-8")
         return json.dumps({"generated": 0,
-                           "reason": "LLM 返回无法解析为用例（诚实降级，本轮不生成）"},
+                           "reason": "LLM 返回无法解析为用例（诚实降级，本轮不生成）；"
+                                     f"原始输出已留档 llm_parse_fail/task{task_id}/，"
+                                     f"尾部：{tail[:100]}"},
                           ensure_ascii=False)
 
     # —— 槽位模板展开（双通道）：基础方法 T1/T2/T5 渲染成代码，失败案留台账理由剔除 ——

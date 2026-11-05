@@ -90,4 +90,10 @@ def make_chat(**kwargs):
     phase = kwargs.pop("phase", "")
     task_id = kwargs.pop("task_id", None)
     retries = kwargs.pop("retries", 3)
+    # 响应强制按 utf-8 解码（2026-11-05 批4 实锤：DeepSeek 部分 CDN 节点响应头
+    # charset=gbk → httpx 尊重 header 解码 → 中文全部 mojibake 且 U+FFFD 丢字节
+    # 无法事后逆向；DeepSeek 输出恒为 utf-8，忽略 header charset 是安全的）
+    if "http_client" not in kwargs:
+        import httpx
+        kwargs["http_client"] = httpx.Client(default_encoding="utf-8")
     return RobustChat(ChatOpenAI(**kwargs), retries=retries, phase=phase, task_id=task_id)

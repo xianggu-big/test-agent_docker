@@ -1,0 +1,41 @@
+{
+ "task_id": 381,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：2 个失败 nodeid，命中证人 2 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值",
+    "reason": "该用例断言 check_length('a'*64) 为 True，恰好命中 max_len 处 n >= max_len 的差一错误。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用 strength_score，长度 64 少得 1 分的计算错误未被触及。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义边界_边界值",
+    "reason": "该用例虽测 is_strong 边界，但传入自定义 min=4/max=10 且值带引号，未覆盖默认 max_len=64 的强密码边界，证据不足。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义边界_边界值",
+    "reason": "参数值写成带引号的字符串字面量（如 '\"Ab1!\"'），长度与内容均偏离意图，且 is_strong 是否接受 min/max 参数存疑，用例本身可能引用/签名错误。"
+   }
+  ]
+ }
+}

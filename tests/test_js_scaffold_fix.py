@@ -7,6 +7,8 @@ path.join(__dirname, '..')（假设用例在 test/ 子目录）→ 容器内 ROO
 修复三层：生成侧确定性修正（本文件前半）+ stderr 诊断段不再蒸发（中段）+
 defect_analysis 归因判别纪律（尾段）。
 """
+import json
+
 from test_agent.skills.defect_analysis import build_analysis_prompt
 from test_agent.skills.gen_tests import _fix_js_scaffold_paths
 from test_agent.skills.js_adapter import jest_json_to_pytest_text, stderr_diagnostics
@@ -131,3 +133,27 @@ def test_user_prompt_js_layout_contract():
     # Python 分支：布局纪律同在，但不含 jest 字样（口径互不污染）
     p_py = build_user_prompt([("a.py", "x=1")], "需求", target_language="python")
     assert "执行布局" in p_py and "os.path.dirname" in p_py
+
+
+# ---------- 模型漂移容错（2026-11-05 批4 实锤：JSON 内字符串表达式） ----------
+
+def test_loads_tolerant_str_repeat_expr():
+    from test_agent.skills.gen_tests import _loads_tolerant
+    d = _loads_tolerant('{"cases": [{"value": "a" * 7, "expected": False}]}')
+    assert d["cases"][0]["value"] == "aaaaaaa"
+    assert d["cases"][0]["expected"] is False
+
+
+def test_loads_tolerant_str_concat_expr():
+    # 批4 task388 实锤形态：拼接表达式
+    from test_agent.skills.gen_tests import _loads_tolerant
+    d = _loads_tolerant('{"cases": [{"value": "Ab1!" + "aaa", "expected": False}]}')
+    assert d["cases"][0]["value"] == "Ab1!aaa"
+
+
+def test_loads_tolerant_no_false_positive_on_code_field():
+    # 安全性：code 字段内嵌的 '-' * 20 是合法 JSON 字符串内容，不得被改写
+    from test_agent.skills.gen_tests import _loads_tolerant
+    code = "sep = '-' * 20\nassert sep == '--------------------'"
+    d = _loads_tolerant(json.dumps({"cases": [{"code": code}]}))
+    assert d["cases"][0]["code"] == code

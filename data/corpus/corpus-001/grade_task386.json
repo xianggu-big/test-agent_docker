@@ -1,0 +1,41 @@
+{
+ "task_id": 386,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：2 个失败 nodeid，命中证人 2 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_默认参数长度恰好等于64_边界值分析",
+    "reason": "该用例断言 check_length('A'*64) is True，恰好落在长度等于 max_len 的边界缺陷上。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只直接测试 check_length，没有调用 strength_score 或断言长度 64 的密码得 5 分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例没有调用 is_strong，也没有断言长度 64 的强密码应返回 True。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_默认参数长度小于8_边界值分析",
+    "reason": "该用例内容被截断且缺少闭合括号，属于语法错误；其参数化预期（如 'Abcdef1' 为 False、'Abcdef12' 为 True）与长度边界相关，但用例本身无法运行，需修复后才能验证。"
+   }
+  ]
+ }
+}

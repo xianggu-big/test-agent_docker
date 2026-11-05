@@ -1,0 +1,41 @@
+{
+ "task_id": 397,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 3,
+ "uncertain": 0,
+ "not": 0,
+ "recall": 1.0,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例参数化包含 value=64 且 expected=True，直接断言 check_length('a'*64) is True，恰好命中 max_len 边界返回 False 的缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_判定表",
+    "reason": "该用例断言 strength_score('A'*64 + '1!') == 4，但该密码长度为 66 超出 [8,64] 区间，未直接覆盖长度恰为 64 的密码；不过其断言意图涉及长度边界对得分的影响，与 D4 沾边但输入不精确。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_自定义长度边界_边界值分析",
+    "reason": "该用例参数化包含 value=20 且 expected=True，调用 is_strong('Aa1!' + 'x'*16, 10, 20)，恰好命中长度等于 max_len 时 is_strong 误判为 False 的缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_strength_score_判定表",
+    "reason": "断言 strength_score('A'*64 + '1!') == 4，但该密码长度为 66，超出 [8,64] 区间，按需求长度不得分，预期值 4 可能错误（应为 3 或 4 取决于其他条件），疑似用例预期值错误。"
+   }
+  ]
+ }
+}

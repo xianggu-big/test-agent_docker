@@ -1,0 +1,45 @@
+{
+ "task_id": 396,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "参数化用例包含长度 64 的输入并期望 True，恰好命中 check_length 在 max_len 边界返回 False 的缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用 strength_score 或断言长度 64 密码的得分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义长度边界_边界值分析",
+    "reason": "该用例只测自定义 min_len/max_len 的 is_strong 边界，未覆盖默认 max_len=64 的强密码边界，证据不足。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_错误推测_非字符串类型_错误推测法",
+    "reason": "断言非字符串输入应抛 TypeError，若实现未做类型校验则暴露答案键外的真缺陷。"
+   },
+   {
+    "case": "test_is_strong_自定义长度边界_边界值分析",
+    "reason": "断言 is_strong 支持 min_len/max_len 关键字参数，若签名不支持则暴露答案键外的接口缺陷。"
+   }
+  ]
+ }
+}

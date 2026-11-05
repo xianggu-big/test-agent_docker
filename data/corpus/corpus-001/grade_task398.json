@@ -1,0 +1,41 @@
+{
+ "task_id": 398,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：2 个失败 nodeid，命中证人 2 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值",
+    "reason": "该用例在 max 边界处断言 check_length('a'*64) is True，恰好命中 n >= max_len 的 off-by-one 缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "两条证人用例都只测 check_length，没有任何用例调用 strength_score 或断言长度 64 的密码得 5 分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有用例调用 is_strong，边界长度强密码被误判的缺陷未被触及。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_自定义参数边界_边界值",
+    "reason": "自定义 min=3/max=5 的边界用例同样会在 max 处暴露同一 off-by-one，但答案键只描述了默认参数场景，属答案键外可补充的边界证据。"
+   }
+  ]
+ }
+}

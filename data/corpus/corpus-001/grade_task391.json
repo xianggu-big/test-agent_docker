@@ -1,0 +1,41 @@
+{
+ "task_id": 391,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_自定义参数边界_边界值分析",
+    "reason": "参数化用例含 max=5 期望 True、max+1=6 期望 False，恰好覆盖 check_length 在 n==max_len 时误返回 False 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例均未调用 strength_score，无任何断言触及长度 64 少得 1 分的计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义长度边界_边界值分析",
+    "reason": "该用例确实测 is_strong 的长度边界，但用的是自定义 min=4/max=10 且断言意图与默认 64 边界无关，未直接落在 D5 的 max_len=64 表现上。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_边界值_边界值分析",
+    "reason": "用例内容被截断且参数化期望值可疑（如 63 个 a 期望 True、64 个 a 期望 True），若按默认 max_len=64 则 65 个 a 应为 False，存在期望值与需求不符或语法不完整的风险。"
+   }
+  ]
+ }
+}

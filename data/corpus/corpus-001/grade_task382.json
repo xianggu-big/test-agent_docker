@@ -1,0 +1,41 @@
+{
+ "task_id": 382,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_分支覆盖_语句分支覆盖",
+    "reason": "该用例断言 check_length('A'*64) is True，恰好命中 max_len 边界处 n>=max_len 的 off-by-one 缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何证人用例调用 strength_score 或断言长度 64 密码的得分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "test_is_strong_自定义边界超长_边界值分析 使用长度 10 的密码且自定义 max_len=10，未触及默认 max_len=64 的边界，故未覆盖该缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义边界超长_边界值分析",
+    "reason": "该用例以 max_len=10 调用 is_strong('Abcdefgh1!', 4, 10)，密码长度恰为 10，若 is_strong 内部依赖 check_length 的闭区间判断，则可能因同一 off-by-one 缺陷而失败，属于答案键未列出的边界场景。"
+   }
+  ]
+ }
+}

@@ -1,0 +1,65 @@
+{
+ "task_id": 380,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 7,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：8 个失败 nodeid，命中证人 8 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例断言 check_length('a'*64) 为 True，恰好落在 max_len 闭区间边界缺陷上（尽管参数被写成字符串字面量 '\"a\"*64'，意图明确）。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用 strength_score 或断言长度 64 的密码得 5 分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义长度_边界值分析",
+    "reason": "该用例覆盖 is_strong 的边界长度，但使用自定义 min/max（8,8）且未触及默认 max_len=64 的边界，证据不足。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_错误推测_非字符串",
+    "reason": "参数化传入字符串 'None'/'12345678' 而非 None/int，且未导入 pytest 于函数外，预期 TypeError 可能不成立，属用例自身引用/类型错误。"
+   },
+   {
+    "case": "test_has_special_等价类划分",
+    "reason": "参数值被写成带引号的字符串字面量（如 '\"abc!\"'），预期值也是字符串 'True'/'False' 而非布尔，断言必然失败，属用例语法/类型错误。"
+   },
+   {
+    "case": "test_has_digit_等价类划分",
+    "reason": "同上，输入含多余引号且 expected 为字符串而非布尔，断言无法通过。"
+   },
+   {
+    "case": "test_has_lowercase_等价类划分",
+    "reason": "同上，输入与预期均为带引号字符串，属用例书写错误。"
+   },
+   {
+    "case": "test_has_uppercase_等价类划分",
+    "reason": "同上，输入与预期均为带引号字符串，属用例书写错误。"
+   },
+   {
+    "case": "test_check_length_边界值分析",
+    "reason": "参数值写成 '\"a\"*7' 等字符串字面量而非表达式，实际传入的是字面文本，长度恒为 5，断言全部失真。"
+   },
+   {
+    "case": "test_check_length_等价类划分",
+    "reason": "参数值带多余引号，实际长度与 id 描述不符，断言意图被破坏。"
+   }
+  ]
+ }
+}
