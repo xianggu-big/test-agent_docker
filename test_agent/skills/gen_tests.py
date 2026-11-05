@@ -812,18 +812,32 @@ def _generate_seed(llm, ws: Path, requirement: str, runner, container, fname: st
         except Exception as e:  # noqa: BLE001
             log.warning("种子生成 attempt=%s LLM 失败: %s", attempt, e)
             continue
-        data = _parse_cases(resp.content)
-        if not data or not data["cases"]:
-            log.warning("种子生成 attempt=%s 输出不可解析", attempt)
+        # 种子格式是单层 {imports, code}，不走 _parse_cases（它只认 cases 数组形态）
+        m = re.search(r"\{.*\}", resp.content, re.S)
+        if not m:
+            log.warning("种子生成 attempt=%s 无 JSON", attempt)
             continue
-        c0 = data["cases"][0]
-        code = (c0.get("code") or "").strip()
+        try:
+            data = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            try:
+                data = _loads_tolerant(m.group(0))   # 模型漂移字面量容错（同批量通道）
+            except (json.JSONDecodeError, ValueError):
+                log.warning("种子生成 attempt=%s 输出不可解析", attempt)
+                continue
+        code = (data.get("code") or "").strip()
         imports = (data.get("imports") or "").strip()
         if not code or "def test_" not in code:
+            log.warning("种子生成 attempt=%s 缺有效 code", attempt)
             continue
         content = ('"""结构种子（seed bootstrap，验证后删除）"""\n'
                    + (imports + "\n\n" if imports else "") + code + "\n")
         (ws / fname).write_text(content, encoding="utf-8")
+        try:
+            runner.copy_dir_into(container, ws)   # 种子回灌容器（collect 在容器内执行）
+        except Exception as e:  # noqa: BLE001
+            log.warning("种子回灌失败: %s", e)
+            continue
         r = runner.exec_in(container, ["pytest", "--collect-only", "-q", fname],
                            timeout_s=120)
         if r.exit_code == 0:

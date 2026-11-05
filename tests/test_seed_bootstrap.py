@@ -1,4 +1,5 @@
 """种子自举模板单测（fake-LLM/fake-runner，无真容器）：结构锚点注入与降级语义。"""
+import json
 from pathlib import Path
 
 from test_agent.skills.gen_tests import _generate_seed
@@ -31,6 +32,9 @@ class _FakeRunner:
     def __init__(self, collect_ok=True):
         self.collect_ok = collect_ok
 
+    def copy_dir_into(self, container, ws, dest_path="/work"):
+        pass
+
     def exec_in(self, container, cmd, timeout_s=120, workdir="/work"):
         ok = self.collect_ok
 
@@ -49,9 +53,8 @@ def _ws(tmp_path):
 
 def test_seed_success_returns_content_and_cleans_file(tmp_path):
     ws = _ws(tmp_path)
-    seed_json = ('{"imports": "from checker import check_length", '
-                 '"cases": [{"name": "t", "code": '
-                 '"def test_simple():\\n    assert check_length(\'x\') is False"}]}')
+    seed_json = json.dumps({"imports": "from checker import check_length",
+                            "code": "def test_simple():\n    assert check_length('x') is False"})
     got = _generate_seed(_FakeLLM(seed_json), ws, "需求", _FakeRunner(True),
                          object(), "test_seed_probe.py")
     assert got is not None and "def test_simple" in got and "checker" in got
@@ -60,8 +63,7 @@ def test_seed_success_returns_content_and_cleans_file(tmp_path):
 
 def test_seed_collect_fail_retries_then_degrades(tmp_path):
     ws = _ws(tmp_path)
-    seed_json = ('{"imports": "", '
-                 '"cases": [{"name": "t", "code": "def test_t():\\n    assert 1"}]}')
+    seed_json = json.dumps({"imports": "", "code": "def test_t():\n    assert 1"})
     got = _generate_seed(_FakeLLM(seed_json), ws, "需求", _FakeRunner(False),
                          object(), "test_seed_probe.py", tries=3)
     assert got is None                                   # 收集失败→诚实降级
@@ -70,8 +72,7 @@ def test_seed_collect_fail_retries_then_degrades(tmp_path):
 
 def test_seed_unparsable_retries(tmp_path):
     ws = _ws(tmp_path)
-    llm = _FakeLLM('{"cases": [{"name": "t", "code": "def test_t(): assert 1"}]}',
-                   bad_before=2)
+    llm = _FakeLLM(json.dumps({"code": "def test_t(): assert 1"}), bad_before=2)
     got = _generate_seed(llm, ws, "需求", _FakeRunner(True), object(),
                          "test_seed_probe.py", tries=3)
     assert got is not None and llm.calls == 3            # 前两次坏输出第三次成功
