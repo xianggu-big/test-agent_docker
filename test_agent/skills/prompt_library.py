@@ -336,7 +336,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       feedback_text: str | None = None,
                       pitfalls: bool = False,
                       module_lang: str = "",
-                      target_language: str = "") -> str:
+                      target_language: str = "",
+                      seed_example: str | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -358,6 +359,17 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     """
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
+    seed_text = ""
+    if seed_example:
+        seed_text = f"""
+
+## 结构样板（本项目容器内已验证可收集的一条用例——严格模仿它）
+以下是一条在本项目环境「实测可运行」的用例全文：它的 import 方式、函数包装、断言风格
+在本环境成立。批量生成时**逐条严格模仿此结构**，仅替换测试内容与断言对象；禁止引入
+此样板未使用的 import 方式、装饰器或目录假设。
+```python
+{seed_example}
+```"""
     docs_text = ""
     if api_docs:
         docs_text = f"""
@@ -460,7 +472,7 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
+{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}

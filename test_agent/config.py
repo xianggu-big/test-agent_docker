@@ -111,6 +111,9 @@ PREP_GEN_MAX_ROUNDS = 2              # 阶段一出题 0 条（LLM 偶发不可�
 AI_REVIEWER_TOKEN_BUDGET = 80_000    # 代审停车线（任务级）：D2 审查+增补循环 token 超线即停等人工（fail-closed）
 AI_REVIEWER_MAX_ROUNDS = 5           # auto 模式 D2 审查→增补→再审循环上限（与 FEEDBACK_MAX_ROUNDS 同源语义）
 
+# —— 种子自举模板（docs/种子自举模板设计-20261105.md：先造1条最简种子→容器collect验证→结构锚点注入批量；默认关） ——
+SEED_BOOTSTRAP_ENABLED = False
+
 # —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
 LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg
 

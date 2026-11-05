@@ -221,6 +221,10 @@ def part1_completion() -> list[Item]:
         "L1 evaluate 轮次删除级别过滤", "缺失")
     (ok if callable(getattr(gen_tests, "_extract_api_docs", None)) else miss)(
         "gen_tests._extract_api_docs（C源 docstring grounding）", "缺失")
+    (ok if callable(getattr(gen_tests, "_generate_seed", None)) else miss)(
+        "gen_tests._generate_seed（种子自举）", "缺失")
+    (ok if getattr(config, "SEED_BOOTSTRAP_ENABLED", None) is False else miss)(
+        "config.SEED_BOOTSTRAP_ENABLED 默认关", "缺失")
     (ok if getattr(config, "DOCSTRING_GROUNDING_ENABLED", None) is False else miss)(
         "config.DOCSTRING_GROUNDING_ENABLED 默认关", "缺失")
     (ok if callable(getattr(gen_tests, "_extract_usage_examples", None))

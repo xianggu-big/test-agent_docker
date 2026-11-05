@@ -789,6 +789,51 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
     return out, info
 
 
+SEED_SYSTEM = (
+    "你是测试工程师。生成 1 条最简 pytest 用例（结构样板）：单测试函数、单断言、"
+    "覆盖需求中最简单的一条行为。禁止参数化装饰器、fixture、辅助函数。"
+    '只输出 JSON：{"imports": "...", "code": "def test_xxx():\\n    ..."}。'
+)
+
+
+def _generate_seed(llm, ws: Path, requirement: str, runner, container, fname: str,
+                   tries: int = 3):
+    """种子自举阶段（docs/种子自举模板设计-20261105）：生成 1 条最简用例 → 容器 collect
+    验证 → 通过则返回种子全文（作为批量生成的结构锚点）。断言失败不算模板失败
+    （collect 过=结构成立）；收集失败带原因重试 ≤tries 次；仍失败 → None（诚实降级，
+    批量生成不带锚点照常进行）。种子文件验证后删除（结构已提取，不留执行干扰）。"""
+    for attempt in range(1, tries + 1):
+        try:
+            src_pairs, _ = _collect_sources_detailed(ws, "python")
+            src_text = "\n".join(f"### {p}\n```python\n{c}\n```" for p, c in src_pairs)
+            resp = llm.invoke([("system", SEED_SYSTEM),
+                               ("user", f"## 需求\n{requirement or '（按源码行为设计）'}\n\n"
+                                        f"## 被测源码\n{src_text or '（无）'}")])
+        except Exception as e:  # noqa: BLE001
+            log.warning("种子生成 attempt=%s LLM 失败: %s", attempt, e)
+            continue
+        data = _parse_cases(resp.content)
+        if not data or not data["cases"]:
+            log.warning("种子生成 attempt=%s 输出不可解析", attempt)
+            continue
+        c0 = data["cases"][0]
+        code = (c0.get("code") or "").strip()
+        imports = (data.get("imports") or "").strip()
+        if not code or "def test_" not in code:
+            continue
+        content = ('"""结构种子（seed bootstrap，验证后删除）"""\n'
+                   + (imports + "\n\n" if imports else "") + code + "\n")
+        (ws / fname).write_text(content, encoding="utf-8")
+        r = runner.exec_in(container, ["pytest", "--collect-only", "-q", fname],
+                           timeout_s=120)
+        if r.exit_code == 0:
+            (ws / fname).unlink(missing_ok=True)   # 结构已提取，删除防执行干扰
+            return content
+        log.warning("种子 collect 失败 attempt=%s: %s", attempt, (r.stdout + r.stderr)[-200:])
+        (ws / fname).unlink(missing_ok=True)
+    return None
+
+
 def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     """生成/增补共用管线（三道闸同源保证）：
     - 常规轮：args.round_no → test_gen_r{N}.py（version=N）
@@ -833,6 +878,18 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                      base_url=config.DEEPSEEK_BASE_URL,
                      temperature=0.2, timeout=90, max_retries=2)
+    seed_code = None
+    if (config.SEED_BOOTSTRAP_ENABLED and not feedback and lang == "python"
+            and runner is not None and args.get("container_name")):
+        try:
+            container = runner.client.containers.get(args["container_name"])
+            seed_code = _generate_seed(llm, ws, args.get("requirement", ""), runner,
+                                       container, "test_seed_probe.py")
+            if seed_code:
+                log.info("gen_tests task=%s 种子自举成功（结构锚点就位）", task_id)
+        except Exception as e:  # noqa: BLE001 —— 种子失败 fail-open，批量照常
+            log.warning("种子自举失败（fail-open）: %s", e)
+
     resp = llm.invoke([("system", SYSTEM_PROMPT),
                        ("user", build_user_prompt(sources, args.get("requirement", ""),
                                                   args.get("coverage_gaps"),
@@ -841,6 +898,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   include_methods=config.GEN_METHODS_ENABLED,
                                                   boundary_attack=config.GEN_BOUNDARY_ATTACK,
                                                   pbt=config.PBT_ENABLED,
+                                                  seed_example=seed_code,
                                                   templates=config.TEMPLATES_ENABLED,
                                                   state_transition=config.STATE_TRANSITION_ENABLED,
                                                   metamorphic=config.METAMORPHIC_ENABLED,

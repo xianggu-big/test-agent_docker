@@ -41,6 +41,7 @@ GRID = {
     # —— 三源知识注入消融三格（docs/领域知识注入调研-20261031.md；df8d573 声称的 XC 格
     # 实际缺失，本轮补齐——提交信息与实现不符的第 2 例，引用前先 grep 实锤）——
     "XC": {"DOCSTRING_GROUNDING_ENABLED": True},  # C源：docstring grounding（预期冲突以文档为准）
+    "X-SEED": {"SEED_BOOTSTRAP_ENABLED": True},   # 种子自举：先验证1条最简种子作结构锚点再批量（docs/种子自举模板设计）
     "XA": {"USAGE_EXAMPLES_ENABLED": True},     # A源：repo 调用形态锚点（剥断言防迁就；判据=①类失败中
                                                 # "调用形态错误"子类消失 + 监督指标全过率不得上升）
     "X9": {"PITFALL_KB_ENABLED": True},         # B源：语言×类型陷阱库（错误推测法扩展；判据=检出率+
