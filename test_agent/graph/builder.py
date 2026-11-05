@@ -355,6 +355,28 @@ def run_task_exec(task_id: int) -> dict:
             log.warning("容器回收失败: %s", e)
 
 
+def log_feedback_message(conn, task_id: int, fb_no: int, feedback_text: str) -> int | None:
+    """C（任务卡-369 20261105）反馈原文留档：369 的 expected_basis=「用户反馈」用例
+    无法溯源（反馈原文只在内存传递）——写 agent_messages（role=user）留档，basis
+    可软链回查。session 不可得时返回 None（不阻断增补主链路）。"""
+    try:
+        ses = conn.execute(
+            "SELECT id FROM agent_sessions WHERE task_id=? ORDER BY id DESC LIMIT 1",
+            (task_id,)).fetchone()
+        if ses is None:
+            return None
+        seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
+                           (ses["id"],)).fetchone()["n"]
+        cur = conn.execute(
+            "INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
+            (ses["id"], seq, "user", f"[feedback 第{fb_no}轮] {feedback_text}"))
+        conn.commit()
+        return cur.lastrowid
+    except Exception as e:      # noqa: BLE001 —— 留痕失败不炸增补主链路（如实日志）
+        logging.warning("反馈留档失败 task=%s: %s", task_id, e)
+        return None
+
+
 def run_feedback_round(task_id: int, feedback_text: str, runner=None) -> dict:
     """两阶段③·对话增补共用管线（人工对话框与 AI 代审 regenerate 走同一端点语义）：
     反馈进提示词 → 定向增补生成（独立 test_gen_fbN.py 走同一三道闸，不动已批准用例）→
@@ -373,6 +395,7 @@ def run_feedback_round(task_id: int, feedback_text: str, runner=None) -> dict:
     if not ws.exists():
         raise RuntimeError("工作区不存在（阶段一未完成）")
     fb_no = len(list(ws.glob("test_gen_fb*.py"))) + 1
+    log_feedback_message(conn, task_id, fb_no, feedback_text)
     if fb_no > config.FEEDBACK_MAX_ROUNDS:
         raise RuntimeError(f"增补预算已用尽（上限 {config.FEEDBACK_MAX_ROUNDS} 轮），"
                            f"请整理用例集后下发执行")

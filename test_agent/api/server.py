@@ -679,6 +679,24 @@ def api_handoff(tid: int, user: dict = Depends(current_user)):
     return built
 
 
+@app.post("/api/tasks/{tid}/verify-fix")
+def api_verify_fix(tid: int, user: dict = Depends(current_user)):
+    """F（任务卡-369 20261105）回归验证闭环入口：创建验证任务（复制原任务最终用例集，
+    requirement 软链前缀，状态直置 ready_for_review——走阶段二执行图=执行-only，
+    gen 不跑=用例冻结）。幂等：未执行的验证任务已存在则复用。
+    本地目录项目请先确认修复已落盘（快照即新版）。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    from ..skills.verify_fix import create_verify_task
+    vid = create_verify_task(conn, tid)
+    row = conn.execute("SELECT id, status, requirement_text FROM test_tasks WHERE id=?",
+                       (vid,)).fetchone()
+    return {"verify_task_id": vid, "status": row["status"],
+            "requirement": row["requirement_text"],
+            "note": "验证任务已就绪（用例冻结）。请从任务列表对其下发执行（阶段二）；"
+                    "执行完成后按缺陷组签名出 fail-to-pass 三态判定"}
+
+
 @app.get("/api/tasks/{tid}/rtm")
 def api_rtm(tid: int, user: dict = Depends(current_user)):
     """需求追踪矩阵（RTM）：测试条件 ↔ 用例映射与覆盖状态 + 用例六要素。"""

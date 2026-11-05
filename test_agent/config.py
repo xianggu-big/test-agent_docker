@@ -116,7 +116,21 @@ SEED_BOOTSTRAP_ENABLED = False
 
 # —— 防御矩阵 v2 新设计（docs/防御矩阵-prompt与非prompt措施-20261105.md §四：P1/P2/N1/N2 打包；
 #    默认关=提示词与静态闸行为逐字节不变；F4 红队对抗格以此旗标测拦截率） ——
+def _flag(env_key: str, default: bool) -> bool:
+    """环境变量覆盖旗标：MTA_*=1/true/y 开，0/false/no/off 关，未设=代码默认。"""
+    v = (os.environ.get(env_key) or "").strip().lower()
+    if not v:
+        return default
+    return v not in ("0", "false", "no", "off")
+
+
 DEFENSE_V2_ENABLED = False
+SUT_MANIFEST_ENABLED = _flag("MTA_SUT_MANIFEST", False)
+# B2（任务卡-369：SUT 功能函数候选清单注入——治「纯数据文件被当被测单元」，
+# 369 实锤 questions.js 被当 SUT 而真功能 app.js 零执行）
+DEFECT_CLUSTERING_ENABLED = _flag("MTA_DEFECT_CLUSTER", False)
+# 缺陷去重/同根因聚类（任务卡-369 E：确定性签名 sha1(failure_kind|error_class|
+# 归一化消息|SUT首帧)[:12]；Sentry in-app frames/ReBucket 桶思想，零 LLM）
 
 # —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
 LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg
@@ -132,14 +146,6 @@ L2_SERVICE_WAIT_S = 30       # 服务健康检查等待上限（秒）
 # 生产接线（2026-11-05，开源调研：SWE-bench harness 同思路——开关经环境变量进入评估
 # 环境而非改代码默认值）：代码默认保持关（526 基线保护），真实任务一键开启=
 # MTA_ENV_GATE=1 / MTA_DIFF_GATE=1 / MTA_FLAKY_RERUNS=3
-def _flag(env_key: str, default: bool) -> bool:
-    """环境变量覆盖旗标：MTA_*=1/true/y 开，0/false/no/off 关，未设=代码默认。"""
-    v = (os.environ.get(env_key) or "").strip().lower()
-    if not v:
-        return default
-    return v not in ("0", "false", "no", "off")
-
-
 ENV_GATE_ENABLED = _flag("MTA_ENV_GATE", False)     # 环境闸：首轮真实用例前跑金丝雀（框架/IO 自检），失败 fail-fast 判环境无效
 DIFF_GATE_ENABLED = _flag("MTA_DIFF_GATE", False)   # 差分闸：疑似产品缺陷在对照 ref 复跑失败子集（2×2 判定；要求工作区 .git）
 DIFF_GATE_REF = "HEAD~1"    # 差分闸对照 ref（基准场景可指向已知 fix 提交）

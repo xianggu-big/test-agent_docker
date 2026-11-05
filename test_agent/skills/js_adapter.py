@@ -152,6 +152,15 @@ def jest_json_to_pytest_text(stdout: str, stderr: str = "") -> str:
         out.extend(cov_rows)
         pct = round((tot_s - tot_m) / tot_s * 100) if tot_s else 0
         out.append(f"{'TOTAL':<28}{tot_s:>8}{tot_m:>7}{pct:>6}%")
+    elif data.get("coverageMap") is not None and not cov_rows and lines:
+        # D（任务卡-369 20261105）覆盖率断点诊断：jest --coverage 正常产出但
+        # coverageMap files=0 —— 用例以 readFileSync+vm.runInContext 加载被测代码
+        # （绕过 require 插桩管线，istanbul 零插桩；require 型用例覆盖率正常）。
+        # 显式说明替代裸 N/A：报告/人工不再猜测覆盖率为什么没有
+        out.append("")
+        out.append("---------- coverage: unavailable ----------")
+        out.append("coverageMap 为空：用例未通过 require 加载被测代码"
+                   "（vm/readFileSync 模式无法插桩）——覆盖率不可用，非解析断点")
     # 套件崩溃计入 failed（853刷题系统实锤：无工程文件的散装 JS 套件 require 崩溃，
     # 0 passed/0 failed 只有 errors 行 → evaluate 判"没解析到"走 repair_env 循环熔断；
     # 计入 failed 后归因走 case_defect——生成用例与项目模块系统不匹配是用例侧问题）

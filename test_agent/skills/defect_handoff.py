@@ -12,7 +12,9 @@
 - 纪律三（oracle 诚实）：修复提示词必须带护栏——禁止改断言/证人；AI 若判断预期
   本身错误，出口是"反驳证据交人工裁决"，不是改代码迁就。
 """
+import hashlib
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -168,10 +170,75 @@ def _analysis_lookup(meta: dict, name: str) -> dict:
     return {}
 
 
+# —— E（任务卡-369 20261105）缺陷去重/同根因聚类：确定性签名，零 LLM 零新依赖 ——
+# 调研锚点：Sentry Issue Grouping（只取 in-app frames）/ ReBucket（ICSE 2012）桶思想；
+# DeepLSH（arXiv 2310.06703）为学习型方案，本项目单任务失败 N≈4-40 条不需要（诚实取舍）。
+
+def _norm_message(msg: str) -> str:
+    """消息归一化：数字→<N>、引号内字符串→<S>、路径→<PATH>——369 的 4 条
+    TypeError 消息归一化后同构（仅变量名/id 字面差异）。"""
+    s = msg or ""
+    s = re.sub(r"\d+(?:\.\d+)?", "<N>", s)
+    s = re.sub(r"\"[^\"]*\"|'[^']*'", "<S>", s)
+    s = re.sub(r"(?:[A-Za-z]:)?(?:/|\\)[\w./\\-]+", "<PATH>", s)
+    return s
+
+
+def _error_class_of(msg: str) -> str:
+    """错误类提取：jest/pytest 失败行的首错误类名（TypeError/SyntaxError/AssertionError…）。"""
+    m = re.search(r"\b([A-Z]\w*(?:Error|Exception))\b", msg or "")
+    return m.group(1) if m else "unknown"
+
+
+_FRAME_EXCLUDE_RE = re.compile(
+    r"evalmachine|test_gen_r\d|test_gen_fb|test_imported|node_modules|jest|pytest")
+
+
+def _sut_frame(msg: str) -> str:
+    """SUT 首帧（Sentry in-app frames 思想）：堆栈中第一个指向被测项目源文件的帧；
+    错误全在用例侧（369 形态）→ 空串 → 自然聚为「用例侧缺陷」组。"""
+    for m in re.finditer(r"^\s*at\s+(.+)$", msg or "", re.M):
+        frame = m.group(1).strip()
+        if frame and not _FRAME_EXCLUDE_RE.search(frame):
+            return frame[:160]
+    return ""
+
+
+def defect_signature(d: dict, failure_kind: str = "") -> str:
+    """同根因签名 = sha1(failure_kind | error_class | norm_message | sut_frame)[:12]"""
+    raw = " | ".join([failure_kind or "", _error_class_of(d.get("message")),
+                      _norm_message(d.get("message")), _sut_frame(d.get("message"))])
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def cluster_defects(defects: list[dict], failure_kind: str = "") -> list[dict]:
+    """按签名分桶。返回组清单（每组含签名/成员 bug_id/组内最高置信），并给每个
+    defect 写 cluster/cluster_size 字段（渲染按组展示「缺陷组 N，影响 K 用例」）。"""
+    buckets: dict[str, list[dict]] = {}
+    for d in defects:
+        sig = defect_signature(d, failure_kind)
+        d["cluster"] = sig
+        buckets.setdefault(sig, []).append(d)
+    groups = []
+    for sig, members in buckets.items():
+        groups.append({
+            "signature": sig, "members": [m["bug_id"] for m in members],
+            "size": len(members),
+            "top_confidence": min((m["confidence"] for m in members),
+                                  key=lambda c: ["高", "中", "低"].index(c) if c in ("高", "中", "低") else 3),
+        })
+    for g in groups:
+        for m in buckets[g["signature"]]:
+            m["cluster_size"] = g["size"]
+    return groups
+
+
 def render_defect_report(meta: dict, defects: list[dict]) -> str:
     """标准缺陷报告单（Markdown）。数字与引用全部来自加载层数据。"""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     cov = f"{meta['coverage_line']:.0%}" if meta.get("coverage_line") is not None else "N/A"
+    clusters = (cluster_defects(defects, (meta.get("defects_tag") or {}).get("failure_kind", ""))
+                if config.DEFECT_CLUSTERING_ENABLED else [])
     basis_dist: dict[str, int] = {}
     for d in defects:
         key = d["basis"] or "未标注"
@@ -201,12 +268,22 @@ def render_defect_report(meta: dict, defects: list[dict]) -> str:
         f"- 疑似产品缺陷 **{len(defects)}** 条（置信度分布："
         + "、".join(f"{k} {v}" for k, v in sorted(conf_dist.items())) + "）",
         "- 依据分布：" + ("、".join(f"{k} {v}" for k, v in sorted(basis_dist.items())) or "—"),
+        ("- 同根因分组 **{}** 组（确定性签名聚类；".format(len(clusters))
+         + "；".join(f"组{i+1} 影响 {g['size']} 用例" for i, g in enumerate(clusters)) + "）")
+        if clusters else "",
         "- 使用方式：高置信（需求明示/docstring）可直接开修；中低置信建议人工先复核预期"
         "是否成立（预言误差风险），再进修复。",
         "",
         "## 3. 缺陷清单",
     ]
+    last_cluster = None
     for d in defects:
+        if clusters and d.get("cluster") != last_cluster:
+            last_cluster = d.get("cluster")
+            g = next((g for g in clusters if g["signature"] == last_cluster), None)
+            if g:
+                lines += ["", f"### 缺陷组（签名 `{g['signature']}`，同根因 {g['size']} 条："
+                          f"{'、'.join(g['members'])}——组内最高置信 {g['top_confidence']}）", ""]
         ana = _analysis_lookup(meta, d["name"])
         cond = f"{d['condition']}（需求关键句：{d['requirement_ref']}）" if d["condition"] else "（无 RTM 映射）"
         rounds = "、".join(f"第{r}轮" for r in d["rounds"])
@@ -268,8 +345,17 @@ def render_fix_prompt(meta: dict, defects: list[dict]) -> str:
         "",
         f"# 缺陷清单（共 {len(defects)} 条，按优先级与置信度排序）",
     ]
+    clusters = (cluster_defects(defects, (meta.get("defects_tag") or {}).get("failure_kind", ""))
+                if config.DEFECT_CLUSTERING_ENABLED else [])
     body: list[str] = []
+    last_cluster = None
     for d in defects:
+        if clusters and d.get("cluster") != last_cluster:
+            last_cluster = d.get("cluster")
+            g = next((g for g in clusters if g["signature"] == last_cluster), None)
+            if g:
+                lines += ["", f"### 缺陷组（签名 `{g['signature']}`，同根因 {g['size']} 条："
+                          f"{'、'.join(g['members'])}——组内最高置信 {g['top_confidence']}）", ""]
         ana = _analysis_lookup(meta, d["name"])
         ref = f"（需求关键句：{d['requirement_ref']}）" if d.get("requirement_ref") else ""
         body += [

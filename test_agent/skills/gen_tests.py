@@ -474,12 +474,88 @@ def _patch_target_hits(tree: ast.AST, table: dict) -> list[str]:
     return hits
 
 
+# B2（任务卡-369 20261105）SUT 功能函数候选清单（最小版）：
+# Python 用 ast 顶层函数；JS 用正则（核查时已验证可提 60+ 名）；
+# 0 函数文件显式标注「纯数据文件，禁作被测单元」（369 questions.js 形态）
+_JS_FUNC_RE = re.compile(
+    r"(?:^|\n)\s*(?:function\s+([A-Za-z_$][\w$]*)\s*\("
+    r"|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\s*)?\()"
+    r"|(?:^|\n)\s*([A-Za-z_$][\w$]*)\s*:\s*function\s*\(")
+
+
+def _sut_manifest(sources: list[tuple[str, str]]) -> list[str]:
+    out: list[str] = []
+    for fname, code in sources:
+        if fname.startswith("test_") or fname.endswith(("_test.py", ".test.js", "_test.js")):
+            continue                                 # 剔除测试生成物/自带测试（jest testMatch 同口径）
+        funcs: list[str] = []
+        if fname.endswith(".py"):
+            try:
+                tree = ast.parse(code)
+            except SyntaxError:
+                tree = None
+            if tree is not None:
+                funcs = [n.name for n in tree.body
+                         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        else:
+            for m in _JS_FUNC_RE.finditer(code or ""):
+                name = next(g for g in m.groups() if g)
+                if name and name not in funcs:
+                    funcs.append(name)
+        if funcs:
+            out.append(f"{fname}: {', '.join(funcs[:12])}"
+                       + ("…" if len(funcs) > 12 else ""))
+        else:
+            out.append(f"{fname}（纯数据文件，无可执行函数——禁作被测单元）")
+    return out
+
+
+# B1（任务卡-369 20261105）JS 自导自演文本启发式（无 AST，DEFENSE_V2_ENABLED 开才生效；
+# 369 实锤形态：对全大写导出数据数组重新赋值/重组 QUESTIONS = QUESTIONS.filter(...)）。
+# 诚实边界：启发式有误杀/漏杀可能，拦截率由 F4 红队格度量（论文如实标注）。
+_JS_REDECL_CONST_RE = re.compile(
+    r"^\s*(?:const|let|var)\s+[A-Z][A-Z_0-9]{2,}\s*=\s*[^=]", re.M)
+_JS_DATA_RECHAIN_RE = re.compile(
+    r"^\s*[A-Z][A-Z_0-9]{2,}\s*=\s*[A-Z][A-Z_0-9]*\s*\.\s*"
+    r"(?:filter|map|concat|slice|sort|reverse|splice|push|pop|shift|unshift)\s*\(", re.M)
+# 369 实锤主形态（4/4 命中）：vm.runInContext("QUESTIONS = QUESTIONS.filter(...)", ctx)
+# ——对导出数据的重新赋值嵌在 vm 脚本字符串里（只读如 QUESTIONS.length 不命中）
+_JS_VM_REASSIGN_RE = re.compile(
+    r"runInContext\s*\(\s*[\"']\s*[A-Z][A-Z_0-9]{2,}\s*=[^=]")
+
+
+def _js_selfplay_filter(cases: list[dict]) -> tuple[list[dict], list[str]]:
+    """JS 自导自演检测（文本启发式）：①顶层重声明全大写导出常量 ②对全大写标识符
+    挂数据重组链（filter/map/concat/...）——两种形态都是"用例自己改数据自己断言"
+    （被测功能零执行，369 的 4 条删除用例同型）。正常调用型用例（函数调用/断言
+    返回值）不受影响。"""
+    kept, rejected = [], []
+    for c in cases:
+        code = c.get("code") or ""
+        why = None
+        if _JS_REDECL_CONST_RE.search(code):
+            why = "顶层重声明全大写导出常量（疑似重组被测数据而非调用被测功能）"
+        elif _JS_DATA_RECHAIN_RE.search(code):
+            why = "对全大写导出标识符挂数据重组链（自导自演：被测功能未执行）"
+        elif _JS_VM_REASSIGN_RE.search(code):
+            why = "vm 脚本内对全大写导出标识符重新赋值（369 实锤形态：改 const 数据" \
+                  "必然 TypeError 且被测功能未执行）"
+        if why:
+            rejected.append(f"{c.get('name')}: {why}")
+        else:
+            kept.append(c)
+    return kept, rejected
+
+
 def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
     """生成后静态闸（§3.6 第 1 道，确定性、零成本）：
     语法可解析 + from-import 的符号在被测模块顶层存在。剔除理由如实返回。
-    JS/TS 分支：Python AST 不适用——v1 跳过静态闸（JS 的安全闸=容器内 node --check
-    语法检查，在收集闸步骤执行），理由如实标注。"""
+    JS/TS 分支：Python AST 不适用——旗标关时跳过静态闸（JS 的安全闸=容器内
+    node --check 语法检查，在收集闸步骤执行），理由如实标注；
+    DEFENSE_V2_ENABLED 开=B1 文本启发式闸（JS 自导自演检测，任务卡-369 B1）。"""
     if cases and any(JS_CASE_RE.search((c.get("code") or "")) for c in cases):
+        if config.DEFENSE_V2_ENABLED:
+            return _js_selfplay_filter(cases)
         return cases, []   # JS 形态：闸移交收集步骤（node --check），这里不做 AST 审计
     table = _module_top_level(ws)
     kept, rejected = [], []
@@ -990,6 +1066,10 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         except Exception as e:  # noqa: BLE001 —— 种子失败 fail-open，批量照常
             log.warning("种子自举失败（fail-open）: %s", e)
 
+    sut_manifest = (_sut_manifest(sources)
+                    if config.SUT_MANIFEST_ENABLED and not feedback else None)
+    if sut_manifest:
+        log.info("gen_tests task=%s SUT 清单注入 %d 项（B2）", task_id, len(sut_manifest))
     resp = llm.invoke([("system", SYSTEM_PROMPT),
                        ("user", build_user_prompt(sources, args.get("requirement", ""),
                                                   args.get("coverage_gaps"),
@@ -1010,7 +1090,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   target_language=lang,
                                                   existing_cases=(args.get("existing_names") or None)
                                                   if feedback else None,
-                                                  defense_v2=config.DEFENSE_V2_ENABLED))])
+                                                  defense_v2=config.DEFENSE_V2_ENABLED,
+                                                  sut_functions=sut_manifest))])
     log_llm_call(task_id, phase, resp)
     data = _parse_cases(resp.content)
     if data is None:

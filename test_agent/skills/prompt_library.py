@@ -377,7 +377,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       module_lang: str = "",
                       target_language: str = "",
                       seed_example: str | None = None,
-                      defense_v2: bool = False) -> str:
+                      defense_v2: bool = False,
+                      sut_functions: list[str] | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -489,6 +490,13 @@ docstring 没写的行为，按需求文档推断，禁止猜。
 {rows}
 生成用例时必须优先命中上述未覆盖行；已在上一轮覆盖的分支不必重复设计。"""
 
+    sut_text = ""
+    if sut_functions:
+        rows = "\n".join(f"- {s}" for s in sut_functions[:40])
+        sut_text = ("\n\n## 被测功能函数候选清单（B2：把被测对象对准真功能；"
+                    "标注「纯数据文件」的文件不含可执行函数，禁止作为被测单元——"
+                    "对数据数组重新赋值/重组是自导自演，闸层会整案剔除）\n" + rows)
+
     basis_note = ("五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」"
                   "（对话增补轮另有第六项「用户反馈」：预期直接来自审查反馈但需求原文无依据时诚实标注）——"
                   if feedback_text else
@@ -520,7 +528,7 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
+{requirement or "（无额外需求，按源码行为设计）"}{sut_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}

@@ -14,7 +14,11 @@ from .. import config
 
 # 用例自身坏掉的强信号错误类（②定向修复只剪这类；断言失败保留为疑似缺陷证人）
 CASE_OWN_DEFECT_ERRORS = {"ImportError", "ModuleNotFoundError", "AttributeError",
-                          "SyntaxError", "NameError", "UnboundLocalError"}
+                          "SyntaxError", "NameError", "UnboundLocalError",
+                          # A1（任务卡-369 20261105）：运行时类型错——369 实锤 4 条
+                          # "Assignment to constant variable" 被误诊产品缺陷；
+                          # classify 侧带用例侧堆栈共现约束（防产品真抛类型错误伤）
+                          "TypeError", "ReferenceError"}
 
 
 def failing_nodeids(stdout: str) -> list[str]:
@@ -122,6 +126,14 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
     if re.search(r"(ImportError|ModuleNotFoundError|AttributeError|SyntaxError"
                  r"|NameError|UnboundLocalError)", text):
         return "case_defect"      # 用例引用了不存在的东西 / 写错了（与 CASE_OWN_DEFECT_ERRORS 同口径）
+    # A1（任务卡-369 20261105）：类型/引用错 + 堆栈首帧指向用例侧（vm 沙箱/生成文件）
+    # → 用例自身坏。jest 堆栈第二帧总是测试文件调用点，全文共现会把产品抛错误判为
+    # 用例侧——按首帧判归属（A2 语义前置）。无 at 帧（pytest 文本形态）不进此分支，
+    # 维持原 FAILED 分支（诚实边界：Python 侧 TypeError 归类保持原状）
+    if re.search(r"\b(TypeError|ReferenceError)\b", text):
+        m = re.search(r"^\s*at\s+(\S+)", text, re.M)
+        if m and re.search(r"evalmachine|test_gen_r\d|test_imported|test_gen_fb", m.group(1)):
+            return "case_defect"
     if "FAILED" in text or "AssertionError" in text:
         return "product_defect"   # 断言合理但行为不符 → 疑似产品缺陷
     return "env"                  # 其余先按环境问题处理（重装依赖重试一次）
