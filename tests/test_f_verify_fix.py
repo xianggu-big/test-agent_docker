@@ -95,3 +95,25 @@ def test_create_verify_task_idempotent(env):
     v1 = create_verify_task(conn, tid)
     v2 = create_verify_task(conn, tid)
     assert v1 == v2                                  # 未执行验证任务复用，不重复复制
+
+
+def test_env_blocked_not_not_fixed():
+    """407 语义：仍失败但消息含环境特征错（ECONNREFUSED）→ env_blocked，不冤枉修复。"""
+    rows = [{"nodeid": ORIG[0]["nodeid"], "status": "failed",
+             "message": "Error: 清理失败：connect ECONNREFUSED 127.0.0.1:3306"}]
+    out = verify_verdict(ORIG, rows)
+    g0 = next(g for g in out["groups"] if ORIG[0]["nodeid"] in g["members"])
+    assert g0["verdict"] == "env_blocked" and "ECONNREFUSED" in g0["note"]
+    assert out["overall"] in ("env_blocked", "regressed")
+
+
+def test_mixed_fixed_plus_env_blocked():
+    orig = [ORIG[0], dict(ORIG[1],
+                          message="Error: SyntaxError: Unexpected token 'const'\n"
+                                  "    at evalmachine.<anonymous>:3:1")]
+    rows = [{"nodeid": orig[0]["nodeid"], "status": "failed",
+             "message": "Error: 清理失败：connect ECONNREFUSED 127.0.0.1:3306"},
+            {"nodeid": orig[1]["nodeid"], "status": "passed", "message": ""}]
+    out = verify_verdict(orig, rows)
+    assert {g["verdict"] for g in out["groups"]} == {"fixed_verified", "env_blocked"}
+    assert out["overall"] == "fixed_verified"       # 有真实修复且无 not_fixed/regressed

@@ -759,6 +759,7 @@ def make_nodes(deps: GraphDeps) -> dict:
                 "fingerprint": fp, "failure_kind": kind,
                 "verdict": verdict, "stop_reason": reason,
                 "witness_nodeids": witness,
+                "last_stdout": stdout,   # 408 实锤：验证轮 env_blocked 分类需要诊断段，不回传即证据蒸发
                 "fingerprints": state.get("fingerprints", []) + [fp]}
 
     # ---------- 7. 报告落库 + 诚实复盘 ----------

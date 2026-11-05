@@ -547,6 +547,39 @@ def _js_selfplay_filter(cases: list[dict]) -> tuple[list[dict], list[str]]:
     return kept, rejected
 
 
+_SUT_MUTATION_METHODS = {"clear", "append", "extend", "insert", "pop", "popitem",
+                         "remove", "update", "sort", "reverse", "setdefault"}
+
+
+def _sut_root(node: ast.AST, table: dict) -> str | None:
+    """属性链根是被测模块名 → 返回模块名（mymod.DATA.clear() / mymod.Q = x 的根都是 mymod）。"""
+    cur = node
+    while isinstance(cur, ast.Attribute):
+        cur = cur.value
+    if isinstance(cur, ast.Name) and cur.id in table:
+        return cur.id
+    return None
+
+
+def _mutates_sut_state(tree: "ast.Module", table: dict) -> list[str]:
+    """F4 红队发现（2026-11-06）：B1 只挂 JS 分支——Python 侧「对被测模块状态直接
+    赋值/变异」是自导自演的 Python 形态，静态闸原本拦不住。两形态：①赋值/删除
+    （mymod.QUESTIONS = ... / del mymod.Q）②变异方法调用（mymod.DATA.clear()——
+    F4 首轮实锤漏过的方法形态）。与 N2（mock 被测模块）同族。"""
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AugAssign, ast.Delete)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for tgt in targets:
+                if isinstance(tgt, ast.Attribute) and _sut_root(tgt, table):
+                    hits.append(ast.unparse(tgt)[:60])
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if (node.func.attr in _SUT_MUTATION_METHODS
+                    and _sut_root(node.func.value, table)):
+                hits.append(ast.unparse(node)[:60])
+    return hits
+
+
 def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
     """生成后静态闸（§3.6 第 1 道，确定性、零成本）：
     语法可解析 + from-import 的符号在被测模块顶层存在。剔除理由如实返回。
@@ -611,6 +644,13 @@ def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
             if hits:
                 rejected.append(f"{c.get('name')}: mock 被测模块（{'/'.join(hits[:2])}——"
                                 f"仅允许 mock 网络/文件系统/时钟等外部依赖）")
+                ok = False
+        # F4 红队补闸：Python 自导自演（对被测模块状态直接赋值/变异）
+        if ok and config.DEFENSE_V2_ENABLED:
+            hits = _mutates_sut_state(tree, table)
+            if hits:
+                rejected.append(f"{c.get('name')}: 直接改写被测模块状态（{hits[0]}——"
+                                f"自导自演：改完自己断言，被测功能未执行）")
                 ok = False
         if ok:
             kept.append(c)

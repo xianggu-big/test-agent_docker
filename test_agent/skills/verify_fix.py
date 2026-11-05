@@ -14,15 +14,20 @@
 """
 from __future__ import annotations
 
+from . import attribution
+from .. import config
 from .defect_handoff import defect_signature
 
 
 def verify_verdict(orig_defects: list[dict], verify_rows: list[dict],
-                   failure_kind: str = "") -> dict:
+                   failure_kind: str = "", run_diag_text: str = "") -> dict:
     """三态判定（纯函数，确定性）。
 
     orig_defects：原任务缺陷清单（load_defects 产物，含 nodeid/message）；
-    verify_rows：验证轮 test_case_results 行（dict：nodeid/status/message）。
+    verify_rows：验证轮 test_case_results 行（dict：nodeid/status/message）；
+    run_diag_text：验证轮整体执行文本（js_adapter 转换后 stdout，含 stderr 诊断段）——
+    408 实锤：per-case message 只有 expect 详情（Expected:0 Received:1），环境类根因
+    （ECONNREFUSED）只出现在诊断段，不入参则环境阻塞会被冤判 not_fixed。
     """
     sig_of = lambda d: defect_signature(d, failure_kind)  # noqa: E731
     orig: dict[str, list[str]] = {}      # 签名 → 原缺陷 nodeid 列表
@@ -39,6 +44,18 @@ def verify_verdict(orig_defects: list[dict], verify_rows: list[dict],
         if all(s == "passed" for s in statuses):
             results.append({"signature": sig, "verdict": "fixed_verified",
                             "members": nodeids})
+            continue
+        # 仍失败：先看是否环境特征错（ECONNREFUSED 系）——环境阻塞≠缺陷未修（407 实锤：
+        # cleandata 组在无 MySQL 容器里注定失败，归 not_fixed 会冤枉修复）
+        msgs = [r.get("message") or "" for r in verify_rows
+                if r["nodeid"] in nodeids and r["status"] in ("failed", "error")]
+        scan_text = "\n".join(msgs + ([run_diag_text] if run_diag_text else []))
+        env_hint = next((h for h in attribution._ENV_FAIL_HINTS if h in scan_text),
+                        None)
+        if env_hint:
+            results.append({"signature": sig, "verdict": "env_blocked",
+                            "members": nodeids,
+                            "note": f"仍失败但为环境特征错（{env_hint}）——补环境后复验"})
         elif sig in verify_sigs:
             results.append({"signature": sig, "verdict": "not_fixed",
                             "members": nodeids})
@@ -46,11 +63,20 @@ def verify_verdict(orig_defects: list[dict], verify_rows: list[dict],
             results.append({"signature": sig, "verdict": "regressed",
                             "members": nodeids,
                             "note": "成员不再以同签名失败——转 regressed/new 细分见新签名组"})
-    new_sigs = sorted(s for s in verify_sigs if s not in orig)
-    overall = ("fixed_verified" if new_sigs == [] and
-               all(r["verdict"] == "fixed_verified" for r in results) and results
-               else "not_fixed" if any(r["verdict"] == "not_fixed" for r in results)
-               else "regressed" if new_sigs else "fixed_verified" if results else "no_defects")
+    env_members = {n for r in results if r["verdict"] == "env_blocked"
+                   for n in r["members"]}
+    new_sigs = sorted(s for s in verify_sigs if s not in orig
+                      and not (env_members & {
+                          r["nodeid"] for r in verify_rows
+                          if r["status"] in ("failed", "error")}))
+    overall = ("not_fixed" if any(r["verdict"] == "not_fixed" for r in results)
+               else "regressed" if new_sigs
+               else "fixed_verified" if results and
+               all(r["verdict"] in ("fixed_verified", "env_blocked") for r in results)
+               and any(r["verdict"] == "fixed_verified" for r in results)
+               else "env_blocked" if results and
+               all(r["verdict"] == "env_blocked" for r in results)
+               else "no_defects")
     return {"overall": overall, "groups": results,
             "new_signatures": new_sigs,
             "new_defect_note": (f"验证轮出现 {len(new_sigs)} 个新失败签名（如实报新缺陷，"
@@ -72,13 +98,25 @@ def create_verify_task(conn, tid: int) -> int:
         (orig["project_id"], f"[回归验证 of task {tid}]%")).fetchone()
     if dup is not None:
         return dup["id"]
+    have = {r[1] for r in conn.execute("PRAGMA table_info(test_tasks)")}
+    sel_cols = ["coverage_target"] + [c for c in ("primary_language", "two_stage") if c in have]
+    orig_full = conn.execute(
+        f"SELECT {','.join(sel_cols)} FROM test_tasks WHERE id=?", (tid,)).fetchone()
+    orig_full = {k: orig_full[k] for k in sel_cols}
+    cols = ["project_id", "user_id", "requirement_text", "coverage_target",
+            "status", "confirmed", "confirmed_by"]
+    vals = [orig["project_id"], orig["user_id"],
+            f"[回归验证 of task {tid}] {orig['requirement_text'] or ''}",
+            orig_full["coverage_target"], "ready_for_review", 1, tid]
+    if "primary_language" in have:                  # 老库无该列（F18 迁移前 schema）时跳过
+        cols.insert(4, "primary_language")
+        vals.insert(4, orig_full["primary_language"])
+    if "two_stage" in have:
+        cols.append("two_stage")
+        vals.append(1)                              # 验证任务走阶段二执行图
     cur = conn.execute(
-        "INSERT INTO test_tasks(project_id,user_id,requirement_text,coverage_target,"
-        "status,confirmed,confirmed_by) VALUES (?,?,?,?,?,?,?)",
-        (orig["project_id"], orig["user_id"],
-         f"[回归验证 of task {tid}] {orig['requirement_text'] or ''}",
-         conn.execute("SELECT coverage_target FROM test_tasks WHERE id=?", (tid,)).fetchone()["coverage_target"],
-         "ready_for_review", 1, tid))
+        f"INSERT INTO test_tasks({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
+        vals)
     vid = cur.lastrowid
     for srow in conn.execute("SELECT * FROM test_scripts WHERE task_id=?", (tid,)):
         scur = conn.execute(
@@ -99,3 +137,40 @@ def create_verify_task(conn, tid: int) -> int:
                  crow["steps"], crow["expected"], crow["expected_basis"]))
     conn.commit()
     return vid
+
+
+def prepare_verify_workspace(conn, vid: int) -> str:
+    """验证任务工作区：本地目录项目按 repo_url 快照**当前仓库状态**（=修复后代码，
+    407 语义：本地目录快照即新版）；git clone 类项目 v2（应 checkout 修复 commit）。"""
+    import shutil
+    from pathlib import Path
+    from ..sandbox.runner import _load_gitignore_spec
+    row = conn.execute(
+        """SELECT p.repo_url FROM test_tasks t JOIN projects p ON p.id=t.project_id
+           WHERE t.id=?""", (vid,)).fetchone()
+    src = Path(row["repo_url"])
+    if not src.is_dir():
+        raise ValueError(f"verify-fix v1 仅支持本地目录项目，repo_url 不可达: {src}")
+    ws = Path(config.DATA_DIR) / "workspaces" / f"task_{vid}"
+    if ws.exists():
+        shutil.rmtree(ws)
+    ws.mkdir(parents=True)
+    spec = _load_gitignore_spec(src)
+    src_root = src.resolve()
+    import fnmatch as _fn
+    import os as _os
+
+    def _gi_ignore(directory, names):
+        rel_base = Path(directory).resolve().relative_to(src_root)
+        skip = []
+        for n in names:
+            rel = (rel_base / n).as_posix()
+            is_dir = (Path(directory) / n).is_dir()
+            if any(_fn.fnmatch(n, pat) for pat in config.SKIP_DIRS):
+                skip.append(n)
+            elif spec is not None and spec.match_file(rel + ("/" if is_dir else "")):
+                skip.append(n)
+        return skip
+
+    shutil.copytree(src, ws, dirs_exist_ok=True, ignore=_gi_ignore)
+    return str(ws)

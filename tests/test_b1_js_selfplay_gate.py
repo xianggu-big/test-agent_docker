@@ -82,3 +82,27 @@ def test_gate_on_filters(tmp_path, monkeypatch):
     kept, rejected = _static_filter([bad, good], tmp_path)
     assert [c["name"] for c in kept] == [good["name"]]
     assert len(rejected) == 1
+
+
+# ---------- F4 红队补闸：Python 自导自演（_mutates_sut_state，2026-11-06） ----------
+
+def test_mutates_sut_state_assign_form():
+    import ast
+    from test_agent.skills.gen_tests import _mutates_sut_state
+    tree = ast.parse("import mymod\nmymod.QUESTIONS = [1]\n")
+    assert _mutates_sut_state(tree, {"mymod": set()})
+
+
+def test_mutates_sut_state_mutation_call_form():
+    """F4 二轮实锤：mymod.DATA.clear() 是方法调用变异非赋值——首轮闸漏过后补 Call 分支。"""
+    import ast
+    from test_agent.skills.gen_tests import _mutates_sut_state
+    tree = ast.parse("import mymod\nmymod.DATA.clear()\n")
+    assert _mutates_sut_state(tree, {"mymod": set()})
+
+
+def test_mutates_sut_state_ignores_own_locals():
+    import ast
+    from test_agent.skills.gen_tests import _mutates_sut_state
+    tree = ast.parse("def test_x():\n    obj = Loader()\n    obj.data.clear()\n")
+    assert _mutates_sut_state(tree, {"mymod": set()}) == []   # 用例自有对象不误杀

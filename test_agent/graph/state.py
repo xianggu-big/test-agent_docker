@@ -36,6 +36,8 @@ class TaskState(TypedDict, total=False):
     verdict: str             # pass / repair_env / repair_gen / stop
     stop_reason: str
     static_only: bool        # 分级（Tier3）：主语言无容器执行链路 → plan 后进 static_draft 而非 provision
+    two_stage_rebuild: bool  # 阶段二布考场：provision 按 DB 审查结论重写生成用例文件（408 实锤：未声明
+                             # 被 LangGraph schema 过滤，rebuild 上线以来 0 次触发=静默死代码）
     review_rejects: int      # 报告审查拒绝次数（硬停止计数器，与轮次预算解耦，§3.4）
     review_status: str       # pass / rejected（终态如实呈现报告审查结论）
     done: bool
