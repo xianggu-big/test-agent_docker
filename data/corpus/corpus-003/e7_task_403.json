@@ -1,0 +1,58 @@
+{
+  "task_id": 403,
+  "chains": 2,
+  "defects_real": 5,
+  "hits": 2,
+  "hit_rate": 0.4,
+  "codes": 2,
+  "details": [
+    {
+      "defect": "D1",
+      "location": "booking.py::validate_duration",
+      "matched_scenario": 102,
+      "matched_title": "预约创建与查询（含折扣计价）",
+      "hit": false,
+      "rank": null,
+      "candidates": 1
+    },
+    {
+      "defect": "D2",
+      "location": "booking.py::quote_total",
+      "matched_scenario": 102,
+      "matched_title": "预约创建与查询（含折扣计价）",
+      "hit": false,
+      "rank": null,
+      "candidates": 1
+    },
+    {
+      "defect": "D3",
+      "location": "app.py::read_booking",
+      "matched_scenario": 102,
+      "matched_title": "预约创建与查询（含折扣计价）",
+      "hit": true,
+      "rank": 1,
+      "candidates": 1
+    },
+    {
+      "defect": "D4",
+      "location": "booking.py::has_overlap",
+      "matched_scenario": 102,
+      "matched_title": "预约创建与查询（含折扣计价）",
+      "hit": false,
+      "rank": null,
+      "candidates": 1
+    },
+    {
+      "defect": "D5",
+      "location": "app.py::cancel_booking",
+      "matched_scenario": 103,
+      "matched_title": "取消预约及重复取消冲突",
+      "hit": true,
+      "rank": 1,
+      "candidates": 1
+    }
+  ],
+  "chain_gaps": {},
+  "run": 2,
+  "status": "ok"
+}
