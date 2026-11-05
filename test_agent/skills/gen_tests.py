@@ -424,6 +424,56 @@ def _module_top_level(ws: Path) -> dict[str, set[str]]:
     return table
 
 
+def _decorator_is_parametrize(dec: ast.expr) -> bool:
+    """N1（防御矩阵 v2）：参数化装饰器判定——pytest.mark.parametrize / parameterized.expand
+    及直接以 parametrize/parameterized 命名的装饰器均命中。带参装饰器是 Call 节点，先解包。"""
+    if isinstance(dec, ast.Call):
+        dec = dec.func
+    names: list[str] = []
+    node: ast.expr = dec
+    while isinstance(node, ast.Attribute):
+        names.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        names.append(node.id)
+    return any(n in ("parametrize", "parameterized", "parameterized_class") for n in names)
+
+
+def _patch_target_hits(tree: ast.AST, table: dict) -> list[str]:
+    """N2（防御矩阵 v2）：mock 目标解析进「被测模块」的调用点清单。
+
+    覆盖四形态：mock.patch("mod.f") 字符串 / patch.object(mod, "f") 对象 /
+    monkeypatch.setattr(mod, "f", …) 对象 / monkeypatch.setattr("mod.f", …) 字符串。
+    只有目标首段命中工作区被测模块名（table 键）才判命中——mock 外部依赖
+    （requests/网络/时钟/文件系统）放行不误杀。"""
+    hits: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        names: list[str] = []
+        while isinstance(f, ast.Attribute):
+            names.append(f.attr)
+            f = f.value
+        if isinstance(f, ast.Name):
+            names.append(f.id)
+        base = names[0] if names else ""
+        if not (base in ("patch", "setattr")
+                or (base == "object" and "patch" in names[1:])):
+            continue
+        if not node.args:
+            continue
+        arg = node.args[0]
+        target = None
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            target = arg.value.split(".")[0]
+        elif isinstance(arg, ast.Name):
+            target = arg.id
+        if target and target in table:
+            hits.append(ast.unparse(node.func))
+    return hits
+
+
 def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
     """生成后静态闸（§3.6 第 1 道，确定性、零成本）：
     语法可解析 + from-import 的符号在被测模块顶层存在。剔除理由如实返回。
@@ -469,6 +519,23 @@ def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
                         break
             if not ok:
                 break
+        # N1（防御矩阵 v2）：参数化装饰器整案剔除（闸层兜底，提示词第 6 条的确定性对偶）
+        if ok and config.DEFENSE_V2_ENABLED:
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if any(_decorator_is_parametrize(d) for d in node.decorator_list):
+                        rejected.append(f"{c.get('name')}: 参数化装饰器（单条用例=单个测试函数，"
+                                        f"parametrize 会被整案剔除）")
+                        ok = False
+                        break
+        # N2（防御矩阵 v2）：mock 被测模块整案剔除（mock 被测单元=掩盖真实行为，无证伪能力；
+        # mock 外部依赖放行）
+        if ok and config.DEFENSE_V2_ENABLED:
+            hits = _patch_target_hits(tree, table)
+            if hits:
+                rejected.append(f"{c.get('name')}: mock 被测模块（{'/'.join(hits[:2])}——"
+                                f"仅允许 mock 网络/文件系统/时钟等外部依赖）")
+                ok = False
         if ok:
             kept.append(c)
     return kept, rejected
@@ -942,7 +1009,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   module_lang=args.get("module_hint", ""),
                                                   target_language=lang,
                                                   existing_cases=(args.get("existing_names") or None)
-                                                  if feedback else None))])
+                                                  if feedback else None,
+                                                  defense_v2=config.DEFENSE_V2_ENABLED))])
     log_llm_call(task_id, phase, resp)
     data = _parse_cases(resp.content)
     if data is None:

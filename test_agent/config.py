@@ -114,6 +114,10 @@ AI_REVIEWER_MAX_ROUNDS = 5           # auto 模式 D2 审查→增补→再审�
 # —— 种子自举模板（docs/种子自举模板设计-20261105.md：先造1条最简种子→容器collect验证→结构锚点注入批量；默认关） ——
 SEED_BOOTSTRAP_ENABLED = False
 
+# —— 防御矩阵 v2 新设计（docs/防御矩阵-prompt与非prompt措施-20261105.md §四：P1/P2/N1/N2 打包；
+#    默认关=提示词与静态闸行为逐字节不变；F4 红队对抗格以此旗标测拦截率） ——
+DEFENSE_V2_ENABLED = False
+
 # —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
 LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg
 

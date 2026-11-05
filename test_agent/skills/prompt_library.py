@@ -190,6 +190,45 @@ def test_xxx_属性测试(cents):
     text = format_amount(cents)
     assert len(text.split(".")[1]) == 2   # 不变量示例：小数部分恒两位"""
 
+# —— P2 反惯例正例锚定（docs/防御矩阵-20261105：对照示例是强信号，负面清单是弱信号；
+# 覆盖 A9 幻觉 import / A11 弱断言 / A12 示例照抄三组）——
+CONTRAST_SECTION = """
+
+## 正误对照（每条纪律给正确写法 ✅ 与错误写法 ❌——❌ 形态会被静态闸整案剔除）
+✅ import 只引「被测源码」里出现过的模块：
+   from calc import check_length          （calc.py 被测源码里存在）
+❌ 凭记忆引未见过的包：
+   import bleach, validators              （被测源码/requirements 均未出现→整案剔除）
+✅ 断言是具体关系比较：
+   assert check_length("abcd1234") is False
+   assert quote_total(2, 3) == 150
+❌ 弱断言（无证伪能力）：
+   assert result is not None
+   assert True
+❌ 把示例里的占位值当真实数据照抄（示例 room_id={room_id} 是占位符）：
+   client.post("/rooms", json={"room_id": "{room_id}"})   ← ❌ 原样照抄
+✅ 占位符由你构造合法值：
+   client.post("/rooms", json={"room_id": 1})
+"""
+
+# —— P1 环境契约统一段（docs/防御矩阵-20261105：整合散落纪律+新增 6/7 两条；
+# {max_cases} 由调用方按条件数动态填）——
+ENV_CONTRACT_SECTION = """
+
+## 执行环境契约（必须遵守，违反=整案作废）
+1. 用例文件写在项目根目录（不是 test/ 子目录）：__dirname 或 __file__ 所在目录即项目根，
+   禁止 path.join(__dirname, '..') / Path(__file__).parent.parent 等上跳写法。
+2. 只允许 import 在「被测源码」中出现过的模块与符号，及 pytest/标准库；禁止假设任何
+   未列出的依赖已安装。
+3. 状态码与响应 schema 以「API 行为文档」为准；业务字段名以 spec 为准，禁止自拟。
+4. 本轮最多生成 {max_cases} 条用例（超出部分会被丢弃，宁精勿滥）。
+5. 整体响应永远是最外层 {{"imports": ..., "cases": [...]}}；template+slots 只是元素内字段。
+6. 禁止 @pytest.mark.parametrize 等参数化装饰器（单条用例=单个测试函数；参数化会被
+   静态闸整案剔除）。
+7. 禁止 mock 被测模块本身（mock.patch("被测模块.函数") / monkeypatch.setattr(被测模块, …)
+   会被静态闸整案剔除）；仅允许 mock 网络/文件系统/时钟等外部依赖。
+"""
+
 TEMPLATE_SECTION = """
 
 ## 槽位模板通道（【等价类划分】【边界值分析】【错误推测法】的基础用例优先走此通道）
@@ -337,7 +376,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       pitfalls: bool = False,
                       module_lang: str = "",
                       target_language: str = "",
-                      seed_example: str | None = None) -> str:
+                      seed_example: str | None = None,
+                      defense_v2: bool = False) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -356,7 +396,15 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     不是预期值来源；预期仍以需求/docstring 为准，防止对齐实现现状的迁就）。
     feedback_text: 两阶段评审的对话增补目标（人工/AI 审查反馈；只增补不动已批准用例）。
     pitfalls: B 源·陷阱清单开关（错误推测法扩展段，按 module_lang+需求选条目）。
+    defense_v2: 防御矩阵 v2（P1 环境契约统一段+P2 反惯例正例锚定；docs/防御矩阵
+    -prompt与非prompt措施-20261105.md）。False=不注入（提示词逐字节不变，基线保护）。
+    max_cases 按 conditions 数动态填（上限 15 与 generate_tests 降采样上限同源）。
     """
+    defense_text = ""
+    if defense_v2:
+        max_cases = max(1, min(len(conditions or []), 15))
+        defense_text = (ENV_CONTRACT_SECTION.format(max_cases=max_cases)
+                        + CONTRAST_SECTION)
     src_text = "\n\n".join(
         f"### 被测文件：{path}\n```python\n{code}\n```" for path, code in sources)
     seed_text = ""
@@ -475,7 +523,7 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
 {requirement or "（无额外需求，按源码行为设计）"}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
-{method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}
+{method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}
 
 ## 输出格式
 只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。{lang_rules}
