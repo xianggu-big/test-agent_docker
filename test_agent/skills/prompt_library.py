@@ -54,6 +54,13 @@ DEFECT_ANALYST_SYSTEM = (
     "禁止编造证据之外的问题，禁止泛化建议。只输出 JSON。"
 )
 
+LOG_ANALYST_SYSTEM = (
+    "你是测试平台的应用日志分析员（黑盒观测层）。你只消费确定性解析出的应用日志"
+    "错误/警告行证据，输出摘要与逐行解释。铁律：每条解释必须用「行 N」格式引用"
+    "证据清单中的真实行号，禁止编造证据之外的行号、事件或原因；不确定的部分明确写"
+    "“证据不足”。你的解释是推测不是结论。只输出规定的 JSON。"
+)
+
 
 def build_map_prompt(conditions: list[dict], cases: list[dict]) -> str:
     """map_requirements 的 LLM 辅助映射：条件 ↔ 用例 关联判定。"""

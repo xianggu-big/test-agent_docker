@@ -738,6 +738,18 @@ def api_execution(tid: int, user: dict = Depends(current_user)):
     return snap
 
 
+@app.get("/api/tasks/{tid}/logs")
+def api_app_logs(tid: int, round: int | None = None,
+                 user: dict = Depends(current_user)):
+    """黑盒能力补齐阶段1：应用运行时日志分档（app_logs）——被测服务进程 stdout/stderr
+    的确定性错误/警告行账本。按轮概要（错误/警告计数、首错行、判源、快照路径）+ 逐条
+    证据行；`?round=N` 过滤单轮，不带参数返回全部轮次。纯 SQL 确定性，零 LLM。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    from ..skills.app_logs import logs_snapshot
+    return logs_snapshot(conn, tid, round)
+
+
 @app.get("/api/tasks/{tid}/trace")
 def api_trace(tid: int, scenario_id: int | None = None,
               user: dict = Depends(current_user)):

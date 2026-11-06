@@ -23,6 +23,7 @@ from typing import TypedDict
 from ..skills.llm_client import make_chat
 
 from .. import config
+from ..skills.app_logs import APP_LOG_CONTAINER_PATH, collect_and_store_app_logs
 from ..skills.callgraph import (build_call_edges, collect_functions,
                                 route_call_edges, sequence_scenarios)
 from ..skills.contract_gen import build_requirement_asserts
@@ -221,10 +222,13 @@ def _start_service(runner, container, app_module: str, port: int) -> tuple[bool,
     import re as _re
     if not _re.fullmatch(r"[A-Za-z_][\w.]*(\.[A-Za-z_]\w*)*", app_module or ""):
         return False, f"app_module 非法（非标识符）：{app_module[:60]}"
-    """容器内后台起 uvicorn 并轮询健康（/openapi.json）；返回 (就绪?, 失败说明)。"""
+    """容器内后台起 uvicorn 并轮询健康（/openapi.json）；返回 (就绪?, 失败说明）。
+
+    黑盒能力补齐阶段1·日志分流：服务进程输出不再丢 /tmp/l2svc.log，改重定向
+    /work/logs/app.log（测试进程输出走原 pytest 通道——两路分流），按轮快照出宿主。"""
     runner.exec_in(container, ["sh", "-c",
-                   f"cd /work && nohup python -m uvicorn {app_module}:app "
-                   f"--host 127.0.0.1 --port {port} > /tmp/l2svc.log 2>&1 &"],
+                   f"mkdir -p /work/logs && cd /work && nohup python -m uvicorn {app_module}:app "
+                   f"--host 127.0.0.1 --port {port} > {APP_LOG_CONTAINER_PATH} 2>&1 &"],
                    timeout_s=15)
     wait = int(config.L2_SERVICE_WAIT_S)
     chk = (
@@ -241,7 +245,7 @@ def _start_service(runner, container, app_module: str, port: int) -> tuple[bool,
     r = runner.exec_in(container, ["python", "-c", chk], timeout_s=wait + 15)
     if r.exit_code == 0 and "READY" in r.stdout:
         return True, ""
-    tail = runner.exec_in(container, ["sh", "-c", "tail -n 20 /tmp/l2svc.log"],
+    tail = runner.exec_in(container, ["sh", "-c", f"tail -n 20 {APP_LOG_CONTAINER_PATH}"],
                           timeout_s=10)
     return False, (tail.stdout or tail.stderr or "服务未就绪")[-300:]
 
@@ -293,9 +297,28 @@ def make_l2_nodes(deps):
     def msg(session_id: int, content: str) -> None:
         seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
                            (session_id,)).fetchone()["n"]
-        conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
+        conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES(?,?,?,?)",
                      (session_id, seq, "assistant", content))
         conn.commit()
+
+    def _collect_app_logs(state: L2State, round_no: int) -> None:
+        # 黑盒能力补齐阶段1：应用日志分流落库（采集→宿主快照→解析→app_logs）。
+        # 失败只留痕不炸主链路——日志账本缺席不该拖垮测试执行本身。
+        try:
+            info = collect_and_store_app_logs(
+                deps.runner, deps.runner.client.containers.get(state["container_name"]),
+                conn, state["task_id"], round_no, Path(state["workspace"]), lang="python")
+            if info.get("stored"):
+                msg(state["session_id"],
+                    f"[L2·app-logs] 第{round_no}轮应用日志：错误 {info['error_count']} 行 / "
+                    f"警告 {info['warn_count']} 行入库（source={info['source']}，"
+                    f"首错行 {info['first_error_line']}，快照 {info['host_path']}）")
+            elif info.get("source") != "empty":
+                msg(state["session_id"],
+                    f"[L2·app-logs] 第{round_no}轮应用日志无错误/警告行"
+                    f"（{info['log_lines']} 行已快照 {info['host_path']}）")
+        except Exception as e:      # noqa: BLE001 —— 观测层缺席不炸执行主链路
+            log.warning("应用日志分流失败 task=%s: %s", state["task_id"], e)
 
     def _leg_update(task_id: int, **fields) -> None:
         sets = ", ".join(f"{k}=?" for k in fields)
@@ -356,6 +379,8 @@ def make_l2_nodes(deps):
         port = int(config.L2_SERVICE_PORT)
         ok, why = _start_service(runner, container, app_module, port)
         if not ok:
+            # 服务起不来的日志正是环境类证据（黑包阶段1）：失败路径也分流落库（round 1）
+            _collect_app_logs(state, 1)
             _leg_update(tid, status="failed", verdict="stop",
                         stop_reason=f"服务启动失败：{why}",
                         finished_at=_now())
@@ -406,6 +431,8 @@ def make_l2_nodes(deps):
                                    int(state.get("round_no", 1) or 1), rows, level="L2")
         except Exception as e:      # noqa: BLE001
             log.warning("L2 逐用例结果落库失败 task=%s: %s", tid, e)
+        # 应用运行时日志分流（黑包阶段1）：本轮服务进程输出快照+解析+app_logs 落库
+        _collect_app_logs(state, int(state.get("round_no", 1) or 1))
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"]}
 
     def evaluate(state: L2State) -> dict:

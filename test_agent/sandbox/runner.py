@@ -272,6 +272,21 @@ class SandboxRunner:
 
     # —— 执行 ——
 
+    def read_app_log_pair(self, container, path: str, tail_lines: int = 2000) -> tuple[str, str]:
+        """（黑盒能力补齐阶段1·采集层）读容器内应用日志文件 + docker logs 兜底原文。
+
+        返回 (file_text, docker_text) 两路原始文本——判源（file 优先 / docker_logs 兜底 /
+        empty）由 skills.app_logs.choose_log_source 纯函数决定，层间不重复实现。
+        采集只取事实不解释：文件缺失/为空时第一路为 ""，兜底缺席同理（不炸主链路）。"""
+        r = self.exec_in(container, ["sh", "-c", f"cat '{path}' 2>/dev/null"], timeout_s=30)
+        try:
+            docker_text = (container.logs(tail=tail_lines) or b"").decode(
+                "utf-8", errors="replace")
+        except Exception as e:            # noqa: BLE001 —— 兜底缺席只留痕，采集继续
+            log.warning("docker logs 兜底读取失败: %s", e)
+            docker_text = ""
+        return r.stdout or "", docker_text
+
     def exec_in(self, container, cmd: list[str],
                 workdir: str = "/work",
                 timeout_s: int = config.DEFAULT_JOB_TIMEOUT_S) -> ExecResult:

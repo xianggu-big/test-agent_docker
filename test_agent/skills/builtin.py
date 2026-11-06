@@ -84,6 +84,22 @@ def build_skills(runner) -> dict[str, Skill]:
         from .gen_tests import generate_tests  # 延迟导入，避免未用 Key 时的加载开销
         return generate_tests(api_key, args, task_id, runner)
 
+    def log_analyze(task_id: int, args: dict) -> str:
+        # 黑盒能力补齐阶段1：应用日志 LLM 摘要（证据=app_logs 确定性行，引用闸在模块内）
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            return json.dumps({"skipped": "未配置 DEEPSEEK_API_KEY：日志分析不可用（诚实降级）"},
+                              ensure_ascii=False)
+        from ..store.db import get_conn     # skill func 在线程池执行：连接必须自建
+        from . import log_analyze as _la
+        conn = get_conn()
+        try:
+            out = _la.run_log_analyze(api_key, conn, task_id,
+                                      round_no=int(args.get("round_no") or 1))
+            return json.dumps(out, ensure_ascii=False)
+        finally:
+            conn.close()
+
     return {
         "install_deps": Skill(
             name="install_deps", description="容器内安装被测项目 Python 依赖（三类清单探测分流）",
@@ -98,4 +114,8 @@ def build_skills(runner) -> dict[str, Skill]:
             name="gen_tests", description="按五种方法生成测试用例（等价类/边界值/判定表/覆盖/错误推测）",
             func=gen_tests, risk_level="medium", timeout_ms=120_000,
             arg_schema={"workspace": "str", "requirement": "str", "module_hint": "str"}),
+        "log_analyze": Skill(
+            name="log_analyze", description="应用运行时日志 LLM 摘要与异常解释（证据=app_logs 确定性错误/警告行，叙述必须引用真实行号）",
+            func=log_analyze, risk_level="low", timeout_ms=150_000,
+            arg_schema={"round_no": "int"}),
     }

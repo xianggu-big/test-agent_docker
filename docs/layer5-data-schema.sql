@@ -443,3 +443,24 @@ CREATE TABLE IF NOT EXISTS login_events (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_login_events_user ON login_events(user_id, created_at);
+
+-- 28) 应用运行时日志分档（黑盒能力补齐阶段1：被测服务进程 stdout/stderr 独立采集——
+--     容器内重定向 /work/logs/app.log，docker logs 兜底；确定性正则按语言解析错误/警告行，
+--     LLM 只在 log_analyze 做摘要且必须引用 line_no，日志原文可追溯）
+CREATE TABLE IF NOT EXISTS app_logs (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    INTEGER NOT NULL REFERENCES test_tasks(id),
+  round_no   INTEGER NOT NULL DEFAULT 1,   -- 按轮分档；服务启动失败发生在用例执行前，记 round 1
+  level      TEXT NOT NULL CHECK (level IN ('error','warn')),
+  kind       TEXT NOT NULL,                -- python_traceback/python_exception/java_exception/java_stack/
+                                           -- java_caused_by/go_panic/go_goroutine/node_rejection/node_error/
+                                           -- error_log/warn_log
+  line_no    INTEGER NOT NULL,             -- 日志文件内 1-based 行号（证据可追溯）
+  message    TEXT NOT NULL,                -- 行内容裁剪（≤300 字符）
+  raw_line   TEXT NOT NULL,                -- 原始行（逐字）
+  source     TEXT NOT NULL CHECK (source IN ('file','docker_logs')),
+  log_path   TEXT,                         -- 宿主侧快照路径 data/workspaces/<tid>/logs/app_r<N>.log
+  log_lines  INTEGER NOT NULL DEFAULT 0,   -- 本轮采集时日志总行数（log_analyze 引用闸的合法域上界）
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_app_logs_task_round ON app_logs(task_id, round_no);
