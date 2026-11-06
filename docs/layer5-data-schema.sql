@@ -464,3 +464,22 @@ CREATE TABLE IF NOT EXISTS app_logs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_app_logs_task_round ON app_logs(task_id, round_no);
+
+-- 第 29 表：db_assert 断言台账（黑盒能力补齐阶段2）——LLM 生成验证 SQL 经只读闸
+-- （sqlglot 白名单 SELECT/SHOW，任一语句违规整案剔除）后在 DB sidecar 容器内执行的
+-- 结构化结果。幂等口径与 app_logs 一致：round≤1 清全任务、round>1 清同轮。
+CREATE TABLE IF NOT EXISTS db_asserts (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id         INTEGER NOT NULL REFERENCES test_tasks(id),
+  round_no        INTEGER NOT NULL DEFAULT 1,
+  sidecar         TEXT NOT NULL,               -- sidecar 容器名（证据可追溯）
+  engine          TEXT NOT NULL CHECK (engine IN ('mariadb','postgres')),
+  sql_text        TEXT NOT NULL,               -- 送闸 SQL 原文（注入形态留痕的依据）
+  verdict         TEXT NOT NULL CHECK (verdict IN ('passed','failed','rejected')),
+  row_count       INTEGER,                     -- passed 时结果行数
+  error           TEXT NOT NULL DEFAULT '',    -- failed 时 DB 侧错误（截断 ≤500）
+  rejected_reason TEXT NOT NULL DEFAULT '',    -- rejected 时闸门拒绝理由（语句类型可审计）
+  elapsed_ms      INTEGER NOT NULL DEFAULT 0,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_db_asserts_task_round ON db_asserts(task_id, round_no);

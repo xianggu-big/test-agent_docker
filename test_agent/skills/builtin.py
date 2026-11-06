@@ -170,6 +170,11 @@ def build_skills(runner) -> dict[str, Skill]:
         finally:
             conn.close()
 
+    from .db_assert import db_assert as _db_assert_fn
+
+    def db_assert(task_id: int, args: dict) -> str:
+        return _db_assert_fn(api_key=None, args=args, task_id=task_id, runner=runner)
+
     return {
         "install_deps": Skill(
             name="install_deps", description="容器内安装被测项目 Python 依赖（三类清单探测分流）",
@@ -188,4 +193,9 @@ def build_skills(runner) -> dict[str, Skill]:
             name="log_analyze", description="应用运行时日志 LLM 摘要与异常解释（证据=app_logs 确定性错误/警告行，叙述必须引用真实行号）",
             func=log_analyze, risk_level="low", timeout_ms=150_000,
             arg_schema={"round_no": "int"}),
+        "db_assert": Skill(
+            name="db_assert", description="DB 验证：验证 SQL 经只读闸（sqlglot 白名单 SELECT/SHOW，任一违规整案拒绝）后在 DB sidecar 内执行并落 db_asserts 表",
+            func=db_assert, risk_level="medium", timeout_ms=120_000,
+            arg_schema={"sql": "str", "container_name": "str", "engine": "str",
+                        "database": "str", "round_no": "int"}),
     }

@@ -56,6 +56,13 @@ def validate_recipe(r: dict) -> dict:
             ver = mm
         else:
             raise RecipeRejected(f"runtime_version={ver!r} 不在镜像池版本 {sorted(pool)}")
+    # 黑包阶段2：可选 db_services 段（DB sidecar 声明）——存在即校验（缺字段必报错）
+    if "db_services" in r and r["db_services"] is not None:
+        from .db_sidecar import parse_db_services
+        try:
+            r["db_services"] = parse_db_services(r["db_services"])
+        except ValueError as e:
+            raise RecipeRejected(str(e)) from e
     # install 白名单（逐条全匹配）
     install = r["install"]
     if not isinstance(install, list) or not install:

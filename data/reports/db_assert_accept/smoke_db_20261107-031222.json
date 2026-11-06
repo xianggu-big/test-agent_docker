@@ -1,0 +1,19 @@
+{
+  "ts": "2026-11-07 03:12:36",
+  "task_id": 1,
+  "elapsed_s": 13.1,
+  "sidecar": "mta-smoke-db-325512",
+  "network": "mta-dba-net-325512",
+  "checks": {
+    "sidecar 建库成功（mariadb:11 就绪）": true,
+    "迁移+种子 SQL 执行 exit=0": true,
+    "跨容器经 network 连 sidecar 容器名 SELECT": true,
+    "只读验证通过例（SELECT 计数 paid=2）": true,
+    "只读验证失败例（表不存在 → failed 如实）": true,
+    "越权 UPDATE 被闸剔除且留痕": true,
+    "注入形态（SELECT 1; DROP）整案拒绝": true,
+    "注入后 orders 表完好（DROP 确未执行）": true,
+    "db_asserts 落库（3 轮分档+rejected 留痕）": true
+  },
+  "tmp_db": "D:\\test agent_docker\\data\\tmp_applogs_accept\\db_smoke.db"
+}

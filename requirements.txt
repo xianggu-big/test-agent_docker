@@ -8,3 +8,4 @@ fastapi==0.162.0           # L1 应用层（阶段 2）；0.162 的 starlette>=0
 uvicorn==0.34.0            # ASGI 服务器（开发期禁用 --reload 跑真任务）
 radon==6.0.1              # W4 圈复杂度/基路径分析（McCabe 1976；宿主侧分析 workspace，不进容器）
 pathspec==0.12.1             # 工作区快照解析 .gitignore（任务B：7.7GB 工作区 OOM 根修；黑/langgraph-cli 已传递依赖，显式声明）
+sqlglot==30.30.0             # db_assert 只读闸（SQL AST 解析，黑盒能力补齐阶段2）
