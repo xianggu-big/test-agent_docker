@@ -7,7 +7,8 @@
 import re
 
 SYSTEM_PROMPT = (
-    "你是资深软件测试工程师。严格按给定的用例设计方法生成 pytest 用例，"
+    "你是资深软件测试工程师。严格按给定的用例设计方法与目标语言生成测试用例"
+    "（目标语言以用户指令中的「语言：」段为准，未指明时为 pytest），"
     "断言必须先于执行结果确定（预期结果来自需求而非实际输出）。只输出 JSON。"
 )
 
@@ -535,10 +536,49 @@ docstring 没写的行为，按需求文档推断，禁止猜。
                   "五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」——")
     # 目标语言输出形态（JS/TS 执行链路 Tier2）：jest 用例名写成 test_xxx（无空格），
     # 与 Python nodeid 口径一致——归因/剪枝/证人冻结按 name 反查全部复用
-    is_js = target_language in ("javascript", "typescript")
-    if is_js:
-        if target_language == "typescript":
-            lang_rules = """
+    # 目标语言输出形态（白包阶段2 java 先行：system 已语言中立，此处按语言给 lang_rules）
+    final_lang_reminder = ""
+    if target_language == "java":
+        lang_rules = """
+语言：Java（JUnit5 + Maven）。每条用例是 @Test 注解方法（org.junit.jupiter.api.Test），
+方法名必须 test_ 开头（如 void test_xxx_等价类划分()）；断言用
+Assertions.assertEquals/assertTrue/assertThrows 等具体比较，禁止只写 assertNotNull 这类弱断言。
+被测类 import 被测包（如 import com.demo.OrderService;）。imports 字段放全部 import 语句
+（含 org.junit.jupiter.api.Test 与 Assertions 的 static import）。
+生成物将写入 src/test/java/ 下（TestGenR1.java，默认包）；方法内直接 new 被测类调用。
+
+**完整形态对照（严格模仿，禁止输出任何其他语言形态）：**
+
+```java
+import com.demo.Calc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+public class TestGenR1 {
+    @Test
+    public void test_xxx_等价类划分() {
+        assertEquals(2, new Calc().add(1, 1));
+    }
+    @Test
+    public void test_yyy_边界值分析() {
+        assertEquals("A", new Calc().getTier(90));
+    }
+}
+```
+
+method_text 后的正例与上面的形态是唯一合法输出；**def test_ / assert 语句 / pytest /
+require / jest 形态一律会被系统剔除作废**。
+
+边界纪律（重要）：需求写 >= 90 的边界点就是 90 本身——边界值用例必须取端点（90/89/60/59），
+**禁止用 91 代替 90**；预期值严格按需求文本（>= 90 → "A"），禁止按源码现状反推预期。"""
+        code_example = ('@Test\\npublic void test_xxx_等价类划分() {\\n'
+                        '  assertEquals(2, new Calc().add(1, 1));\\n}')
+        imports_hint = "测试类顶部所需的全部 import 语句（含 static import）"
+        final_lang_reminder = ("\n**最终检查（最高优先级）：目标语言=Java，code 字段必须是 JUnit5"
+                               "（@Test public void test_xxx()），任何 Python（def/assert/pytest）/"
+                               "jest 形态都会被系统剔除作废。**")
+    elif target_language == "typescript":
+        lang_rules = """
 语言：TypeScript（jest + ts-jest）。每条用例是一个顶层 test("test_xxx_方法名", () => {...})，
 允许使用类型标注；用例名必须以 test_ 开头、**不含空格**；被测模块一律用
 import { 函数名 } from "./相对路径"（相对工作区根目录、去掉扩展名，如
@@ -549,11 +589,11 @@ import { clamp } from "./src/calc"——不要用 require，散装环境可能�
 **禁止写 path.join(__dirname, "..")**。
 方法知识库中的示例是 Python 形态的思路参考；code 字段必须是纯 TypeScript jest 用例，
 **禁止混入 import pytest / @pytest / def test_ / assert 语句**（混入整案作废）。"""
-            code_example = ('test("test_xxx_等价类划分", () => {\\n'
-                            '  expect(add(1, 1)).toBe(2);\\n});')
-            imports_hint = "测试文件顶部所需的全部 import 语句"
-        else:
-            lang_rules = """
+        code_example = ('test("test_xxx_等价类划分", () => {\\n'
+                        '  expect(add(1, 1)).toBe(2);\\n});')
+        imports_hint = "测试文件顶部所需的全部 import 语句"
+    elif target_language == "javascript":
+        lang_rules = """
 语言：JavaScript（jest）。每条用例是一个顶层 test("test_xxx_方法名", () => {...})，
 用例名必须以 test_ 开头、**不含空格**；被测模块用 require("./相对路径")（路径以被测文件
 相对工作区根目录为准，去掉扩展名）；断言用 expect(...).toBe/toEqual/toThrow 等具体比较，
@@ -565,8 +605,8 @@ child_process 启动项目内脚本时：cwd 用 __dirname、env 用
 Object.assign({}, process.env, extra)（勿整体替换父环境，否则 PATH 丢失）。
 方法知识库中的示例是 Python 形态的思路参考；code 字段必须是纯 jest 用例，
 **禁止混入 import pytest / @pytest / def test_ / assert 语句**（混入整案作废）。"""
-            code_example = 'test("test_xxx_等价类划分", () => {\\n  expect(fn(1)).toBe(2);\\n});'
-            imports_hint = "测试文件顶部所需的全部 require 语句"
+        code_example = 'test("test_xxx_等价类划分", () => {\\n  expect(fn(1)).toBe(2);\\n});'
+        imports_hint = "测试文件顶部所需的全部 require 语句"
     else:
         lang_rules = """
 执行布局：用例文件将被直接写在项目根目录下（与被测模块同目录），不会放进子目录——
@@ -599,4 +639,4 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "steps": "操作步骤",
     "expected": "预期输出/状态变化",
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
-    "code": "{code_example}"}}]}}"""
+    "code": "{code_example}"}}]}}{final_lang_reminder}"""

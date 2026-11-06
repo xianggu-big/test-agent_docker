@@ -12,11 +12,11 @@
 | B1-1 | 黑1日志 | 真机 L2 冒烟 app_logs 按轮次分档（声称✅） | **通过** | 证据文件抽查：A臂 3行入库+快照65行+citations_ok=True | - |
 | B1-2 | 黑1日志 | 端口占用被正则命中+log_analyze 引用真实行号（声称✅） | **通过** | B_port_conflict 臂 port_conflict_hit=true/Errno 98 在案 | - |
 | B1-TM | 黑1日志 | 测试矩阵：四语言正则/引用闸/幂等 24 条 | **通过** | test_app_logs.py 279行+test_app_logs_api.py 随全量绿 | - |
-| B2-R | 黑2DB | Testcontainers 前置调研结论写回任务卡 | **未做（缺口）** | - | - |
-| B2-1 | 黑2DB | MySQL demo sidecar 建库成功 | **未做** | - | - |
-| B2-2 | 黑2DB | db_assert 只读 SQL 通过/失败各一例 | **未做** | - | - |
-| B2-3 | 黑2DB | 越权写 SQL 被闸剔除留痕 | **未做** | - | - |
-| B2-TM | 黑2DB | sqlglot 只读闸正负例矩阵+sidecar 配置解析+落库幂等 | **未做** | - | - |
+| B2-R | 黑2DB | Testcontainers 前置调研结论写回任务卡 | **通过** | 任务卡前置调研段（四要素→抄模式自实现） | - |
+| B2-1 | 黑2DB | MySQL demo sidecar 建库成功 | **通过** | smoke_db_assert 9/9（证据 data/reports/db_assert_accept/smoke_db_20261107-031222.json） | 1 |
+| B2-2 | 黑2DB | db_assert 只读 SQL 通过/失败各一例 | **通过** | 同上（paid=2 通过例+表不存在失败例，SkillRegistry 通道） | 1 |
+| B2-3 | 黑2DB | 越权写 SQL 被闸剔除留痕 | **通过** | 同上（UPDATE rejected+注入整案+orders 表完好机器实证） | 1 |
+| B2-TM | 黑2DB | sqlglot 只读闸正负例矩阵+sidecar 配置解析+落库幂等 | **通过** | tests/test_db_assert.py 14 + test_db_sidecar.py 10 全绿 | 1 |
 | B3-1 | 黑3UI | Playwright 镜像注册 IMAGE_BUILD_CTX | **未做** | - | - |
 | B3-2 | 黑3UI | demo 前端 3 场景真实执行+截图/trace 落库 | **未做** | - | - |
 | B3-3 | 黑3UI | 埋按钮失效缺陷被命中出缺陷报告单 | **未做** | - | - |

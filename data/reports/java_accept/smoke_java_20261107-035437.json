@@ -1,0 +1,140 @@
+{
+  "ts": "2026-11-07 03:54:37",
+  "task_id": 1,
+  "elapsed_s": 143.3,
+  "final": {
+    "verdict": "stop",
+    "stop_reason": "覆盖率未知（解析失败）未达准出标准（目标 70%）且补测预算耗尽",
+    "passed": 42,
+    "failed": 5,
+    "coverage": null
+  },
+  "checks": {
+    "语言判定=java": true,
+    "生成了 TestGen*.java（src/test/java）": true,
+    "framework=junit5 落库": true,
+    "编译闸+执行轮次落库（终态可判）": true,
+    "逐用例结果落库（surefire nodeid）": true,
+    "埋的 getTier(90) 边界缺陷被暴露": true,
+    "终态产出": true
+  },
+  "gen_java_files": [
+    "TestGenR1.java",
+    "TestGenR2.java",
+    "TestGenR3.java"
+  ],
+  "scripts": [
+    {
+      "framework": "junit5",
+      "filename": "src/test/java/TestGenR1.java",
+      "version": 1
+    },
+    {
+      "framework": "junit5",
+      "filename": "src/test/java/TestGenR2.java",
+      "version": 2
+    },
+    {
+      "framework": "junit5",
+      "filename": "src/test/java/TestGenR3.java",
+      "version": 3
+    }
+  ],
+  "rounds": [
+    {
+      "round_no": 1,
+      "passed": 15,
+      "failed": 2,
+      "verdict": "repair_gen"
+    },
+    {
+      "round_no": 2,
+      "passed": 31,
+      "failed": 4,
+      "verdict": "repair_gen"
+    },
+    {
+      "round_no": 3,
+      "passed": 42,
+      "failed": 5,
+      "verdict": "stop"
+    }
+  ],
+  "cases_sample": [
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_applyDiscount_语句分支覆盖",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_applyDiscount_超范围百分比_等价类划分",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_getTier_判定表_三档组合",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_applyDiscount_零金额与满折_错误推测法",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_applyDiscount_满百分比_等价类划分",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_getTier_语句分支覆盖",
+      "status": "failed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_applyDiscount_负百分比_等价类划分",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_applyDiscount_有效百分比_等价类划分",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_isValidCode_空串与null_错误推测法",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_isValidCode_含特殊字符_错误推测法",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_applyDiscount_零百分比_等价类划分",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 3,
+      "nodeid": "TestGenR3::test_applyDiscount_判定表_有效无效组合",
+      "status": "passed",
+      "origin": "generated"
+    }
+  ],
+  "llm_calls": 7,
+  "total_tokens": 31346,
+  "tmp_db": "D:\\test agent_docker\\data\\tmp_applogs_accept\\java_smoke.db"
+}

@@ -73,10 +73,18 @@ def build_run_cmd_js(round_no: int = 1, gen_files: list[str] | None = None) -> l
     return cmd
 
 
+def build_run_cmd_java() -> list[str]:
+    """Java 执行链路（Tier2，白包阶段2）：mvn test 跑全项目（surefire+jacoco 由项目 pom 声明，
+    依赖随项目走）。round>1 位置参数不适用（surefire 扫全 test 类）——R-Loop 限定生成物语义
+    由 gen 侧保证（首轮 TestGenR1，补测轮 TestGenR2 独立类共存，自带 tests 第 2 轮起不隔离
+    属已知边界：maven 无 jest testPathPattern 等价物，诚实入档）。"""
+    return ["mvn", "test"]
+
+
 def _tier_strategy(primary: str) -> str:
     """语言分级（analyze 用，Loop 抽出供单测）：full=容器执行链路；其余 static_only。
-    typescript 升 Tier2（白包阶段1）；java 镜像已备但链路未接（阶段2）→ 仍静态。"""
-    return "full" if primary in ("python", "javascript", "typescript") else "static_only"
+    typescript 升 Tier2（白包阶段1）；java 接线（白包阶段2）→ full。"""
+    return "full" if primary in ("python", "javascript", "typescript", "java") else "static_only"
 
 
 def _inline_jest_config(include_ts: bool) -> str:
@@ -605,9 +613,8 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "running")
         lang = state["primary_language"]
-        if lang not in ("python", "javascript", "typescript"):
-            # 其余语言（java 镜像已备但链路未接，白包阶段2）：诚实终止，不进归因循环——
-            # "链路未实现"不该被伪装成环境失败（A7）
+        if lang not in ("python", "javascript", "typescript", "java"):
+            # 其余语言：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
             return {"done": True, "verdict": "stop",
                     "stop_reason": f"{lang} 执行链路 v1 未接入（诚实降级：static_only 路径走静态扫描），任务终止"}
         ws = Path(state["workspace"])
@@ -653,6 +660,10 @@ def make_nodes(deps: GraphDeps) -> dict:
                 msg(state["session_id"], "assistant",
                     f"[run] 项目无 jest 配置{'/package.json' if not (ws / 'package.json').exists() else ''}："
                     f"注入最小内联配置执行（{'TypeScript（含 ts-jest transform）' if lang == 'typescript' else '散装 JS'} 兜底）")
+        elif lang == "java":
+            # Java 执行链路（Tier2，白包阶段2）：mvn test → surefire XML/JaCoCo 经 java_adapter
+            # 转 pytest 风格文本，下游 evaluate/repair/report 零改动（adapter 统一文本唯一接缝）。
+            cmd = build_run_cmd_java()
         else:
             # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
             # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）；
@@ -681,6 +692,19 @@ def make_nodes(deps: GraphDeps) -> dict:
             from ..skills.case_results import parse_jest_results, parse_junit_xml, store_case_results
             if lang in ("javascript", "typescript"):
                 rows = parse_jest_results(r.get("stdout", ""))   # 转换前抽原始 jest JSON
+            elif lang == "java":
+                # surefire XML 目录逐文件 cat（容器内无 glob 展开——sh -c 罗列再逐个取），
+                # parse_junit_xml 直接复用（surefire 与 pytest junitxml 同 family，S1 调研结论）
+                ls = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                    ["sh", "-c",
+                                     "ls target/surefire-reports/TEST-*.xml 2>/dev/null"],
+                                    timeout_s=15, workdir="/work")
+                rows = []
+                for xf in ls.stdout.split():
+                    jc = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                        ["cat", xf], timeout_s=15, workdir="/work")
+                    if jc.ok:
+                        rows.extend(parse_junit_xml(jc.stdout))
             else:
                 jc = runner.exec_in(
                     runner.client.containers.get(state["container_name"]),
@@ -697,6 +721,27 @@ def make_nodes(deps: GraphDeps) -> dict:
         if lang in ("javascript", "typescript") and r.get("stdout"):
             from ..skills.js_adapter import jest_json_to_pytest_text
             r["stdout"] = jest_json_to_pytest_text(r["stdout"], r.get("stderr", ""))
+        if lang == "java":
+            # java_adapter：surefire XML+JaCoCo → 统一文本（S5 唯一合法接缝，下游零改动）
+            from ..skills.java_adapter import surefire_dir_to_pytest_text
+            rep = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                 ["sh", "-c", "mkdir -p /tmp/sf && "
+                                  "cp target/surefire-reports/TEST-*.xml /tmp/sf/ 2>/dev/null; "
+                                  "ls /tmp/sf/ >/dev/null 2>&1 && echo ok"],
+                                 timeout_s=20, workdir="/work")
+            if rep.ok and "ok" in rep.stdout:
+                import tempfile
+                with tempfile.TemporaryDirectory() as td:
+                    for xf in runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                             ["sh", "-c", "ls /tmp/sf/"], timeout_s=10,
+                                             workdir="/").stdout.split():
+                        xj = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                            ["cat", f"/tmp/sf/{xf}"], timeout_s=15, workdir="/")
+                        if xj.ok:
+                            (Path(td) / xf).write_text(xj.stdout, encoding="utf-8")
+                    r["stdout"] = surefire_dir_to_pytest_text(td)
+            else:
+                r["stdout"] = (r.get("stdout") or "") + "\n(no surefire reports: 编译失败或用例未执行)\n"
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"],
                 "last_cmd": cmd}
 

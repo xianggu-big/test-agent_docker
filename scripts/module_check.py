@@ -277,9 +277,9 @@ def part1_completion() -> list[Item]:
     nodes_mod = __import__("test_agent.graph.nodes", fromlist=["make_nodes"])
     src_nodes_tier = inspect.getsource(nodes_mod.make_nodes)
     (ok if 'strategy = _tier_strategy(primary)' in src_nodes_tier
-     and 'return "full" if primary in ("python", "javascript", "typescript") else "static_only"'
+     and 'return "full" if primary in ("python", "javascript", "typescript", "java") else "static_only"'
      in inspect.getsource(nodes_mod) else miss)(
-        "分级名单 full=python/javascript/typescript（TS 升 Tier2，java 仍静态待阶段2）", "漂移")
+        "分级名单 full=python/javascript/typescript/java（TS/Java Tier2，白包阶段1/2）", "漂移")
     (ok if "static_draft" in src_nodes_tier and "[static-draft]" in src_nodes_tier else miss)(
         "static_draft 节点在位", "缺失")
     exec_langs = getattr(config, "EXEC_LANGUAGES", {})

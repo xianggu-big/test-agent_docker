@@ -117,6 +117,12 @@ def gen_file_naming(lang: str, round_no: int, feedback: bool = False, fb_no: int
     if lang in ("javascript", "typescript"):
         ext = ".test.ts" if lang == "typescript" else ".test.js"
         framework = "jest"
+    elif lang == "java":
+        # maven surefire 只扫 src/test/java 下 *Test 类；相对路径当 fname 用（写 ws/fname）
+        base = f"src/test/java/TestGenR{round_no}.java"
+        if feedback and fb_no:
+            base = f"src/test/java/TestGenFb{fb_no}.java"
+        return base, "junit5"
     else:
         ext, framework = ".py", "pytest"
     if feedback and fb_no:
@@ -137,12 +143,18 @@ def collect_gate_cmd(lang: str, fname: str) -> list[str]:
                 fname]
     if lang == "javascript":
         return ["node", "--check", fname]
+    if lang == "java":
+        # 白包阶段2：编译闸 mvn test-compile（测试代码与主代码一起编译；闸不过=生成缺陷整案废案）。
+        # fname 不进命令——maven 编译全项目；任务卡写 `mvn -q compile`，测试代码需 test-compile（偏差入档）。
+        return ["mvn", "-q", "test-compile"]
     return ["pytest", "--collect-only", "-q", fname]
 
 
 def _iter_source_files(ws: Path, lang: str = "python"):
-    """按目标语言枚举被测源码：python=*.py；javascript/typescript=JS_SOURCE_EXTS。"""
-    exts = JS_SOURCE_EXTS if lang in ("javascript", "typescript") else (".py",)
+    """按目标语言枚举被测源码：python=*.py；javascript/typescript=JS_SOURCE_EXTS；
+    java=*.java（白包阶段2）。"""
+    exts = (".java",) if lang == "java" else (
+        JS_SOURCE_EXTS if lang in ("javascript", "typescript") else (".py",))
     for p in sorted(ws.rglob("*")):
         if not p.is_file() or p.suffix.lower() not in exts:
             continue
@@ -200,9 +212,10 @@ def _collect_sources_detailed(ws: Path, lang: str = "python") -> tuple[list[tupl
     skipped: list[str] = []
     used = 0
     is_js = lang in ("javascript", "typescript")
+    is_java = lang == "java"
     for p, text in _iter_source_files(ws, lang):
         rel = p.relative_to(ws).as_posix()
-        if is_js:
+        if is_java or is_js:
             # JS：无 AST 切片。语法可粗检（花括号平衡）不拦——语法闸在容器内 node --check。
             budget_left = MAX_SOURCE_CHARS - used
             if len(text) > budget_left:
@@ -255,6 +268,13 @@ def source_outline(ws: Path, lang: str = "python") -> dict | None:
         is_js = lang in ("javascript", "typescript")
         for p, text in _iter_source_files(ws, lang):
             rel = p.relative_to(ws).as_posix()
+            if lang == "java":
+                # 白包阶段2：java 方法签名正则（public/private static 等修饰符宽容）
+                names = re.findall(r"(?:public|private|protected)?\s*(?:static\s+)?"
+                                   r"[\w<>\[\]]+\s+([A-Za-z_][\w$]*)\s*\(", text)
+                functions.update(names)
+                files.append(f"{rel}::{('、'.join(dict.fromkeys(names))[:12]) or rel}")
+                continue
             if is_js:
                 names = re.findall(r"(?:function\s+|const\s+|let\s+|var\s+)"
                                    r"([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\()",
@@ -386,6 +406,10 @@ def _parse_cases(text: str, lang: str | None = None) -> dict | None:
     if lang in ("javascript", "typescript"):
         cleaned = [c for c in cases if isinstance(c, dict)
                    and isinstance(c.get("code"), str) and JS_CASE_RE.search(c["code"])]
+    elif lang == "java":
+        # 白包阶段2：JUnit5 形态（@Test 注解或 void test_ 方法）——混写 Python/jest 在解析层剔除
+        cleaned = [c for c in cases if isinstance(c, dict)
+                   and isinstance(c.get("code"), str) and JAVA_CASE_RE.search(c["code"])]
     else:
         # 用例代码两种语言形态：Python def test_… / jest test("test_…" 或 it("test_…"
         cleaned = [c for c in cases if isinstance(c, dict) and (
@@ -592,6 +616,8 @@ def _patch_target_hits(tree: ast.AST, table: dict) -> list[str]:
     return hits
 
 
+JAVA_CASE_RE = re.compile(r"@\s*Test\b|void\s+test_\w+\s*\(")
+
 # B2（任务卡-369 20261105）SUT 功能函数候选清单（最小版）：
 # Python 用 ast 顶层函数；JS 用正则（核查时已验证可提 60+ 名）；
 # 0 函数文件显式标注「纯数据文件，禁作被测单元」（369 questions.js 形态）
@@ -796,6 +822,9 @@ def _static_filter(cases: list[dict], ws: Path, imports_text: str = "") -> tuple
         if config.DEFENSE_V2_ENABLED:
             return _js_selfplay_filter(cases, imports_text)
         return cases, []   # JS 形态：闸移交收集步骤（node --check），这里不做 AST 审计
+    if cases and any(JAVA_CASE_RE.search((c.get("code") or "")) for c in cases):
+        # 白包阶段2：JUnit5 形态——Python AST 不适用；闸=容器内 mvn test-compile（收集闸步骤）
+        return cases, []
     table = _module_top_level(ws)
     kept, rejected = [], []
     for c in cases:
@@ -1283,6 +1312,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     lang = (args.get("module_hint") or "python").lower()
     is_js = lang in ("javascript", "typescript")   # JS/TS 执行链路 Tier2（白包阶段1 升 TS）：
     # jest 形态生成；收集闸 js=node --check / ts=tsc --noEmit（collect_gate_cmd 分流）
+    is_java = lang == "java"                       # 白包阶段2：JUnit5 形态生成；闸=mvn test-compile
     sources, source_skipped = _collect_sources_detailed(ws, lang)
     if source_skipped:
         # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
@@ -1407,6 +1437,9 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         if is_js:
             code = re.sub(r'(\b(?:test|it)\s*\(\s*)([\'"])[^\'"]*\2',
                           lambda m: f'{m.group(1)}"{def_name}"', code, count=1)
+        elif is_java:
+            # JUnit5 方法名重写：首个 void test_xxx( 对齐规整名（surefire nodeid=类::方法，同口径）
+            code = re.sub(r"\bvoid\s+test_\w+\s*\(", f"void {def_name}(", code, count=1)
         else:
             m = re.search(r"def\s+\w+", code)
             if m:
@@ -1446,8 +1479,10 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     # —— 方案A·断言质量审计（度量恒算）+ 可选闸：全弱断言用例 = 无证伪能力 ——
     # JS 分支：审计器是 Python AST，对 jest 代码会整案判"语法不可解析"→ gate 开时全剔。
     # v1 跳过（stats 标 skipped 诚实留痕）；JS 断言质量闸属后续工作。
-    if is_js:
-        gate_rejected, assertion_stats = [], {"cases": len(data["cases"]), "skipped": "js_v1"}
+    # java（白包阶段2）同理跳过：JUnit5 代码非 Python AST，闸=mvn test-compile。
+    if is_js or is_java:
+        gate_rejected, assertion_stats = [], {"cases": len(data["cases"]),
+                                              "skipped": "js_v1" if is_js else "java_v1"}
     else:
         data["cases"], gate_rejected, assertion_stats = apply_assertion_gate(
             data["cases"], gate=config.ASSERTION_GATE_ENABLED)
@@ -1485,11 +1520,20 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         fname, framework = gen_file_naming(lang, round_no)
         header_text = f"AI 生成用例（第 {round_no} 轮 · 五种方法知识库）"
         version = round_no
-    header = f"// {header_text}" if is_js else f'"""{header_text}"""'
+    header = f"// {header_text}" if (is_js or is_java) else f'"""{header_text}"""'
     imports = (data.get("imports") or "").strip()
     body = "\n\n".join(c["code"].strip() for c in data["cases"])
     content = (header + "\n"
                + (imports + "\n\n" if imports else "") + body + "\n")
+    if is_java:
+        # JUnit 方法片段拼接不合法（缺类包裹——py def / jest test() 片段可在顶层，
+        # java 方法必须在 class 内）：渲染层补类壳，类名与文件名一致（surefire 扫描前提）。
+        cls_name = Path(fname).stem
+        indented = "\n".join(("    " + ln) if ln.strip() else ln for ln in body.splitlines())
+        content = (header + "\n"
+                   + (imports + "\n\n" if imports else "")
+                   + f"public class {cls_name} {{\n{indented}\n}}\n")
+        (ws / fname).parent.mkdir(parents=True, exist_ok=True)   # src/test/java/
     (ws / fname).write_text(content, encoding="utf-8")
 
     # —— 落库：脚本版本 + 用例清单（先于闸门，收集失败时可整体废案删除）；
@@ -1535,7 +1579,9 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         try:
             _reject_dir = config.DATA_DIR / "reports" / "collect_gate_reject"
             _reject_dir.mkdir(parents=True, exist_ok=True)
-            (_reject_dir / f"task{task_id}_{fname}").write_text(content, encoding="utf-8")
+            # fname 可能含子路径（java=src/test/java/X.java）——路径分隔符压平防静默失败
+            _safe = fname.replace("/", "_").replace("\\", "_")
+            (_reject_dir / f"task{task_id}_{_safe}").write_text(content, encoding="utf-8")
         except OSError:
             pass
         (ws / fname).unlink(missing_ok=True)

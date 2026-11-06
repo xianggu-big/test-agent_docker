@@ -49,12 +49,14 @@ def test_parse_drafts_fail_closed():
 # ---------- 分级名单：java 仍静态（链路未接），typescript 升 Tier2（白包阶段1/2026-11-06） ----------
 
 def test_tiering_contract():
-    """full=python/javascript/typescript（TS 与 JS 同走 node20-jest + js_adapter）；
-    java（镜像已备链路未接）走静态模式（白包阶段2 接线后更新）。"""
+    """full=python/javascript/typescript/java（白包阶段2 java 接线：surefire→java_adapter
+    统一文本，下游零改动）；go/php/.NET 仍静态（白包阶段3/4/5 未接）。"""
     src = __import__("inspect").getsource(nodes.make_nodes)
     assert "strategy = _tier_strategy(primary)" in src
     assert nodes._tier_strategy("typescript") == "full"
-    assert nodes._tier_strategy("java") == "static_only"
+    assert nodes._tier_strategy("java") == "full"
+    assert nodes._tier_strategy("go") == "static_only"
+    assert nodes._tier_strategy("php") == "static_only"
     assert config.EXEC_LANGUAGES["javascript"] == config.IMAGE_JS
     assert config.EXEC_LANGUAGES["typescript"] == config.IMAGE_JS
     assert config.IMAGE_JS in config.IMAGE_BUILD_CTX
