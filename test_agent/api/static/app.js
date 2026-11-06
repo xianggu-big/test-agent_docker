@@ -1065,7 +1065,7 @@ function levelMetric(l, scenarios) {
     return `覆盖 ${cov} · 通过 ${s.passed ?? "--"}`;
   }
   if (l.level === "L2") {
-    return `端点 ${s.endpoints_covered ?? "--"}/${s.endpoints_total ?? "--"} · 契约违背 ${s.contract_violations ?? "--"}`;
+    return `端点 ${s.endpoints_hit ?? "--"}/${s.endpoints_total ?? "--"} · 契约违背 ${s.contract_violations ?? "--"}`;
   }
   const m = (scenarios && scenarios[l.level]) || {};
   if (l.level === "L3") {
@@ -1453,7 +1453,7 @@ function lvRows(l) {
   const s = l.summary || {};
   if (l.level === "L1") return [["通过率", `${s.passed ?? "--"} / ${(s.passed ?? 0) + (s.failed ?? 0)}`],
     ["行覆盖率", s.coverage_line != null ? Math.round(s.coverage_line * 100) + "%" : "--"]];
-  if (l.level === "L2") return [["端点解析", `${s.endpoints_covered ?? "--"}/${s.endpoints_total ?? "--"}`],
+  if (l.level === "L2") return [["端点解析", `${s.endpoints_hit ?? "--"}/${s.endpoints_total ?? "--"}`],
     ["契约违背检出", s.contract_violations ?? "--"], ["需求断言失败", s.requirement_failures ?? "--"]];
   if (l.level === "L3") return [["业务流场景", s.total ?? "--"], ["自动通过", s.auto_pass ?? "--"],
     ["待人工确认", s.pending_confirm ?? "--"]];

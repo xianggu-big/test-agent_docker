@@ -265,10 +265,9 @@ def judge_l2(stdout: str, last_exit: int, endpoints: list, skipped_routes: list)
     summary = {"passed": passed, "failed": failed,
                "requirement_failures": req_fail, "contract_violations": contract_fail,
                "endpoints_total": len(eps),
-               "endpoints_covered": max(0, len(eps) - skipped_n),
-               # TODO-07（B 并存过渡，2026-11-06）：endpoints_covered 语义实为「未跳过」，
-               # 并不等于「断言真实命中」——新名 endpoints_hit 同值并存，前端/论文逐步切换，
-               # 老名保留（breaking 保护，消费点=报告页两处/单测）
+               # TODO-07（A 直接改名，2026-11-06 用户拍板）：旧名 endpoints_covered 语义
+               # 实为「未跳过」并不等于「断言真实命中」，与覆盖表 hit 术语对齐；
+               # 全量改名（生产/消息/前端/单测），旧名零残留
                "endpoints_hit": max(0, len(eps) - skipped_n)}
     if last_exit == 0 and failed == 0:
         verdict, reason = "pass", "契约与需求断言全过（L2 单轮 v0，无 R-Loop）"
@@ -432,7 +431,7 @@ def make_l2_nodes(deps):
         _leg_update(tid, verdict=verdict, stop_reason=reason, summary=json.dumps(summary, ensure_ascii=False))
         msg(state["session_id"],
             f"[L2·evaluate] 通过{passed} 失败{failed}（需求级 {req_fail}/契约级 {contract_fail}）"
-            f" 端点覆盖 {summary['endpoints_covered']}/{summary['endpoints_total']} → {verdict}")
+            f" 端点覆盖 {summary['endpoints_hit']}/{summary['endpoints_total']} → {verdict}")
         return {"passed": passed, "failed": failed, "contract_violations": contract_fail,
                 "requirement_failures": req_fail, "verdict": verdict, "stop_reason": reason}
 
