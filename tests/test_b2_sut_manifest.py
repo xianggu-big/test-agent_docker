@@ -7,6 +7,7 @@
 import ast
 
 from test_agent import config
+from test_agent.skills import gen_tests as _gen
 from test_agent.skills.gen_tests import _sut_manifest
 from test_agent.skills.prompt_library import build_user_prompt
 
@@ -102,3 +103,13 @@ def test_mismatch_prompt_injection_on_off():
     off = build_user_prompt(_853_LIKE, "测试登录")
     assert "需求-能力对齐警告" in on and "禁止为它编造任何内联 mock" in on
     assert "需求-能力对齐警告" not in off
+
+
+def test_mismatch_in_generate_summary_visible():
+    """419 教训：错配必须对用户显性可见——generate_tests 的 summary 首键必须是
+    capability_mismatch（[generate 第N轮] 消息只展示前 400 字符，首键保证截断下
+    用户仍能看到警告）。源码级契约断言。"""
+    import inspect
+    src = inspect.getsource(_gen.generate_tests)
+    marker = 'summary = {"capability_mismatch": sut_mismatch,'
+    assert marker in src, "summary 首键必须是 capability_mismatch（419 用户可见性教训）"

@@ -551,6 +551,17 @@ def make_nodes(deps: GraphDeps) -> dict:
                              if config.COVERAGE_FEEDBACK_ENABLED else [],  # ①缺口回灌（V4 开关）
             "coverage_target": state.get("coverage_target"),
             "round_no": next_round})
+        # B2+（419 教训）：需求-能力错配必须对用户显性可见——独立消息行（不只埋在
+        # JSON 截断里），任务详情页/工作台实时日志直接可读
+        try:
+            _gsum = json.loads(res.output)
+            _mm = _gsum.get("capability_mismatch")
+            if _mm:
+                msg(state["session_id"], "assistant",
+                    f"[generate·需求-能力对齐警告] {_mm} 本次生成可能未覆盖你真正想测的功能，"
+                    f"请核对需求与产品实际能力。")
+        except (ValueError, AttributeError):
+            pass
         msg(state["session_id"], "assistant", f"[generate 第{next_round}轮] {res.output[:400]}")
         return {"round_no": next_round}
 

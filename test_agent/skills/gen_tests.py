@@ -1422,7 +1422,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                            "reason": "生成物未过容器内 --collect-only 可收集性检查（整体废案）",
                            "detail": (r.stdout + r.stderr)[-300:]}, ensure_ascii=False)
 
-    summary = {"generated": len(data["cases"]), "file": fname, "script_id": script_id,
+    summary = {"capability_mismatch": sut_mismatch,     # 放首位：400 字符截断下用户仍可见（419 教训）
+               "generated": len(data["cases"]), "file": fname, "script_id": script_id,
                "static_rejected": rejected,
                # 用例明细（对话增补结果下拉的数据源）：每条是什么、验证什么、依据什么
                "cases": [{"name": c.get("name"), "method": c.get("method"),
