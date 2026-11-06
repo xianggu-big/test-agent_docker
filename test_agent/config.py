@@ -22,9 +22,12 @@ IMAGE_BUILD_CTX = {
     IMAGE_JS: ROOT / "docker" / "js-test",
 }
 # 分级（analyze 判定）：可容器执行的语言 → 执行镜像；其余走 static_scan 兜底（Tier3）。
-# typescript 暂列 Tier3：ts 源码的 jest transform 需项目级 ts-jest 配置，全局镜像跑不了
-# （v1 诚实边界）；javascript=完整执行链路；java=镜像已备、生成/执行链路 v1 未接。
-EXEC_LANGUAGES = {"python": IMAGE_PY, "javascript": IMAGE_JS, "java": IMAGE_JAVA}
+# typescript 升 Tier2（白包阶段1，2026-11-06）：镜像已全局备 jest+ts-jest+typescript，
+# 散装 TS 走内联 transform 配置、带 package.json 项目由 install_deps --no-save 补装工具链，
+# 收集闸=tsc --noEmit 类型闸；与 javascript 同走 node20-jest 镜像与 js_adapter。
+# java=镜像已备、生成/执行链路未接（白包阶段2 接线）。
+EXEC_LANGUAGES = {"python": IMAGE_PY, "javascript": IMAGE_JS, "typescript": IMAGE_JS,
+                  "java": IMAGE_JAVA}
 
 # —— 噪声目录（clone 快照 / 语言统计 / 源码收集共用一份定义） ——
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "dist", "build", ".idea"}

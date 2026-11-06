@@ -19,9 +19,11 @@ log = logging.getLogger(__name__)
 def probe_deps_manifest(workspace: str | Path) -> str | None:
     """探测被测项目的依赖清单类型（provision 探测、install_deps 分流安装）。
 
-    返回 "requirements" | "pyproject" | "setup_py" | "package_json" | None。
+    返回 "requirements" | "pyproject" | "setup_py" | "package_json" | "ts_loose" | None。
     requirements.txt 优先：显式清单最常见且安装最便宜；pyproject.toml / setup.py 项目走
-    `pip install .`；package.json（JS 执行链路 Tier2）走 npm ci/install --ignore-scripts。
+    `pip install .`；package.json（JS/TS 执行链路 Tier2）走 npm ci/install --ignore-scripts；
+    ts_loose（白包阶段1）=无任何清单但有 .ts 源——不装项目依赖，只补 ts-jest 工具链
+    （全局 ts-jest transformer 实测不可用，本地 node_modules 才有完整依赖树）。
     全部缺返回 None（诚实跳过，不猜依赖）。
     """
     ws = Path(workspace)
@@ -31,7 +33,70 @@ def probe_deps_manifest(workspace: str | Path) -> str | None:
                        ("package.json", "package_json")):
         if (ws / name).exists():
             return kind
+    if _has_ts_source(ws):
+        return "ts_loose"
     return None
+
+
+def _has_ts_source(ws: Path, max_depth: int = 3) -> bool:
+    """散装 TS 判定：深度≤3 扫描 .ts 源（排除 node_modules 等噪声目录）。
+    与容器内 find -maxdepth 3 -name '*.ts' 同口径（_ts_tooling_needed 用）。"""
+    import os
+    root_depth = len(ws.parts)
+    for dirpath, dirnames, filenames in os.walk(ws):
+        if len(Path(dirpath).parts) - root_depth >= max_depth:
+            dirnames[:] = []
+        dirnames[:] = [d for d in dirnames if d not in config.SKIP_DIRS]
+        if any(f.endswith(".ts") for f in filenames):
+            return True
+    return False
+
+
+def _ts_tooling_needed(runner, container) -> bool:
+    """TS 工具补装判定（白包阶段1）：项目有 .ts 源且本地 node_modules 缺 ts-jest。
+
+    触发即由 install_deps 以 npm install --no-save 补装 ts-jest/typescript/@types
+    （--no-save 不改被测项目 package.json——零侵入，依赖只在容器内生效）。
+    带清单与散装（无 package.json）两形态都走此判定：全局 ts-jest transformer 实测
+    不可用（2026-11-07 容器探针：npm 全局布局把 jest 依赖嵌套在 jest 包内，
+    ts-jest require('jest-util') 经 NODE_PATH 顶层解析不到 → Cannot find module），
+    本地 node_modules 才有完整依赖树；npm install --no-save 在无 package.json
+    目录实测 exit 0 可用（依赖只在容器内生效，零侵入）。"""
+    has_ts = runner.exec_in(container, ["sh", "-c",
+                                        "find /work -maxdepth 3 -name '*.ts' "
+                                        "-not -path '*/node_modules/*' -print -quit"],
+                           timeout_s=30)
+    if not (has_ts.ok and has_ts.stdout.strip()):
+        return False
+    has_tsjest = runner.exec_in(container, ["sh", "-c",
+                                            "test -d /work/node_modules/ts-jest"],
+                                timeout_s=15)
+    return not has_tsjest.ok
+
+
+_TS_TOOLING_CMD = ["npm", "install", "--no-save", "--ignore-scripts", "--no-audit",
+                   "--no-fund", "ts-jest@29", "typescript@5", "@types/jest@29",
+                   "@types/node@20"]
+
+
+def _install_ts_tooling(runner, container) -> str | None:
+    """补装 TS 测试工具链（白包阶段1）；不需要时返回 None。版本对齐镜像全局件
+    （jest29/ts5），失败 exit_code 如实上报交给执行轮归因，不吞错。"""
+    if not _ts_tooling_needed(runner, container):
+        return None
+    r = runner.exec_in(container, _TS_TOOLING_CMD, timeout_s=300)
+    return f"ts_tooling(no-save ts-jest@29+typescript@5) exit={r.exit_code}"
+
+
+def _try_ts_tooling(parts: list, runner, container) -> None:
+    """在 package_json / ts_loose 分支内触发 TS 补装（其余清单不探测——Python 项目
+    走 pytest 链路无需 jest 工具链，且保住各清单分支的命令序列契约）。"""
+    try:
+        ts_part = _install_ts_tooling(runner, container)
+        if ts_part:
+            parts.append(ts_part)
+    except Exception as e:      # noqa: BLE001 —— 补装失败如实上报，交给执行轮归因
+        parts.append(f"ts_tooling 补装探测失败：{type(e).__name__}: {e}")
 
 
 def build_skills(runner) -> dict[str, Skill]:
@@ -62,6 +127,11 @@ def build_skills(runner) -> dict[str, Skill]:
             r = runner.exec_in(container, npm_cmd, timeout_s=600)
             parts.append(f"package_json({'ci' if has_lock else 'install'}) exit={r.exit_code}\n"
                          f"{r.stdout[-1200:]}{r.stderr[-600:]}")
+            _try_ts_tooling(parts, runner, container)   # 白包阶段1：TS 项目补工具链
+        elif manifest == "ts_loose":
+            # 白包阶段1：散装 TS（无任何清单但有 .ts 源）——不装项目依赖（无清单可装），
+            # 只补 ts-jest 工具链；npm install --no-save 在无 package.json 目录实测可用
+            _try_ts_tooling(parts, runner, container)
         else:
             parts.append("未发现依赖清单（requirements.txt / pyproject.toml / setup.py / package.json），跳过项目依赖安装")
         # 方案B：属性测试用例依赖 hypothesis——随开关装进容器（宿主侧由实验环境自备）

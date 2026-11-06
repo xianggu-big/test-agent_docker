@@ -119,6 +119,12 @@ def detect_stack(ws: str | Path) -> dict:
         if v:
             js_version = v[0].strip().lstrip("v")
             ev("runtime_version", ".nvmrc")
+    # 白包阶段1（TS 升 Tier2）：tsconfig.json = TypeScript 工程特征——归 node 工具链家族
+    # （执行镜像同为 node20-jest，散装/带清单两形态见 install_deps 与 _inline_jest_config）
+    if (ws / "tsconfig.json").is_file():
+        manifests.append("tsconfig.json")
+        vote("javascript")
+        ev("language", "tsconfig.json（TypeScript 工程特征，node 工具链家族）")
 
     # —— 其它语言（仅识别，不接执行） ——
     for f, lang in (("pom.xml", "java"), ("build.gradle", "java"),

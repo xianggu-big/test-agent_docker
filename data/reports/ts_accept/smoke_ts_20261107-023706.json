@@ -1,0 +1,122 @@
+{
+  "ts": "2026-11-07 02:37:06",
+  "task_id": 1,
+  "elapsed_s": 91.2,
+  "final": {
+    "verdict": "stop",
+    "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+    "passed": 16,
+    "failed": 3,
+    "coverage": null
+  },
+  "checks": {
+    "语言判定=typescript": true,
+    "生成了 .test.ts": true,
+    "framework=jest 落库": true,
+    "执行轮次落库（R-Loop 参与且终态可判）": true,
+    "逐用例结果落库（jest fullName 形态）": true,
+    "覆盖率映射回 .ts（sourceMap，容器臂直接验 coverageMap 键）": true,
+    "埋的 clamp 缺陷被暴露（失败用例在案）": true,
+    "终态产出": true
+  },
+  "gen_ts_files": [
+    "test_gen_r1.test.ts"
+  ],
+  "scripts": [
+    {
+      "framework": "jest",
+      "filename": "test_gen_r1.test.ts",
+      "version": 1
+    }
+  ],
+  "rounds": [
+    {
+      "round_no": 1,
+      "passed": 16,
+      "failed": 3,
+      "verdict": "stop"
+    }
+  ],
+  "cases_sample": [
+    {
+      "round_no": 1,
+      "nodeid": "test_isValidCode_错误推测法",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_add_错误推测法",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_clamp_分支覆盖_语句分支覆盖",
+      "status": "failed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_clamp_判定表_边界值分析",
+      "status": "failed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_isValidCode_长度下边界_边界值分析",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_isValidCode_含非法字符_等价类划分",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_isValidCode_长度过长_边界值分析",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_isValidCode_长度过短_边界值分析",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_isValidCode_有效等价类_等价类划分",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_clamp_等于上界_边界值分析",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_clamp_等于下界_边界值分析",
+      "status": "passed",
+      "origin": "generated"
+    },
+    {
+      "round_no": 1,
+      "nodeid": "test_clamp_区间内_边界值分析",
+      "status": "passed",
+      "origin": "generated"
+    }
+  ],
+  "per_file_keys": [],
+  "defects": {
+    "failure_kind": "product_defect",
+    "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+  },
+  "llm_calls": 5,
+  "total_tokens": 14855,
+  "tmp_db": "D:\\test agent_docker\\data\\tmp_applogs_accept\\ts_smoke.db"
+}

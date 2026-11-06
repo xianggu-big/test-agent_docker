@@ -265,22 +265,26 @@ def part1_completion() -> list[Item]:
     (ok if getattr(config, "FEEDBACK_MAX_ROUNDS", 0) == 5 else miss)(
         "对话增补预算 5 轮", "缺失")
 
-    # 12c) 多语言分级（2026-11-01 用户拍板）：Tier3 静态扫描兜底 + JS 执行链路 Tier2
+    # 12c) 多语言分级（2026-11-01 用户拍板；白包阶段1/2026-11-06 TS 升 Tier2）：
+    #      Tier3 静态扫描兜底 + JS/TS 执行链路 Tier2
     from test_agent.skills import js_adapter as js_adapter_mod, static_scan as static_scan_mod
     (ok if all(callable(getattr(static_scan_mod, n, None)) for n in
                ("scan_workspace", "generate_static_drafts", "parse_drafts", "_static_scan_skill")) else miss)(
         "static_scan 机制函数（Tier3 扫描+草稿）", "缺失")
     (ok if callable(getattr(js_adapter_mod, "jest_json_to_pytest_text", None)) else miss)(
         "js_adapter（jest→pytest 文本，下游零改动）", "缺失")
-    src_nodes_tier = inspect.getsource(__import__("test_agent.graph.nodes",
-                                                  fromlist=["make_nodes"]).make_nodes)
-    (ok if 'strategy = "full" if primary in ("python", "javascript") else "static_only"' in src_nodes_tier
-     else miss)("分级名单 full=python/javascript（java 移出假 full，typescript 暂静态）", "漂移")
+    nodes_mod = __import__("test_agent.graph.nodes", fromlist=["make_nodes"])
+    src_nodes_tier = inspect.getsource(nodes_mod.make_nodes)
+    (ok if 'strategy = _tier_strategy(primary)' in src_nodes_tier
+     and 'return "full" if primary in ("python", "javascript", "typescript") else "static_only"'
+     in inspect.getsource(nodes_mod) else miss)(
+        "分级名单 full=python/javascript/typescript（TS 升 Tier2，java 仍静态待阶段2）", "漂移")
     (ok if "static_draft" in src_nodes_tier and "[static-draft]" in src_nodes_tier else miss)(
         "static_draft 节点在位", "缺失")
     exec_langs = getattr(config, "EXEC_LANGUAGES", {})
     (ok if exec_langs.get("javascript") == getattr(config, "IMAGE_JS", None)
-     and "typescript" not in exec_langs else miss)("EXEC_LANGUAGES 镜像映射契约", "漂移")
+     and exec_langs.get("typescript") == getattr(config, "IMAGE_JS", None) else miss)(
+        "EXEC_LANGUAGES 镜像映射契约（js+ts 同 node20-jest）", "漂移")
     (ok if (config.ROOT / "docker" / "js-test" / "Dockerfile").exists() else miss)(
         "docker/js-test/Dockerfile", "缺失")
     state_src = (config.ROOT / "test_agent" / "graph" / "state.py").read_text(encoding="utf-8")

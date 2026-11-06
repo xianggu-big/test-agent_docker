@@ -64,12 +64,47 @@ def build_run_cmd_js(round_no: int = 1, gen_files: list[str] | None = None) -> l
     """JS 执行链路（Tier2）jest 命令：--json 供宿主侧适配器转 pytest 文本，--coverage 取
     istanbul coverageMap；--ci 关交互 / 快照写入。首轮全目录（自带 tests 基线，同 Python
     口径）；round>1 位置参数限定生成物（jest 把位置参数当 testPathPattern）——Loop-9 同语义。
-    --ignore-scripts 类安全：jest 不执行 package 脚本；依赖安装阶段已 --ignore-scripts。"""
+    --ignore-scripts 类安全：jest 不执行 package 脚本；依赖安装阶段已 --ignore-scripts。
+    TS 同走此命令（白包阶段1）：ts-jest 输出仍是 jest JSON，js_adapter 零改动。"""
     cmd = ["jest", "--json", "--coverage", "--ci", "--silent", "--forceExit",
            "--testLocationInResults"]
     if round_no > 1 and gen_files:
         cmd += gen_files
     return cmd
+
+
+def _tier_strategy(primary: str) -> str:
+    """语言分级（analyze 用，Loop 抽出供单测）：full=容器执行链路；其余 static_only。
+    typescript 升 Tier2（白包阶段1）；java 镜像已备但链路未接（阶段2）→ 仍静态。"""
+    return "full" if primary in ("python", "javascript", "typescript") else "static_only"
+
+
+def _inline_jest_config(include_ts: bool) -> str:
+    """散装项目内联 jest 配置（无 jest.config/package.json 时的兜底，853 实锤先例）。
+    include_ts=True（白包阶段1）：testMatch 加 .test.ts + ts-jest transform——
+    全局镜像已备 ts-jest（NODE_PATH 可达），散装 TS 不需要项目级配置即可执行。"""
+    cfg: dict = {"testMatch": ["**/*.test.js"], "testEnvironment": "node",
+                 "moduleFileExtensions": ["js", "json"]}
+    if include_ts:
+        cfg["testMatch"] = ["**/*.test.ts", "**/*.test.js"]
+        cfg["moduleFileExtensions"] = ["ts", "js", "json"]
+        cfg["transform"] = {"\\.[jt]sx?$": ["ts-jest", {"tsconfig": {"esModuleInterop": True}}]}
+    return json.dumps(cfg)
+
+
+def _pkg_declares_jest(ws: Path) -> bool:
+    """package.json 是否内嵌 jest 配置键（config-as-package 形态，注入判定用）。
+    必须 JSON 解析判顶层键——子串判定被 scripts 值误命中（ts-calc 真机实锤：
+    "test": "jest" 含 "jest" 子串 → 误判有配置 → 不注入内联配置 → 全局 jest
+    无配置拒跑 → suite 全挂）。解析失败按无配置处理（fail-open 到内联兜底）。"""
+    p = ws / "package.json"
+    if not p.exists():
+        return False
+    try:
+        data = json.loads(p.read_text(encoding="utf-8", errors="ignore"))
+    except (json.JSONDecodeError, OSError, ValueError):
+        return False
+    return isinstance(data, dict) and "jest" in data
 
 
 def _validate_repo_url(src: str) -> None:
@@ -371,11 +406,11 @@ def make_nodes(deps: GraphDeps) -> dict:
 
         conn.execute("UPDATE projects SET primary_language=?, language_ratios=?, clone_status='ok' WHERE id=?",
                      (primary, json.dumps(ratios, ensure_ascii=False), pid))
-        # 分级（2026-11-01 用户拍板）：python/javascript=容器执行（Tier1/Tier2）；
-        # typescript 暂列静态模式（ts 源的 jest transform 需项目级配置，全局镜像跑不了——v1 边界）；
-        # java 移出"假 full"（镜像已备但生成/执行链路未接）→ 全部走静态扫描兜底（Tier3），
-        # 不再直接放弃：扫描+测试设计草稿落库，报告明示"未执行"
-        strategy = "full" if primary in ("python", "javascript") else "static_only"
+        # 分级（2026-11-01 用户拍板；白包阶段1/2026-11-06 升级）：python/javascript=容器执行
+        # （Tier1/Tier2）；typescript 升 Tier2（镜像已备 ts-jest，散装走内联 transform 配置，
+        # 见 _inline_jest_config）；java 移出"假 full"（镜像已备但生成/执行链路未接，白包阶段2）
+        # → 走静态扫描兜底（Tier3）：扫描+测试设计草稿落库，报告明示"未执行"
+        strategy = _tier_strategy(primary)
         # upsert：A4 允许重跑 done/failed 任务，重跑时模块行必须幂等（否则 UNIQUE 崩）
         cur = conn.execute(
             """INSERT INTO modules(project_id, path, language, loc, strategy) VALUES (?, '.', ?, ?, ?)
@@ -570,8 +605,9 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "running")
         lang = state["primary_language"]
-        if lang not in ("python", "javascript"):
-            # 其余语言（java 镜像已备但链路未接）：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
+        if lang not in ("python", "javascript", "typescript"):
+            # 其余语言（java 镜像已备但链路未接，白包阶段2）：诚实终止，不进归因循环——
+            # "链路未实现"不该被伪装成环境失败（A7）
             return {"done": True, "verdict": "stop",
                     "stop_reason": f"{lang} 执行链路 v1 未接入（诚实降级：static_only 路径走静态扫描），任务终止"}
         ws = Path(state["workspace"])
@@ -589,26 +625,34 @@ def make_nodes(deps: GraphDeps) -> dict:
                         "stop_reason": "环境闸：金丝雀自检未通过（框架/IO），判环境无效——"
                                        "不产出产品缺陷结论（11.4 归因三闸）"}
             msg(state["session_id"], "assistant", "[env-gate] 金丝雀通过：框架/IO 自检 OK")
-        if lang == "javascript":
-            # JS 执行链路（Tier2）：jest --json 输出经宿主侧适配器转 pytest 风格文本，
-            # 下游 evaluate/repair/report 零改动（docs：js_adapter 模块头）
-            gen_files = sorted(p.name for p in ws.glob("test_gen_*.test.js"))
-            if (ws / "test_imported.test.js").exists():
-                gen_files.append("test_imported.test.js")   # 人工/插入用例（按语言命名）
+        if lang in ("javascript", "typescript"):
+            # JS/TS 执行链路（Tier2）：jest --json 输出经宿主侧适配器转 pytest 风格文本，
+            # 下游 evaluate/repair/report 零改动（docs：js_adapter 模块头）。
+            # TS 同路径（白包阶段1）：.test.ts 生成物 + 散装时内联 ts-jest transform 配置
+            gen_ext = ".test.ts" if lang == "typescript" else ".test.js"
+            gen_files = sorted(p.name for p in ws.glob(f"test_gen_*{gen_ext}"))
+            imported = f"test_imported{gen_ext}"
+            if (ws / imported).exists():
+                gen_files.append(imported)                 # 人工/插入用例（按语言命名）
             cmd = build_run_cmd_js(round_no=state.get("round_no", 1), gen_files=gen_files)
-            # 散装前端 JS（853刷题系统实锤：无 package.json/jest.config → 全局 jest 报
+            # 散装前端 JS/TS（853刷题系统实锤：无 package.json/jest.config → 全局 jest 报
             # "Could not find a config file" 拒跑 → 0/0 循环熔断）：无任何 jest 配置时
-            # 注入最小内联配置（不动项目文件；有配置的项目走自己的）
+            # 注入最小内联配置（不动项目文件；有配置的项目走自己的）。
+            # TS 加严（白包阶段1）：jest 默认配置无 transform，.test.ts 一律跑不动——
+            # 只要有 package.json 但未声明 jest 配置（无 jest.config.* 且 package.json
+            # 无 "jest" 键）也注入含 ts-jest transform 的内联配置（js-calc 实锤：带
+            # package.json 的裸 jest 对 .js 可跑，对 .ts 不可）。
             has_jest_cfg = any((ws / n).exists() for n in
                                ("jest.config.js", "jest.config.ts", "jest.config.mjs",
-                                "jest.config.cjs", "jest.config.json"))
-            if not has_jest_cfg and not (ws / "package.json").exists():
-                cmd += ["--config", json.dumps({
-                    "testMatch": ["**/*.test.js"],
-                    "testEnvironment": "node",
-                    "moduleFileExtensions": ["js", "json"]})]
+                                "jest.config.cjs", "jest.config.json")) \
+                or _pkg_declares_jest(ws)
+            needs_inline = (not has_jest_cfg) and (
+                lang == "typescript" or not (ws / "package.json").exists())
+            if needs_inline:
+                cmd += ["--config", _inline_jest_config(include_ts=(lang == "typescript"))]
                 msg(state["session_id"], "assistant",
-                    "[run] 项目无 jest 配置/package.json：注入最小内联配置执行（纯 JS 散装项目兜底）")
+                    f"[run] 项目无 jest 配置{'/package.json' if not (ws / 'package.json').exists() else ''}："
+                    f"注入最小内联配置执行（{'TypeScript（含 ts-jest transform）' if lang == 'typescript' else '散装 JS'} 兜底）")
         else:
             # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
             # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）；
@@ -635,7 +679,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 任务C：逐用例结果落库（轮次级粒度，每轮跑完即出现——看板数据源）
         try:
             from ..skills.case_results import parse_jest_results, parse_junit_xml, store_case_results
-            if lang == "javascript":
+            if lang in ("javascript", "typescript"):
                 rows = parse_jest_results(r.get("stdout", ""))   # 转换前抽原始 jest JSON
             else:
                 jc = runner.exec_in(
@@ -650,7 +694,7 @@ def make_nodes(deps: GraphDeps) -> dict:
                     f" / 失败 {sum(1 for x in rows if x['status'] == 'failed')}）")
         except Exception as e:              # noqa: BLE001 —— 看板数据缺失不炸执行主链路
             log.warning("逐用例结果落库失败 task=%s: %s", tid, e)
-        if lang == "javascript" and r.get("stdout"):
+        if lang in ("javascript", "typescript") and r.get("stdout"):
             from ..skills.js_adapter import jest_json_to_pytest_text
             r["stdout"] = jest_json_to_pytest_text(r["stdout"], r.get("stderr", ""))
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"],

@@ -47,16 +47,16 @@ uvicorn test_agent.api.server:app --host 127.0.0.1 --port 8000
 # 浏览器 http://127.0.0.1:8000  演示账号 admin/admin123 · dev/dev123 · caller/caller123
 ```
 
-### 语言支持分级（2026-11-01）
+### 语言支持分级（2026-11-01 定稿；2026-11-06 TS 升 Tier2）
 
 | 级别 | 语言 | 能力 | 镜像 |
 |---|---|---|---|
 | Tier1 全链路 | Python | 五法生成 → 三道闸 → 容器 pytest → 覆盖率 → R-Loop 归因/证人 → 评估五工具 → 四级接力 | `mta-test:py312` |
-| Tier2 执行链路 | JavaScript | jest 用例生成 → node --check 闸 → 容器 jest → 覆盖率 → R-Loop 归因（jest 输出经 `js_adapter` 转 pytest 文本，下游零改动） | `mta-test:node20-jest` |
-| Tier3 静态模式 | 其余（Java/TS/Go/C…） | 语言无关确定性扫描（符号/风险词/空 catch/超长函数/深嵌套）+ AI 测试设计草稿（六要素落库，`framework=static_draft`）；**不执行、无覆盖率，报告明示未验证** | 无需容器 |
+| Tier2 执行链路 | JavaScript / TypeScript | jest 用例生成 → 语法/类型闸（JS=`node --check`，TS=`tsc --noEmit`）→ 容器 jest（ts-jest）→ 覆盖率（.ts 经 sourceMap 回映射）→ R-Loop 归因（jest 输出经 `js_adapter` 转 pytest 文本，下游零改动）；TS 工具链随项目走（缺 ts-jest 时 `npm i --no-save` 补装，散装 TS 走内联 transform 配置） | `mta-test:node20-jest` |
+| Tier3 静态模式 | 其余（Java/Go/C…） | 语言无关确定性扫描（符号/风险词/空 catch/超长函数/深嵌套）+ AI 测试设计草稿（六要素落库，`framework=static_draft`）；**不执行、无覆盖率，报告明示未验证** | 无需容器 |
 
-诚实边界：TypeScript 的 jest transform 需项目级 ts-jest 配置，全局镜像跑不了 → 暂列 Tier3；
-Java 镜像（`mta-test:jdk17-maven`）已备但 JUnit 生成/surefire 解析链路未接 → Tier3；
+诚实边界：Java 镜像（`mta-test:jdk17-maven`）已备但 JUnit 生成/surefire 解析链路未接 → Tier3（接线中）；
+TS 收集闸 tsc 为 CLI 文件模式（不带 --strict 的宽容口径）——被 SUT 自身类型错误连坐废案属已知边界；
 JS 两阶段评审的"勾选停用"只落台账、暂不摘除 jest 文件内的用例（无 JS AST 摘除器）。
 
 ### Windows 桌面一键启动

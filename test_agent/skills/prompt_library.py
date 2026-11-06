@@ -537,7 +537,23 @@ docstring 没写的行为，按需求文档推断，禁止猜。
     # 与 Python nodeid 口径一致——归因/剪枝/证人冻结按 name 反查全部复用
     is_js = target_language in ("javascript", "typescript")
     if is_js:
-        lang_rules = """
+        if target_language == "typescript":
+            lang_rules = """
+语言：TypeScript（jest + ts-jest）。每条用例是一个顶层 test("test_xxx_方法名", () => {...})，
+允许使用类型标注；用例名必须以 test_ 开头、**不含空格**；被测模块一律用
+import { 函数名 } from "./相对路径"（相对工作区根目录、去掉扩展名，如
+import { clamp } from "./src/calc"——不要用 require，散装环境可能无 @types/node）；
+断言用 expect(...).toBe/toEqual/toThrow 等具体比较，
+禁止只写 expect(x).toBeDefined() 这类弱断言。imports 字段放文件顶部的 import 语句。
+执行布局（重要）：用例文件将被直接写在项目根目录下，不会放进 test/ 子目录；
+**禁止写 path.join(__dirname, "..")**。
+方法知识库中的示例是 Python 形态的思路参考；code 字段必须是纯 TypeScript jest 用例，
+**禁止混入 import pytest / @pytest / def test_ / assert 语句**（混入整案作废）。"""
+            code_example = ('test("test_xxx_等价类划分", () => {\\n'
+                            '  expect(add(1, 1)).toBe(2);\\n});')
+            imports_hint = "测试文件顶部所需的全部 import 语句"
+        else:
+            lang_rules = """
 语言：JavaScript（jest）。每条用例是一个顶层 test("test_xxx_方法名", () => {...})，
 用例名必须以 test_ 开头、**不含空格**；被测模块用 require("./相对路径")（路径以被测文件
 相对工作区根目录为准，去掉扩展名）；断言用 expect(...).toBe/toEqual/toThrow 等具体比较，
@@ -546,9 +562,11 @@ docstring 没写的行为，按需求文档推断，禁止猜。
 test/ 子目录——引用同目录文件一律 path.join(__dirname, "xxx.js")；**禁止写
 path.join(__dirname, "..")**（会指向项目外，必然 Cannot find module）。用
 child_process 启动项目内脚本时：cwd 用 __dirname、env 用
-Object.assign({}, process.env, extra)（勿整体替换父环境，否则 PATH 丢失）。"""
-        code_example = 'test("test_xxx_等价类划分", () => {\\n  expect(fn(1)).toBe(2);\\n});'
-        imports_hint = "测试文件顶部所需的全部 require 语句"
+Object.assign({}, process.env, extra)（勿整体替换父环境，否则 PATH 丢失）。
+方法知识库中的示例是 Python 形态的思路参考；code 字段必须是纯 jest 用例，
+**禁止混入 import pytest / @pytest / def test_ / assert 语句**（混入整案作废）。"""
+            code_example = 'test("test_xxx_等价类划分", () => {\\n  expect(fn(1)).toBe(2);\\n});'
+            imports_hint = "测试文件顶部所需的全部 require 语句"
     else:
         lang_rules = """
 执行布局：用例文件将被直接写在项目根目录下（与被测模块同目录），不会放进子目录——

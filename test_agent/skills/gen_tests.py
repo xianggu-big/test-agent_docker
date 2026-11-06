@@ -107,7 +107,37 @@ def _is_js_noise(p: Path) -> bool:
     name = p.name.lower()
     if name.endswith(JS_NOISE_SUFFIXES) or name.startswith("test_gen_"):
         return True
-    return name in ("jest.config.js", "babel.config.js", "webpack.config.js", "vite.config.js")
+    return name in ("jest.config.js", "babel.config.js", "webpack.config.js", "vite.config.js",
+                    "jest.config.ts")
+
+
+def gen_file_naming(lang: str, round_no: int, feedback: bool = False, fb_no: int = 0) -> tuple[str, str]:
+    """生成物命名分流（渲染层纯函数，白包阶段1抽出）：py→test_gen_r{N}.py；
+    js→.test.js；ts→.test.ts（jest testMatch 同默认口径）。返回 (文件名, framework)。"""
+    if lang in ("javascript", "typescript"):
+        ext = ".test.ts" if lang == "typescript" else ".test.js"
+        framework = "jest"
+    else:
+        ext, framework = ".py", "pytest"
+    if feedback and fb_no:
+        return f"test_gen_fb{fb_no}{ext}", framework
+    return f"test_gen_r{round_no}{ext}", framework
+
+
+def collect_gate_cmd(lang: str, fname: str) -> list[str]:
+    """收集闸命令分流（纯函数，白包阶段1）：py=pytest --collect-only；js=node --check；
+    ts=tsc --noEmit 类型闸——node --check 解析不了 TS 类型标注（任务卡 S4 差异点）。
+    CLI 文件模式不带 --strict（宽容口径）；--types jest + 全局 typeRoots（容器预检实锤：
+    文件模式不会自动加载 /usr/local/lib/node_modules 下的 @types/jest，缺它 test/expect
+    全部 TS2304 未定义）。被 SUT 自身类型错误连坐属已知边界，如实废案不误报成功。"""
+    if lang == "typescript":
+        return ["tsc", "--noEmit", "--skipLibCheck", "--esModuleInterop", "--module",
+                "commonjs", "--target", "es2020", "--moduleResolution", "node",
+                "--types", "jest", "--typeRoots", "/usr/local/lib/node_modules/@types",
+                fname]
+    if lang == "javascript":
+        return ["node", "--check", fname]
+    return ["pytest", "--collect-only", "-q", fname]
 
 
 def _iter_source_files(ws: Path, lang: str = "python"):
@@ -330,11 +360,15 @@ def _loads_tolerant(s: str):
     raise ValueError("tolerant parse loop limit")
 
 
-def _parse_cases(text: str) -> dict | None:
+def _parse_cases(text: str, lang: str | None = None) -> dict | None:
     """从 LLM 回复中鲁棒提取 JSON；解析失败返回 None（诚实降级，不硬造用例）。
 
     用例两种合法形态（双通道）：①自由代码（code 含 def test_）②槽位模板
     （template+slots，由 test_templates 展开）——解析层两种都收，展开在后续步骤。
+    lang 为 JS/TS 时（白包阶段1 收紧）：只认 jest 形态——LLM 会把五方法知识库的
+    Python 示例照抄进 code（ts-calc 真机三轮废案实锤），def test_ 命中旧过滤放行
+    混写、直到文件级 tsc 闸整案废案；解析层剔除让干净用例存活，pytest 槽位模板
+    （渲染 def test_）对 JS/TS 同样不适用。
     """
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
@@ -349,15 +383,21 @@ def _parse_cases(text: str) -> dict | None:
     cases = data.get("cases")
     if not isinstance(cases, list):
         return None
-    # 用例代码两种语言形态：Python def test_… / jest test("test_…" 或 it("test_…"
-    cleaned = [c for c in cases if isinstance(c, dict) and (
-        (isinstance(c.get("code"), str) and (re.search(r"def\s+test_\w+", c["code"])
-                                              or JS_CASE_RE.search(c["code"])))
-        or (isinstance(c.get("template"), str) and isinstance(c.get("slots"), dict)))]
+    if lang in ("javascript", "typescript"):
+        cleaned = [c for c in cases if isinstance(c, dict)
+                   and isinstance(c.get("code"), str) and JS_CASE_RE.search(c["code"])]
+    else:
+        # 用例代码两种语言形态：Python def test_… / jest test("test_…" 或 it("test_…"
+        cleaned = [c for c in cases if isinstance(c, dict) and (
+            (isinstance(c.get("code"), str) and (re.search(r"def\s+test_\w+", c["code"])
+                                                  or JS_CASE_RE.search(c["code"])))
+            or (isinstance(c.get("template"), str) and isinstance(c.get("slots"), dict)))]
     if not cleaned:
         # 顶层槽位形态容错（D8 补跑实锤）：LLM 偶尔把整个响应用 T2 槽位格式返回
         # （顶层 target + 全 value/error 行，无标准 cases 包装）——包一层成单条
-        # 模板用例交渲染器展开，不再整批判 None。
+        # 模板用例交渲染器展开，不再整批判 None。JS/TS 不适用（模板渲染 def test_）。
+        if lang in ("javascript", "typescript"):
+            return None
         if isinstance(data.get("target"), str) and cases and all(
                 isinstance(c, dict) and ("value" in c or "error" in c) for c in cases):
             kind = "T1" if "classes" in data else "T2"
@@ -555,16 +595,19 @@ def _patch_target_hits(tree: ast.AST, table: dict) -> list[str]:
 # B2（任务卡-369 20261105）SUT 功能函数候选清单（最小版）：
 # Python 用 ast 顶层函数；JS 用正则（核查时已验证可提 60+ 名）；
 # 0 函数文件显式标注「纯数据文件，禁作被测单元」（369 questions.js 形态）
+# 白包阶段1（TS 升 Tier2）：补 export function / export default / 方法简写形态
+# （TS 最常见导出是 export function name(...)，缺它会把 TS 源全判"纯数据文件"）
 _JS_FUNC_RE = re.compile(
-    r"(?:^|\n)\s*(?:function\s+([A-Za-z_$][\w$]*)\s*\("
-    r"|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\s*)?\()"
+    r"(?:^|\n)\s*(?:(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\("
+    r"|(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\s*)?\()"
     r"|(?:^|\n)\s*([A-Za-z_$][\w$]*)\s*:\s*function\s*\(")
 
 
 def _sut_manifest(sources: list[tuple[str, str]]) -> list[str]:
     out: list[str] = []
     for fname, code in sources:
-        if fname.startswith("test_") or fname.endswith(("_test.py", ".test.js", "_test.js")):
+        if fname.startswith("test_") or fname.endswith(
+                ("_test.py", ".test.js", "_test.js", ".test.ts", "_test.ts")):
             continue                                 # 剔除测试生成物/自带测试（jest testMatch 同口径）
         funcs: list[str] = []
         if fname.endswith(".py"):
@@ -951,13 +994,15 @@ def _rebuild_imported_file(conn, tid: int, ws: Path) -> str:
                WHERE t.id=?""", (tid,)).fetchone()
     except Exception:  # noqa: BLE001 —— 轻量测试环境可能无 tasks/projects 表：默认 python 命名
         pass
-    is_js = bool(lang_row) and lang_row["primary_language"] == "javascript"
-    fname = "test_imported.test.js" if is_js else "test_imported.py"
+    lang_val = lang_row["primary_language"] if lang_row else "python"
+    is_js = lang_val in ("javascript", "typescript")   # TS 同 jest 收集（白包阶段1）
+    ext = ".test.ts" if lang_val == "typescript" else (".test.js" if is_js else ".py")
+    fname = f"test_imported{ext}"
     header = ("// 人工/AI 插入用例（test_cases.source=imported，enabled=1）" if is_js
               else '"""人工/AI 插入用例（test_cases.source=imported，enabled=1）"""')
     content = header + "\n\n" + "\n\n".join(r["content"].strip() for r in imported) + "\n"
     # 清掉另一种语言的旧文件（语言判定不随任务重跑变化，防御性清理残留）
-    for stale in ("test_imported.py", "test_imported.test.js"):
+    for stale in ("test_imported.py", "test_imported.test.js", "test_imported.test.ts"):
         if stale != fname:
             (Path(ws) / stale).unlink(missing_ok=True)
     (Path(ws) / fname).write_text(content, encoding="utf-8")
@@ -1003,7 +1048,7 @@ def prune_failing_cases(ws: Path, pairs: list[tuple[str, str]],
 def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
                           conditions: list[dict], cases: list[dict], ws: Path,
                           used_names: set[str], include_methods: bool, pbt: bool,
-                          task_id: int | None = None
+                          task_id: int | None = None, lang: str | None = None
                           ) -> tuple[list[dict], str, dict]:
     """方案C 核心（llm 注入可单测）：查条件缺口 → 定向补生成恰 1 次 → 返回 (新用例, imports, 信息)。"""
     gaps = _condition_gaps(conditions, cases)
@@ -1018,7 +1063,7 @@ def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
                            templates=False,   # 补生成轮保持自由通道（定向补缺不做结构先验）
                            existing_cases=[c["name"] for c in cases]))])
     log_llm_call(task_id, "refill", resp)
-    data = _parse_cases(resp.content)
+    data = _parse_cases(resp.content, lang=lang)
     if not data:
         info["note"] = "补生成轮 LLM 输出不可解析（诚实放弃）"
         return [], "", info
@@ -1093,8 +1138,8 @@ def parse_cross_review(text: str) -> dict[str, dict] | None:
 
 def cross_review_gate(llm, cases: list[dict], requirement: str,
                       sources: list[tuple[str, str]], ws: Path,
-                      used_names: set[str], task_id: int | None = None
-                      ) -> tuple[list[dict], dict]:
+                      used_names: set[str], task_id: int | None = None,
+                      lang: str | None = None) -> tuple[list[dict], dict]:
     """§3.6 第 3 道闸：LLM 交叉语义审（V9，审查者角色，≠生成器自审走过场）。
 
     逐案审断言是否对应需求；fail 用例**单独重造 1 次**（受控，不无限循环）→ 重造产物
@@ -1129,7 +1174,7 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
                          ("user", build_regen_prompt(sources, requirement, c,
                                                      verdicts[c["name"]]["reason"]))])
         log_llm_call(task_id, "regen_case", r2)
-        data = _parse_cases(r2.content)
+        data = _parse_cases(r2.content, lang=lang)
         new: dict | None = None
         if data and data["cases"]:
             cand, _ = _static_filter(data["cases"], ws, data.get("imports") or "")
@@ -1236,7 +1281,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     fb_no = args.get("fb_no")
     phase = "gen_feedback" if feedback else "gen_tests"
     lang = (args.get("module_hint") or "python").lower()
-    is_js = lang == "javascript"          # JS 执行链路 Tier2：jest 形态生成 + node --check 闸
+    is_js = lang in ("javascript", "typescript")   # JS/TS 执行链路 Tier2（白包阶段1 升 TS）：
+    # jest 形态生成；收集闸 js=node --check / ts=tsc --noEmit（collect_gate_cmd 分流）
     sources, source_skipped = _collect_sources_detailed(ws, lang)
     if source_skipped:
         # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
@@ -1312,7 +1358,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   sut_functions=sut_manifest,
                                                   sut_mismatch=sut_mismatch))])
     log_llm_call(task_id, phase, resp)
-    data = _parse_cases(resp.content)
+    data = _parse_cases(resp.content, lang=lang)
     if data is None:
         # 可观测性（批4 12/12 全降级实锤的教训）：解析失败必须留原始输出，否则
         # "诚实降级"了却永远查不了因——证据蒸发与 task_366 stderr 丢弃同型
@@ -1389,7 +1435,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         new_cases, extra_imports, cond_feedback = refill_condition_gaps(
             llm, sources, args.get("requirement", ""), conditions, data["cases"], ws,
             used_names, config.GEN_METHODS_ENABLED, config.PBT_ENABLED,
-            task_id=task_id)
+            task_id=task_id, lang=lang)
         if new_cases:
             data["cases"] += new_cases
             if extra_imports:
@@ -1420,7 +1466,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     if config.GEN_CROSS_REVIEW_ENABLED:
         data["cases"], cross_info = cross_review_gate(
             llm, data["cases"], args.get("requirement", ""), sources, ws,
-            used_names, task_id=task_id)
+            used_names, task_id=task_id, lang=lang)
         if not data["cases"]:
             return json.dumps({"generated": 0,
                                "reason": "全部用例未过交叉语义审（诚实降级）",
@@ -1429,16 +1475,14 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                "cross_review": cross_info}, ensure_ascii=False)
 
     # —— 写入工作区（常规轮 test_gen_r{N}；对话增补轮独立 test_gen_fb{N}，不动已批准文件）
-    # JS 用 .test.js 后缀（jest 默认 testMatch），framework='jest' ——
+    # JS 用 .test.js / TS 用 .test.ts 后缀（jest 默认 testMatch），framework='jest' ——
     round_no = args.get("round_no", 1)
-    ext = ".test.js" if is_js else ".py"
-    framework = "jest" if is_js else "pytest"
     if feedback and fb_no:
-        fname = f"test_gen_fb{fb_no}{ext}"
+        fname, framework = gen_file_naming(lang, round_no, feedback=True, fb_no=fb_no)
         header_text = f"AI 增补用例（审查反馈第 {fb_no} 轮 · 两阶段评审对话）"
         version = int(args.get("version") or (100 + fb_no))
     else:
-        fname = f"test_gen_r{round_no}{ext}"
+        fname, framework = gen_file_naming(lang, round_no)
         header_text = f"AI 生成用例（第 {round_no} 轮 · 五种方法知识库）"
         version = round_no
     header = f"// {header_text}" if is_js else f'"""{header_text}"""'
@@ -1478,21 +1522,29 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
 
     # —— 第二道闸（§3.6 第 2 道）：容器内可收集性检查 ——
     # Python: pytest --collect-only；JS: node --check（语法闸，jest 收集=语法可解析+require 可达，
-    # require 失败在执行轮按 ImportError 归因进 repair，不在此预���）。
+    # require 失败在执行轮按 ImportError 归因进 repair，不在此预判）；
+    # TS: tsc --noEmit 类型闸（白包阶段1，node --check 解析不了类型标注）。
     # 收集失败是文件级问题，无法按用例归责 → 整体废案（诚实降级），绝不把注定 ERROR 的生成物交给执行轮。
     r = None
     if collect_deferred is None:
-        gate_cmd = (["node", "--check", fname] if is_js
-                    else ["pytest", "--collect-only", "-q", fname])
-        r = runner.exec_in(container, gate_cmd, timeout_s=120)
+        gate_cmd = collect_gate_cmd(lang, fname)
+        r = runner.exec_in(container, gate_cmd, timeout_s=180)
     if r is not None and r.exit_code != 0:
+        # 废案留档（诊断第一现场）：collect 闸失败多为生成物语法/类型错，闸只回退出码，
+        # 诊断行号必须对着文件看（llm_parse_fail 同哲学：失败现场落盘供归因）
+        try:
+            _reject_dir = config.DATA_DIR / "reports" / "collect_gate_reject"
+            _reject_dir.mkdir(parents=True, exist_ok=True)
+            (_reject_dir / f"task{task_id}_{fname}").write_text(content, encoding="utf-8")
+        except OSError:
+            pass
         (ws / fname).unlink(missing_ok=True)
         conn.execute("DELETE FROM test_cases WHERE script_id=?", (script_id,))
         conn.execute("DELETE FROM test_scripts WHERE id=?", (script_id,))
         conn.commit()
         runner.exec_in(container, ["rm", "-f", f"/work/{fname}"], timeout_s=30)
-        log.warning("gen_tests task=%s collect 失败，本轮生成物废案: %s",
-                    task_id, r.stderr[-200:])
+        log.warning("gen_tests task=%s collect 失败，本轮生成物废案（留档 %s）: stdout=%s stderr=%s",
+                    task_id, fname, r.stdout[-300:], r.stderr[-200:])
         return json.dumps({"generated": 0,
                            "reason": "生成物未过容器内 --collect-only 可收集性检查（整体废案）",
                            "detail": (r.stdout + r.stderr)[-300:]}, ensure_ascii=False)

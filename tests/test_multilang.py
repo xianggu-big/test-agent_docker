@@ -46,14 +46,17 @@ def test_parse_drafts_fail_closed():
     assert parse_drafts("垃圾") is None
 
 
-# ---------- 分级名单：java 移出假 full，typescript 暂列静态 ----------
+# ---------- 分级名单：java 仍静态（链路未接），typescript 升 Tier2（白包阶段1/2026-11-06） ----------
 
 def test_tiering_contract():
-    """full=python/javascript；java（镜像已备链路未接）与 typescript（ts-jest 需项目配置）走静态模式。"""
+    """full=python/javascript/typescript（TS 与 JS 同走 node20-jest + js_adapter）；
+    java（镜像已备链路未接）走静态模式（白包阶段2 接线后更新）。"""
     src = __import__("inspect").getsource(nodes.make_nodes)
-    assert 'strategy = "full" if primary in ("python", "javascript") else "static_only"' in src
+    assert "strategy = _tier_strategy(primary)" in src
+    assert nodes._tier_strategy("typescript") == "full"
+    assert nodes._tier_strategy("java") == "static_only"
     assert config.EXEC_LANGUAGES["javascript"] == config.IMAGE_JS
-    assert "typescript" not in config.EXEC_LANGUAGES
+    assert config.EXEC_LANGUAGES["typescript"] == config.IMAGE_JS
     assert config.IMAGE_JS in config.IMAGE_BUILD_CTX
     assert (config.IMAGE_BUILD_CTX[config.IMAGE_JS] / "Dockerfile").exists()
 
