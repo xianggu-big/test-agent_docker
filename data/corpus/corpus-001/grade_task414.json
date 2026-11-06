@@ -1,0 +1,45 @@
+{
+ "task_id": 414,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 1,
+ "not": 0,
+ "recall": 0.67,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_分支覆盖_语句分支覆盖",
+    "reason": "该用例断言 check_length('a' * 64) is True，恰好命中长度等于 max_len 时返回 False 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_长度64边界_边界值分析",
+    "reason": "该用例输入长度恰为 64，断言 strength_score 得分，覆盖了长度 64 少得 1 分的计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义长度超上限_边界值分析",
+    "reason": "该用例使用自定义上限 10 且长度 10 的强密码，虽触及边界但未使用默认 max_len=64，未直接命中 D5 描述的默认边界误判。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_strength_score_长度64边界_边界值分析",
+    "reason": "断言 'A'*63+'!' 得 3 分，但按需求长度 64 应得 1 分、含大写和特殊字符至少 3 分，预期值可能偏低，需核对评分规则。"
+   },
+   {
+    "case": "test_is_strong_自定义长度超上限_边界值分析",
+    "reason": "自定义 min_len=6、max_len=10 且长度 10 的强密码断言为 True，若实现按 n>=max_len 判 False 则暴露自定义边界缺陷，属答案键外可疑点。"
+   }
+  ]
+ }
+}

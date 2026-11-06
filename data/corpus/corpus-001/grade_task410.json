@@ -1,0 +1,45 @@
+{
+ "task_id": 410,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_语句分支覆盖_全分支",
+    "reason": "该用例断言 check_length('a' * 64) is True，恰好落在 max_len 边界上，能触发 n >= max_len 的 off-by-one。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有用例对长度恰为 64 的密码断言 strength_score == 5，证人未触及该计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有用例对长度恰为 64 的强密码断言 is_strong is True，证人未触及该边界表现。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_特殊字符攻击_错误推测法",
+    "reason": "断言 has_special('！') is False 与 is_strong('密码Abc1!') is True 可能暴露全角标点/特殊字符判定与 is_strong 综合逻辑的真实缺陷，答案键未覆盖。"
+   },
+   {
+    "case": "test_is_strong_自定义长度_边界值分析",
+    "reason": "自定义 min_len/max_len 的 is_strong 边界断言可能暴露参数化长度处理缺陷，答案键未涉及自定义长度场景。"
+   }
+  ]
+ }
+}
