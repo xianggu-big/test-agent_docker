@@ -131,6 +131,18 @@ def test_require_reference_passes_zero_ref_gate():
     assert kept == [legit] and rejected == []
 
 
+def test_419_imports_field_require_passes():
+    """419 实锤形态：require 写在脚本级共享 imports 字段而非用例体——零引用判定
+    必须合并扫描，否则 7 条真实触达产品的好用例被误杀（body 单独看是零引用）。"""
+    body_only = {"name": "test_registerSubject_判定表",
+                 "code": "expect(registry.registerSubject(null).ok).toBe(false);"}
+    kept, rejected = _js_selfplay_filter([body_only])                       # 不传 imports=旧口径误杀
+    assert kept == [] and "自包含" in rejected[0]
+    kept2, rejected2 = _js_selfplay_filter(
+        [body_only], "const registry = require('./data/subjects/_registry.js');")
+    assert kept2 == [body_only] and rejected2 == []                        # 合并扫描后放行
+
+
 def test_python_selfcontained_rejected_flag_on(tmp_path, monkeypatch):
     """Python 对偶闸：无任何指向被测模块 import 的内联用例剔除（旗标开）。"""
     import textwrap

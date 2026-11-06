@@ -602,15 +602,17 @@ _JS_PRODUCT_REF_RE = re.compile(
     r"child_process|execSync|\bspawn\s*\(|axios|https?\s*\.\s*(?:get|post|request)\b")
 
 
-def _js_selfplay_filter(cases: list[dict]) -> tuple[list[dict], list[str]]:
+def _js_selfplay_filter(cases: list[dict], imports_text: str = "") -> tuple[list[dict], list[str]]:
     """JS 自导自演检测（文本启发式）：①顶层重声明全大写导出常量 ②对全大写标识符
     挂数据重组链（filter/map/concat/...）③vm 脚本内对全大写导出标识符重新赋值
     ④零产品引用（415 形态：完全自包含的 mock 用例，被测产品零执行，"通过"=空洞
     通过）——四种形态都是"被测功能未被执行"。正常调用型用例（函数调用/断言
-    返回值）不受影响。"""
+    返回值）不受影响。imports_text=脚本级共享 imports（419 实锤：require 写在
+    imports 字段而非用例体，零引用判定必须合并扫描，否则误杀真实触达产品的用例）。"""
     kept, rejected = [], []
     for c in cases:
         code = c.get("code") or ""
+        full = code + "\n" + (imports_text or "")
         why = None
         if _JS_REDECL_CONST_RE.search(code):
             why = "顶层重声明全大写导出常量（疑似重组被测数据而非调用被测功能）"
@@ -619,7 +621,7 @@ def _js_selfplay_filter(cases: list[dict]) -> tuple[list[dict], list[str]]:
         elif _JS_VM_REASSIGN_RE.search(code):
             why = "vm 脚本内对全大写导出标识符重新赋值（369 实锤形态：改 const 数据" \
                   "必然 TypeError 且被测功能未执行）"
-        elif not _JS_PRODUCT_REF_RE.search(code):
+        elif not _JS_PRODUCT_REF_RE.search(full):
             why = "自包含用例（415 实锤形态：未引用任何产品文件/模块，login/register 等" \
                   "全部内联定义在测试体内——测试对象是用例自己的参考实现，被测产品零执行）"
         if why:
@@ -662,15 +664,16 @@ def _mutates_sut_state(tree: "ast.Module", table: dict) -> list[str]:
     return hits
 
 
-def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
+def _static_filter(cases: list[dict], ws: Path, imports_text: str = "") -> tuple[list[dict], list[str]]:
     """生成后静态闸（§3.6 第 1 道，确定性、零成本）：
     语法可解析 + from-import 的符号在被测模块顶层存在。剔除理由如实返回。
     JS/TS 分支：Python AST 不适用——旗标关时跳过静态闸（JS 的安全闸=容器内
     node --check 语法检查，在收集闸步骤执行），理由如实标注；
-    DEFENSE_V2_ENABLED 开=B1 文本启发式闸（JS 自导自演检测，任务卡-369 B1）。"""
+    DEFENSE_V2_ENABLED 开=B1 文本启发式闸（JS 自导自演检测，任务卡-369 B1；
+    imports_text=脚本级共享 imports，零产品引用判定必须合并扫描——419 实锤）。"""
     if cases and any(JS_CASE_RE.search((c.get("code") or "")) for c in cases):
         if config.DEFENSE_V2_ENABLED:
-            return _js_selfplay_filter(cases)
+            return _js_selfplay_filter(cases, imports_text)
         return cases, []   # JS 形态：闸移交收集步骤（node --check），这里不做 AST 审计
     table = _module_top_level(ws)
     kept, rejected = [], []
@@ -941,7 +944,8 @@ def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
     if not data:
         info["note"] = "补生成轮 LLM 输出不可解析（诚实放弃）"
         return [], "", info
-    data["cases"], rejected = _static_filter(data["cases"], ws)
+    data["cases"], rejected = _static_filter(data["cases"], ws,
+                                             data.get("imports") or "")
     info["static_rejected"] = rejected
     out = []
     root_fixed = 0
@@ -1050,7 +1054,7 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
         data = _parse_cases(r2.content)
         new: dict | None = None
         if data and data["cases"]:
-            cand, _ = _static_filter(data["cases"], ws)
+            cand, _ = _static_filter(data["cases"], ws, data.get("imports") or "")
             if cand:
                 one = cand[0]                     # 单案重造只取第一条
                 def_name = _sanitize_name(one.get("name"), len(used_names), used_names)
@@ -1266,7 +1270,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                  task_id, len(basis_downgraded), basis_downgraded[:5])
 
     # —— 静态闸（§3.6 第 1 道）：语法 + from-import 符号存在性，坏案在写盘前剔除 ——
-    data["cases"], rejected = _static_filter(data["cases"], ws)
+    data["cases"], rejected = _static_filter(data["cases"], ws, data.get("imports") or "")
     if not data["cases"]:
         return json.dumps({"generated": 0, "reason": "全部用例未过静态审查（诚实降级）",
                            "rejected": rejected, "template_rejected": template_rejected},
