@@ -37,7 +37,11 @@ CASE_NORMAL_VM_CALL = {
 }
 CASE_NORMAL_CALL = {
     "name": "test_删除已存在记录后不可查询_等价类划分",
-    "code": ('const qs = getQuestions();\n'
+    # 369 fb1 真实形态：先 readFileSync+vm 加载被测数据文件，再调用断言（产品引用通道在头部）
+    "code": ('const src = fs.readFileSync(path.join(__dirname, \'data/questions.js\'), \'utf8\');\n'
+             'const ctx = vm.createContext({ console });\n'
+             'vm.runInContext(src, ctx);\n'
+             'const qs = vm.runInContext(\'QUESTIONS\', ctx);\n'
              'const idx = qs.findIndex(q => q.id === \'r2020-01\');\n'
              'expect(qs.find(q => q.id === \'r2020-01\')).toBeUndefined();'),
 }
@@ -82,6 +86,84 @@ def test_gate_on_filters(tmp_path, monkeypatch):
     kept, rejected = _static_filter([bad, good], tmp_path)
     assert [c["name"] for c in kept] == [good["name"]]
     assert len(rejected) == 1
+
+
+# ---------- 415 补闸：零产品引用自包含用例（2026-11-06） ----------
+
+# 415 BUG-01 真实形态（task_415 test_cases 原文摘录）：login/register/sanitize 全内联，
+# require/readFileSync/vm/fetch 零命中——11 条同族"通过"全是空洞通过
+CASE_415_SELFCONTAINED = {
+    "name": "test_登录注册_特殊字符与注入攻击_错误推测法",
+    "code": ('const users = { alice: \'Passw0rd\' };\n'
+             'const sanitize = s => typeof s === \'string\' && !/[<>\'";]|--|\\bOR\\b/i.test(s);\n'
+             'const register = (u, p) => {\n'
+             '  if (!u || !p) return { ok: false, msg: \'用户名或密码不能为空\' };\n'
+             '  if (!sanitize(u) || !sanitize(p)) return { ok: false, msg: \'输入含非法字符\' };\n'
+             '  if (u in users) return { ok: false, msg: \'用户名已存在\' };\n'
+             '  users[u] = p;\n'
+             '  return { ok: true };\n'
+             '};\n'
+             'const attacks = ["\' OR \'1\'=\'1", \'a\'.repeat(10000)];\n'
+             'for (const a of attacks) {\n'
+             '  expect(register(a, a).ok).toBe(false);\n'
+             '}'),
+}
+
+
+def test_415_selfcontained_mock_rejected():
+    """415 形态：零产品引用的内联 mock 用例整案剔除（哪怕它"会通过"）。"""
+    kept, rejected = _js_selfplay_filter([CASE_415_SELFCONTAINED])
+    assert kept == [] and len(rejected) == 1
+    assert "自包含用例" in rejected[0]
+
+
+def test_415_zero_ref_not_misjudged_by_other_rules():
+    """415 用例不命中既有三形态（无全大写重组/vm 重赋值）——证明需要第 4 条规则。"""
+    kept, rejected = _js_selfplay_filter([CASE_415_SELFCONTAINED])
+    assert rejected and "重组" not in rejected[0] and "vm" not in rejected[0]
+
+
+def test_require_reference_passes_zero_ref_gate():
+    """require 引用被测文件的正常用例不误杀（369 fb1 vm 沙箱用例同族）。"""
+    legit = {"name": "t_ok",
+             "code": "const calc = require('./calc.js');\nexpect(calc.add(1, 2)).toBe(3);"}
+    kept, rejected = _js_selfplay_filter([legit])
+    assert kept == [legit] and rejected == []
+
+
+def test_python_selfcontained_rejected_flag_on(tmp_path, monkeypatch):
+    """Python 对偶闸：无任何指向被测模块 import 的内联用例剔除（旗标开）。"""
+    import textwrap
+    from test_agent.skills.gen_tests import _static_filter
+    monkeypatch.setattr(config, "DEFENSE_V2_ENABLED", True)
+    ws = tmp_path
+    (ws / "calc.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    inline = {"name": "t1", "code": textwrap.dedent("""
+        def my_add(a, b):
+            return a + b
+
+        def test_t1():
+            assert my_add(1, 2) == 3
+    """)}
+    ok, rejected = _static_filter([inline], ws)
+    assert not ok and any("自包含" in r for r in rejected)
+
+
+def test_python_selfcontained_passes_flag_off(tmp_path, monkeypatch):
+    import textwrap
+    from test_agent.skills.gen_tests import _static_filter
+    monkeypatch.setattr(config, "DEFENSE_V2_ENABLED", False)
+    ws = tmp_path
+    (ws / "calc.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    inline = {"name": "t1", "code": textwrap.dedent("""
+        def my_add(a, b):
+            return a + b
+
+        def test_t1():
+            assert my_add(1, 2) == 3
+    """)}
+    ok, rejected = _static_filter([inline], ws)
+    assert ok and not rejected          # 旗标关=旧行为不变
 
 
 # ---------- F4 红队补闸：Python 自导自演（_mutates_sut_state，2026-11-06） ----------

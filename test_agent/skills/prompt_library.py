@@ -378,7 +378,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       target_language: str = "",
                       seed_example: str | None = None,
                       defense_v2: bool = False,
-                      sut_functions: list[str] | None = None) -> str:
+                      sut_functions: list[str] | None = None,
+                      sut_mismatch: str | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -400,6 +401,9 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     defense_v2: 防御矩阵 v2（P1 环境契约统一段+P2 反惯例正例锚定；docs/防御矩阵
     -prompt与非prompt措施-20261105.md）。False=不注入（提示词逐字节不变，基线保护）。
     max_cases 按 conditions 数动态填（上限 15 与 generate_tests 降采样上限同源）。
+    sut_mismatch: 需求-能力错配警告（B2，requirement_capability_mismatch 的确定性
+    核对结果；None=无不匹配）。415 实锤：需求"登录注册"vs 产品无账户体系，生成器
+    静默为不存在的功能造 11 条自 mock 用例——警告必须显式禁止编造 mock。
     """
     defense_text = ""
     if defense_v2:
@@ -497,6 +501,15 @@ docstring 没写的行为，按需求文档推断，禁止猜。
                     "标注「纯数据文件」的文件不含可执行函数，禁止作为被测单元——"
                     "对数据数组重新赋值/重组是自导自演，闸层会整案剔除）\n" + rows)
 
+    mismatch_text = ""
+    if sut_mismatch:
+        mismatch_text = ("\n\n## ⚠️ 需求-能力对齐警告（确定性核对结果，必须遵守）\n"
+                         + sut_mismatch
+                         + "\n纪律：①若该功能确实不存在——禁止为它编造任何内联 mock/参考实现"
+                           "（零产品引用的用例会被静态闸整案剔除），跳过该部分并在总结中如实"
+                           "说明「需求描述的功能在本项目中不存在」；②若功能以其他命名存在——"
+                           "必须从上方候选清单中选取真实函数作为被测对象。")
+
     basis_note = ("五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」"
                   "（对话增补轮另有第六项「用户反馈」：预期直接来自审查反馈但需求原文无依据时诚实标注）——"
                   if feedback_text else
@@ -528,7 +541,7 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{sut_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
+{requirement or "（无额外需求，按源码行为设计）"}{sut_text}{mismatch_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}

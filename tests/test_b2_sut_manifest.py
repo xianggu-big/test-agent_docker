@@ -53,3 +53,52 @@ def test_prompt_injection_on_off():
 
 def test_flag_default_off():
     assert config.SUT_MANIFEST_ENABLED is False
+
+
+# ---------- B2+（415 实锤）：需求-能力错配确定性核对（2026-11-06） ----------
+
+from test_agent.skills.gen_tests import requirement_capability_mismatch as _mismatch
+
+# 853 项目近似形态：registerSubject 在清单里，但没有任何账户体系函数
+_853_LIKE = [("data/subjects/_registry.js",
+              "function registerSubject(pack) { return true; }\n"),
+             ("js/app.js",
+              "function addRecord(q) {}\nfunction vAi() {}\n")]
+
+
+def test_415_mismatch_login_register_flagged():
+    """415 原需求（原文用「登陆」）：登陆/注册在 853 能力清单零命中
+    （registerSubject 被「注册」全词匹配挡住不算命中）→ 报警。"""
+    out = _mismatch("验证登陆注册系统是否有异常", _853_LIKE)
+    assert out is not None
+    assert "登陆" in out and "注册" in out and "未找到对应实现" in out
+
+
+def test_registerSubject_does_not_count_as_register_hit():
+    """边界环视：camelCase 的 registerSubject 不被 注册→register 误命中。"""
+    srcs = [("data/subjects/_registry.js", "function registerSubject(p) {}\n")]
+    assert _mismatch("测试注册功能", srcs) is not None
+
+
+def test_snake_case_hit_counts():
+    """snake_case 的 user_login 应命中 登录→login（下划线不算字母）。"""
+    srcs = [("auth.py", "def user_login(u, p):\n    return True\n")]
+    assert _mismatch("验证登录功能", srcs) is None
+
+
+def test_mismatch_none_when_capability_exists():
+    """需求关键词在清单命中（添加→addRecord）→ 不报警。"""
+    assert _mismatch("测试添加记录的功能", _853_LIKE) is None
+
+
+def test_mismatch_none_without_keywords_or_sources():
+    assert _mismatch("随便测一下", _853_LIKE) is None       # 无关键词
+    assert _mismatch("测试登录", []) is None                 # 无源码
+
+
+def test_mismatch_prompt_injection_on_off():
+    warn = "需求中的关键词「登录」未找到对应实现。"
+    on = build_user_prompt(_853_LIKE, "测试登录", sut_mismatch=warn)
+    off = build_user_prompt(_853_LIKE, "测试登录")
+    assert "需求-能力对齐警告" in on and "禁止为它编造任何内联 mock" in on
+    assert "需求-能力对齐警告" not in off

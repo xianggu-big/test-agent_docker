@@ -510,6 +510,78 @@ def _sut_manifest(sources: list[tuple[str, str]]) -> list[str]:
     return out
 
 
+# B2+（415 实锤，2026-11-06）需求-能力错配确定性核对：需求关键词 → 能力清单零命中。
+# 词表=高频双语映射（启发式，诚实边界：语义近似靠词表覆盖，漏配可能）。
+# 两级匹配：prefix_ok=True 前缀族匹配（add* 算添加家族——addRecord 应命中「添加」）；
+# 「注册」prefix_ok=False 全词匹配——register 前缀会撞 registerSubject（科目包注册≠
+# 账户注册，415 语义冲突实锤）。token 皆有字母环视（design 不被 sign 误命中；
+# snake_case 的 user_login 可命中 login——下划线不算字母）。仅当命中关键词全部
+# 落空才报警，部分命中不扰（保守降噪）。
+_REQ_CAP_KEYWORDS: dict[str, tuple[bool, tuple[str, ...]]] = {
+    "登录": (True, ("login", "signin", "sign", "auth", "session", "token")),
+    "登陆": (True, ("login", "signin", "sign", "auth", "session", "token")),
+    "注册": (False, ("register", "signup", "account", "user", "auth")),
+    "删除": (True, ("delete", "remove", "destroy")),
+    "添加": (True, ("add", "append", "create", "insert", "push", "save")),
+    "新增": (True, ("add", "append", "create", "insert", "push", "save")),
+    "搜索": (True, ("search", "query", "find", "lookup")),
+    "查询": (True, ("search", "query", "find", "lookup")),
+    "上传": (True, ("upload",)),
+    "下载": (True, ("download", "export")),
+    "导出": (True, ("export", "download")),
+    "支付": (True, ("pay", "checkout")),
+    "订单": (True, ("order", "cart")),
+    "用户": (True, ("user", "account", "profile", "auth")),
+    "密码": (True, ("password", "passwd", "pwd", "auth")),
+}
+
+
+def _kw_regex(prefix_ok: bool, tokens: tuple[str, ...]) -> re.Pattern:
+    head = r"(?<![A-Za-z0-9])(?:" + "|".join(tokens) + r")"
+    return re.compile(head + ("" if prefix_ok else r"(?![A-Za-z0-9])"))
+
+
+_REQ_TOKEN_HIT_RE = {k: _kw_regex(po, ts) for k, (po, ts) in _REQ_CAP_KEYWORDS.items()}
+
+
+def requirement_capability_mismatch(requirement: str,
+                                    sources: list[tuple[str, str]]) -> str | None:
+    """B2+（415 实锤）：需求关键词在产品能力清单零命中的确定性核对。
+
+    返回警告文本（注入生成提示词）或 None（无错配/无关键词/无源码）。
+    415 形态：需求"验证登陆注册系统是否有异常"，产品（纯前端刷题工具）无任何
+    账户体系函数——生成器原本静默为不存在的功能造 11 条自 mock 用例。"""
+    text = requirement or ""
+    if not text or not sources:
+        return None
+    # 能力干草堆 = 函数名 + 文件名（auth.py/login.js 这类命名也算命中）
+    hay_parts: list[str] = []
+    for fname, code in sources:
+        hay_parts.append(Path(fname).stem.lower())
+        if fname.endswith(".py"):
+            try:
+                tree = ast.parse(code or "")
+            except SyntaxError:
+                tree = None
+            if tree is not None:
+                hay_parts.extend(n.name.lower() for n in tree.body
+                                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))
+        else:
+            for m in _JS_FUNC_RE.finditer(code or ""):
+                g = next((g for g in m.groups() if g), None)
+                if g:
+                    hay_parts.append(g.lower())
+    haystack = " ".join(hay_parts)
+    missed: list[str] = []
+    for key, rx in _REQ_TOKEN_HIT_RE.items():
+        if key in text and not rx.search(haystack):
+            missed.append(key)
+    if not missed:
+        return None
+    return (f"需求中的关键词「{'、'.join(missed)}」在本项目能力清单（函数/文件名）中"
+            f"未找到对应实现。")
+
+
 # B1（任务卡-369 20261105）JS 自导自演文本启发式（无 AST，DEFENSE_V2_ENABLED 开才生效；
 # 369 实锤形态：对全大写导出数据数组重新赋值/重组 QUESTIONS = QUESTIONS.filter(...)）。
 # 诚实边界：启发式有误杀/漏杀可能，拦截率由 F4 红队格度量（论文如实标注）。
@@ -522,12 +594,19 @@ _JS_DATA_RECHAIN_RE = re.compile(
 # ——对导出数据的重新赋值嵌在 vm 脚本字符串里（只读如 QUESTIONS.length 不命中）
 _JS_VM_REASSIGN_RE = re.compile(
     r"runInContext\s*\(\s*[\"']\s*[A-Z][A-Z_0-9]{2,}\s*=[^=]")
+# 415 实锤形态（11/11 命中，2026-11-06）：完全自包含用例——login/register/sanitize 全部
+# 内联定义在测试体内，require/readFileSync/vm/fetch/child_process 零命中（不碰仓库任何
+# 文件），11 条"通过"全是空洞通过。产品引用通道任一命中即放行。
+_JS_PRODUCT_REF_RE = re.compile(
+    r"require\s*\(|readFileSync|readFile\s*\(|\bvm\s*\.|fetch\s*\(|"
+    r"child_process|execSync|\bspawn\s*\(|axios|https?\s*\.\s*(?:get|post|request)\b")
 
 
 def _js_selfplay_filter(cases: list[dict]) -> tuple[list[dict], list[str]]:
     """JS 自导自演检测（文本启发式）：①顶层重声明全大写导出常量 ②对全大写标识符
-    挂数据重组链（filter/map/concat/...）——两种形态都是"用例自己改数据自己断言"
-    （被测功能零执行，369 的 4 条删除用例同型）。正常调用型用例（函数调用/断言
+    挂数据重组链（filter/map/concat/...）③vm 脚本内对全大写导出标识符重新赋值
+    ④零产品引用（415 形态：完全自包含的 mock 用例，被测产品零执行，"通过"=空洞
+    通过）——四种形态都是"被测功能未被执行"。正常调用型用例（函数调用/断言
     返回值）不受影响。"""
     kept, rejected = [], []
     for c in cases:
@@ -540,6 +619,9 @@ def _js_selfplay_filter(cases: list[dict]) -> tuple[list[dict], list[str]]:
         elif _JS_VM_REASSIGN_RE.search(code):
             why = "vm 脚本内对全大写导出标识符重新赋值（369 实锤形态：改 const 数据" \
                   "必然 TypeError 且被测功能未执行）"
+        elif not _JS_PRODUCT_REF_RE.search(code):
+            why = "自包含用例（415 实锤形态：未引用任何产品文件/模块，login/register 等" \
+                  "全部内联定义在测试体内——测试对象是用例自己的参考实现，被测产品零执行）"
         if why:
             rejected.append(f"{c.get('name')}: {why}")
         else:
@@ -599,12 +681,15 @@ def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
             rejected.append(f"{c.get('name')}: 语法错误({e.lineno}行)")
             continue
         ok = True
+        product_imported = False
         for node in ast.walk(tree):
             # P1-4a：import 白名单审计（Import 与 ImportFrom 都查）——提示注入防线，
             # 白名单外（os/subprocess/socket/requests...）整案剔除并留理由
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     mod = alias.name.split(".")[0]
+                    if mod in table:
+                        product_imported = True
                     if mod not in IMPORT_WHITELIST and mod not in table:
                         rejected.append(f"{c.get('name')}: import {alias.name} 不在白名单"
                                         f"（测试框架/标准库无害子集/被测模块之外不执行）")
@@ -615,6 +700,8 @@ def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
             if not (isinstance(node, ast.ImportFrom) and node.module):
                 continue
             mod = node.module.split(".")[0]
+            if mod in table:
+                product_imported = True
             if mod not in IMPORT_WHITELIST and mod not in table:
                 rejected.append(f"{c.get('name')}: from {node.module} import … 不在白名单"
                                 f"（测试框架/标准库无害子集/被测模块之外不执行）")
@@ -652,6 +739,12 @@ def _static_filter(cases: list[dict], ws: Path) -> tuple[list[dict], list[str]]:
                 rejected.append(f"{c.get('name')}: 直接改写被测模块状态（{hits[0]}——"
                                 f"自导自演：改完自己断言，被测功能未执行）")
                 ok = False
+        # 415 补闸（2026-11-06）：Python 自包含用例——无任何指向被测模块的 import，
+        # 测试对象是用例内联实现（JS 侧零产品引用规则的对偶；table 空=无从判定，跳过）
+        if ok and config.DEFENSE_V2_ENABLED and table and not product_imported:
+            rejected.append(f"{c.get('name')}: 自包含用例（无任何指向被测模块的 import——"
+                            f"测试对象是用例自己的内联实现，被测产品零执行）")
+            ok = False
         if ok:
             kept.append(c)
     return kept, rejected
@@ -1110,6 +1203,12 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                     if config.SUT_MANIFEST_ENABLED and not feedback else None)
     if sut_manifest:
         log.info("gen_tests task=%s SUT 清单注入 %d 项（B2）", task_id, len(sut_manifest))
+    # B2+（415 实锤）：需求-能力错配核对——需求关键词在清单零命中时注入显式警告，
+    # 禁止为不存在的功能编造 mock（415 的 11 条空洞通过用例即此形态）
+    sut_mismatch = (requirement_capability_mismatch(args.get("requirement", ""), sources)
+                    if config.SUT_MANIFEST_ENABLED and not feedback else None)
+    if sut_mismatch:
+        log.warning("gen_tests task=%s 需求-能力错配：%s", task_id, sut_mismatch)
     resp = llm.invoke([("system", SYSTEM_PROMPT),
                        ("user", build_user_prompt(sources, args.get("requirement", ""),
                                                   args.get("coverage_gaps"),
@@ -1131,7 +1230,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   existing_cases=(args.get("existing_names") or None)
                                                   if feedback else None,
                                                   defense_v2=config.DEFENSE_V2_ENABLED,
-                                                  sut_functions=sut_manifest))])
+                                                  sut_functions=sut_manifest,
+                                                  sut_mismatch=sut_mismatch))])
     log_llm_call(task_id, phase, resp)
     data = _parse_cases(resp.content)
     if data is None:
