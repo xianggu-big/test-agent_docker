@@ -37,12 +37,14 @@ def test_collect_metrics_includes_l2_when_leg_exists(tmp_db):
     conn.execute("INSERT INTO test_levels(task_id, level, strategy, status, verdict, summary)"
                  " VALUES (?, 'L2', 'full', 'failed', 'stop', ?)",
                  (tid, json.dumps({"passed": 11, "failed": 1, "contract_violations": 1,
-                                   "endpoints_total": 4, "endpoints_covered": 3})))
+                                   "endpoints_total": 4, "endpoints_covered": 3,
+                                   "endpoints_hit": 3})))
     conn.commit()
     m = collect_metrics(conn, tid)
     assert m["l2"]["verdict"] == "stop"
     assert m["l2"]["contract_violations"] == 1
     assert m["l2"]["endpoints_covered"] == 3
+    assert m["l2"]["endpoints_hit"] == 3        # TODO-07 并存：新旧两键同值
 
 
 def test_collect_metrics_no_l2_key_for_legacy_tasks(tmp_db):

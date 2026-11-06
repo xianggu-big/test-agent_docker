@@ -265,7 +265,11 @@ def judge_l2(stdout: str, last_exit: int, endpoints: list, skipped_routes: list)
     summary = {"passed": passed, "failed": failed,
                "requirement_failures": req_fail, "contract_violations": contract_fail,
                "endpoints_total": len(eps),
-               "endpoints_covered": max(0, len(eps) - skipped_n)}
+               "endpoints_covered": max(0, len(eps) - skipped_n),
+               # TODO-07（B 并存过渡，2026-11-06）：endpoints_covered 语义实为「未跳过」，
+               # 并不等于「断言真实命中」——新名 endpoints_hit 同值并存，前端/论文逐步切换，
+               # 老名保留（breaking 保护，消费点=报告页两处/单测）
+               "endpoints_hit": max(0, len(eps) - skipped_n)}
     if last_exit == 0 and failed == 0:
         verdict, reason = "pass", "契约与需求断言全过（L2 单轮 v0，无 R-Loop）"
     elif failed == 0:
