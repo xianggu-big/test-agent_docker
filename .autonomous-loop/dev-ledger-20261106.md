@@ -1,7 +1,9 @@
 # 开发台账（zcode 闲时开发 · 黑盒能力补齐 + 多语言工具链 两任务包）
 
 ## 全局状态
-- 当前执行序位置：4. 黑包·阶段3 UI Playwright（执行序 1/2/3+检查点一已完成见阶段条目；终验矩阵=.autonomous-loop/final-check-20261106.md）
+- 当前执行序位置：5. 黑包·阶段3 UI Playwright（**终验轮 2026-11-07**：执行序 1/2/3+检查点一+双5 已完成，终验报告=docs/终验报告-两任务包-20261106.md，矩阵=.autonomous-loop/final-check-20261106.md）
+- 基线（2026-11-07 04:05 终验轮实测）：pytest 683 passed / 1 skipped；module_check 138 OK / 0 MISS / 0 FINDING
+- **下轮接续入口（精确）**：执行序 5 黑包阶段3 UI Playwright——S1 调研（trace viewer/accessibility tree）→S2 镜像（mcr.microsoft.com/playwright/python 注册 IMAGE_BUILD_CTX+build_images 自检）→S3 DOM 快照采集（可达性树落盘）→S4 selector 真值闸（虚构元素整案剔除，先写失败测试）+操作序列 schema 闸→S5 执行适配器（pytest+playwright 截图/trace.zip 落库）→S6 真机（demo 前端 3 场景+埋按钮失效缺陷出缺陷报告单）；随后黑4 gRPC→白3 Go（token 成本记录必写进白包任务卡）→白4 PHP→收尾（README 语言表按 go/php 实况更新+终验报告刷新+两检查点复验）
 - 基线（2026-11-07 03:56 终验轮实测）：pytest 679 passed / 1 skipped；module_check 138 OK / 0 MISS / 0 FINDING
 - ◆检查点一（2026-11-07 03:57 达成）：TS（smoke_ts 8/8）+Java（smoke_java 7/7）两语言真机全链路证据齐+回归 679 全绿——白包阶段 1/2 正式收口
 - 恢复现场记录（01:35-01:45 本会话）：台账在（执行序1已完成 6db3f26）；工作树遗留=上会话 TS Tier2 半成品（六位置实现+单测+demo+smoke 脚本基本齐、未测试未验收未 commit）；E9/E10 波次未在跑、无 python 进程占线 → 本轮可写；Docker Desktop 已由 preflight 拉起（21s），mta-test:node20-jest 实测含全局 jest 29.7.0/tsc 5.9.3/ts-jest@29
