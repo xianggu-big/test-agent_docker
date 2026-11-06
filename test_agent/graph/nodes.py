@@ -816,9 +816,22 @@ def make_nodes(deps: GraphDeps) -> dict:
         llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                          base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
                          timeout=60, max_retries=2)
+        # BREADTH 广度采样（默认关=source_modules=None，提示词逐字节不变）：
+        # plan 注入被测源码结构清单+广度纪律——治「条件全挤核心函数域」（E9 task432 实锤）
+        src_outline = None
+        if config.BREADTH_SAMPLING_ENABLED:
+            from ..skills.gen_tests import source_outline
+            ws = state.get("workspace") or (config.DATA_DIR / "workspaces" / f"task_{tid}")
+            src_outline = (source_outline(Path(ws),
+                                          (state.get("module_hint") or "python").lower())
+                           or {}).get("files")
+            if src_outline:
+                msg(state["session_id"], "assistant",
+                    f"[plan] 广度采样：源码结构清单 {len(src_outline)} 项注入拆解提示词")
         resp = llm.invoke([("system", PLAN_SYSTEM),
                            ("user", build_plan_prompt(requirement,
-                                                      hotspots=state.get("complexity_hotspots")))])
+                                                      hotspots=state.get("complexity_hotspots"),
+                                                      source_modules=src_outline))])
         log_llm_call(tid, "plan", resp)
         conds = parse_conditions(resp.content)
         if not conds:

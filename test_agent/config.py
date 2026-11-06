@@ -132,6 +132,13 @@ DEFECT_CLUSTERING_ENABLED = _flag("MTA_DEFECT_CLUSTER", False)
 # 缺陷去重/同根因聚类（任务卡-369 E：确定性签名 sha1(failure_kind|error_class|
 # 归一化消息|SUT首帧)[:12]；Sentry in-app frames/ReBucket 桶思想，零 LLM）
 
+# —— 测试广度增强（docs 任务卡 .autonomous-loop/e9e10_daily/task_card_breadth_5q.md，2026-11-06） ——
+# E9 实锤：plan 只看需求文本，条件全挤在核心函数域（task432 的 15 条件全落 password 模块）；
+# 降采样纯按优先级保 15 同函数域挤占名额。两层治理（防御矩阵范式）：
+# prompt 层=plan 提示词注入源码结构清单+广度纪律（信息提供）；闸层=降采样「15 优先级+≤5 函数域
+# 分散补充」总 ≤20（E2E 实锤 20 条=DeepSeek 稳定输出上限）。默认关=提示词与闸行为逐字节不变。
+BREADTH_SAMPLING_ENABLED = _flag("MTA_BREADTH", False)
+
 # —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
 LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg
 

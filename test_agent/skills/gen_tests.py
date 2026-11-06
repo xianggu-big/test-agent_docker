@@ -214,6 +214,84 @@ def _collect_sources(ws: Path, lang: str = "python") -> list[tuple[str, str]]:
     return _collect_sources_detailed(ws, lang)[0]
 
 
+def source_outline(ws: Path, lang: str = "python") -> dict | None:
+    """被测源码结构清单（BREADTH 广度采样用，config.BREADTH_SAMPLING_ENABLED 时才调用）。
+
+    返回 {"files": ["rel::fn1,fn2", ...], "functions": {函数名集}}；解析失败 fail-open 返回 None
+    （清单缺失不拦主链路——信息提供类手段，失败退化为无清单的旧行为）。"""
+    try:
+        files: list[str] = []
+        functions: set[str] = set()
+        is_js = lang in ("javascript", "typescript")
+        for p, text in _iter_source_files(ws, lang):
+            rel = p.relative_to(ws).as_posix()
+            if is_js:
+                names = re.findall(r"(?:function\s+|const\s+|let\s+|var\s+)"
+                                   r"([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\()",
+                                   text) or re.findall(r"function\s+([A-Za-z_$][\w$]*)\s*\(", text)
+            else:
+                try:
+                    tree = ast.parse(text)
+                except SyntaxError:
+                    continue
+                names = [n.name for n in tree.body
+                         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+            names = list(dict.fromkeys(names))[:12]
+            if names:
+                functions.update(names)
+                files.append(f"{rel}::{'、'.join(names)}")
+            else:
+                files.append(rel)
+        if not files:
+            return None
+        return {"files": files, "functions": functions}
+    except Exception:  # noqa: BLE001 —— fail-open
+        return None
+
+
+def _condition_function_domains(conds: list[dict], functions: set[str]) -> set[str]:
+    """条件文本命中的源码函数名集合（函数域归属判定；广度补充闸用）。"""
+    text = " ".join(f"{c.get('condition') or ''} {c.get('method_hint') or ''}" for c in conds)
+    return {fn for fn in functions if fn and fn in text}
+
+
+def _downsample_conditions(conditions: list[dict], ws: Path, lang: str,
+                           task_id: int) -> tuple[list[dict], int]:
+    """条件超限降采样（generate_tests 主链路与对话增补共用，可单测纯函数）。
+
+    关（默认）：按优先级保 15（旧行为逐字节不变）；开（BREADTH_SAMPLING_ENABLED）：
+    「15 优先级 + ≤5 函数域分散补充」总 ≤20（E2E 实锤 20 条=DeepSeek 稳定输出上限）——
+    从被截断条件中挑「命中前 15 未覆盖函数域」者各补 1 条，治同函数域挤占名额。"""
+    conditions_truncated = 0
+    if conditions and len(conditions) > 15:
+        prio = {"高": 0, "中": 1, "低": 2}
+        conditions.sort(key=lambda c: prio.get((c.get("priority") or "中"), 1))
+        conditions_truncated = len(conditions) - 15
+        rest = conditions[15:]
+        conditions = conditions[:15]
+        if config.BREADTH_SAMPLING_ENABLED and rest:
+            outline = source_outline(ws, lang) or {}
+            functions = outline.get("functions") or set()
+            if functions:
+                covered = _condition_function_domains(conditions, functions)
+                extra = []
+                for c in rest:
+                    if len(extra) >= 5:
+                        break
+                    doms = _condition_function_domains([c], functions)
+                    if doms and doms.isdisjoint(covered):
+                        extra.append(c)
+                        covered |= doms
+                if extra:
+                    conditions.extend(extra)
+                    conditions_truncated -= len(extra)
+                    log.info("gen_tests task=%s 广度补充 %d 条（函数域分散，总 %d 条）",
+                             task_id, len(extra), len(conditions))
+        log.warning("gen_tests task=%s 条件 %d 条超限，按优先级保 15（截 %d）",
+                    task_id, conditions_truncated + len(conditions), conditions_truncated)
+    return conditions, conditions_truncated
+
+
 # 模型漂移第 3/4 形（2026-11-05 批4 12/12 降级实锤）：JSON 字符串值位置写 Python
 # 表达式——重复 "A" * 65、拼接 "Ab1!" + "aaa"。合法 JSON 中字符串结束引号后只可能
 # 是 , } ] :，出现 + / * 必然非法，因此片段级求值替换不会误伤 code 字段内嵌的
@@ -1173,16 +1251,13 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         "SELECT condition, priority, method_hint FROM test_conditions "
         "WHERE task_id=? ORDER BY id", (task_id,)).fetchall()] or None
     # 条件超限降采样（E2E 三跑实锤：43 条条件→40+ 用例 JSON 超 DeepSeek 输出上限截断不可解析，
-    # 20 条则稳定成功）：按优先级 高>中>低 保 15 条，其余由条件缺口回灌/评审增补接力——
-    # 长度爆炸在源头治，不指望解析器救截断。缺口条数如实留痕（摘要可查）。
-    conditions_truncated = 0
-    if conditions and len(conditions) > 15:
-        prio = {"高": 0, "中": 1, "低": 2}
-        conditions.sort(key=lambda c: prio.get((c.get("priority") or "中"), 1))
-        conditions_truncated = len(conditions) - 15
-        conditions = conditions[:15]
-        log.warning("gen_tests task=%s 条件 %d 条超限，按优先级保 15（截 %d）",
-                    task_id, conditions_truncated + 15, conditions_truncated)
+    # 20 条则稳定成功）：长度爆炸在源头治，不指望解析器救截断。缺口条数如实留痕（摘要可查）。
+    # BREADTH_SAMPLING_ENABLED 开时为「15 优先级 + ≤5 函数域分散补充」（详见 _downsample_conditions）。
+    if conditions:
+        conditions, conditions_truncated = _downsample_conditions(
+            conditions, ws, lang, task_id)
+    else:
+        conditions_truncated = 0
 
     # —— 三源 grounding 注入（各自独立开关，默认关=提示词逐字节不变） ——
     api_docs = _extract_api_docs(ws) if config.DOCSTRING_GROUNDING_ENABLED else None

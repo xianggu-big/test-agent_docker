@@ -19,13 +19,17 @@ log = logging.getLogger(__name__)
 
 
 def reviewer_llm():
-    """代审专用 LLM（同模型角色分离；跨模型列展望）。延迟导入，无 Key 时由调用方兜底。"""
+    """代审专用 LLM（同模型角色分离；跨模型列展望）。延迟导入，无 Key 时由调用方兜底。
+
+    DEEPSEEK_REVIEWER_MODEL（E10 Arm 2 交叉矩阵）：设置时审查侧切该模型、生成侧不动；
+    未设置回退 DEEPSEEK_MODEL=行为逐字节不变（角色分离默认口径）。"""
     import os
     from ..skills.llm_client import make_chat
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
         raise RuntimeError("未配置 DEEPSEEK_API_KEY，AI 代审不可用（fail-closed 交人工）")
-    return make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
+    model = getattr(config, "DEEPSEEK_REVIEWER_MODEL", None) or config.DEEPSEEK_MODEL
+    return make_chat(model=model, api_key=api_key,
                       base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
                       timeout=90, max_retries=2)
 

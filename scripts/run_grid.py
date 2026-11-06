@@ -46,6 +46,9 @@ GRID = {
                                                 # "调用形态错误"子类消失 + 监督指标全过率不得上升）
     "X9": {"PITFALL_KB_ENABLED": True},         # B源：语言×类型陷阱库（错误推测法扩展；判据=检出率+
                                                 # 陷阱用例占比+expected_basis 分布；负结果如实写）
+    # —— 测试广度增强（.autonomous-loop/e9e10_daily/task_card_breadth_5q.md，2026-11-06）——
+    "X-BREADTH": {"BREADTH_SAMPLING_ENABLED": True},  # plan 源码清单注入+「15+5 函数域分散」降采样
+                                                      # （判据=条件覆盖函数域数上升+检出不降；负结果如实写）
 }
 
 

@@ -747,16 +747,27 @@ async function watchStage1(tid, alertOnFail, tries = 0) {
 }
 
 /* ---------- V1 指挥台（2026-11-02：一次请求拿全，服务端聚合） ---------- */
+/* DB 时间戳均为 SQLite datetime('now')=UTC 无时区标记；前端统一按 UTC 解析、
+   北京时间显示（2026-11-06 用户实测「页面时间慢 8 小时」修复，不动存储口径） */
+function parseUtc(ts) {
+  return new Date(String(ts).replace(" ", "T") + (String(ts).includes("Z") ? "" : "Z"));
+}
+function bjTime(ts) {
+  if (!ts) return "";
+  const d = parseUtc(ts);
+  if (isNaN(d)) return String(ts).slice(0, 16);
+  return d.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
+}
 function relTime(ts) {
   if (!ts) return "";
-  const d = new Date(String(ts).replace(" ", "T"));
+  const d = parseUtc(ts);
   if (isNaN(d)) return String(ts).slice(0, 16);
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
   if (s < 60) return "刚刚";
   if (s < 3600) return Math.floor(s / 60) + " 分钟前";
   if (s < 86400) return Math.floor(s / 3600) + " 小时前";
   if (s < 86400 * 7) return Math.floor(s / 86400) + " 天前";
-  return String(ts).slice(0, 10);
+  return bjTime(ts).slice(0, 10);
 }
 
 const DASH_NODES = ["[clone]", "[analyze]", "[plan]", "[generate 第", "[provision]", "[run]", "[evaluate", "[report", "[review"];
@@ -942,7 +953,7 @@ function renderTasks() {
           ${failN ? `<span class="mini fail">缺陷 ${failN}</span>` : ""}
           ${runN ? `<span class="mini run-n">运行 ${runN}</span>` : ""}
           <span class="mini mut">${tasks.length} 次运行</span></span>
-        <span class="hint pg-last">最近 ${esc(tasks[0].created_at || "")}</span>
+        <span class="hint pg-last">最近 ${esc(bjTime(tasks[0].created_at) || "")}</span>
       </div>
       <div class="pg-tbl ${open ? "" : "hidden"}"><table class="task-tbl">
         <thead><tr><th style="width:58px">#</th><th>需求</th><th>状态</th><th>用例</th><th>覆盖率</th><th class="hide-sm">最近</th><th style="text-align:right">操作</th></tr></thead>
@@ -1102,11 +1113,11 @@ function execCard(latest) {
   if (!ex) return "";
   let dur = "";
   if (ex.started_at && latest.created_at) {
-    const ms = new Date(latest.created_at.replace(" ", "T")) - new Date(ex.started_at.replace(" ", "T"));
+    const ms = parseUtc(latest.created_at) - parseUtc(ex.started_at);
     if (ms > 0 && !isNaN(ms)) dur = ` ｜ 耗时 ${ms >= 60000 ? Math.floor(ms / 60000) + " 分 " : ""}${Math.round(ms % 60000 / 1000)} 秒`;
   }
-  return `<div class="trace-box" style="margin-bottom:10px"><b>执行信息</b> ｜ 开始 <b>${esc(ex.started_at || "—")}</b>` +
-    ` ｜ 报告生成 <b>${esc(latest.created_at || "—")}</b>${dur}` +
+  return `<div class="trace-box" style="margin-bottom:10px"><b>执行信息</b> ｜ 开始 <b>${esc(bjTime(ex.started_at) || "—")}</b>` +
+    ` ｜ 报告生成 <b>${esc(bjTime(latest.created_at) || "—")}</b>${dur}` +
     ` ｜ 执行方式：${esc(ex.mode)}（${ex.rounds} 轮）` +
     ` ｜ 执行者：<b>系统自动</b>（${esc(ex.sandbox)} + LLM ${esc(ex.llm)}，零人工干预）</div>`;
 }
@@ -1394,7 +1405,7 @@ async function loadReport() {
 const EVT_CN = { login: "登录", logout: "退出", register: "注册", failed: "登录失败" };
 async function loadProfile() {
   const usage = await api("/me/usage").catch(() => null);
-  $("pf-me").innerHTML = `<b>${esc(ME.username)}</b>（${ROLE_CN[ME.role] || ME.role}）· 注册于 ${esc((usage && usage.registered_at) || "—")}` +
+  $("pf-me").innerHTML = `<b>${esc(ME.username)}</b>（${ROLE_CN[ME.role] || ME.role}）· 注册于 ${esc(bjTime(usage && usage.registered_at) || "—")}` +
     ` <button class="btn btn-ghost btn-sm" style="margin-left:10px" onclick="doLogout()">退出登录</button>`;
   // 项目/需求列 30 字截断 + title 悬停全文（与三处下拉同规则，用户二反馈）
   const rows = ((usage && usage.tasks) || []).map(x => {
@@ -1403,14 +1414,14 @@ async function loadProfile() {
     return `<tr><td class="hint">#${x.id}</td>` +
     `<td title="${esc(x.project_name)}">${esc(pn)}</td>` +
     `<td title="${esc(x.requirement_text || "")}">${esc(rq)}</td>` +
-    `<td class="hint nowrap">${esc(x.created_at || "")}</td><td class="hint nowrap">${esc(x.first_run_at || "未开始")}</td>` +
+    `<td class="hint nowrap">${esc(bjTime(x.created_at) || "")}</td><td class="hint nowrap">${esc(x.first_run_at ? bjTime(x.first_run_at) : "未开始")}</td>` +
     `<td><span class="badge ${x.status === "done" ? "badge-ok" : x.status === "failed" ? "badge-fail" : "badge-run"}">${esc(STATUS_CN[x.status] || x.status)}</span></td></tr>`;
   }).join("");
   $("pf-tasks").innerHTML = "<tr><th>#</th><th>项目</th><th>需求</th><th>建立时间</th><th>开始执行</th><th>状态</th></tr>" +
     (rows || '<tr><td colspan="6" class="hint">还没有测试任务</td></tr>');
   $("pf-events").innerHTML = "<tr><th>事件</th><th>时间</th></tr>" +
     (((usage && usage.events) || []).map(e =>
-      `<tr><td>${EVT_CN[e.event] || e.event}</td><td class="hint">${esc(e.created_at)}</td></tr>`).join("")
+      `<tr><td>${EVT_CN[e.event] || e.event}</td><td class="hint">${esc(bjTime(e.created_at))}</td></tr>`).join("")
     || '<tr><td colspan="2" class="hint">暂无记录</td></tr>');
 }
 async function doLogout() {
@@ -1432,7 +1443,7 @@ async function refreshSettings() {
     (i.ready ? "" : `<button class="btn btn-primary btn-sm" onclick="buildImage('${encodeURIComponent(i.image)}')">自动构建</button>`) + `</div>`).join("");
   const users = await api("/users");
   $("st-users").innerHTML = users.map(u =>
-    `<div class="img-row"><span>${esc(u.username)}</span><span class="badge badge-${u.role === "developer" ? "dev" : u.role}">${ROLE_CN[u.role]}</span><span class="hint">创建于 ${esc(u.created_at)}</span></div>`).join("");
+    `<div class="img-row"><span>${esc(u.username)}</span><span class="badge badge-${u.role === "developer" ? "dev" : u.role}">${ROLE_CN[u.role]}</span><span class="hint">创建于 ${esc(bjTime(u.created_at))}</span></div>`).join("");
 }
 
 // ---------- F03 任务详情页（设计图主页面） ----------
@@ -1569,7 +1580,7 @@ async function loadTaskDetail(tid) {
   const lang = t.primary_language ? ` ${t.primary_language}` : "";
   let dur = "";
   if (ex && ex.started_at && latest.created_at) {
-    const ms = new Date(latest.created_at.replace(" ", "T")) - new Date(ex.started_at.replace(" ", "T"));
+    const ms = parseUtc(latest.created_at) - parseUtc(ex.started_at);
     if (ms > 0 && !isNaN(ms)) dur = `｜已运行 ${ms >= 60000 ? Math.floor(ms/60000) + "m" : ""}${Math.round(ms%60000/1000)}s`;
   }
   $("td-hero").innerHTML =

@@ -1,0 +1,137 @@
+{
+ "version": "v2-e9",
+ "built_at": "2026-11-06 14:28:29",
+ "source_tasks": 154,
+ "entries_top": [
+  {
+   "signature": "AssertionError: assert False == True",
+   "count": 408,
+   "distinct_tasks": 116,
+   "sample_case": "test_check_length_边界值分析",
+   "sample_message": "AssertionError: assert False == True\n +  where False = check_length('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
+   "pitfall": "历史实测高频失败模式（出现 408 次）：AssertionError: assert False == True。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "assert <N> == <N>",
+   "count": 194,
+   "distinct_tasks": 23,
+   "sample_case": "test_quote_total_discount_判定表",
+   "sample_message": "assert 127 == 135\n +  where 127 = quote_total(50, 3)",
+   "pitfall": "历史实测高频失败模式（出现 194 次）：assert <N> == <N>。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "AssertionError: assert False is True",
+   "count": 170,
+   "distinct_tasks": 78,
+   "sample_case": "test_is_strong_长度等于max_len_边界值分析",
+   "sample_message": "AssertionError: assert False is True\n +  where False = is_strong('Abcdef1!aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
+   "pitfall": "历史实测高频失败模式（出现 170 次）：AssertionError: assert False is True。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "AssertionError: assert <N> == <N>",
+   "count": 161,
+   "distinct_tasks": 67,
+   "sample_case": "test_strength_score_边界值分析",
+   "sample_message": "AssertionError: assert 1 == 2\n +  where 1 = strength_score('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
+   "pitfall": "历史实测高频失败模式（出现 161 次）：AssertionError: assert <N> == <N>。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "AssertionError: assert True == False",
+   "count": 76,
+   "distinct_tasks": 33,
+   "sample_case": "test_is_strong_自定义长度_边界值分析",
+   "sample_message": "AssertionError: assert True == False\n +  where True = is_strong('Ab1!ab', 6, 10)",
+   "pitfall": "历史实测高频失败模式（出现 76 次）：AssertionError: assert True == False。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "TypeError: Failed: DID NOT RAISE TypeError",
+   "count": 59,
+   "distinct_tasks": 9,
+   "sample_case": "test_check_length_错误推测法",
+   "sample_message": "TypeError: Failed: DID NOT RAISE TypeError",
+   "pitfall": "历史实测高频失败模式（出现 59 次）：TypeError: Failed: DID NOT RAISE TypeError。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "assert True is False",
+   "count": 24,
+   "distinct_tasks": 16,
+   "sample_case": "test_has_overlap_adjacent_判定表",
+   "sample_message": "assert True is False\n +  where True = has_overlap(9, 11, 11, 13)",
+   "pitfall": "历史实测高频失败模式（出现 24 次）：assert True is False。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "ValueError: duration must be between <N> and <N> hours",
+   "count": 23,
+   "distinct_tasks": 16,
+   "sample_case": "test_validate_duration_boundary_边界值分析",
+   "sample_message": "ValueError: duration must be between 1 and 4 hours",
+   "pitfall": "历史实测高频失败模式（出现 23 次）：ValueError: duration must be between <N> and <N> hours。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "assert False == True",
+   "count": 12,
+   "distinct_tasks": 2,
+   "sample_case": "test_is_strong_自定义边界_边界值分析",
+   "sample_message": "assert False == True\n +  where False = is_strong(\"'Ab1!'\", 4, 6)",
+   "pitfall": "历史实测高频失败模式（出现 12 次）：assert False == True。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "assert True == False",
+   "count": 10,
+   "distinct_tasks": 4,
+   "sample_case": "test_has_special_空格与字母数字_等价类划分",
+   "sample_message": "assert True == False\n +  where True = has_special(\"' '\")",
+   "pitfall": "历史实测高频失败模式（出现 10 次）：assert True == False。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "AssertionError: assert True is False",
+   "count": 5,
+   "distinct_tasks": 4,
+   "sample_case": "test_is_strong_自定义长度边界_边界值分析",
+   "sample_message": "AssertionError: assert True is False\n +  where True = is_strong('Ab1!xyzwv', 6, 10)",
+   "pitfall": "历史实测高频失败模式（出现 5 次）：AssertionError: assert True is False。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "AssertionError: (<N>, <N>, <N>)",
+   "count": 3,
+   "distinct_tasks": 1,
+   "sample_case": "test_booking_duration_boundary_边界值分析",
+   "sample_message": "AssertionError: (8, 10, 409)\nassert 409 == 201\n +  where 409 = <Response [409 Conflict]>.status_code",
+   "pitfall": "历史实测高频失败模式（出现 3 次）：AssertionError: (<N>, <N>, <N>)。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "AssertionError: duration <N> should be accepted",
+   "count": 3,
+   "distinct_tasks": 1,
+   "sample_case": "test_create_booking_duration_boundary_边界值分析",
+   "sample_message": "AssertionError: duration 4 should be accepted\nassert 400 == 201\n +  where 400 = <Response [400 Bad Request]>.status_code",
+   "pitfall": "历史实测高频失败模式（出现 3 次）：AssertionError: duration <N> should be accepted。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "AssertionError: duration <N> total mismatch",
+   "count": 3,
+   "distinct_tasks": 1,
+   "sample_case": "test_quote_total_discount_判定表",
+   "sample_message": "AssertionError: duration 3 total mismatch\nassert 127 == 135",
+   "pitfall": "历史实测高频失败模式（出现 3 次）：AssertionError: duration <N> total mismatch。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "assert (<N> == <N> and <N> == <N>)",
+   "count": 2,
+   "distinct_tasks": 2,
+   "sample_case": "test_list_bookings_判定表",
+   "sample_message": "assert (201 == 201 and 409 == 201)\n +  where 201 = <Response [201 Created]>.status_code\n +  and   409 = <Response [409 Conflict]>.status_code",
+   "pitfall": "历史实测高频失败模式（出现 2 次）：assert (<N> == <N> and <N> == <N>)。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  },
+  {
+   "signature": "AssertionError: 时长 <N> 小时应被接受",
+   "count": 1,
+   "distinct_tasks": 1,
+   "sample_case": "test_create_booking_duration_边界值分析",
+   "sample_message": "AssertionError: 时长 2 小时应被接受\nassert 409 == 201\n +  where 409 = <Response [409 Conflict]>.status_code",
+   "pitfall": "历史实测高频失败模式（出现 1 次）：AssertionError: 时长 <N> 小时应被接受。生成用例时优先核查该失败模式对应的行为断言与输入域。"
+  }
+ ],
+ "total_clusters": 16,
+ "note": "动态陷阱库 v2：E9 失败语料确定性聚类（零 LLM）；注入通道=错误推测法提示词的陷阱清单（PITFALL_KB v1 同位，v2 为实测数据驱动扩充）"
+}
