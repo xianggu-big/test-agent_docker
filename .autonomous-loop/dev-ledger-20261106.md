@@ -1,8 +1,9 @@
 # 开发台账（zcode 闲时开发 · 黑盒能力补齐 + 多语言工具链 两任务包）
 
 ## 全局状态
-- 当前执行序位置：3. 白包·阶段2 Java 接线（下一轮从「S1 前置调研：surefire XML schema / JaCoCo XML schema / mvn test 退出码与部分失败行为」开始；执行序 1/2 已完成见阶段条目）
-- 基线（2026-11-07 02:39 本会话实测）：pytest 653 passed / 1 skipped；module_check 138 OK / 0 MISS / 探针 25 PASS / 0 FAIL / 0 FINDING
+- 当前执行序位置：4. 黑包·阶段3 UI Playwright（执行序 1/2/3+检查点一已完成见阶段条目；终验矩阵=.autonomous-loop/final-check-20261106.md）
+- 基线（2026-11-07 03:56 终验轮实测）：pytest 679 passed / 1 skipped；module_check 138 OK / 0 MISS / 0 FINDING
+- ◆检查点一（2026-11-07 03:57 达成）：TS（smoke_ts 8/8）+Java（smoke_java 7/7）两语言真机全链路证据齐+回归 679 全绿——白包阶段 1/2 正式收口
 - 恢复现场记录（01:35-01:45 本会话）：台账在（执行序1已完成 6db3f26）；工作树遗留=上会话 TS Tier2 半成品（六位置实现+单测+demo+smoke 脚本基本齐、未测试未验收未 commit）；E9/E10 波次未在跑、无 python 进程占线 → 本轮可写；Docker Desktop 已由 preflight 拉起（21s），mta-test:node20-jest 实测含全局 jest 29.7.0/tsc 5.9.3/ts-jest@29
 - 统一执行序：1黑包日志 ✅ → 2白包TS ✅ → 3白包Java → ◆检查点一 → 4黑包DB → ◆检查点二 → 5黑包UI → 6白包Go → 7黑包gRPC → 8白包PHP → 9收尾(.NET最小化+抓包声明+README语言表)
 - 任务包：docs/黑盒能力补齐任务包-20261106.md ｜ docs/多语言工具链接入任务包-20261106.md

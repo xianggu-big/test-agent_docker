@@ -12,7 +12,7 @@
 | B1-1 | 黑1日志 | 真机 L2 冒烟 app_logs 按轮次分档（声称✅） | **通过** | 证据文件抽查：A臂 3行入库+快照65行+citations_ok=True | - |
 | B1-2 | 黑1日志 | 端口占用被正则命中+log_analyze 引用真实行号（声称✅） | **通过** | B_port_conflict 臂 port_conflict_hit=true/Errno 98 在案 | - |
 | B1-TM | 黑1日志 | 测试矩阵：四语言正则/引用闸/幂等 24 条 | **通过** | test_app_logs.py 279行+test_app_logs_api.py 随全量绿 | - |
-| B2-R | 黑2DB | Testcontainers 前置调研结论写回任务卡 | **通过** | 任务卡前置调研段（四要素→抄模式自实现） | - |
+| B2-R | 黑2DB | Testcontainers 前置调研结论写回任务卡 | **通过** | 任务卡前置调研段（四要素→抄模式自实现）+Java S1（surefire/JaCoCo/mvn 语义） | - |
 | B2-1 | 黑2DB | MySQL demo sidecar 建库成功 | **通过** | smoke_db_assert 9/9（证据 data/reports/db_assert_accept/smoke_db_20261107-031222.json） | 1 |
 | B2-2 | 黑2DB | db_assert 只读 SQL 通过/失败各一例 | **通过** | 同上（paid=2 通过例+表不存在失败例，SkillRegistry 通道） | 1 |
 | B2-3 | 黑2DB | 越权写 SQL 被闸剔除留痕 | **通过** | 同上（UPDATE rejected+注入整案+orders 表完好机器实证） | 1 |
@@ -26,13 +26,13 @@
 | B4-TM | 黑4gRPC | proto 解析正负例+闸门负例+grpcurl 参数拼装 | **未做** | - | - |
 | B5-1 | 黑5抓包 | 实施或边界声明（二选一，声明不视为缺口） | **未定** | - | - |
 | W1-1 | 白1TS | TS demo 真机全链路（声称 PASS 8/8） | **通过** | 证据文件抽查：8/8 true+轮次 16过3败在案 | - |
-| W2-1 | 白2Java | Java demo 全链路+埋缺陷归因 product_defect | **未做** | - | - |
-| CP1 | ◆检查点一 | TS+Java 两语言真机全链路证据齐+回归全绿 | **未达（缺 Java）** | - | - |
+| W2-1 | 白2Java | Java demo 全链路+埋缺陷归因 product_defect | **通过** | smoke_java 7/7（data/reports/java_accept/smoke_java_20261107-035437.json），返工 4 轮实锤入卡 | 4 |
+| CP1 | ◆检查点一 | TS+Java 两语言真机全链路证据齐+回归全绿 | **通过** | smoke_ts 8/8 + smoke_java 7/7 + 回归 679 全绿（台账检查点一段） | - |
 | W3-1 | 白3Go | Go demo 全链路+编译失败→R-Loop token 成本记录进任务卡 | **未做** | - | - |
 | W4-1 | 白4PHP | PHP demo 全链路 | **未做** | - | - |
 | W5-1 | 白5.NET | .NET demo Tier3 static_scan 兜底表现确认 | **未做** | - | - |
 | F1 | 收口 | README 语言支持表按实况更新 | 部分正确（TS 已更新；Java/Go/PHP 未接故维持 Tier3 描述=实况一致） | README.md | - |
-| F2 | 收口 | pytest 全绿+module_check 无失败+每语言真机证据链 | 待基线 | - | - |
+| F2 | 收口 | pytest 全绿+module_check 无失败+每语言真机证据链 | 部分（py/js/ts/java 四语言证据链齐；go/php/.NET 待阶段3-5） | data/reports/{ts_accept,java_accept}/ | - |
 | AC-1 | 反作弊 | tests/ 目录 git log -p 抽查断言弱化/删除/跳过 | 待查 | - | - |
 | AC-2 | 变异抽查 | sqlglot 只读闸/selector 真值闸/gRPC method 闸改坏变红 | 依赖对应阶段实现 | - | - |
 
