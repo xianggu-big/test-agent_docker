@@ -1,4 +1,8 @@
-"""黑包阶段1·应用日志端点：GET /api/tasks/{tid}/logs?round=N。
+"""黑包阶段1·应用日志端点：GET /api/tasks/{tid}/app_logs?round=N。
+
+路径偏差入档（终验 2026-11-07）：任务卡写 /logs，但该路径自 81d5d86 起被既有
+api_logs（agent_messages 日志流，两阶段设计文档口径）占用——同路径双 handler
+会被 FastAPI 按注册顺序遮蔽（终验实锤）；本端点改 /app_logs（与表名一致）让位。
 
 鉴权与任务存在性走真实链路（TestClient 触发 startup 建临时库+默认账号），
 app_logs 行用 store_app_logs 构造（解析/幂等语义由 test_app_logs 覆盖）。
@@ -51,18 +55,18 @@ def _seed_two_rounds(tid: int) -> None:
 
 def test_logs_requires_auth(env):
     client, _, tid = env
-    assert client.get(f"/api/tasks/{tid}/logs").status_code == 401
+    assert client.get(f"/api/tasks/{tid}/app_logs").status_code == 401
 
 
 def test_logs_404_unknown_task(env):
     client, h, _ = env
-    assert client.get("/api/tasks/99999/logs", headers=h).status_code == 404
+    assert client.get("/api/tasks/99999/app_logs", headers=h).status_code == 404
 
 
 def test_logs_returns_all_rounds_then_filters(env):
     client, h, tid = env
     _seed_two_rounds(tid)
-    r = client.get(f"/api/tasks/{tid}/logs", headers=h)
+    r = client.get(f"/api/tasks/{tid}/app_logs", headers=h)
     assert r.status_code == 200
     body = r.json()
     assert body["task_id"] == tid
@@ -74,7 +78,7 @@ def test_logs_returns_all_rounds_then_filters(env):
     assert len(rounds[1]["entries"]) == 2
     assert rounds[2]["source"] == "docker_logs"
     # round 过滤：单轮
-    r2 = client.get(f"/api/tasks/{tid}/logs?round=2", headers=h)
+    r2 = client.get(f"/api/tasks/{tid}/app_logs?round=2", headers=h)
     assert r2.status_code == 200
     only = r2.json()["rounds"]
     assert [x["round_no"] for x in only] == [2]
@@ -83,6 +87,6 @@ def test_logs_returns_all_rounds_then_filters(env):
 
 def test_logs_empty_task_returns_empty_rounds(env):
     client, h, tid = env
-    r = client.get(f"/api/tasks/{tid}/logs", headers=h)
+    r = client.get(f"/api/tasks/{tid}/app_logs", headers=h)
     assert r.status_code == 200
     assert r.json()["rounds"] == []

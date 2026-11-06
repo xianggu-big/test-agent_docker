@@ -2,7 +2,7 @@
 
 统一五步模子的①②④⑤层：采集（容器内重定向 /work/logs/app.log + docker logs 兜底，
 runner.read_app_log_pair 采集层）→ 确定性提取（四语言错误行正则）→ 结构化落库
-（app_logs 第 28 表）→ API 呈现（GET /api/tasks/{tid}/logs?round=N）。
+（app_logs 第 28 表）→ API 呈现（GET /api/tasks/{tid}/app_logs?round=N——/logs 被既有 api_logs 占用，终验偏差入档）。
 LLM 只在姐妹模块 log_analyze 做摘要且必须引用 line_no——本模块零 LLM。
 
 设计纪律（任务包 §0 语言差异规范化）：解析正则只认**输出排版事实**
@@ -157,7 +157,7 @@ def collect_and_store_app_logs(runner, container, conn, task_id: int, round_no: 
 
 
 def logs_snapshot(conn, task_id: int, round_no: int | None = None) -> dict:
-    """GET /api/tasks/{tid}/logs 数据组装（纯 SQL 确定性，零 LLM）：
+    """GET /api/tasks/{tid}/app_logs 数据组装（纯 SQL 确定性，零 LLM）：
     按轮分组——概要（错误/警告计数、首错行、判源、快照路径）+ 逐条证据行。"""
     q = "SELECT * FROM app_logs WHERE task_id=?"
     args: list = [task_id]

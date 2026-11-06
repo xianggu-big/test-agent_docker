@@ -738,7 +738,7 @@ def api_execution(tid: int, user: dict = Depends(current_user)):
     return snap
 
 
-@app.get("/api/tasks/{tid}/logs")
+@app.get("/api/tasks/{tid}/app_logs")
 def api_app_logs(tid: int, round: int | None = None,
                  user: dict = Depends(current_user)):
     """黑盒能力补齐阶段1：应用运行时日志分档（app_logs）——被测服务进程 stdout/stderr
