@@ -24,13 +24,13 @@
 | B4-1 | 黑4gRPC | proto demo 清单提取正确 | **未做** | - | - |
 | B4-2 | 黑4gRPC | 合法 RPC 通过+虚构 method 被闸剔除留痕 | **未做** | - | - |
 | B4-TM | 黑4gRPC | proto 解析正负例+闸门负例+grpcurl 参数拼装 | **未做** | - | - |
-| B5-1 | 黑5抓包 | 实施或边界声明（二选一，声明不视为缺口） | **未定** | - | - |
+| B5-1 | 黑5抓包 | 实施或边界声明（二选一，声明不视为缺口） | **通过（降级声明）** | 任务卡边界声明段（mitmproxy 侵入性/语料无场景/明文允许降级） | - |
 | W1-1 | 白1TS | TS demo 真机全链路（声称 PASS 8/8） | **通过** | 证据文件抽查：8/8 true+轮次 16过3败在案 | - |
 | W2-1 | 白2Java | Java demo 全链路+埋缺陷归因 product_defect | **通过** | smoke_java 7/7（data/reports/java_accept/smoke_java_20261107-035437.json），返工 4 轮实锤入卡 | 4 |
 | CP1 | ◆检查点一 | TS+Java 两语言真机全链路证据齐+回归全绿 | **通过** | smoke_ts 8/8 + smoke_java 7/7 + 回归 679 全绿（台账检查点一段） | - |
 | W3-1 | 白3Go | Go demo 全链路+编译失败→R-Loop token 成本记录进任务卡 | **未做** | - | - |
 | W4-1 | 白4PHP | PHP demo 全链路 | **未做** | - | - |
-| W5-1 | 白5.NET | .NET demo Tier3 static_scan 兜底表现确认 | **未做** | - | - |
+| W5-1 | 白5.NET | .NET demo Tier3 static_scan 兜底表现确认 | **通过** | dotnet-notes demo：csharp 识别+空 catch 跨行命中（修复 2 枚既有漏报）；单测 4 条；任务卡验收栏 | - |
 | F1 | 收口 | README 语言支持表按实况更新 | 部分正确（TS 已更新；Java/Go/PHP 未接故维持 Tier3 描述=实况一致） | README.md | - |
 | F2 | 收口 | pytest 全绿+module_check 无失败+每语言真机证据链 | 部分（py/js/ts/java 四语言证据链齐；go/php/.NET 待阶段3-5） | data/reports/{ts_accept,java_accept}/ | - |
 | AC-1 | 反作弊 | tests/ 目录 git log -p 抽查断言弱化/删除/跳过 | 待查 | - | - |

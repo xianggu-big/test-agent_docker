@@ -27,9 +27,14 @@ log = logging.getLogger(__name__)
 RISK_WORDS = ("TODO", "FIXME", "HACK", "XXX", "WORKAROUND", "待办", "待修", "临时")
 
 # 通用风险模式（正则，跨语言近似——静态模式只报线索不定性）
-_RISK_PATTERNS = [
+# 空 catch 的常规排版是跨行的（catch (...) 换行 {}）——逐行匹配永漏报（终验实锤：
+# dotnet-notes demo 的 C# 空 catch 不命中），归入 _CROSS_LINE_PATTERNS 文件级扫描
+_CROSS_LINE_PATTERNS = [
     ("空 catch（吞异常嫌疑）", re.compile(r"catch\s*\([^)]*\)\s*\{\s*\}")),
+    # except: pass 的常规排版同样是跨行的（except ...: 换行 pass）——同漏报实锤
     ("except 后直接 pass（吞异常嫌疑）", re.compile(r"except[^:]*:\s*pass\b")),
+]
+_RISK_PATTERNS = [
     ("裸 sleep（时序依赖嫌疑）", re.compile(r"\b(sleep\(|Thread\.sleep|time\.Sleep)\b")),
 ]
 
@@ -49,6 +54,8 @@ _SYMBOL_RES = [
     ("go", re.compile(r"^func\s+(?:\([^)]+\)\s*)?(\w+)")),
     ("c", re.compile(r"^\w[\w\s\*]*\s+\**(\w+)\s*\([^;]*\)\s*\{")),
     ("cpp", re.compile(r"^\w[\w\s\*:&<>]*\s+\**(\w+)\s*\([^;]*\)\s*\{")),
+    # C#（白包阶段5）：public/private 修饰符形态与 java 同构，复用同款正则
+    ("csharp", re.compile(r"^\s*(?:public|private|protected|internal)\s+[\w<>\[\]]+\s+(\w+)\s*\(")),
 ]
 
 
@@ -65,7 +72,8 @@ def scan_workspace(ws: Path, max_funcs: int = 20) -> dict:
 
     for p in sorted(ws.rglob("*")):
         if not p.is_file() or p.suffix.lower() not in (".py", ".js", ".ts", ".jsx", ".tsx",
-                                                       ".java", ".go", ".c", ".cpp", ".cc", ".h"):
+                                                       ".java", ".go", ".c", ".cpp", ".cc", ".h",
+                                                       ".cs"):
             continue
         if any(part in config.SKIP_DIRS for part in p.parts):
             continue
@@ -74,10 +82,12 @@ def scan_workspace(ws: Path, max_funcs: int = 20) -> dict:
             lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError:
             continue
+        blob = None                        # 跨行风险模式懒加载（文件级全文）
         ext = p.suffix.lower()
         lang = {".py": "python", ".js": "javascript", ".jsx": "javascript",
                 ".ts": "typescript", ".tsx": "typescript", ".java": "java",
-                ".go": "go", ".c": "c", ".cpp": "cpp", ".cc": "cpp", ".h": "c"}.get(ext, "")
+                ".go": "go", ".c": "c", ".cpp": "cpp", ".cc": "cpp", ".h": "c",
+                ".cs": "csharp"}.get(ext, "")
         lang_counts[lang] = lang_counts.get(lang, 0) + len(lines)
         sym_re = next((r for name, r in _SYMBOL_RES if name == lang), None)
         cur_func: tuple[str, int, str] | None = None
@@ -90,6 +100,23 @@ def scan_workspace(ws: Path, max_funcs: int = 20) -> dict:
                 if rx.search(line):
                     todos.append(f"{p.relative_to(ws).as_posix()}:{i} [{name}] {line.strip()[:80]}")
                     break
+        # 跨行风险模式（文件级，逐个定位首行——去重用 seen 集合防同形态多命中刷屏）
+        if blob is None:
+            blob = chr(10).join(lines)
+        seen_cross = set()
+        for name, rx in _CROSS_LINE_PATTERNS:
+            pos = 0
+            while True:
+                m = rx.search(blob, pos)
+                if not m:
+                    break
+                ln = blob.count(chr(10), 0, m.start()) + 1
+                if ln not in seen_cross:
+                    seen_cross.add(ln)
+                    todos.append(f"{p.relative_to(ws).as_posix()}:{ln} [{name}] "
+                                 f"{lines[ln - 1].strip()[:80]}")
+                pos = m.end()
+        for i, line in enumerate(lines, 1):
             if sym_re:
                 m = sym_re.match(line)
                 if m:
