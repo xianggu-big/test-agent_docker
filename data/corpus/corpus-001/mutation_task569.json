@@ -1,0 +1,68 @@
+{
+ "task_id": 569,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 2,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_check_length_语句分支覆盖",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_check_length_边界值分析[min]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_is_strong_判定表[\\u5168\\u6761\\u4ef6\\u6ee1\\u8db3]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_is_strong_自定义边界_边界值分析[\\u957f\\u5ea6=max]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_check_length_语句分支覆盖"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_has_special_等价类划分[\\u542b\\u611f\\u53f9\\u53f7]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_has_special_语句分支覆盖",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_has_special_非ASCII_错误推测法",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_is_strong_判定表[\\u5168\\u6761\\u4ef6\\u6ee1\\u8db3]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_is_strong_自定义边界_边界值分析[\\u957f\\u5ea6=max]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_has_special_等价类划分[\\u4ec5\\u5b57\\u6bcd\\u6570\\u5b57]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_has_special_等价类划分[\\u4ec5\\u7a7a\\u683c\\u975e\\u7279\\u6b8a]",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_has_special_语句分支覆盖",
+    "data/tmp_mut/task569_t086yr72/test_gen_r1.py::test_is_strong_判定表[\\u7f3a\\u7279\\u6b8a]"
+   ]
+  }
+ ]
+}

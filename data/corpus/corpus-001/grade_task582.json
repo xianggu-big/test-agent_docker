@@ -1,0 +1,49 @@
+{
+ "task_id": 582,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 3,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：5 个失败 nodeid，命中证人 5 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "参数化用例包含长度 64 的输入并期望 True，恰好落在 max_len 闭区间边界缺陷上。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例中无长度恰为 64 的 strength_score 断言（判定表最长仅 9 字符），未触及该计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "is_strong 用例使用自定义边界 4/6 且长度均非 64，未覆盖默认 max_len 边界导致的误判。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_strength_score_错误推测法",
+    "reason": "断言 strength_score('a'*65)==0 与 strength_score(' '*8)==1 等预期可能不符合实际计分规则，需核对需求。"
+   },
+   {
+    "case": "test_is_strong_自定义边界_边界值分析",
+    "reason": "断言 is_strong('Abc1!x',4,6) is True 与 is_strong('Abc1!xy',4,6) is False 的边界预期可能与实现/需求不一致。"
+   },
+   {
+    "case": "test_check_length_自定义边界_边界值分析",
+    "reason": "断言 check_length('abcde',3,5) is True 恰为 max_len 边界，若实现有 >= 缺陷则该断言会失败，属边界敏感用例。"
+   }
+  ]
+ }
+}

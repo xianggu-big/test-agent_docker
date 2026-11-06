@@ -1,0 +1,72 @@
+{
+ "task_id": 568,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 5,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_check_length_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_check_length_区间内_等价类划分[\\u957f\\u5ea68\\u5728\\u533a\\u95f4\\u5185]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_check_length_边界值分析[min]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_check_length_重复调用_错误推测法"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_ASCII边界_边界值分析[ASCII127\\u8d85\\u51fa]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_is_strong_自定义长度边界_边界值分析[\\u957f\\u5ea63\\u5c0f\\u4e8emin]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_ASCII边界_边界值分析[ASCII127\\u8d85\\u51fa]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_ASCII边界_边界值分析[ASCII33\\u4e0b\\u754c]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_含特殊字符_等价类划分[\\u542b!]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_ASCII边界_边界值分析[ASCII126\\u4e0a\\u754c]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_ASCII边界_边界值分析[ASCII127\\u8d85\\u51fa]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_is_strong_自定义长度边界_边界值分析[\\u957f\\u5ea610\\u7b49\\u4e8emax]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_is_strong_自定义长度边界_边界值分析[\\u957f\\u5ea63\\u5c0f\\u4e8emin]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_ASCII边界_边界值分析[ASCII127\\u8d85\\u51fa]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_不含特殊字符_等价类划分[\\u4ec5\\u5b57\\u6bcd\\u6570\\u5b57]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_不含特殊字符_等价类划分[\\u4ec5\\u5c0f\\u5199\\u5b57\\u6bcd]",
+    "data/tmp_mut/task568_zoa66jsq/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖"
+   ]
+  }
+ ]
+}

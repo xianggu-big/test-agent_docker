@@ -1,0 +1,67 @@
+{
+ "task_id": 572,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 2,
+ "mutants_total": 5,
+ "killed": 4,
+ "kill_rate": 0.8,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_check_length_边界值_边界值分析[max]",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_check_length_边界值_边界值分析[min]",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_check_length_默认参数区间内_等价类划分[\\u957f\\u5ea68\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_is_strong_自定义边界_边界值分析",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_strength_score_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_check_length_边界值_边界值分析[max]",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_has_special_等价类划分[\\u542b\\u7279\\u6b8a\\u5b57\\u7b26\\u6709\\u6548\\u7c7b]",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_has_special_错误推测法",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_is_strong_判定表",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_is_strong_自定义边界_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_check_length_边界值_边界值分析[max]",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_has_special_错误推测法",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_is_strong_自定义边界_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_check_length_边界值_边界值分析[max]",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_has_special_等价类划分[\\u5b57\\u6bcd\\u6570\\u5b57\\u65e0\\u6548\\u7c7b]",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_is_strong_判定表",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_is_strong_自定义边界_边界值分析",
+    "data/tmp_mut/task572__mtv7foa/test_gen_r1.py::test_strength_score_判定表"
+   ]
+  }
+ ]
+}

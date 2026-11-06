@@ -1,0 +1,49 @@
+{
+ "task_id": 580,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 3,
+ "uncertain": 0,
+ "not": 0,
+ "recall": 1.0,
+ "extra_suspect": 3,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：7 个失败 nodeid，命中证人 7 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例断言长度恰为 64（max）时 check_length 返回 True，正落在 n >= max_len 的边界缺陷上。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_边界值分析",
+    "reason": "该用例断言长度 64 的密码 strength_score 为 5，正对应长度 64 少得 1 分的缺陷。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_边界值分析",
+    "reason": "该用例断言长度 64 的强密码 is_strong 为 True，正对应边界长度被误判为弱的缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_has_special_错误推测法",
+    "reason": "断言 has_special 对 None/123/list 抛 TypeError，若实现未做类型校验则暴露真实缺陷。"
+   },
+   {
+    "case": "test_strength_score_判定表",
+    "reason": "断言纯小写/大写/数字/符号 8 位密码各得 1 分、空串得 0 分，可能暴露字符类别计分逻辑缺陷。"
+   },
+   {
+    "case": "test_is_strong_自定义边界_边界值分析",
+    "reason": "以自定义 min=5,max=10 断言边界，若 is_strong 不支持参数或边界处理错误则暴露缺陷。"
+   }
+  ]
+ }
+}

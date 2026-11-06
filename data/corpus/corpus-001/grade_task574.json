@@ -1,0 +1,41 @@
+{
+ "task_id": 574,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：2 个失败 nodeid，命中证人 2 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "参数化用例包含长度 64（'a'*64）期望 True，恰好命中 check_length 在 max_len 处返回 False 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例未调用 strength_score，也没有长度恰为 64 的密码评分断言。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义长度边界值分析",
+    "reason": "该用例确实测试 is_strong 在自定义 max 边界（长度 10）处应为 True，与 D5 的边界表现同源，但使用的是自定义 min/max 而非默认 64，未直接覆盖答案键所述默认长度 64 的场景。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义长度边界值分析",
+    "reason": "若 is_strong 不支持 (value, min_len, max_len) 三参签名，则用例本身存在签名错误，需确认接口是否接受自定义长度参数。"
+   }
+  ]
+ }
+}

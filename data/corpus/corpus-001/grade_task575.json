@@ -1,0 +1,41 @@
+{
+ "task_id": 575,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 3,
+ "uncertain": 0,
+ "not": 0,
+ "recall": 1.0,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_自定义边界_边界值分析",
+    "reason": "该用例在 max=5 处断言 check_length('aaaaa',3,5) 为 True，恰好命中 n>=max_len 的闭区间边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_边界值分析",
+    "reason": "该用例含长度 64 的密码并断言 strength_score 为 5，恰好命中长度 64 少得 1 分的缺陷（用例内容被截断，但参数与预期完整）。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_自定义边界_边界值分析",
+    "reason": "该用例在 max=10 处断言 is_strong('Abc1!xyzab',6,10) 为 True，恰好命中边界长度被误判为弱的缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_边界值分析",
+    "reason": "该用例在默认边界下断言长度 64 与 65 均为 True，若默认 max_len 为 64，则长度 65 的预期与闭区间需求矛盾，可能暴露默认边界或预期设定问题。"
+   }
+  ]
+ }
+}

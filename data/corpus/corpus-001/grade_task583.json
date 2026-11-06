@@ -1,0 +1,49 @@
+{
+ "task_id": 583,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 3,
+ "uncertain": 0,
+ "not": 0,
+ "recall": 1.0,
+ "extra_suspect": 3,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：6 个失败 nodeid，命中证人 6 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "参数化用例包含长度 64 的输入并期望 True，恰好命中 check_length 在 max_len 边界返回 False 的缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_边界值分析",
+    "reason": "用例断言长度 64 的密码 strength_score 为 5，命中长度 64 少得 1 分的计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_边界值分析",
+    "reason": "用例断言长度 64 的强密码 is_strong 为 True，命中边界长度被误判为弱密码的缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义边界_边界值分析",
+    "reason": "自定义 min_len/max_len 下 is_strong 的边界行为可能与默认参数实现不一致，值得核查。"
+   },
+   {
+    "case": "test_strength_score_判定表",
+    "reason": "空字符串期望 0 分及各类组合得分，可能暴露 strength_score 对空输入或字符类别的处理缺陷。"
+   },
+   {
+    "case": "test_check_length_自定义边界_边界值分析",
+    "reason": "自定义区间 [3,5] 的闭区间边界断言，可能暴露 check_length 对自定义 max_len 的边界处理问题。"
+   }
+  ]
+ }
+}

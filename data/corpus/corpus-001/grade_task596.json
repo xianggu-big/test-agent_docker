@@ -1,0 +1,45 @@
+{
+ "task_id": 596,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 3,
+ "uncertain": 0,
+ "not": 0,
+ "recall": 1.0,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：12 个失败 nodeid，命中证人 9 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_语句分支覆盖_check_length",
+    "reason": "该用例断言 check_length('a' * 64) is True，恰好命中长度等于 max_len 时返回 False 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_长度条件加分_判定表",
+    "reason": "该用例断言 strength_score('A' * 61 + 'bcdef1!') == 4，但该密码长度为 67 而非 64，未精确命中长度恰为 64 的缺陷；不过 test_is_strong_自定义长度_等价类划分 中长度 10 在自定义区间 [4,10] 内断言 True，若实现复用 check_length 且存在边界错误则可能失败，但未直接断言 strength_score 对长度 64 的得分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "detected",
+    "by": "test_is_strong_自定义长度_等价类划分",
+    "reason": "该用例断言 is_strong('Abcdefg1!!', min_len=4, max_len=10) is True，长度恰等于 max_len，若 check_length 边界错误则 is_strong 返回 False，命中缺陷表现。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_等价类划分",
+    "reason": "用例注释称长度 8 等于 min_len 但需求要求严格大于，断言 False，与答案键中闭区间需求矛盾，可能暴露需求理解错误或实现缺陷。"
+   },
+   {
+    "case": "test_check_length_边界值分析_自定义区间",
+    "reason": "用例断言 check_length('abcdef', 3, 5) 为 False，但长度 6 大于 max_len=5，符合预期；然而若实现存在边界错误，长度 5 的用例 'abcde' 断言 True 可能失败，需确认。"
+   }
+  ]
+ }
+}

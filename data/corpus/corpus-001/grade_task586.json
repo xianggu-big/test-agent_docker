@@ -1,0 +1,41 @@
+{
+ "task_id": 586,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 2,
+ "uncertain": 1,
+ "not": 0,
+ "recall": 0.67,
+ "extra_suspect": 1,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "参数化用例包含长度 64 的输入并期望 True，恰好命中 check_length 在 n==max_len 时返回 False 的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "detected",
+    "by": "test_strength_score_长度边界_边界值分析",
+    "reason": "断言 strength_score('A'+'b'*62+'1!')==5（长度 64）恰好命中长度 64 少得 1 分的计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "",
+    "reason": "证人用例只覆盖 strength_score 与 check_length，没有直接断言 is_strong 对长度 64 强密码返回 True，仅间接沾边。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_strength_score_判定表",
+    "reason": "断言 strength_score('Abcdefgh')==4 与 'Abcdefg1'==4 等，若实现按字符类别计分可能不符，需核对计分规则是否与答案键外逻辑一致。"
+   }
+  ]
+ }
+}

@@ -1,0 +1,45 @@
+{
+ "task_id": 594,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 2,
+ "not": 0,
+ "recall": 0.33,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "参数化用例包含长度 64 的输入并预期 True，恰好命中 check_length 在 max_len 边界返回 False 的缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "uncertain",
+    "by": "test_strength_score_判定表",
+    "reason": "该用例只测了 'a'*64 的得分（预期 2），未测长度 64 且含四类字符应得 5 分的场景，未直接覆盖 D4 的少得 1 分断言。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义长度_判定表",
+    "reason": "该用例用自定义 min/max 测边界，但未覆盖默认 max_len=64 的强密码场景，未直接命中 D5 的边界误判。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_strength_score_判定表",
+    "reason": "断言 'a'*64 得 2、'a'*65 得 1，若实现按闭区间长度计分，'a'*64 应得 1 分长度分而非 2，预期值本身可能与需求不符。"
+   },
+   {
+    "case": "test_is_strong_自定义长度_判定表",
+    "reason": "断言 is_strong('Ab1!', 4, 4) 为 True 且 ('Ab1!', 4, 3) 为 False，涉及 min>max 的非法区间语义，可能暴露参数校验缺失。"
+   }
+  ]
+ }
+}

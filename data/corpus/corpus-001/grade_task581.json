@@ -1,0 +1,45 @@
+{
+ "task_id": 581,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 0,
+ "not": 2,
+ "recall": 0.33,
+ "extra_suspect": 2,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：4 个失败 nodeid，命中证人 4 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例包含长度64的输入并预期True，恰好触发check_length在max_len=64时返回False的边界缺陷。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "没有任何用例调用strength_score或断言其得分，无法覆盖长度64少得1分的计算错误。"
+   },
+   {
+    "id": "D5",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例中is_strong的测试使用自定义边界(4,6)，未测试默认max_len=64的强密码，未触及该缺陷。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_check_length_自定义边界_边界值分析",
+    "reason": "该用例预期长度5（max）返回True，但实现中check_length使用n >= max_len判断，长度等于max_len时返回False，导致断言失败，暴露了与D1同类的边界缺陷（自定义边界场景）。"
+   },
+   {
+    "case": "test_is_strong_自定义边界_边界值分析",
+    "reason": "该用例预期长度6（max）的强密码返回True，但is_strong依赖的check_length在长度等于max_len时返回False，导致断言失败，暴露了与D5同类的边界缺陷（自定义边界场景）。"
+   }
+  ]
+ }
+}

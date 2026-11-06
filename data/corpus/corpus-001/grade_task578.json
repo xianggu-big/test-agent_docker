@@ -1,0 +1,49 @@
+{
+ "task_id": 578,
+ "corpus_id": "corpus-001",
+ "planted_assertion": 3,
+ "detected": 1,
+ "uncertain": 1,
+ "not": 1,
+ "recall": 0.33,
+ "extra_suspect": 3,
+ "expected_miss_performance": 0,
+ "decoy_excluded": 2,
+ "witness_note": "宿主重放工作区：3 个失败 nodeid，命中证人 3 条",
+ "detail": {
+  "matches": [
+   {
+    "id": "D1",
+    "verdict": "detected",
+    "by": "test_check_length_边界值分析",
+    "reason": "该用例包含长度 64 的输入并预期 True，恰好落在 check_length 的 max_len 边界缺陷上。"
+   },
+   {
+    "id": "D4",
+    "verdict": "not",
+    "by": "",
+    "reason": "证人用例只测 is_strong 与 check_length，没有任何用例调用 strength_score 或断言其得分。"
+   },
+   {
+    "id": "D5",
+    "verdict": "uncertain",
+    "by": "test_is_strong_自定义边界_边界值分析",
+    "reason": "该用例测 is_strong 边界，但用的是自定义 min=4/max=6 且输入长度 4-7，未触及默认 max_len=64 的边界，无法暴露 D5。"
+   }
+  ],
+  "extra_suspect": [
+   {
+    "case": "test_is_strong_自定义边界_边界值分析",
+    "reason": "用例把 is_strong 当作接受 (value, min_len, max_len) 三参调用，若实现签名为单参则属签名不匹配，可能是真缺陷或坏用例。"
+   },
+   {
+    "case": "test_check_length_边界值分析",
+    "reason": "用例内容被截断（parametrize 列表与函数体不完整），存在语法错误，无法执行。"
+   },
+   {
+    "case": "test_check_length_默认参数_等价类划分",
+    "reason": "用例内容被截断（函数体不完整），存在语法错误，无法执行。"
+   }
+  ]
+ }
+}
