@@ -69,6 +69,8 @@ def _is_noise_source(p: Path) -> bool:
     tests.py 曾被当被测源码收录。"""
     if p.name.lower() in SOURCE_NOISE_FILES:
         return True
+    if p.name.startswith("TestGen") and p.name.endswith(".php"):
+        return True   # 白包阶段4：php 生成物不进被测源码
     return p.name.startswith("test_") or p.name.endswith("_test.py") \
         or p.name.endswith("_test.go")   # 白包阶段3：go 生成物/自带测试不进被测源码
 
@@ -124,6 +126,13 @@ def gen_file_naming(lang: str, round_no: int, feedback: bool = False, fb_no: int
         if feedback and fb_no:
             base = f"src/test/java/TestGenFb{fb_no}.java"
         return base, "junit5"
+    elif lang == "php":
+        # phpunit 显式文件运行（TestGen*.php 不匹配默认 Test.php 发现后缀，必须传文件）；
+        # 类名与文件名一致（渲染壳保证）——白包阶段4
+        base = f"TestGenR{round_no}.php"
+        if feedback and fb_no:
+            base = f"TestGenFb{fb_no}.php"
+        return base, "phpunit"
     elif lang == "go":
         # go test 只认 *_test.go（同包根目录）；白包阶段3。go test 无文件级隔离参数
         # （R-Loop 轮全包重跑，与 java 同语义边界，诚实入档）
@@ -160,6 +169,9 @@ def collect_gate_cmd(lang: str, fname: str) -> list[str]:
         # go build 不编译 _test.go——测试文件编译靠 go test -c（单包语义，任务卡写 go build ./...，
         # 补 test -c 是"生成代码必须真实编译通过"的忠实实现，偏差入档）。
         return ["sh", "-c", "go build ./... && go test -c -o /tmp/mta_gate.bin ."]
+    if lang == "php":
+        # 白包阶段4：语法闸 php -l（闸不过=生成缺陷整案废案）；编译/运行闸=phpunit 本身
+        return ["php", "-l", fname]
     return ["pytest", "--collect-only", "-q", fname]
 
 
@@ -197,9 +209,11 @@ def _normalize_go_imports(imports_text: str) -> list[str]:
 
 def _iter_source_files(ws: Path, lang: str = "python"):
     """按目标语言枚举被测源码：python=*.py；javascript/typescript=JS_SOURCE_EXTS；
-    java=*.java（白包阶段2）；go=*.go（白包阶段3，排除 _test.go 生成物）。"""
+    java=*.java（白包阶段2）；go=*.go（白包阶段3，排除 _test.go 生成物）；
+    php=*.php（白包阶段4，排除 TestGen* 生成物与 vendor/）。"""
     exts = (".java",) if lang == "java" else (
         ".go",) if lang == "go" else (
+        ".php",) if lang == "php" else (
         JS_SOURCE_EXTS if lang in ("javascript", "typescript") else (".py",))
     if lang == "go":
         pass  # _test.go 过滤在循环内（fname 形态判断）
@@ -262,9 +276,10 @@ def _collect_sources_detailed(ws: Path, lang: str = "python") -> tuple[list[tupl
     is_js = lang in ("javascript", "typescript")
     is_java = lang == "java"
     is_go = lang == "go"    # 白包阶段3：go 无 Python AST，与 JS/java 同走整收分支
+    is_php = lang == "php"   # 白包阶段4：php 无 Python AST，与 JS/java 同走整收分支
     for p, text in _iter_source_files(ws, lang):
         rel = p.relative_to(ws).as_posix()
-        if is_java or is_js or is_go:
+        if is_java or is_js or is_go or is_php:
             # JS：无 AST 切片。语法可粗检（花括号平衡）不拦——语法闸在容器内 node --check。
             budget_left = MAX_SOURCE_CHARS - used
             if len(text) > budget_left:
@@ -329,6 +344,13 @@ def source_outline(ws: Path, lang: str = "python") -> dict | None:
                 names = [n for n in re.findall(
                     r"func\s+(?:\([^)]*\)\s*)?([A-Za-z_][\w]*)\s*\(", text)
                     if not n.startswith("Test")]
+                functions.update(names)
+                files.append(f"{rel}::{('、'.join(dict.fromkeys(names))[:12]) or rel}")
+                continue
+            if lang == "php":
+                # 白包阶段4：php 函数签名正则（function name(...)，剥 test 前缀）
+                names = [n for n in re.findall(r"function\s+([A-Za-z_]\w*)\s*\(", text)
+                         if not n.lower().startswith("test")]
                 functions.update(names)
                 files.append(f"{rel}::{('、'.join(dict.fromkeys(names))[:12]) or rel}")
                 continue
@@ -478,6 +500,10 @@ def _parse_cases(text: str, lang: str | None = None) -> dict | None:
         # 白包阶段3：go test 形态（func TestXxx(t *testing.T)）——混写 Python/jest/JUnit 在解析层剔除
         cleaned = [c for c in cases if isinstance(c, dict)
                    and isinstance(c.get("code"), str) and GO_CASE_RE.search(c["code"])]
+    elif lang == "php":
+        # 白包阶段4：PHPUnit 形态（function test_*）——混写 Python/jest/go 在解析层剔除
+        cleaned = [c for c in cases if isinstance(c, dict)
+                   and isinstance(c.get("code"), str) and PHP_CASE_RE.search(c["code"])]
     else:
         # 用例代码两种语言形态：Python def test_… / jest test("test_…" 或 it("test_…"
         cleaned = [c for c in cases if isinstance(c, dict) and (
@@ -687,6 +713,8 @@ def _patch_target_hits(tree: ast.AST, table: dict) -> list[str]:
 JAVA_CASE_RE = re.compile(r"@\s*Test\b|void\s+test_\w+\s*\(")
 # 白包阶段3：go test 用例形态（func TestXxx(t *testing.T)，表驱动/子测试均含）
 GO_CASE_RE = re.compile(r"func\s+Test\w+\s*\(\s*t\s+\*testing\.T\s*\)")
+# 白包阶段4：PHPUnit 用例形态（function test_*，TestCase 类内方法）
+PHP_CASE_RE = re.compile(r"function\s+test\w*\s*\(")
 
 # B2（任务卡-369 20261105）SUT 功能函数候选清单（最小版）：
 # Python 用 ast 顶层函数；JS 用正则（核查时已验证可提 60+ 名）；
@@ -897,6 +925,9 @@ def _static_filter(cases: list[dict], ws: Path, imports_text: str = "") -> tuple
         return cases, []
     if cases and any(GO_CASE_RE.search((c.get("code") or "")) for c in cases):
         # 白包阶段3：go test 形态——Python AST 不适用；闸=容器内 go build+go test -c（收集闸步骤）
+        return cases, []
+    if cases and any(PHP_CASE_RE.search((c.get("code") or "")) for c in cases):
+        # 白包阶段4：PHPUnit 形态——Python AST 不适用；闸=容器内 php -l（收集闸步骤）
         return cases, []
     table = _module_top_level(ws)
     kept, rejected = [], []
@@ -1387,6 +1418,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     # jest 形态生成；收集闸 js=node --check / ts=tsc --noEmit（collect_gate_cmd 分流）
     is_java = lang == "java"                       # 白包阶段2：JUnit5 形态生成；闸=mvn test-compile
     is_go = lang == "go"                           # 白包阶段3：go test 形态生成；闸=go build+go test -c
+    is_php = lang == "php"                       # 白包阶段4：PHPUnit 形态生成；闸=php -l
     sources, source_skipped = _collect_sources_detailed(ws, lang)
     if source_skipped:
         # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
@@ -1594,7 +1626,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         fname, framework = gen_file_naming(lang, round_no)
         header_text = f"AI 生成用例（第 {round_no} 轮 · 五种方法知识库）"
         version = round_no
-    header = f"// {header_text}" if (is_js or is_java or is_go) else f'"""{header_text}"""'
+    header = f"// {header_text}" if (is_js or is_java or is_go or is_php) else f'"""{header_text}"""'
     imports = (data.get("imports") or "").strip()
     body = "\n\n".join(c["code"].strip() for c in data["cases"])
     content = (header + "\n"
@@ -1623,6 +1655,17 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         content = (header + "\n"
                    + f"package {pkg}\n\nimport (\n"
                    + "".join(f"\t{ln}\n" for ln in import_lines) + ")\n\n" + body + "\n")
+    if is_php:
+        # PHP 方法片段必须包 TestCase 类（渲染壳，类名=文件名——phpunit 显式文件运行前提）。
+        # imports 字段= require_once 语句（lang_rules 约定），原样置顶。
+        cls_name = Path(fname).stem
+        indented = "\n".join(("    " + ln) if ln.strip() else ln for ln in body.splitlines())
+        # <?php 必须是文件第一条语句（declare(strict_types=1) 要求"very first statement"，
+        # 头注只能放 <?php 之后——真机实锤：头注在前 3 轮 php -l 全废案）
+        content = ("<?php\n" + header + "\ndeclare(strict_types=1);\n\n"
+                   + (imports + "\n\n" if imports else "")
+                   + "use PHPUnit\\Framework\\TestCase;\n\n"
+                   + f"class {cls_name} extends TestCase {{\n{indented}\n}}\n")
     (ws / fname).write_text(content, encoding="utf-8")
 
     # —— 落库：脚本版本 + 用例清单（先于闸门，收集失败时可整体废案删除）；

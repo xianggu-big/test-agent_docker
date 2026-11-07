@@ -56,6 +56,13 @@ def canary_cmd(lang: str) -> list[str]:
                 "go version >/dev/null && "
                 "echo ok > /tmp/_canary.tmp && cat /tmp/_canary.tmp && "
                 f"rm /tmp/_canary.tmp && echo '{CANARY_OK}'"]
+    if lang == "php":
+        # 白包阶段4：工具链在位 + 临时文件 IO 自检（php -r 单行）
+        code = (f"file_put_contents('/tmp/_canary.tmp', 'ok');"
+                f"echo file_get_contents('/tmp/_canary.tmp');"
+                f"unlink('/tmp/_canary.tmp');"
+                f"echo '{CANARY_OK}';")
+        return ["php", "-r", code]
     raise ValueError(f"canary 不支持语言: {lang}")
 
 

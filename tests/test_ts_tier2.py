@@ -76,7 +76,7 @@ def test_run_node_js_branch_accepts_typescript():
     from test_agent.graph import nodes
     import inspect
     mod_src = inspect.getsource(nodes)
-    assert 'lang not in ("python", "javascript", "typescript", "java", "go")' in mod_src
+    assert 'lang not in ("python", "javascript", "typescript", "java", "go", "php")' in mod_src
     assert 'lang in ("javascript", "typescript")' in mod_src
 
 

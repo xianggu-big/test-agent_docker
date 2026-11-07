@@ -30,7 +30,8 @@ def probe_deps_manifest(workspace: str | Path) -> str | None:
     for name, kind in (("requirements.txt", "requirements"),
                        ("pyproject.toml", "pyproject"),
                        ("setup.py", "setup_py"),
-                       ("package.json", "package_json")):
+                       ("package.json", "package_json"),
+                       ("composer.json", "composer_json")):
         if (ws / name).exists():
             return kind
     if _has_ts_source(ws):
@@ -128,6 +129,14 @@ def build_skills(runner) -> dict[str, Skill]:
             parts.append(f"package_json({'ci' if has_lock else 'install'}) exit={r.exit_code}\n"
                          f"{r.stdout[-1200:]}{r.stderr[-600:]}")
             _try_ts_tooling(parts, runner, container)   # 白包阶段1：TS 项目补工具链
+        elif manifest == "composer_json":
+            # 白包阶段4（PHP）：composer install（phpunit 等 dev 依赖随项目走）；
+            # --no-interaction 非 TTY 必需；依赖随项目走原则同 JS
+            r = runner.exec_in(container, ["composer", "install", "--no-interaction",
+                                           "--no-progress", "--no-plugins"],
+                               timeout_s=600)
+            parts.append(f"composer_json(install) exit={r.exit_code}\n"
+                         f"{r.stdout[-1200:]}{r.stderr[-600:]}")
         elif manifest == "ts_loose":
             # 白包阶段1：散装 TS（无任何清单但有 .ts 源）——不装项目依赖（无清单可装），
             # 只补 ts-jest 工具链；npm install --no-save 在无 package.json 目录实测可用

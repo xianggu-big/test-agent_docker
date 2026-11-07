@@ -128,7 +128,7 @@ def detect_stack(ws: str | Path) -> dict:
 
     # —— 其它语言（仅识别，不接执行） ——
     for f, lang in (("pom.xml", "java"), ("build.gradle", "java"),
-                    ("go.mod", "go"), ("Cargo.toml", "rust")):
+                    ("go.mod", "go"), ("Cargo.toml", "rust"), ("composer.json", "php")):
         if (ws / f).is_file():
             manifests.append(f)
             vote(lang)

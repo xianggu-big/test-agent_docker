@@ -56,7 +56,7 @@ def test_tiering_contract():
     assert nodes._tier_strategy("typescript") == "full"
     assert nodes._tier_strategy("java") == "full"
     assert nodes._tier_strategy("go") == "full"            # 白包阶段3 接线（go test -json→go_adapter）
-    assert nodes._tier_strategy("php") == "static_only"
+    assert nodes._tier_strategy("php") == "full"   # 白包阶段4 接线（phpunit→php_adapter）
     assert config.EXEC_LANGUAGES["javascript"] == config.IMAGE_JS
     assert config.EXEC_LANGUAGES["typescript"] == config.IMAGE_JS
     assert config.IMAGE_JS in config.IMAGE_BUILD_CTX

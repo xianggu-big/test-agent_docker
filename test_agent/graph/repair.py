@@ -150,6 +150,12 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
                 return "case_defect"
             return "product_defect"
         return "product_defect"
+    # PHP fatal/parse error 分支（白包阶段4，任务卡 S6）：undefined 引用与语法错 → 用例侧
+    # （PHP "Error"/"Exception" 类名不在 Python 异常白名单，此前落 env——真机实锤口径；
+    # 其余 PHP fatal/Uncaught Exception 不在此分支定性，落既有 env/FAILED 路径=诚实边界）
+    if "PHP Fatal error" in text or "PHP Parse error" in text:
+        if re.search(r"Call to undefined (function|class|method)|Parse error|undefined (function|class|method)", text):
+            return "case_defect"
     if "FAILED" in text or "AssertionError" in text:
         return "product_defect"   # 断言合理但行为不符 → 疑似产品缺陷
     return "env"                  # 其余先按环境问题处理（重装依赖重试一次）

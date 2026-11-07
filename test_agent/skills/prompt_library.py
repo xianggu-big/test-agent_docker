@@ -577,6 +577,42 @@ require / jest 形态一律会被系统剔除作废**。
         final_lang_reminder = ("\n**最终检查（最高优先级）：目标语言=Java，code 字段必须是 JUnit5"
                                "（@Test public void test_xxx()），任何 Python（def/assert/pytest）/"
                                "jest 形态都会被系统剔除作废。**")
+    elif target_language == "php":
+        # 白包阶段4：PHPUnit 形态（system 已语言中立，lang_rules 只给语法事实+正例锚定）
+        lang_rules = """
+语言：PHP（PHPUnit 11 + composer）。每条用例是 public function test_xxx(): void 方法
+（方法名必须 test_ 开头），断言用 $this->assertSame/assertSameWithDelta/assertTrue 等
+具体比较，禁止只写 $this->assertNotNull 这类弱断言。被测文件用
+require_once __DIR__ . '/相对路径.php'; 加载（相对工作区根目录，__DIR__ 即项目根，
+**禁止写 '..' 上跳目录**）。code 字段是**纯方法片段**（不含 class 声明/package），
+系统会渲染进 TestGenR1 extends TestCase 类壳；imports 字段放全部 require_once 语句。
+
+**完整形态对照（严格模仿，禁止输出任何其他语言形态）：**
+
+```php
+require_once __DIR__ . '/src/Shop.php';
+
+// 类壳由系统注入：class TestGenR1 extends TestCase {
+public function test_xxx_等价类划分(): void {
+    $this->assertSame(2, Shop::add(1, 1));
+}
+public function test_yyy_边界值分析(): void {
+    $this->assertSame('A', Shop::getTier(90));
+}
+// } 类壳闭合由系统注入
+```
+
+method_text 后的正则形态是唯一合法输出；**def test_ / assert 语句 / pytest /
+jest test() / func Test 形态一律会被系统剔除作废**。
+
+边界纪律（重要）：需求写 >= 90 的边界点就是 90 本身——边界值用例必须取端点（90/89/60/59），
+**禁止用 91 代替 90**；预期值严格按需求文本（>= 90 → "A"），禁止按源码现状反推预期。"""
+        code_example = ('public function test_xxx_等价类划分(): void {\n'
+                        '  $this->assertSame(2, Shop::add(1, 1));\n}')
+        imports_hint = "用例文件顶部所需的全部 require_once 语句"
+        final_lang_reminder = ("\n**最终检查（最高优先级）：目标语言=PHP，code 字段必须是"
+                               " public function test_xxx(): void 形态（PHPUnit），任何 Python/"
+                               "jest/Go 形态都会被系统剔除作废。**")
     elif target_language == "typescript":
         lang_rules = """
 语言：TypeScript（jest + ts-jest）。每条用例是一个顶层 test("test_xxx_方法名", () => {...})，

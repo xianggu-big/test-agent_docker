@@ -34,7 +34,7 @@ from .state import TaskState
 log = logging.getLogger(__name__)
 
 _EXT_LANG = {".py": "python", ".java": "java", ".js": "javascript", ".ts": "typescript",
-             ".jsx": "javascript", ".tsx": "typescript", ".go": "go", ".c": "c", ".cpp": "cpp"}
+             ".jsx": "javascript", ".tsx": "typescript", ".go": "go", ".php": "php", ".c": "c", ".cpp": "cpp"}
 
 _GH_URL = re.compile(
     r"^https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
@@ -81,6 +81,18 @@ def build_run_cmd_java() -> list[str]:
     return ["mvn", "test"]
 
 
+def build_run_cmd_php(gen_files: list[str]) -> list[str]:
+    """PHP 执行链路（Tier2，白包阶段4）：phpunit 显式文件清单（TestGen*.php 不匹配
+    phpunit 默认 Test.php 后缀发现规则，必须显式传）→ --log-junit（surefire 同 family，
+    复用 parse_junit_xml）+ --coverage-clover（pcov 驱动）。自带 tests 第 2 轮起不隔离
+    =java/go 同语义边界，诚实入档。"""
+    # --coverage-filter 必须显式给（phpunit 11 无 filter 配置时跳过 coverage——真机实锤；
+    # "." = 项目根，vendor 由 phpunit 默认排除）
+    return ["vendor/bin/phpunit", *gen_files, "--coverage-filter", ".",
+            "--log-junit", "/tmp/php_junit.xml",
+            "--coverage-clover", "/tmp/php_clover.xml"]
+
+
 def build_run_cmd_go() -> list[str]:
     """Go 执行链路（Tier2，白包阶段3）：go test -json -coverprofile ./...（stdlib 零网络；
     事件流经 go_adapter 转 pytest 文本，下游零改动）。round>1 位置参数不适用（go test
@@ -91,7 +103,7 @@ def build_run_cmd_go() -> list[str]:
 def _tier_strategy(primary: str) -> str:
     """语言分级（analyze 用，Loop 抽出供单测）：full=容器执行链路；其余 static_only。
     typescript 升 Tier2（白包阶段1）；java 接线（白包阶段2）→ full；go 接线（白包阶段3）→ full。"""
-    return "full" if primary in ("python", "javascript", "typescript", "java", "go") \
+    return "full" if primary in ("python", "javascript", "typescript", "java", "go", "php") \
         else "static_only"
 
 
@@ -621,7 +633,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "running")
         lang = state["primary_language"]
-        if lang not in ("python", "javascript", "typescript", "java", "go"):
+        if lang not in ("python", "javascript", "typescript", "java", "go", "php"):
             # 其余语言：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
             return {"done": True, "verdict": "stop",
                     "stop_reason": f"{lang} 执行链路 v1 未接入（诚实降级：static_only 路径走静态扫描），任务终止"}
@@ -676,6 +688,14 @@ def make_nodes(deps: GraphDeps) -> dict:
             # Go 执行链路（Tier2，白包阶段3）：go test -json -coverprofile → go_adapter
             # 转 pytest 风格文本，下游 evaluate/repair/report 零改动（adapter 统一文本唯一接缝）。
             cmd = build_run_cmd_go()
+        elif lang == "php":
+            # PHP 执行链路（Tier2，白包阶段4）：phpunit 显式文件清单 → junit XML/clover
+            # 经 php_adapter 转 pytest 风格文本，下游零改动（adapter 统一文本唯一接缝）。
+            gen_php = sorted(pp.name for pp in ws.glob("TestGen*.php"))
+            imported_php = ws / "test_imported.php"
+            if imported_php.exists():
+                gen_php.append("test_imported.php")
+            cmd = build_run_cmd_php(gen_php)
         else:
             # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
             # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）；
@@ -721,6 +741,11 @@ def make_nodes(deps: GraphDeps) -> dict:
                 # go test -json 事件流逐用例落库（白包阶段3；转换前抽原始事件，同 jest 口径）
                 from ..skills.go_adapter import go_test_json_to_rows
                 rows = go_test_json_to_rows(r.get("stdout", ""))
+            elif lang == "php":
+                # phpunit junit XML 与 surefire 同 family（白包阶段4），parse_junit_xml 直接复用
+                jc = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                    ["cat", "/tmp/php_junit.xml"], timeout_s=15, workdir="/work")
+                rows = parse_junit_xml(jc.stdout) if jc.ok else []
             else:
                 jc = runner.exec_in(
                     runner.client.containers.get(state["container_name"]),
@@ -765,6 +790,18 @@ def make_nodes(deps: GraphDeps) -> dict:
                                  ["cat", "/tmp/go_cover.out"], timeout_s=15, workdir="/")
             r["stdout"] = go_test_json_to_pytest_text(
                 r.get("stdout", ""), cov.stdout if (cov.ok and cov.stdout.strip()) else None)
+        if lang == "php":
+            # php_adapter：junit XML+clover(pcov) → 统一文本（S5 唯一合法接缝，下游零改动）。
+            # junit 必须从容器 cat /tmp/php_junit.xml——原始 stdout 是 phpunit 人读文本，
+            # 喂进解析器=全 0 计数（真机实锤：首轮 smoke 0/0 三轮熔断即此坑）
+            from ..skills.php_adapter import phpunit_junit_to_pytest_text
+            jc = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                ["cat", "/tmp/php_junit.xml"], timeout_s=15, workdir="/work")
+            cv = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                ["cat", "/tmp/php_clover.xml"], timeout_s=15, workdir="/work")
+            r["stdout"] = phpunit_junit_to_pytest_text(
+                jc.stdout if (jc.ok and jc.stdout.strip()) else "",
+                cv.stdout if (cv.ok and cv.stdout.strip()) else None)
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"],
                 "last_cmd": cmd}
 
