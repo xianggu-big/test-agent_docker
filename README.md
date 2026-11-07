@@ -47,17 +47,22 @@ uvicorn test_agent.api.server:app --host 127.0.0.1 --port 8000
 # 浏览器 http://127.0.0.1:8000  演示账号 admin/admin123 · dev/dev123 · caller/caller123
 ```
 
-### 语言支持分级（2026-11-01 定稿；2026-11-06 TS 升 Tier2）
+### 语言支持分级（2026-11-01 定稿；2026-11-06 TS 升 Tier2；2026-11-07 Java/Go/PHP 接入 Tier2）
 
 | 级别 | 语言 | 能力 | 镜像 |
 |---|---|---|---|
 | Tier1 全链路 | Python | 五法生成 → 三道闸 → 容器 pytest → 覆盖率 → R-Loop 归因/证人 → 评估五工具 → 四级接力 | `mta-test:py312` |
 | Tier2 执行链路 | JavaScript / TypeScript | jest 用例生成 → 语法/类型闸（JS=`node --check`，TS=`tsc --noEmit`）→ 容器 jest（ts-jest）→ 覆盖率（.ts 经 sourceMap 回映射）→ R-Loop 归因（jest 输出经 `js_adapter` 转 pytest 文本，下游零改动）；TS 工具链随项目走（缺 ts-jest 时 `npm i --no-save` 补装，散装 TS 走内联 transform 配置） | `mta-test:node20-jest` |
-| Tier3 静态模式 | 其余（Java/Go/C…） | 语言无关确定性扫描（符号/风险词/空 catch/超长函数/深嵌套）+ AI 测试设计草稿（六要素落库，`framework=static_draft`）；**不执行、无覆盖率，报告明示未验证** | 无需容器 |
+| Tier2 执行链路 | Java | JUnit5 用例生成 → `mvn test-compile` 编译闸 → 容器 mvn test → surefire XML+JaCoCo 经 `java_adapter` 转 pytest 文本（下游零改动）→ R-Loop 归因（at 堆栈帧归属） | `mta-test:jdk17-maven` |
+| Tier2 执行链路 | Go | go test 表驱动用例生成 → `go build`+`go test -c` 编译硬闸 → 容器 `go test -json -coverprofile` → 事件流+coverprofile 经 `go_adapter` 转 pytest 文本（下游零改动）→ R-Loop 归因（panic 帧归属：非 stdlib 首帧 TestGen*_test.go=用例侧/被测源=产品侧）；依赖随项目走（go.mod，stdlib 零网络） | `mta-test:go122` |
+| Tier2 执行链路 | PHP | PHPUnit 用例生成 → `php -l` 语法闸 → 容器 phpunit（--log-junit+--coverage-clover pcov）→ junit XML（surefire 同 family）+clover 经 `php_adapter` 转 pytest 文本（下游零改动）→ R-Loop 归因（PHP fatal undefined/Parse error→用例侧）；依赖随项目走（composer.json → composer install） | `mta-test:php83` |
+| Tier3 静态模式 | 其余（C#/.NET/C/Rust…） | 语言无关确定性扫描（符号/风险词/空 catch/超长函数/深嵌套，含 .cs 跨行漏报修复）+ AI 测试设计草稿（六要素落库，`framework=static_draft`）；**不执行、无覆盖率，报告明示未验证** | 无需容器 |
 
-诚实边界：Java 镜像（`mta-test:jdk17-maven`）已备但 JUnit 生成/surefire 解析链路未接 → Tier3（接线中）；
-TS 收集闸 tsc 为 CLI 文件模式（不带 --strict 的宽容口径）——被 SUT 自身类型错误连坐废案属已知边界；
-JS 两阶段评审的"勾选停用"只落台账、暂不摘除 jest 文件内的用例（无 JS AST 摘除器）。
+黑盒通道（与语言无关）：HTTP REST（OpenAPI D4 降级链）/ 运行时日志（app_logs+log_analyze）/ DB 验证（db_sidecar+db_assert 只读闸）/ UI（DOM 快照+selector 真值双闸+Playwright）/ gRPC（.proto 解析+method 闸+grpcurl）——五通道全接线（2026-11-07）。
+
+诚实边界：TS 收集闸 tsc 为 CLI 文件模式（不带 --strict 的宽容口径）——被 SUT 自身类型错误连坐废案属已知边界；
+JS 两阶段评审的"勾选停用"只落台账、暂不摘除 jest 文件内的用例（无 JS AST 摘除器）；
+PHP 覆盖率数值暂不可信（pcov clover 全稀释→0.0%，机制在位）；Go 容器建议 2GB 内存（首轮编译 stdlib 测试依赖内存尖峰）。
 
 ### Windows 桌面一键启动
 

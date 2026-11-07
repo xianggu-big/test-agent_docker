@@ -1,7 +1,7 @@
 # 开发台账（zcode 闲时开发 · 黑盒能力补齐 + 多语言工具链 两任务包）
 
 ## 全局状态
-- 当前执行序位置：5. 黑包·阶段3 UI Playwright（**收口轮 2026-11-07 17:00 开始**：执行序 1-4+检查点一+双5 已完成；本轮目标=执行序 5-9 全部完成+终验刷新，台账唯一真源）
+- 当前执行序位置：**【全部收口 2026-11-07 20:55】**执行序 1-9 全部完成+检查点一/二达成+终验刷新完毕（终验矩阵=.autonomous-loop/final-check-20261106.md 全绿：黑3 UI/白3 Go/黑4 gRPC/白4 PHP/收尾全通过，AC-1/AC-2 反作弊核查实测完成）
 - 基线（2026-11-07 16:54 收口轮实测）：pytest 687 passed / 1 skipped；module_check 138 OK / 0 MISS / 0 FINDING（插队任务 918d023 镜像管理动态化后 683→687）
 - **下轮接续入口（精确）**：执行序 5 黑包阶段3 UI Playwright——S1 调研（trace viewer/accessibility tree）→S2 镜像（mcr.microsoft.com/playwright/python 注册 IMAGE_BUILD_CTX+build_images 自检）→S3 DOM 快照采集（可达性树落盘）→S4 selector 真值闸（虚构元素整案剔除，先写失败测试）+操作序列 schema 闸→S5 执行适配器（pytest+playwright 截图/trace.zip 落库）→S6 真机（demo 前端 3 场景+埋按钮失效缺陷出缺陷报告单）；随后黑4 gRPC→白3 Go（token 成本记录必写进白包任务卡）→白4 PHP→收尾（README 语言表按 go/php 实况更新+终验报告刷新+两检查点复验）
 - 基线（2026-11-07 03:56 终验轮实测）：pytest 679 passed / 1 skipped；module_check 138 OK / 0 MISS / 0 FINDING
@@ -70,4 +70,8 @@
 - 真机验收 [PASS 7/7，smoke_php.py 全图]：语言判定 php/生成 TestGenR1.php（类壳）/framework=phpunit 落库/php -l 闸+轮次/逐用例 nodeid 落库/**埋的 getTier(90) 边界缺陷被 90 端点+判定表用例暴露（product_defect 证人）**/终态产出；轮次 (1, 10, 3)。证据=data/reports/php_accept/smoke_php_20261107-204401.json；单测 12（tests/test_php_pipeline.py）
 - 返工 5 轮（每轮真机实锤）：①exts 链漏 php（收集器拿 .py 找 php 源→零源码 3 轮 0 用例——go AST 同款教训再现）②渲染壳头注在 <?php 前（strict_types must be very first statement 三轮 php -l 全废案）③头注格式分支漏 php（python 三引号风格进 php=Parse error）④composer 缺 zip/unzip（镜像层修复）+ensure_image 幂等跳过重建 ⑤**adapter 把 phpunit 原始 stdout 当 junit 喂入=全 0 计数 0/0 三轮熔断（真 bug：junit 必须 cat /tmp/php_junit.xml）**——顺带 coverage 0.0=pcov 计数异常（clover 3.5MB 全稀释）列诚实边界
 - 契约测试更新：test_multilang tier php→full+test_ts_tier2 源码契约+php lang_rules 语法锁定；demo=data/demo/php-shop（SUT 去 namespace=全局 Shop 类，与 java-shop 默认包同构）
-### 9. 收尾 [.NET 最小化/抓包声明/README 语言表/两包验收栏勾选] [未开始]
+### 9. 收尾 [已完成（2026-11-07 20:55 收口轮）]
+- README 语言支持表按实况更新：TS/Java/Go/PHP 四 Tier2 行+黑盒五通道行+诚实边界（PHP 覆盖率数值/Go 内存建议）
+- 两包验收栏全勾：黑包阶段 1-5（阶段3/4 本轮补验收记录+偏差入档）、白包阶段 1-4（阶段3/4 本轮补验收记录+R-Loop token 成本论文数据入卡）
+- 终验刷新：final-check 矩阵补阶段 5-9 条目行全绿；AC-1 反作弊（git log -p 抽查 tests/ 无断言弱化，契约更新均为合法语义变更）；**AC-2 变异抽查三闸实测**（sqlglot 整案语义改弱→4 红/selector 真值闸恒真→5 红/gRPC method 闸放行虚构→3 红，随即还原 53 绿）；已验条目抽查复验（smoke_db_assert 重跑 PASS 9/9）
+- 基线终测（2026-11-07 20:45）：pytest 762 passed / 1 skipped + module_check 138 OK / 0 MISS / 0 FINDING
