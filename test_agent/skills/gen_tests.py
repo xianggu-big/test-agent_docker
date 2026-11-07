@@ -69,7 +69,8 @@ def _is_noise_source(p: Path) -> bool:
     tests.py 曾被当被测源码收录。"""
     if p.name.lower() in SOURCE_NOISE_FILES:
         return True
-    return p.name.startswith("test_") or p.name.endswith("_test.py")
+    return p.name.startswith("test_") or p.name.endswith("_test.py") \
+        or p.name.endswith("_test.go")   # 白包阶段3：go 生成物/自带测试不进被测源码
 
 
 JS_SOURCE_EXTS = (".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs")
@@ -123,6 +124,13 @@ def gen_file_naming(lang: str, round_no: int, feedback: bool = False, fb_no: int
         if feedback and fb_no:
             base = f"src/test/java/TestGenFb{fb_no}.java"
         return base, "junit5"
+    elif lang == "go":
+        # go test 只认 *_test.go（同包根目录）；白包阶段3。go test 无文件级隔离参数
+        # （R-Loop 轮全包重跑，与 java 同语义边界，诚实入档）
+        base = f"TestGenR{round_no}_test.go"
+        if feedback and fb_no:
+            base = f"TestGenFb{fb_no}_test.go"
+        return base, "go_test"
     else:
         ext, framework = ".py", "pytest"
     if feedback and fb_no:
@@ -147,14 +155,54 @@ def collect_gate_cmd(lang: str, fname: str) -> list[str]:
         # 白包阶段2：编译闸 mvn test-compile（测试代码与主代码一起编译；闸不过=生成缺陷整案废案）。
         # fname 不进命令——maven 编译全项目；任务卡写 `mvn -q compile`，测试代码需 test-compile（偏差入档）。
         return ["mvn", "-q", "test-compile"]
+    if lang == "go":
+        # 白包阶段3：A 档硬闸 go build ./...（主代码）+ go test -c（编译测试文件不执行）。
+        # go build 不编译 _test.go——测试文件编译靠 go test -c（单包语义，任务卡写 go build ./...，
+        # 补 test -c 是"生成代码必须真实编译通过"的忠实实现，偏差入档）。
+        return ["sh", "-c", "go build ./... && go test -c -o /tmp/mta_gate.bin ."]
     return ["pytest", "--collect-only", "-q", fname]
+
+
+def _go_package_of(ws: Path) -> str:
+    """ws 根首个非测试 .go 文件的 package 子句（go test 同包前提；找不到回退 main）。"""
+    for p in sorted(ws.glob("*.go")):
+        if p.name.endswith("_test.go"):
+            continue
+        try:
+            m = re.search(r"^package\s+(\w+)", p.read_text(encoding="utf-8",
+                                                            errors="ignore"), re.M)
+        except OSError:
+            continue
+        if m:
+            return m.group(1)
+    return "main"
+
+
+def _normalize_go_imports(imports_text: str) -> list[str]:
+    """LLM imports 字段 → import() 块行清单（每行一条 import 语句剥前缀补引号）；
+    空回退最小 "testing"（*testing.T 签名必需）。"""
+    out: list[str] = []
+    for ln in (imports_text or "").splitlines():
+        ln = ln.strip()
+        if not ln or ln in ("import", "import (", ")", "(", ")"):
+            continue
+        ln = re.sub(r"^import\s+", "", ln).strip()
+        if ln in ("(", ")"):
+            continue
+        if ln and not ln.startswith('"'):
+            ln = f'"{ln}"'      # 裸路径补引号（LLM 常写 import testing）
+        out.append(ln)
+    return out or ['"testing"']
 
 
 def _iter_source_files(ws: Path, lang: str = "python"):
     """按目标语言枚举被测源码：python=*.py；javascript/typescript=JS_SOURCE_EXTS；
-    java=*.java（白包阶段2）。"""
+    java=*.java（白包阶段2）；go=*.go（白包阶段3，排除 _test.go 生成物）。"""
     exts = (".java",) if lang == "java" else (
+        ".go",) if lang == "go" else (
         JS_SOURCE_EXTS if lang in ("javascript", "typescript") else (".py",))
+    if lang == "go":
+        pass  # _test.go 过滤在循环内（fname 形态判断）
     for p in sorted(ws.rglob("*")):
         if not p.is_file() or p.suffix.lower() not in exts:
             continue
@@ -275,6 +323,14 @@ def source_outline(ws: Path, lang: str = "python") -> dict | None:
                 functions.update(names)
                 files.append(f"{rel}::{('、'.join(dict.fromkeys(names))[:12]) or rel}")
                 continue
+            if lang == "go":
+                # 白包阶段3：go 函数签名正则（func Name(...)/func (r *T) Name(...)，剥 Test 前缀生成物）
+                names = [n for n in re.findall(
+                    r"func\s+(?:\([^)]*\)\s*)?([A-Za-z_][\w]*)\s*\(", text)
+                    if not n.startswith("Test")]
+                functions.update(names)
+                files.append(f"{rel}::{('、'.join(dict.fromkeys(names))[:12]) or rel}")
+                continue
             if is_js:
                 names = re.findall(r"(?:function\s+|const\s+|let\s+|var\s+)"
                                    r"([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\()",
@@ -370,6 +426,13 @@ def _loads_tolerant(s: str):
         try:
             return json.loads(s)
         except json.JSONDecodeError as e:
+            try:
+                # 本地小模型常见形态（qwen3:4b-instruct 实测）：字符串值内裸换行等
+                # 未转义控制字符——strict=False 只放开这一点，安全面不变；
+                # 若同时存在 Python 字面量问题，strict=False 仍失败，落入下方字面量替换
+                return json.loads(s, strict=False)
+            except json.JSONDecodeError:
+                pass
             seg = s[e.pos:e.pos + 5]
             for lit, js in (("True", "true"), ("False", "false"), ("None", "null")):
                 if seg.startswith(lit):
@@ -410,6 +473,10 @@ def _parse_cases(text: str, lang: str | None = None) -> dict | None:
         # 白包阶段2：JUnit5 形态（@Test 注解或 void test_ 方法）——混写 Python/jest 在解析层剔除
         cleaned = [c for c in cases if isinstance(c, dict)
                    and isinstance(c.get("code"), str) and JAVA_CASE_RE.search(c["code"])]
+    elif lang == "go":
+        # 白包阶段3：go test 形态（func TestXxx(t *testing.T)）——混写 Python/jest/JUnit 在解析层剔除
+        cleaned = [c for c in cases if isinstance(c, dict)
+                   and isinstance(c.get("code"), str) and GO_CASE_RE.search(c["code"])]
     else:
         # 用例代码两种语言形态：Python def test_… / jest test("test_…" 或 it("test_…"
         cleaned = [c for c in cases if isinstance(c, dict) and (
@@ -617,6 +684,8 @@ def _patch_target_hits(tree: ast.AST, table: dict) -> list[str]:
 
 
 JAVA_CASE_RE = re.compile(r"@\s*Test\b|void\s+test_\w+\s*\(")
+# 白包阶段3：go test 用例形态（func TestXxx(t *testing.T)，表驱动/子测试均含）
+GO_CASE_RE = re.compile(r"func\s+Test\w+\s*\(\s*t\s+\*testing\.T\s*\)")
 
 # B2（任务卡-369 20261105）SUT 功能函数候选清单（最小版）：
 # Python 用 ast 顶层函数；JS 用正则（核查时已验证可提 60+ 名）；
@@ -824,6 +893,9 @@ def _static_filter(cases: list[dict], ws: Path, imports_text: str = "") -> tuple
         return cases, []   # JS 形态：闸移交收集步骤（node --check），这里不做 AST 审计
     if cases and any(JAVA_CASE_RE.search((c.get("code") or "")) for c in cases):
         # 白包阶段2：JUnit5 形态——Python AST 不适用；闸=容器内 mvn test-compile（收集闸步骤）
+        return cases, []
+    if cases and any(GO_CASE_RE.search((c.get("code") or "")) for c in cases):
+        # 白包阶段3：go test 形态——Python AST 不适用；闸=容器内 go build+go test -c（收集闸步骤）
         return cases, []
     table = _module_top_level(ws)
     kept, rejected = [], []
@@ -1313,6 +1385,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     is_js = lang in ("javascript", "typescript")   # JS/TS 执行链路 Tier2（白包阶段1 升 TS）：
     # jest 形态生成；收集闸 js=node --check / ts=tsc --noEmit（collect_gate_cmd 分流）
     is_java = lang == "java"                       # 白包阶段2：JUnit5 形态生成；闸=mvn test-compile
+    is_go = lang == "go"                           # 白包阶段3：go test 形态生成；闸=go build+go test -c
     sources, source_skipped = _collect_sources_detailed(ws, lang)
     if source_skipped:
         # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
@@ -1520,7 +1593,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         fname, framework = gen_file_naming(lang, round_no)
         header_text = f"AI 生成用例（第 {round_no} 轮 · 五种方法知识库）"
         version = round_no
-    header = f"// {header_text}" if (is_js or is_java) else f'"""{header_text}"""'
+    header = f"// {header_text}" if (is_js or is_java or is_go) else f'"""{header_text}"""'
     imports = (data.get("imports") or "").strip()
     body = "\n\n".join(c["code"].strip() for c in data["cases"])
     content = (header + "\n"
@@ -1534,6 +1607,16 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                    + (imports + "\n\n" if imports else "")
                    + f"public class {cls_name} {{\n{indented}\n}}\n")
         (ws / fname).parent.mkdir(parents=True, exist_ok=True)   # src/test/java/
+    if is_go:
+        # go func 片段可在顶层但不合法（缺 package 子句 + import 块）：渲染层补包壳。
+        # package 名从 ws 根首个 .go 文件的 package 子句读取（同包测试前提）；
+        # imports 字段规范化进 import() 块（lang_rules 约定每行一条 import 语句），
+        # 空 → 最小 "testing"（*testing.T 签名必需）。
+        pkg = _go_package_of(ws)
+        import_lines = _normalize_go_imports(imports)
+        content = (header + "\n"
+                   + f"package {pkg}\n\nimport (\n"
+                   + "".join(f"\t{ln}\n" for ln in import_lines) + ")\n\n" + body + "\n")
     (ws / fname).write_text(content, encoding="utf-8")
 
     # —— 落库：脚本版本 + 用例清单（先于闸门，收集失败时可整体废案删除）；

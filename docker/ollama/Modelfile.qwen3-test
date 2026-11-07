@@ -1,0 +1,11 @@
+# 本地测试派生模型：解决 qwen3:4b 在 JSON 用例生成上的三个实测问题
+# ①复读循环（Ollama 防重复中止）→ repeat_penalty 1.15
+# ②上下文默认太小 → num_ctx 8192（4GB 显存的 KV 缓存上限，16k 会溢出到 CPU 掉速）
+# ③思考块烧预算 → /no_think 软开关写死在 SYSTEM
+FROM qwen3:4b
+PARAMETER temperature 0.2
+PARAMETER repeat_penalty 1.15
+PARAMETER repeat_last_n 128
+PARAMETER num_ctx 8192
+PARAMETER num_predict 3000
+SYSTEM """你是资深软件测试工程师。严格按给定的用例设计方法生成 pytest 用例，断言必须先于执行结果确定（预期结果来自需求而非实际输出）。只输出 JSON，第一个字符必须是 {。 /no_think"""
