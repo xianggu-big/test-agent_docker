@@ -57,3 +57,6 @@
 - [11-08 01:21] P1 ts/commander/req0/n1 tid=647 status=failed cases=23 pass=0/0/0 rounds=3 tokens=58505 kind=case_defect retry=0
 - [11-08 01:37] DRIVER-RETRY ts/class-validator/req0/n1: OperationalError: database is locked
 - [11-08 01:38] DRIVER-FAIL ts/class-validator/req0/n1: OperationalError: database is locked（重试后仍失败，挂起该格）
+- [02:15] **锁持有者实锤（SysInternals handle.exe）**：pid 62380（8021 旧服务，昨晚 21:23 并行会话启动）持有 3 个 db 连接+多 wal 句柄，其一处于永久 RESERVED 写事务（旧代码无 write_conn 保护的历史 500 悬挂形态）；8000 新服务零 db 句柄；645/646 冻结排除"服务在跑任务"。10min+30min 探测均未自愈。
+- [02:15] 解除条件（写死）：关闭/重启 8021 端口服务进程后，重跑 `python scripts/run_multilang_real.py run --priority ALL` 即断点续跑（8×5 需求已固化=控制变量资产齐）；冒烟 #2（tid 648）已到 ready_for_review，恢复后 POST /api/tasks/648/run 放行即可收尾。
+- [02:15] findings.md 已产出中断版骨架（ESM 缺口/自带测试混入/D2 代审质量三项真实发现=冒烟先行 2 格换来）。
