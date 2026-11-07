@@ -1,13 +1,14 @@
 # 开发台账（zcode 闲时开发 · 黑盒能力补齐 + 多语言工具链 两任务包）
 
 ## 全局状态
-- 当前执行序位置：5. 黑包·阶段3 UI Playwright（**终验轮 2026-11-07**：执行序 1/2/3+检查点一+双5 已完成，终验报告=docs/终验报告-两任务包-20261106.md，矩阵=.autonomous-loop/final-check-20261106.md）
-- 基线（2026-11-07 04:05 终验轮实测）：pytest 683 passed / 1 skipped；module_check 138 OK / 0 MISS / 0 FINDING
+- 当前执行序位置：5. 黑包·阶段3 UI Playwright（**收口轮 2026-11-07 17:00 开始**：执行序 1-4+检查点一+双5 已完成；本轮目标=执行序 5-9 全部完成+终验刷新，台账唯一真源）
+- 基线（2026-11-07 16:54 收口轮实测）：pytest 687 passed / 1 skipped；module_check 138 OK / 0 MISS / 0 FINDING（插队任务 918d023 镜像管理动态化后 683→687）
 - **下轮接续入口（精确）**：执行序 5 黑包阶段3 UI Playwright——S1 调研（trace viewer/accessibility tree）→S2 镜像（mcr.microsoft.com/playwright/python 注册 IMAGE_BUILD_CTX+build_images 自检）→S3 DOM 快照采集（可达性树落盘）→S4 selector 真值闸（虚构元素整案剔除，先写失败测试）+操作序列 schema 闸→S5 执行适配器（pytest+playwright 截图/trace.zip 落库）→S6 真机（demo 前端 3 场景+埋按钮失效缺陷出缺陷报告单）；随后黑4 gRPC→白3 Go（token 成本记录必写进白包任务卡）→白4 PHP→收尾（README 语言表按 go/php 实况更新+终验报告刷新+两检查点复验）
 - 基线（2026-11-07 03:56 终验轮实测）：pytest 679 passed / 1 skipped；module_check 138 OK / 0 MISS / 0 FINDING
 - ◆检查点一（2026-11-07 03:57 达成）：TS（smoke_ts 8/8）+Java（smoke_java 7/7）两语言真机全链路证据齐+回归 679 全绿——白包阶段 1/2 正式收口
 - 恢复现场记录（01:35-01:45 本会话）：台账在（执行序1已完成 6db3f26）；工作树遗留=上会话 TS Tier2 半成品（六位置实现+单测+demo+smoke 脚本基本齐、未测试未验收未 commit）；E9/E10 波次未在跑、无 python 进程占线 → 本轮可写；Docker Desktop 已由 preflight 拉起（21s），mta-test:node20-jest 实测含全局 jest 29.7.0/tsc 5.9.3/ts-jest@29
-- 统一执行序：1黑包日志 ✅ → 2白包TS ✅ → 3白包Java → ◆检查点一 → 4黑包DB → ◆检查点二 → 5黑包UI → 6白包Go → 7黑包gRPC → 8白包PHP → 9收尾(.NET最小化+抓包声明+README语言表)
+- 统一执行序：1黑包日志 ✅ → 2白包TS ✅ → 3白包Java ✅ → ◆检查点一 ✅ → 4黑包DB ✅ → ◆检查点二（**无既有结论，列为本轮待办，插在黑包阶段3 完成后执行**=归因准确率复验）→ 5黑包UI → 6白包Go → 7黑包gRPC → 8白包PHP → 9收尾(README语言表+终验刷新)
+- ◆检查点二定义（黑包任务卡执行序里程碑）：归因准确率复验——黑2 DB 引入 env_blocked 分类后，复验归因三闸判词与真实结果一致（计划=verify_gates_real.py 四实验重放 + 新语言堆栈帧归属抽查）
 - 任务包：docs/黑盒能力补齐任务包-20261106.md ｜ docs/多语言工具链接入任务包-20261106.md
 
 ## 阶段条目
@@ -28,9 +29,19 @@
 - 教训沉淀：①「先小样再放量」再次救命——容器探针先于全图跑，全局 ts-jest 挂在烧真机额度前暴露；②上会话注释声称「子串判定即可」被真机证伪——自信注释≠契约，判定逻辑要按最坏输入写测试；③smoke 判据必须对着数据真实形态写（nodeid=fullName 无文件前缀/per_file 是 B2 缺口口径），判据写错会冤枉正确实现；④野进程 & 后台启动占 tmp 库——后台任务一律 run_in_background 受管
 - 下次接续入口：阶段 3 Java（S1 调研先行）
 
-### 3. 白包·阶段2 Java 接线 [未开始]
-### 4. 黑包·阶段2 DB sidecar+db_assert [未开始]
-### 5. 黑包·阶段3 UI Playwright [未开始]
+### 3. 白包·阶段2 Java 接线 [已完成（2026-11-07 03:54，终验轮补做，验收 PASS 7/7，返工 4 轮）]
+- 补录说明（2026-11-07 17:00 收口轮）：原台账本节漏写（"未开始"与全局状态矛盾），按 git 史 bbfa9bd+终验矩阵 W2-1 回填。
+- 交付物：①java_adapter（surefire XML 目录扫描→pytest 风格统一文本：计数/FAILED/ERROR/at 堆栈首帧/JaCoCo 覆盖表，下游零改动）②生成链路=gen_file_naming(src/test/java/TestGenR{N}.java)+JAVA_CASE_RE（@Test/void test_）+collect_gate_cmd(mvn -q test-compile 编译闸)+lang_rules java+渲染层类壳 ③run 节点 java 分支（mvn test+surefire 采集）+_tier_strategy java→full ④demo=data/demo/java-shop（OrderService 埋 getTier(90) 边界缺陷）
+- 返工 4 轮实锤（入任务卡）：①SYSTEM_PROMPT 写死「生成 pytest 用例」（system 位压倒 lang_rules=管线级 bug，语言中立化）②java lang_rules 嵌套永不可达（层级修正）③裸方法片段缺类壳（渲染层补）④LLM 边界取样跳过 90 端点（需求显式化=X2 结论复现）
+- 证据：smoke_java 7/7（data/reports/java_accept/smoke_java_20261107-035437.json）+ 单测 +5 + 回归 679 过 1 跳/守卫 138 OK；commit bbfa9bd
+
+### 4. 黑包·阶段2 DB sidecar+db_assert [已完成（2026-11-07 03:12，终验轮补做，验收 PASS 9/9）]
+- 补录说明（2026-11-07 17:00 收口轮）：原台账本节漏写，按 git 史 7ea1d86+终验矩阵 B2 回填。
+- 交付物：①S1 Testcontainers 调研写卡（四要素对照已有机制→抄模式自实现不引依赖）②db_sidecar.py=parse_db_services+ensure_db_sidecar（mariadb:11/postgres:16+network 互通+探活 wait 超时分支）+run_migrations ③db_assert.py=sqlglot 只读闸（SELECT/SHOW 白名单，违规整案剔除留痕）+db_asserts 第 29 表+SkillRegistry 注册 ④recipe db_services 段校验接线
+- 真机坑 3 枚入档：mariadb:11 无 mysqladmin（mariadb-admin）/exec 默认 workdir=/work 在 DB 镜像 127/容器 status 属性是快照需 reload
+- 证据：smoke_db_assert 9/9（data/reports/db_assert_accept/smoke_db_20261107-031222.json，含 DROP 注入后 orders 表完好机器实证）+ 单测 +24（test_db_assert 14+test_db_sidecar 10）+ 表数契约 28→29 五处同步 + 回归 675 过 1 跳/守卫 138 OK；commit 7ea1d86
+
+### 5. 黑包·阶段3 UI Playwright [进行中（2026-11-07 17:00 收口轮开始）]
 ### 6. 白包·阶段3 Go 接入 [未开始]
 ### 7. 黑包·阶段4 gRPC [未开始]
 ### 8. 白包·阶段4 PHP 接入 [未开始]
