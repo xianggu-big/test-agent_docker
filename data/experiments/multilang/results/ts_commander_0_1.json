@@ -1,0 +1,61 @@
+{
+  "task_id": 647,
+  "status": "failed",
+  "error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "cases_generated": 23,
+  "case_results": {
+    "passed": 0,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "rounds": [
+    {
+      "round_no": 1,
+      "passed": 0,
+      "failed": 212,
+      "verdict": "repair_gen",
+      "failure_kind": "case_defect",
+      "stop_reason": "用例/产品类失败，重新生成用例"
+    },
+    {
+      "round_no": 2,
+      "passed": 0,
+      "failed": 6,
+      "verdict": "repair_gen",
+      "failure_kind": "case_defect",
+      "stop_reason": "用例/产品类失败，重新生成用例"
+    },
+    {
+      "round_no": 3,
+      "passed": 0,
+      "failed": 8,
+      "verdict": "stop",
+      "failure_kind": "case_defect",
+      "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过"
+    }
+  ],
+  "tokens": 58505,
+  "llm_calls": 10,
+  "coverage_line": null,
+  "attribution": {
+    "failure_kinds": [
+      "case_defect",
+      "case_defect",
+      "case_defect"
+    ],
+    "reported_kind": "case_defect",
+    "env_blocked_hit": false,
+    "flaky_hit": false
+  },
+  "stop_reason": "用例/产品类失败，重新生成用例 用例/产品类失败，重新生成用例 补测轮次预算耗尽（3 轮）仍未通过 补测轮次预算耗尽（3 轮）仍未通过 补测轮次预算耗尽（3 轮）仍未通过",
+  "lang": "ts",
+  "project": "commander",
+  "req_idx": 0,
+  "req_title": "Option 默认值与预设值行为",
+  "n": 1,
+  "priority": "P1",
+  "retry": 0,
+  "elapsed_s": 190.1,
+  "requirement": "创建一个 Option，调用 default 设置默认值并调用 preset 设置预设值，验证在未提供该选项时解析结果为默认值，而在仅提供选项名（不带参数）时解析结果为预设值。同时验证 default 的第二个参数会作为默认值描述出现在帮助信息中。"
+}
