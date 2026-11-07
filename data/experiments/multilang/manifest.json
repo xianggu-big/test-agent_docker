@@ -1,0 +1,276 @@
+{
+  "experiment": "multilang-real-smoke",
+  "created": "2026-11-08 01:12:40",
+  "design": {
+    "P1": "代表项目 5需求 x n=3",
+    "P2": "次要项目 5需求 x n=1",
+    "P3": "次要项目补 n=3"
+  },
+  "fetch_channel": "codeload tarball（git clone 历史核验不通）",
+  "projects": [
+    {
+      "lang": "ts",
+      "project": "class-validator",
+      "repo": "https://github.com/typestack/class-validator",
+      "branch": "master",
+      "license": "MIT",
+      "tarball_mb": 0.18,
+      "representative": true,
+      "description": "校验 decorator 框架：validate 校验逻辑/分组/嵌套对象/自定义约束",
+      "local_path": "D:\\test agent_docker\\data\\experiments\\multilang\\repos\\ts\\class-validator",
+      "requirements": [
+        {
+          "title": "未知值默认拒绝校验",
+          "requirement": "当对一个没有任何校验元数据的对象调用 validate 时，默认应返回一条包含 unknownValue 约束的 ValidationError，且该错误的 target 指向被校验对象。若在 ValidatorOptions 中显式设置 forbidUnknownValues 为 false，则同一对象应返回空错误数组。"
+        },
+        {
+          "title": "whitelist 与 forbidNonWhitelisted 组合行为",
+          "requirement": "对一个带有校验装饰器的类实例，若实例上存在未声明任何校验元数据的额外属性，在启用 whitelist 选项时该额外属性应从校验结果中被剔除或忽略；若同时启用 forbidNonWhitelisted，则应产生一条约束键为 whitelist 的 ValidationError，错误消息包含该属性名。"
+        },
+        {
+          "title": "分组过滤与 strictGroups 行为",
+          "requirement": "为同一属性注册分别属于 groupA 和 groupB 的校验装饰器，当 validate 传入 groups: ['groupA'] 时，只应执行 groupA 的校验并忽略 groupB 的失败；当启用 strictGroups 且不传 groups 时，所有带分组的校验元数据都应被排除，不产生任何错误。"
+        },
+        {
+          "title": "Promise 属性异步校验等待",
+          "requirement": "当一个被校验属性值为 Promise 且该属性上存在异步校验装饰器时，validate 返回的 Promise 应等待该属性 Promise 解析后再执行校验，并在解析值不满足约束时在结果中包含对应属性的 ValidationError。若解析值满足约束，则结果中不应包含该属性的错误。"
+        },
+        {
+          "title": "嵌套对象校验错误结构",
+          "requirement": "对一个包含嵌套对象属性的类实例调用 validate，当嵌套对象内部字段违反约束时，返回的 ValidationError 中父属性错误应包含 children 数组，且 children 中对应子属性的 constraints 应包含具体的失败约束键。若嵌套对象全部合法，则父属性不应出现在错误结果中。"
+        }
+      ]
+    },
+    {
+      "lang": "ts",
+      "project": "ts-results",
+      "repo": "https://github.com/vultix/ts-results",
+      "branch": "master",
+      "license": "ISC(BSD 家族)",
+      "tarball_mb": 0.07,
+      "representative": false,
+      "description": "Rust 风格 Result/Option：map/andThen/unwrapErr 语义",
+      "local_path": "D:\\test agent_docker\\data\\experiments\\multilang\\repos\\ts\\ts-results",
+      "requirements": [
+        {
+          "title": "Result.map 在 Ok 与 Err 上的行为",
+          "requirement": "对 Ok 值调用 map 应返回包含映射函数返回值的新 Ok，且原 Ok 不被修改；对 Err 调用 map 应原样返回同一个 Err 实例，映射函数不得被调用。用可观察的调用计数验证 Err 分支下 mapper 未被调用。"
+        },
+        {
+          "title": "Result.andThen 的链式与短路语义",
+          "requirement": "对 Ok 调用 andThen 应返回 mapper 的返回值（Ok 或 Err 均可）；对 Err 调用 andThen 应返回原 Err 且 mapper 不被调用。验证 Ok 分支能正确传播 mapper 返回的 Err，Err 分支保持原错误值不变。"
+        },
+        {
+          "title": "Result.unwrapErr 与 expectErr 的取值与抛错",
+          "requirement": "对 Err 调用 unwrapErr 应返回其包含的错误值；对 Ok 调用 unwrapErr 应抛出错误。对 Err 调用 expectErr 应返回错误值且不抛错；对 Ok 调用 expectErr 应抛出错误。验证抛错场景确实抛出异常而非静默返回。"
+        },
+        {
+          "title": "Option.map 与 andThen 在 Some/None 上的行为",
+          "requirement": "对 Some 调用 map 应返回包裹映射结果的新 Some，对 None 调用 map 应返回 None 且 mapper 不被调用。对 Some 调用 andThen 应返回 mapper 返回的 Option，对 None 调用 andThen 应返回 None 且 mapper 不被调用。"
+        },
+        {
+          "title": "Option.toResult 与 Result.toOption 的互转",
+          "requirement": "对 Some 调用 toResult 应返回包含该值的 Ok 并忽略传入的错误值；对 None 调用 toResult 应返回包含传入错误值的 Err。对 Ok 调用 toOption 应返回包含该值的 Some；对 Err 调用 toOption 应返回 None。"
+        }
+      ]
+    },
+    {
+      "lang": "java",
+      "project": "jsoup",
+      "repo": "https://github.com/jhy/jsoup",
+      "branch": "master",
+      "license": "MIT",
+      "tarball_mb": 0.79,
+      "representative": true,
+      "description": "HTML 解析：DOM 树/属性/文本抽取",
+      "local_path": "D:\\test agent_docker\\data\\experiments\\multilang\\repos\\java\\jsoup",
+      "requirements": [
+        {
+          "title": "Element 构造与标签名大小写保留",
+          "requirement": "使用 new Element(\"DIV\") 创建元素后，tagName() 应返回小写 \"div\"（HTML 命名空间默认规范化）；使用 new Element(\"DIV\", Parser.NamespaceHtml) 时同样应返回 \"div\"。若通过 Tag.valueOf 配合 ParseSettings.preserveCase 构造，则 tagName() 应保留原始大小写 \"DIV\"。验证构造器对标签名规范化的行为符合预期。"
+        },
+        {
+          "title": "Element 属性懒初始化与 attributes() 非空",
+          "requirement": "新建一个未设置任何属性的 Element，调用 attributes() 应返回非 null 的 Attributes 实例，且该实例 size() 为 0。再次调用 attributes() 应返回同一实例（引用相等），验证属性对象被缓存而非每次新建。"
+        },
+        {
+          "title": "Element baseUri 向上继承查找",
+          "requirement": "构造父元素并设置 baseUri 为 \"https://example.com/\"，再将其作为子元素 appendChild 到父元素下，子元素自身未设置 baseUri。此时子元素的 baseUri() 应返回父元素的 \"https://example.com/\"。若子元素显式设置 baseUri 为 \"\"，则其 baseUri() 应返回空字符串而非继承父值。"
+        },
+        {
+          "title": "Element 子节点懒初始化与 childNodeSize",
+          "requirement": "新建一个独立 Element，其 childNodeSize() 应返回 0。调用 appendElement(\"span\") 添加一个子元素后，childNodeSize() 应变为 1，且通过 child(0).tagName() 应得到 \"span\"。验证空子节点列表在首次添加子节点时被正确初始化。"
+        },
+        {
+          "title": "HtmlTreeBuilderState 初始状态处理 DOCTYPE",
+          "requirement": "解析包含 \"<!DOCTYPE html>\" 的 HTML 文档时，生成的 Document 应包含一个 DocumentType 节点，其 name 为 \"html\"，且文档的 quirksMode 不应为 quirks。解析缺少 DOCTYPE 的 HTML 片段时，文档应进入 quirks 模式。验证 Initial 状态对 DOCTYPE 与缺失 DOCTYPE 的处理分支。"
+        }
+      ]
+    },
+    {
+      "lang": "java",
+      "project": "joda-time",
+      "repo": "https://github.com/JodaOrg/joda-time",
+      "branch": "main",
+      "license": "Apache-2.0",
+      "tarball_mb": 1.04,
+      "representative": false,
+      "description": "日期时间：年月日运算/格式化/周期",
+      "local_path": "D:\\test agent_docker\\data\\experiments\\multilang\\repos\\java\\joda-time",
+      "requirements": [
+        {
+          "title": "toFormatter 在无元素时抛出异常",
+          "requirement": "使用空的 DateTimeFormatterBuilder 调用 toFormatter() 时，应抛出 UnsupportedOperationException，且异常消息为 \"Both printing and parsing not supported\"。若先追加至少一个可打印或可解析的元素再调用 toFormatter()，则应返回非 null 的 DateTimeFormatter 实例。"
+        },
+        {
+          "title": "toPrinter 与 toParser 的能力校验",
+          "requirement": "对仅追加了可打印元素（如 appendLiteral）的 builder 调用 toPrinter() 应返回非 null 的 DateTimePrinter；对其调用 toParser() 应抛出 UnsupportedOperationException。反之，对仅追加了可解析元素的 builder 调用 toParser() 应返回非 null 的 DateTimeParser，而调用 toPrinter() 应抛出 UnsupportedOperationException。"
+        },
+        {
+          "title": "toFormatter 返回的格式化器不受后续 builder 修改影响",
+          "requirement": "先用 builder 追加一个固定字面量并调用 toFormatter() 得到 formatter1，再向同一 builder 追加另一个字面量并调用 toFormatter() 得到 formatter2。formatter1 的打印结果应只包含第一次追加的内容，formatter2 的打印结果应包含两次追加的内容，二者互不影响。"
+        },
+        {
+          "title": "LocalDateTime.now 返回当前时间且使用 ISO 年表",
+          "requirement": "调用 LocalDateTime.now() 应返回非 null 的 LocalDateTime 实例，其年表为 ISOChronology（getChronology() 返回 ISOChronology.getInstanceUTC() 或等价 ISO 年表）。连续两次调用 now() 得到的时间差应在合理范围内（非负且小于数秒），且返回对象不可变。"
+        },
+        {
+          "title": "LocalDateTime 字段访问与属性方法一致性",
+          "requirement": "对任意构造的 LocalDateTime，getYear()、getMonthOfYear()、getDayOfMonth()、getHourOfDay()、getMinuteOfHour()、getSecondOfMinute() 的返回值应分别与 year().get()、monthOfYear().get()、dayOfMonth().get()、hourOfDay().get()、minuteOfHour().get()、secondOfMinute().get() 一致。同时 getMillisOfDay() 应等于 hourOfDay*3600000 + minuteOfHour*60000 + secondOfMinute*1000 + millisOfSecond，且各字段值均落在其合法范围内。"
+        }
+      ]
+    },
+    {
+      "lang": "go",
+      "project": "go-humanize",
+      "repo": "https://github.com/dustin/go-humanize",
+      "branch": "master",
+      "license": "MIT",
+      "tarball_mb": 0.03,
+      "representative": true,
+      "description": "人性化格式：字节单位/相对时间/数值",
+      "local_path": "D:\\test agent_docker\\data\\experiments\\multilang\\repos\\go\\go-humanize",
+      "requirements": [
+        {
+          "title": "Bytes 基本 SI 格式化",
+          "requirement": "调用 Bytes 对若干典型字节数（如 0、9、999、1000、82854982）进行格式化，验证返回值符合 SI 单位（B/kB/MB/GB 等）且小数位数与舍入正确。例如 Bytes(82854982) 应返回 \"83 MB\"，Bytes(9) 应返回 \"9 B\"。"
+        },
+        {
+          "title": "BytesN 指定位数格式化",
+          "requirement": "调用 BytesN 并传入不同的总位数 n，验证输出总有效数字位数符合预期，且当 n 不大于整数部分位数时省略小数部分。例如 BytesN(82854982, 3) 应返回 \"82.9 MB\"，BytesN(82854982, 4) 应返回 \"82.85 MB\"。"
+        },
+        {
+          "title": "IBytes 与 IBytesN 的 IEC 格式化",
+          "requirement": "调用 IBytes 和 IBytesN 对同一字节数进行 IEC（1024 进制）格式化，验证单位后缀为 KiB/MiB/GiB 等且数值正确。例如 IBytes(82854982) 应返回 \"79 MiB\"，IBytesN(123456789, 6) 应返回 \"117.738 MiB\"。"
+        },
+        {
+          "title": "ParseBytes 解析合法输入",
+          "requirement": "调用 ParseBytes 解析带单位或不带单位的字符串，验证返回的字节数正确且无错误。例如 ParseBytes(\"42 MB\") 应返回 42000000，ParseBytes(\"42 mib\") 应返回 44040192，ParseBytes(\"1,000\") 应正确处理千位分隔符。"
+        },
+        {
+          "title": "ParseBytes 错误与溢出处理",
+          "requirement": "调用 ParseBytes 传入无法识别的单位后缀或超出 uint64 范围的数值，验证返回非 nil 错误。例如 ParseBytes(\"42 xyz\") 应返回 unhandled size name 错误，ParseBytes(\"99999999999999999999 EB\") 应返回 too large 错误。"
+        }
+      ]
+    },
+    {
+      "lang": "go",
+      "project": "uuid",
+      "repo": "https://github.com/google/uuid",
+      "branch": "master",
+      "license": "BSD-3-Clause",
+      "tarball_mb": 0.02,
+      "representative": false,
+      "description": "UUID：生成/解析/版本/命名空间",
+      "local_path": "D:\\test agent_docker\\data\\experiments\\multilang\\repos\\go\\uuid",
+      "requirements": [
+        {
+          "title": "Parse 标准格式与错误处理",
+          "requirement": "测试 Parse 函数对标准 36 字符 UUID 字符串的解析，应返回正确的 16 字节 UUID 且无错误。同时测试长度非法（如 35 或 37 字符）时返回的错误应能被 IsInvalidLengthError 识别，以及包含非法十六进制字符或连字符位置错误时返回 ErrInvalidUUIDFormat。"
+        },
+        {
+          "title": "Parse 非标准格式支持",
+          "requirement": "测试 Parse 对 32 字符无连字符十六进制串、带花括号的 38 字符 Microsoft 风格串、以及 urn:uuid: 前缀串的解析，均应成功返回与标准格式一致的 UUID。测试 urn 前缀大小写不敏感（如 URN:UUID:），以及前缀错误时返回的错误应能被 errors.Is(err, ErrInvalidURNPrefix) 识别。"
+        },
+        {
+          "title": "ParseBytes 与 Parse 一致性",
+          "requirement": "测试 ParseBytes 对与 Parse 相同的各种合法输入（标准格式、32 字符、花括号、urn 前缀）应产生与 Parse 完全相同的 UUID 和错误结果。测试长度非法时返回的错误应能被 IsInvalidLengthError 识别，非法格式时返回 ErrInvalidUUIDFormat。"
+        },
+        {
+          "title": "MustParse 与 Must 的 panic 行为",
+          "requirement": "测试 MustParse 对合法字符串返回正确 UUID 且不 panic；对非法字符串应 panic，且 panic 消息包含原始输入字符串和底层错误信息。测试 Must 在 err 为 nil 时返回传入的 UUID，在 err 非 nil 时 panic 并携带该错误。"
+        },
+        {
+          "title": "Time 与 UnixTime 转换",
+          "requirement": "测试 Time 类型的 UnixTime 方法对已知 Time 值应返回正确的 Unix 秒和纳秒（纳秒为 100 纳秒单位的余数乘以 100）。测试 UUID 的 Time 方法对版本 1、6、7 的 UUID 应正确解码出时间值，且对由 GetTime 生成的时间经编码再解码后应保持一致。"
+        }
+      ]
+    },
+    {
+      "lang": "php",
+      "project": "semver",
+      "repo": "https://github.com/composer/semver",
+      "branch": "main",
+      "license": "MIT",
+      "tarball_mb": 0.02,
+      "representative": true,
+      "description": "语义化版本：解析/比较/约束区间",
+      "local_path": "D:\\test agent_docker\\data\\experiments\\multilang\\repos\\php\\semver",
+      "requirements": [
+        {
+          "title": "parseStability 识别版本稳定性",
+          "requirement": "调用 VersionParser::parseStability 对多种版本字符串返回稳定性标签。需验证：'1.0.0' 与 '1.0.0+build' 返回 'stable'；'1.0.0-beta' 与 '1.0.0-b1' 返回 'beta'；'1.0.0-alpha' 与 '1.0.0-a1' 返回 'alpha'；'1.0.0-RC1' 返回 'RC'；'dev-master' 与 '1.0.0-dev' 返回 'dev'。"
+        },
+        {
+          "title": "normalizeStability 规范化与非法输入",
+          "requirement": "调用 VersionParser::normalizeStability 验证稳定性字符串规范化。需验证：'rc' 返回 'RC'，'RC' 返回 'RC'，'stable'、'beta'、'alpha'、'dev' 原样返回（大小写不敏感，如 'BETA' 返回 'beta'）。传入非法值如 'foo' 或空字符串时必须抛出 InvalidArgumentException。"
+        },
+        {
+          "title": "isValid 判断版本合法性",
+          "requirement": "调用 VersionParser::isValid 验证版本字符串合法性判定。需验证：'1.0.0'、'1.2.3-beta.1'、'v1.0'、'dev-master' 返回 true；明显非法输入如 'not a version'、'1.0.0.0.0.0' 或空字符串返回 false，且 isValid 内部捕获异常不向外抛出。"
+        },
+        {
+          "title": "normalize 规范化版本字符串",
+          "requirement": "调用 VersionParser::normalize 验证版本规范化输出。需验证：'1.0' 规范化为 '1.0.0.0'，'v1.2.3' 规范化为 '1.2.3.0'，'1.0.0-beta' 规范化为 '1.0.0.0-beta'，'1.0.0+build' 去除构建元数据为 '1.0.0.0'，'master' 规范化为 'dev-master'。对无法解析的输入必须抛出 UnexpectedValueException。"
+        },
+        {
+          "title": "Intervals 子集与相交判定",
+          "requirement": "使用 Intervals::isSubsetOf 与 Intervals::haveIntersections 验证约束区间关系。需验证：约束 '>=1.0.0 <2.0.0' 是 '>=1.0.0' 的子集返回 true，而 '>=1.0.0' 不是 '>=1.0.0 <2.0.0' 的子集返回 false；'>=1.0.0 <2.0.0' 与 '>=1.5.0 <3.0.0' 存在交集返回 true，'<1.0.0' 与 '>=2.0.0' 无交集返回 false。调用 Intervals::clear 后再次判定结果应保持一致。"
+        }
+      ]
+    },
+    {
+      "lang": "php",
+      "project": "email-validator",
+      "repo": "https://github.com/egulias/email-validator",
+      "branch": "master",
+      "license": "MIT",
+      "tarball_mb": 0.01,
+      "representative": false,
+      "description": "邮箱校验：语法树/DNS/警告分类",
+      "local_path": "D:\\test agent_docker\\data\\experiments\\multilang\\repos\\php\\email-validator",
+      "requirements": [
+        {
+          "title": "域名部分以点或连字符开头时抛出异常",
+          "requirement": "当邮箱地址的域名部分以点（.）开头时，DomainPart 解析应抛出 DotAtStart 异常；当域名部分以连字符（-）开头时，应抛出 DomainHyphened 异常。请分别用 '@.example.com' 和 '@-example.com' 验证这两种情况，并确认解析失败。"
+        },
+        {
+          "title": "域名部分以点或连字符结尾时抛出异常",
+          "requirement": "当邮箱地址的域名部分以点结尾时，DomainPart 解析应抛出 DotAtEnd 异常；当域名部分以连字符结尾时，应抛出 DomainHyphened 异常。请分别用 'user@example.com.' 和 'user@example.com-' 验证，并确认解析失败。"
+        },
+        {
+          "title": "空域名部分抛出 NoDomainPart 异常",
+          "requirement": "当邮箱地址中 '@' 之后没有任何域名内容（如 'user@'）时，DomainPart 解析应抛出 NoDomainPart 异常。请验证该输入被判定为无效，且异常类型正确。"
+        },
+        {
+          "title": "超长域名产生 DomainTooLong 警告",
+          "requirement": "当域名部分长度超过 254 个字符时，DomainPart 解析不应抛出异常，但应在警告集合中包含 DomainTooLong 警告。请构造一个域名长度超过 254 的合法邮箱地址，验证解析成功且警告集合中存在 DomainTooLong 类型的警告。"
+        },
+        {
+          "title": "IPv6 地址字面量分组数量校验",
+          "requirement": "当域名部分为 IPv6 地址字面量且未使用 '::' 缩写时，若冒号分隔的组数不等于 8，应产生 IPV6GroupCount 警告；若组数等于 8 则不应产生该警告。请分别用组数不为 8 和恰好为 8 的 IPv6 字面量邮箱地址验证警告集合的差异。"
+        }
+      ]
+    }
+  ]
+}
