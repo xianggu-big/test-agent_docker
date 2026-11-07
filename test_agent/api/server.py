@@ -1122,13 +1122,50 @@ def api_get_config(user: dict = Depends(admin)):
 
 @app.get("/api/images")
 def api_images(user: dict = Depends(staff)):
-    out = []
-    for image in config.IMAGE_BUILD_CTX:
+    """镜像管理动态视图（三源合并去重，2026-11-07）：
+    ① registered=IMAGE_BUILD_CTX（buildable=true，可「自动构建」）
+    ② local=docker 实际扫描（SDK images.list()，与 docker images --format 等价——
+       runner 现有方式即 SDK，非 CLI）
+    ③ aux=AUX_IMAGES（sidecar/recipe 基础池，仅展示）
+    按镜像名去重，来源优先级 registered > local > aux。docker 不可达 → degraded
+    标志随 200 返回（页面仍可用注册/辅助两源），不抛 500。
+    新镜像接入：可构建 → 注册 IMAGE_BUILD_CTX；仅展示 → 加 AUX_IMAGES。"""
+    def _probe(image: str) -> tuple[bool, int | None]:
         try:
             info = get_runner().client.images.get(image)
-            out.append({"image": image, "ready": True, "size_mb": round(info.attrs["Size"] / 1e6)})
-        except Exception:
-            out.append({"image": image, "ready": False, "size_mb": None})
+            return True, round((info.attrs.get("Size") or 0) / 1e6)
+        except Exception:                 # noqa: BLE001 —— ImageNotFound 及驱动差异
+            return False, None
+
+    rows: dict[str, dict] = {}
+    for image in config.IMAGE_BUILD_CTX:
+        exists, size_mb = _probe(image)
+        rows[image] = {"name": image, "source": "registered", "exists": exists,
+                       "size_mb": size_mb, "buildable": True}
+    degraded = ""
+    docker_scanned = True
+    try:
+        listed = get_runner().client.images.list()
+    except Exception as e:                # noqa: BLE001 —— docker 未起/守护进程瞬断
+        docker_scanned = False
+        degraded = f"docker 扫描不可用（{type(e).__name__}），仅返回注册/辅助两源"
+        listed = []
+    for img in listed:
+        for tag in (img.tags or []):
+            if tag not in rows:
+                rows[tag] = {"name": tag, "source": "local", "exists": True,
+                             "size_mb": round((img.attrs.get("Size") or 0) / 1e6),
+                             "buildable": False}
+    for image in config.AUX_IMAGES:
+        if image in rows:
+            continue                      # registered/local 优先级更高，不覆盖
+        exists, size_mb = _probe(image)
+        rows[image] = {"name": image, "source": "aux", "exists": exists,
+                       "size_mb": size_mb, "buildable": False}
+    out = {"images": sorted(rows.values(), key=lambda r: (r["source"], r["name"])),
+           "docker_scanned": docker_scanned}
+    if degraded:
+        out["degraded"] = degraded
     return out
 
 

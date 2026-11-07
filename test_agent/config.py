@@ -176,6 +176,12 @@ RECIPE_IMAGE_POOL = {
     "javascript": {"18": "node:18-bookworm-slim", "20": "node:20-bookworm-slim",
                    "22": "node:22-bookworm-slim"},
 }
+# 辅助镜像清单（镜像管理动态化 2026-11-07）：sidecar/recipe 基础池等「仅展示」镜像——
+# 接入方式：可自动构建的注册进 IMAGE_BUILD_CTX（buildable=true）；仅作依赖/基础镜像
+# 的进本清单（buildable=false，页面显示存在状态、无构建按钮）
+AUX_IMAGES = ["mariadb:11", "postgres:16"] + sorted(
+    {v for pool in RECIPE_IMAGE_POOL.values() for v in pool.values()})
+
 # 允许的安装命令前缀（正则全匹配；其余一律拒绝——LLM 不能写任意命令）
 RECIPE_ALLOWED_INSTALL = [
     r"pip install -r [A-Za-z0-9._/\-]+",

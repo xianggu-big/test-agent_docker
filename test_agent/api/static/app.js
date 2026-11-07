@@ -1437,10 +1437,20 @@ async function refreshSettings() {
   $("st-config").innerHTML = Object.entries(cfg).filter(([k]) => k !== "note").map(([k, v]) =>
     `<div class="k">${esc(k)}</div><div>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</div>`).join("") +
     `<div class="k">说明</div><div class="hint" style="grid-column:1/-1">${esc(cfg.note)}</div>`;
-  const imgs = await api("/images");
-  $("st-images").innerHTML = imgs.map(i =>
-    `<div class="img-row"><span>${esc(i.image)}</span><span class="badge ${i.ready ? "badge-ok" : "badge-fail"}">${i.ready ? "就绪 " + i.size_mb + "MB" : "缺失"}</span>` +
-    (i.ready ? "" : `<button class="btn btn-primary btn-sm" onclick="buildImage('${encodeURIComponent(i.image)}')">自动构建</button>`) + `</div>`).join("");
+  const imgData = await api("/images");
+  const IMG_GROUPS = { registered: "注册可构建", local: "本地已存在（未注册）", aux: "辅助依赖" };
+  $("st-images").innerHTML =
+    (imgData.degraded ? `<div class="hint" style="grid-column:1/-1">⚠ ${esc(imgData.degraded)}</div>` : "") +
+    ["registered", "local", "aux"].map(g => {
+      const items = (imgData.images || []).filter(i => i.source === g);
+      if (!items.length) return "";
+      return `<div class="hint" style="grid-column:1/-1;margin-top:6px">${IMG_GROUPS[g]}</div>` +
+        items.map(i =>
+          `<div class="img-row"><span>${esc(i.name)}</span>` +
+          `<span class="badge ${i.exists ? "badge-ok" : "badge-fail"}">${i.exists ? "存在 " + i.size_mb + "MB" : "缺失"}</span>` +
+          (i.buildable && !i.exists ? `<button class="btn btn-primary btn-sm" onclick="buildImage('${encodeURIComponent(i.name)}')">自动构建</button>` : "") +
+          `</div>`).join("");
+    }).join("");
   const users = await api("/users");
   $("st-users").innerHTML = users.map(u =>
     `<div class="img-row"><span>${esc(u.username)}</span><span class="badge badge-${u.role === "developer" ? "dev" : u.role}">${ROLE_CN[u.role]}</span><span class="hint">创建于 ${esc(bjTime(u.created_at))}</span></div>`).join("");
@@ -1772,9 +1782,14 @@ function renderEnv(b) {
   else if (blocking.length) { cls = "bad"; text = "环境未就绪：" + blocking.map(i => i.label).join("、"); }
   else if (warn.length) { cls = "warn"; text = "环境就绪（" + warn[0].label + "未配置，将诚实降级）"; }
   // R1/F09：三状态胶囊组（设计图规格：Docker/镜像/API Key，浅绿底绿字；异常红、准备中脉冲）
-  const PICK = { docker: "Docker", "image:mta-test:py312": "镜像 ✓", llm: "API Key ✓" };
-  const pills = ["docker", "image:mta-test:py312", "llm"].map(k => {
-    const it = items.find(i => i.key === k) || {};
+  // 镜像胶囊动态化（2026-11-07）：探针已逐镜像产出 image:* 项（EXEC_LANGUAGES 全部执行镜像），
+  // 聚合为 N/M——任一缺失即降级「镜像 ok/total」并标红，不再写死单镜像
+  const imgItems = items.filter(i => (i.key || "").startsWith("image:"));
+  const imgOkN = imgItems.filter(i => i.status === "ok").length;
+  const aggImage = { key: "image", status: imgItems.length && imgOkN === imgItems.length ? "ok" : "missing" };
+  const PICK = { docker: "Docker", image: imgItems.length && imgOkN === imgItems.length ? "镜像 ✓" : `镜像 ${imgOkN}/${imgItems.length}`, llm: "API Key ✓" };
+  const pills = ["docker", "image", "llm"].map(k => {
+    const it = k === "image" ? aggImage : (items.find(i => i.key === k) || {});
     const okPill = it.status === "ok";
     const bg = prep.state === "running" ? "#fef3c7" : okPill ? "#d1fae5" : "#fee2e2";
     const fg = okPill ? "#059669" : "#b91c1c";
