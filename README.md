@@ -13,7 +13,7 @@ L2 编排    graph/ LangGraph 固定图（9 节点）：
 L3 技能    skills/ 注册表：schema / 风险分级 / 超时 / 审计台账 / fail-closed 确认门
            内置：install_deps / run_tests(high,需确认) / gen_tests + 评估五工具（evaluate.py）
 L4 沙箱    sandbox/ Docker 容器执行（mta-test:py312 镜像，非 root tester + 资源限额）
-L5 数据    store/ 29 张表 SQLite（WAL + 外键 + 幂等迁移）：docs/layer5-data-schema.sql
+L5 数据    store/ 30 张表 SQLite（WAL + 外键 + 幂等迁移）：docs/layer5-data-schema.sql
 ```
 
 ## 核心机制

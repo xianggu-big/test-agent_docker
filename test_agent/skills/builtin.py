@@ -175,6 +175,11 @@ def build_skills(runner) -> dict[str, Skill]:
     def db_assert(task_id: int, args: dict) -> str:
         return _db_assert_fn(api_key=None, args=args, task_id=task_id, runner=runner)
 
+    from .ui_assert import ui_assert as _ui_assert_fn
+
+    def ui_assert(task_id: int, args: dict) -> str:
+        return _ui_assert_fn(api_key=None, args=args, task_id=task_id, runner=runner)
+
     return {
         "install_deps": Skill(
             name="install_deps", description="容器内安装被测项目 Python 依赖（三类清单探测分流）",
@@ -198,4 +203,10 @@ def build_skills(runner) -> dict[str, Skill]:
             func=db_assert, risk_level="medium", timeout_ms=120_000,
             arg_schema={"sql": "str", "container_name": "str", "engine": "str",
                         "database": "str", "round_no": "int"}),
+        "ui_assert": Skill(
+            name="ui_assert", description="UI 黑盒验证：操作序列经双闸（动作 schema+selector 真值，虚构元素整案剔除留痕）后在 Playwright 容器内真实执行，逐步截图+trace.zip 落库，失败场景出缺陷报告单",
+            func=ui_assert, risk_level="medium", timeout_ms=300_000,
+            arg_schema={"scenarios": "str(JSON)", "snapshot": "str(JSON)",
+                        "container_name": "str", "url": "str",
+                        "round_no": "int", "evidence_dir": "str"}),
     }

@@ -483,3 +483,25 @@ CREATE TABLE IF NOT EXISTS db_asserts (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_db_asserts_task_round ON db_asserts(task_id, round_no);
+
+-- 第 30 表：ui_assert 断言台账（黑盒能力补齐阶段3）——UI 操作序列经双闸
+-- （动作 schema 闸+selector 真值闸，虚构元素整案剔除）后在 Playwright 容器内
+-- 真实执行的结构化结果（场景级 junitxml 权威判定 + 步骤级逐步 verdict）。
+-- 幂等口径与 app_logs/db_asserts 一致：round≤1 清全任务、round>1 清同轮。
+CREATE TABLE IF NOT EXISTS ui_asserts (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id         INTEGER NOT NULL REFERENCES test_tasks(id),
+  round_no        INTEGER NOT NULL DEFAULT 1,
+  scenario        TEXT NOT NULL,               -- 场景名（LLM 生成，过闸后原样留痕）
+  step_no         INTEGER NOT NULL DEFAULT 0,  -- 0=场景级（junit 权威判定），≥1=步骤级
+  action          TEXT NOT NULL,               -- scene/goto/click/fill/expect_visible/expect_text/gate
+  selector        TEXT NOT NULL DEFAULT '',    -- 步骤 selector 原文（虚构留痕的依据）
+  verdict         TEXT NOT NULL CHECK (verdict IN ('passed','failed','rejected')),
+  error           TEXT NOT NULL DEFAULT '',    -- failed 时错误消息（截断 ≤500）
+  screenshot_path TEXT NOT NULL DEFAULT '',    -- 步骤/场景截图（证据可追溯）
+  trace_path      TEXT NOT NULL DEFAULT '',    -- 每场景 trace.zip（Playwright trace viewer）
+  rejected_reason TEXT NOT NULL DEFAULT '',    -- rejected 时闸门拒绝理由（双闸可审计）
+  elapsed_ms      INTEGER NOT NULL DEFAULT 0,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ui_asserts_task_round ON ui_asserts(task_id, round_no);

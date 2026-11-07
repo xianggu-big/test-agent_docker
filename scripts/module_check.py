@@ -144,7 +144,7 @@ def part1_completion() -> list[Item]:
 
     # —— 第十一轮补齐：以下为第四至十轮新机制的静态契约（此前契约集合停在 2026-10-28 三方案轮）——
 
-    # 10) L5 表契约：29 表齐备（15-18 rtm_maps/evaluation_rounds/complexity_hotspots/llm_calls
+    # 10) L5 表契约：30 表齐备（15-18 rtm_maps/evaluation_rounds/complexity_hotspots/llm_calls
     #     + 19-22 四级双轨：test_levels/interface_endpoints/call_edges/scenario_cases
     #     + 23 review_decisions：AI 代审/人工审查决策台账，决策必须结构化+可解释
     #     + 24 test_case_results：逐用例执行结果，实时执行看板数据源（任务C/2026-11-01）
@@ -160,10 +160,10 @@ def part1_completion() -> list[Item]:
         "evaluation_rounds", "complexity_hotspots", "llm_calls",
         "test_levels", "interface_endpoints", "call_edges", "scenario_cases",
         "review_decisions", "test_case_results", "exec_queue", "image_recipes", "login_events",
-        "app_logs", "db_asserts"}
+        "app_logs", "db_asserts", "ui_asserts"}
     (ok if created == expected_tables else miss)(
-        "L5 schema 29 表契约",
-        "29 表齐备" if created == expected_tables else
+        "L5 schema 30 表契约",
+        "30 表齐备" if created == expected_tables else
         f"缺失={sorted(expected_tables - created)} 多余={sorted(created - expected_tables)}")
     tasks_ddl = re.search(r"CREATE TABLE IF NOT EXISTS test_tasks\s*\(.*?\n\)", ddl, re.S)
     (ok if tasks_ddl and "ready_for_review" in tasks_ddl.group(0) else miss)(
