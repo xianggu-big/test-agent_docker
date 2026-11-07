@@ -9,6 +9,7 @@
 - 恢复现场记录（01:35-01:45 本会话）：台账在（执行序1已完成 6db3f26）；工作树遗留=上会话 TS Tier2 半成品（六位置实现+单测+demo+smoke 脚本基本齐、未测试未验收未 commit）；E9/E10 波次未在跑、无 python 进程占线 → 本轮可写；Docker Desktop 已由 preflight 拉起（21s），mta-test:node20-jest 实测含全局 jest 29.7.0/tsc 5.9.3/ts-jest@29
 - 统一执行序：1黑包日志 ✅ → 2白包TS ✅ → 3白包Java ✅ → ◆检查点一 ✅ → 4黑包DB ✅ → ◆检查点二（**无既有结论，列为本轮待办，插在黑包阶段3 完成后执行**=归因准确率复验）→ 5黑包UI → 6白包Go → 7黑包gRPC → 8白包PHP → 9收尾(README语言表+终验刷新)
 - ◆检查点二定义（黑包任务卡执行序里程碑）：归因准确率复验——黑2 DB 引入 env_blocked 分类后，复验归因三闸判词与真实结果一致（计划=verify_gates_real.py 四实验重放 + 新语言堆栈帧归属抽查）
+- ◆检查点二 [达成 2026-11-07 18:07，插在黑包阶段3 完成后]：①三闸真机重放 E1/E2/E3 全 PASS（data/reports/gate_verify/run_20261107-180633/——E2 task_366 反事实 12 条误诊降级 case_defect 复现、E3 flaky 标注+fail-to-pass 维持 product_defect）②新语言帧归属抽查 4 条永久锁（tests/test_checkpoint2_attribution_replay.py：Java 产品缺陷顶帧 SUT 保留/JS 用例侧 evalmachine→case_defect/JS 产品缺陷保留/**Java 用例侧 NPE 落 product_defect 启发式=既有诚实边界锁定**（Java 异常类不在 TypeError|ReferenceError 白名单，人工标注纠正路径，防静默漂移））
 - 任务包：docs/黑盒能力补齐任务包-20261106.md ｜ docs/多语言工具链接入任务包-20261106.md
 
 ## 阶段条目
