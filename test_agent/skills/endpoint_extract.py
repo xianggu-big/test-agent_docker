@@ -4,12 +4,15 @@
   ① 仓库自带 OpenAPI/Swagger spec（JSON）→ 全量解析：路径/方法/参数/请求体 schema/2xx 响应 schema
   ② 框架路由 AST 提取（Flask/FastAPI 无 spec 场景）→ P2（本轮占位不入链）
   ③ 无路由特征 → 诚实降级：返回 None，由调用方如实上报（绝不硬造端点）
+  ④ .proto 文件解析（黑包阶段4，2026-11-07）：service/rpc/message 清单——gRPC 真值清单
+    （放在 spec 之后：REST 项目带 .proto 的场景 spec 优先，纯 gRPC 项目走本源）
 
 $ref 处理：resolve_refs 确定性展开 components/schemas 引用（深度限 12 防循环），生成物
 自包含——契约校验侧（jsonschema.validate）不再依赖 spec 上下文。
 """
 import json
 import logging
+import re
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -17,6 +20,45 @@ log = logging.getLogger(__name__)
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 _SPEC_NAMES = ("openapi.json", "swagger.json")
 _MAX_REF_DEPTH = 12
+
+# —— proto3 文本解析（黑包阶段4）：正则子集，覆盖 demo/常见 proto3 形态 ——
+# 已知边界：嵌套 message（大括号嵌套）不支持——正则取到首个 } 为止，留档不报错（诚实降级）
+_SERVICE_RE = re.compile(r"service\s+(\w+)\s*\{([^}]*)\}")
+_RPC_RE = re.compile(
+    r"rpc\s+(\w+)\s*\(\s*(stream\s+)?([\w.]+)\s*\)\s*returns\s*\(\s*(stream\s+)?([\w.]+)\s*\)")
+_MESSAGE_RE = re.compile(r"message\s+(\w+)\s*\{([^}]*)\}")
+_FIELD_RE = re.compile(r"^\s*(?:repeated\s+|optional\s+)?([\w.]+)\s+(\w+)\s*=\s*\d+", re.M)
+
+
+def parse_proto(text: str) -> dict:
+    """proto3 文本 → {services:[{name, methods:[{name,input,output}]}], messages:{name:{field:type}}}。
+
+    纯正则子集：不解析 option/enum/nested message（诚实边界，demo/常见形态覆盖）。"""
+    doc = {"services": [], "messages": {}}
+    for m in _MESSAGE_RE.finditer(text or ""):
+        fields = {}
+        for fm in _FIELD_RE.finditer(m.group(2) or ""):
+            fields[fm.group(2)] = fm.group(1)
+        doc["messages"][m.group(1)] = fields
+    for sm in _SERVICE_RE.finditer(text or ""):
+        methods = []
+        for rm in _RPC_RE.finditer(sm.group(2) or ""):
+            methods.append({"name": rm.group(1), "input": rm.group(3),
+                            "output": rm.group(5)})
+        if methods:
+            doc["services"].append({"name": sm.group(1), "methods": methods})
+    return doc
+
+
+def proto_endpoints(doc: dict) -> list[dict]:
+    """proto 文档 → 端点清单（与 openapi 端点平行的形状，gRPC 闸门/LLM 事实注入共用）。"""
+    eps = []
+    for svc in doc.get("services") or []:
+        for m in svc.get("methods") or []:
+            eps.append({"proto": True, "service": svc["name"], "rpc": m["name"],
+                        "input": m["input"], "output": m["output"],
+                        "input_fields": dict((doc.get("messages") or {}).get(m["input"], {}))})
+    return eps
 
 
 def resolve_refs(schema, components: dict, depth: int = 0):
@@ -95,4 +137,15 @@ def probe_endpoint_source(ws: Path) -> tuple[list[dict] | None, str]:
         if eps:
             return eps, f"spec:{name}"
         log.warning("spec %s 无可收端点，降级试下一个来源", name)
+    # ④ .proto 源（黑包阶段4）：spec 之后降级——REST+proto 并存场景 spec 优先
+    for p in sorted(ws.glob("*.proto")):
+        try:
+            doc = parse_proto(p.read_text(encoding="utf-8", errors="replace"))
+        except OSError as e:
+            log.warning("proto %s 读取失败，降级试下一个来源: %s", p.name, e)
+            continue
+        eps = proto_endpoints(doc)
+        if eps:
+            return eps, f"proto:{p.name}"
+        log.warning("proto %s 无可收 rpc，降级试下一个来源", p.name)
     return None, "no_spec"

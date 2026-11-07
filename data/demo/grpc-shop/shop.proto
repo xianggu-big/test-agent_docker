@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+// 白包 demo：订单商店 gRPC 服务（黑包阶段4 真值清单载体）
+message Order {
+  int64 id = 1;
+  string customer = 2;
+  double amount = 3;
+  string status = 4;
+}
+
+message GetOrderRequest {
+  int64 id = 1;
+}
+
+message ListOrdersRequest {
+  string status = 1;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+message ListOrdersResponse {
+  repeated Order orders = 1;
+}
+
+service Shop {
+  rpc GetOrder (GetOrderRequest) returns (GetOrderResponse);
+  rpc ListOrders (ListOrdersRequest) returns (ListOrdersResponse);
+}

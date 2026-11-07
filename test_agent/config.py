@@ -18,12 +18,14 @@ IMAGE_JAVA = "mta-test:jdk17-maven"
 IMAGE_JS = "mta-test:node20-jest"     # JS/TS 执行链路（jest Tier2，2026-11-01）
 IMAGE_UI = "mta-test:playwright"      # UI 黑盒执行链路（黑盒能力补齐阶段3，2026-11-07）
 IMAGE_GO = "mta-test:go122"           # Go 执行链路（白包阶段3，2026-11-07）
+IMAGE_GRPC = "mta-test:grpcurl"       # gRPC 黑盒执行链路（黑盒能力补齐阶段4，2026-11-07）
 IMAGE_BUILD_CTX = {
     IMAGE_PY: ROOT / "docker" / "python-test",
     IMAGE_JAVA: ROOT / "docker" / "java-test",
     IMAGE_JS: ROOT / "docker" / "js-test",
     IMAGE_UI: ROOT / "docker" / "playwright-test",
     IMAGE_GO: ROOT / "docker" / "go-test",
+    IMAGE_GRPC: ROOT / "docker" / "grpcurl-test",
 }
 # 分级（analyze 判定）：可容器执行的语言 → 执行镜像；其余走 static_scan 兜底（Tier3）。
 # typescript 升 Tier2（白包阶段1，2026-11-06）：镜像已全局备 jest+ts-jest+typescript，

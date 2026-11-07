@@ -505,3 +505,23 @@ CREATE TABLE IF NOT EXISTS ui_asserts (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ui_asserts_task_round ON ui_asserts(task_id, round_no);
+
+-- 第 31 表：grpc_assert 断言台账（黑盒能力补齐阶段4）——LLM 构造的 RPC 调用经
+-- method 闸（service+method 必须命中 proto 清单，虚构整条剔除）后经 grpcurl 容器内
+-- 真实调用的结构化结果。幂等口径与 db_asserts/ui_asserts 一致：round≤1 清全任务、
+-- round>1 清同轮。
+CREATE TABLE IF NOT EXISTS grpc_asserts (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id          INTEGER NOT NULL REFERENCES test_tasks(id),
+  round_no         INTEGER NOT NULL DEFAULT 1,
+  service          TEXT NOT NULL,               -- proto service 名（闸门核验键）
+  method           TEXT NOT NULL,               -- rpc 方法名（虚构留痕的依据）
+  request_json     TEXT NOT NULL DEFAULT '',    -- 请求 JSON 原文（可追溯）
+  verdict          TEXT NOT NULL CHECK (verdict IN ('passed','failed','rejected')),
+  response_excerpt TEXT NOT NULL DEFAULT '',    -- passed 时响应 JSON 摘要（截断 ≤500）
+  error            TEXT NOT NULL DEFAULT '',    -- failed 时 grpcurl 错误（截断 ≤500）
+  rejected_reason  TEXT NOT NULL DEFAULT '',    -- rejected 时闸门拒绝理由（可审计）
+  elapsed_ms       INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_grpc_asserts_task_round ON grpc_asserts(task_id, round_no);

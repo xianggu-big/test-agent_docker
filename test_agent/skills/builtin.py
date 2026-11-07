@@ -180,6 +180,11 @@ def build_skills(runner) -> dict[str, Skill]:
     def ui_assert(task_id: int, args: dict) -> str:
         return _ui_assert_fn(api_key=None, args=args, task_id=task_id, runner=runner)
 
+    from .grpc_assert import grpc_assert as _grpc_assert_fn
+
+    def grpc_assert(task_id: int, args: dict) -> str:
+        return _grpc_assert_fn(api_key=None, args=args, task_id=task_id, runner=runner)
+
     return {
         "install_deps": Skill(
             name="install_deps", description="容器内安装被测项目 Python 依赖（三类清单探测分流）",
@@ -209,4 +214,10 @@ def build_skills(runner) -> dict[str, Skill]:
             arg_schema={"scenarios": "str(JSON)", "snapshot": "str(JSON)",
                         "container_name": "str", "url": "str",
                         "round_no": "int", "evidence_dir": "str"}),
+        "grpc_assert": Skill(
+            name="grpc_assert", description="gRPC 验证：RPC 调用经 method 闸（service+method 必须命中 proto 清单，虚构整条剔除留痕）后经 grpcurl 容器内真实调用并落 grpc_asserts 表",
+            func=grpc_assert, risk_level="medium", timeout_ms=120_000,
+            arg_schema={"calls": "str(JSON)", "proto_text": "str", "proto_file": "str",
+                        "container_name": "str", "host": "str", "port": "int",
+                        "round_no": "int"}),
     }
