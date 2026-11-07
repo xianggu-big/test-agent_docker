@@ -592,6 +592,46 @@ import { clamp } from "./src/calc"——不要用 require，散装环境可能�
         code_example = ('test("test_xxx_等价类划分", () => {\\n'
                         '  expect(add(1, 1)).toBe(2);\\n});')
         imports_hint = "测试文件顶部所需的全部 import 语句"
+    elif target_language == "go":
+        # 白包阶段3：go test 形态（system 已语言中立，lang_rules 只给语法事实+正例锚定）
+        lang_rules = """
+语言：Go（标准库 testing + go test）。每条用例是一个顶层函数 func TestXxx(t *testing.T)，
+函数名必须 Test 开头驼峰（如 func TestAdd_等价类划分(t *testing.T)）；断言用
+t.Errorf/t.Fatalf（带具体 got/want 值）或表驱动子测试 t.Run，禁止只写 t.Log 这类弱断言。
+被测函数与用例同包直接调用（package 行由系统注入，**禁止自己写 package 声明**）。
+imports 字段放需要的全部 import（每行一条，如 import "testing"）；只用标准库，
+**禁止第三方包**（容器无网络，go.mod 无依赖）。生成物写入项目根目录（TestGenR1_test.go）。
+
+**完整形态对照（严格模仿，禁止输出任何其他语言形态）：**
+
+```go
+import "testing"
+
+func TestAdd_等价类划分(t *testing.T) {
+    if got := Add(1, 1); got != 2 {
+        t.Errorf("Add(1,1) = %d, want 2", got)
+    }
+}
+
+func TestGetTier_边界值分析(t *testing.T) {
+    if got := GetTier(90); got != "A" {
+        t.Errorf("GetTier(90) = %s, want A", got)
+    }
+}
+```
+
+code 字段是完整 func 片段（不含 package 行）；**def test_ / assert / pytest / @Test /
+jest test() 形态一律会被系统剔除作废**。
+
+边界纪律（重要）：需求写 >= 90 的边界点就是 90 本身——边界值用例必须取端点（90/89/60/59），
+**禁止用 91 代替 90**；预期值严格按需求文本（>= 90 → "A"），禁止按源码现状反推预期。"""
+        code_example = ('func TestAdd_等价类划分(t *testing.T) {\\n'
+                        '  if got := Add(1, 1); got != 2 {\\n'
+                        '    t.Errorf("Add(1,1) = %d, want 2", got)\\n  }\\n}')
+        imports_hint = "用例所需的全部 import（每行一条 import 语句）"
+        final_lang_reminder = ("\n**最终检查（最高优先级）：目标语言=Go，code 字段必须是"
+                               " func TestXxx(t *testing.T) 形态，任何 Python（def/assert/pytest）/"
+                               "JUnit（@Test）/jest 形态都会被系统剔除作废。**")
     elif target_language == "javascript":
         lang_rules = """
 语言：JavaScript（jest）。每条用例是一个顶层 test("test_xxx_方法名", () => {...})，

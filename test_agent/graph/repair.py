@@ -134,6 +134,22 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
         m = re.search(r"^\s*at\s+(\S+)", text, re.M)
         if m and re.search(r"evalmachine|test_gen_r\d|test_imported|test_gen_fb", m.group(1)):
             return "case_defect"
+    # Go panic 帧归属（白包阶段3，S6 堆栈归因分支；A1 语义对齐）：首个非 stdlib .go 帧
+    # 指向生成测试文件（TestGen*_test.go）→ case_defect；指向被测源（或全 stdlib 无法
+    # 定位）→ product_defect。go_adapter 统一文本保留 panic 段（探针实锤形态：
+    # "panic: ..." + "goroutine N [running]:" + "\t<path>.go:NN" 帧）。
+    # Python/jest 文本不含 "panic:"（触发词 Go 专属），既有归类零变化。
+    if "panic:" in text:
+        for fm in re.finditer(r"^\s+(\S+\.go):\d+", text, re.M):
+            frame = fm.group(1)
+            if "/usr/local/go/src/" in frame:
+                continue
+            # go 生成物文件名是 CamelCase（TestGenR1_test.go，无下划线）——
+            # js 的 test_gen_r\d 形态不匹配，双形态都认（真机实锤 2026-11-07）
+            if re.search(r"(?i)test_?gen_?(?:r|fb)\d|test_imported", frame):
+                return "case_defect"
+            return "product_defect"
+        return "product_defect"
     if "FAILED" in text or "AssertionError" in text:
         return "product_defect"   # 断言合理但行为不符 → 疑似产品缺陷
     return "env"                  # 其余先按环境问题处理（重装依赖重试一次）

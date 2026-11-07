@@ -60,7 +60,12 @@ def test_detect_unknown_and_other_language(tmp_path):
     assert detect_stack(_ws(tmp_path / "a", {"README.md": "hi"}))["language"] == "unknown"
     st = detect_stack(_ws(tmp_path / "b", {"go.mod": "module x\n"}))
     assert st["language"] == "go"
-    assert deterministic_recipe(st) is None         # 非池内语言 → 无确定性配方（走降级）
+    # 白包阶段3：go 入池 → 有确定性配方，但 install=[]（模块依赖随项目走，stdlib 零网络）；
+    # 曾实锤 else 分支把 go 当 npm 产出错误 install——此断言锁死修正后的行为
+    rec = deterministic_recipe(st)
+    assert rec is not None and rec["language"] == "go"
+    assert rec["install"] == [] and rec["test_framework"] == "go_test"
+    assert rec["base_image"] == "golang:1.22"
 
 
 def test_detect_conflict_recorded(tmp_path):

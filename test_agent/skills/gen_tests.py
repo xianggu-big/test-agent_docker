@@ -261,9 +261,10 @@ def _collect_sources_detailed(ws: Path, lang: str = "python") -> tuple[list[tupl
     used = 0
     is_js = lang in ("javascript", "typescript")
     is_java = lang == "java"
+    is_go = lang == "go"    # 白包阶段3：go 无 Python AST，与 JS/java 同走整收分支
     for p, text in _iter_source_files(ws, lang):
         rel = p.relative_to(ws).as_posix()
-        if is_java or is_js:
+        if is_java or is_js or is_go:
             # JS：无 AST 切片。语法可粗检（花括号平衡）不拦——语法闸在容器内 node --check。
             budget_left = MAX_SOURCE_CHARS - used
             if len(text) > budget_left:
@@ -1612,6 +1613,11 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         # package 名从 ws 根首个 .go 文件的 package 子句读取（同包测试前提）；
         # imports 字段规范化进 import() 块（lang_rules 约定每行一条 import 语句），
         # 空 → 最小 "testing"（*testing.T 签名必需）。
+        # 跨轮撞名根修（Arm B 真机实锤）：R-Loop 轮 TestGenR2_test.go 与 TestGenR1_test.go
+        # 同包共存，LLM 函数名撞 → redeclared 编译失败（java 靠类壳天然规避，go 包级
+        # 函数无此隔离）——渲染层确定性加轮次前缀（TestR1_/TestR2_/TestRFb2_），跨轮唯一。
+        marker = f"Fb{fb_no}" if (feedback and fb_no) else f"R{round_no}"
+        body = re.sub(r"func(\s+)Test", rf"func\1Test{marker}_", body)
         pkg = _go_package_of(ws)
         import_lines = _normalize_go_imports(imports)
         content = (header + "\n"

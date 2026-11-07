@@ -17,11 +17,13 @@ IMAGE_PY = "mta-test:py312"
 IMAGE_JAVA = "mta-test:jdk17-maven"
 IMAGE_JS = "mta-test:node20-jest"     # JS/TS 执行链路（jest Tier2，2026-11-01）
 IMAGE_UI = "mta-test:playwright"      # UI 黑盒执行链路（黑盒能力补齐阶段3，2026-11-07）
+IMAGE_GO = "mta-test:go122"           # Go 执行链路（白包阶段3，2026-11-07）
 IMAGE_BUILD_CTX = {
     IMAGE_PY: ROOT / "docker" / "python-test",
     IMAGE_JAVA: ROOT / "docker" / "java-test",
     IMAGE_JS: ROOT / "docker" / "js-test",
     IMAGE_UI: ROOT / "docker" / "playwright-test",
+    IMAGE_GO: ROOT / "docker" / "go-test",
 }
 # 分级（analyze 判定）：可容器执行的语言 → 执行镜像；其余走 static_scan 兜底（Tier3）。
 # typescript 升 Tier2（白包阶段1，2026-11-06）：镜像已全局备 jest+ts-jest+typescript，
@@ -29,7 +31,7 @@ IMAGE_BUILD_CTX = {
 # 收集闸=tsc --noEmit 类型闸；与 javascript 同走 node20-jest 镜像与 js_adapter。
 # java=镜像已备、生成/执行链路未接（白包阶段2 接线）。
 EXEC_LANGUAGES = {"python": IMAGE_PY, "javascript": IMAGE_JS, "typescript": IMAGE_JS,
-                  "java": IMAGE_JAVA}
+                  "java": IMAGE_JAVA, "go": IMAGE_GO}
 
 # —— 噪声目录（clone 快照 / 语言统计 / 源码收集共用一份定义） ——
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "dist", "build", ".idea"}
@@ -177,6 +179,7 @@ RECIPE_IMAGE_POOL = {
                "3.13": "python:3.13-slim"},
     "javascript": {"18": "node:18-bookworm-slim", "20": "node:20-bookworm-slim",
                    "22": "node:22-bookworm-slim"},
+    "go": {"1.22": "golang:1.22", "1.21": "golang:1.21"},
 }
 # 辅助镜像清单（镜像管理动态化 2026-11-07）：sidecar/recipe 基础池等「仅展示」镜像——
 # 接入方式：可自动构建的注册进 IMAGE_BUILD_CTX（buildable=true）；仅作依赖/基础镜像

@@ -22,8 +22,8 @@ log = logging.getLogger(__name__)
 REQUIRED_FIELDS = ("schema_version", "language", "runtime_version", "base_image",
                    "package_manager", "install", "test_framework")
 _ENUMS = {
-    "language": ("python", "javascript"),
-    "test_framework": ("pytest", "jest"),
+    "language": ("python", "javascript", "go"),
+    "test_framework": ("pytest", "jest", "go_test"),
 }
 
 

@@ -81,10 +81,18 @@ def build_run_cmd_java() -> list[str]:
     return ["mvn", "test"]
 
 
+def build_run_cmd_go() -> list[str]:
+    """Go 执行链路（Tier2，白包阶段3）：go test -json -coverprofile ./...（stdlib 零网络；
+    事件流经 go_adapter 转 pytest 文本，下游零改动）。round>1 位置参数不适用（go test
+    无文件级隔离参数，只有包 pattern）——R-Loop 轮全包重跑与 java 同语义边界，诚实入档。"""
+    return ["sh", "-c", "go test -json -coverprofile=/tmp/go_cover.out ./... 2>&1"]
+
+
 def _tier_strategy(primary: str) -> str:
     """语言分级（analyze 用，Loop 抽出供单测）：full=容器执行链路；其余 static_only。
-    typescript 升 Tier2（白包阶段1）；java 接线（白包阶段2）→ full。"""
-    return "full" if primary in ("python", "javascript", "typescript", "java") else "static_only"
+    typescript 升 Tier2（白包阶段1）；java 接线（白包阶段2）→ full；go 接线（白包阶段3）→ full。"""
+    return "full" if primary in ("python", "javascript", "typescript", "java", "go") \
+        else "static_only"
 
 
 def _inline_jest_config(include_ts: bool) -> str:
@@ -613,7 +621,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "running")
         lang = state["primary_language"]
-        if lang not in ("python", "javascript", "typescript", "java"):
+        if lang not in ("python", "javascript", "typescript", "java", "go"):
             # 其余语言：诚实终止，不进归因循环——"链路未实现"不该被伪装成环境失败（A7）
             return {"done": True, "verdict": "stop",
                     "stop_reason": f"{lang} 执行链路 v1 未接入（诚实降级：static_only 路径走静态扫描），任务终止"}
@@ -664,6 +672,10 @@ def make_nodes(deps: GraphDeps) -> dict:
             # Java 执行链路（Tier2，白包阶段2）：mvn test → surefire XML/JaCoCo 经 java_adapter
             # 转 pytest 风格文本，下游 evaluate/repair/report 零改动（adapter 统一文本唯一接缝）。
             cmd = build_run_cmd_java()
+        elif lang == "go":
+            # Go 执行链路（Tier2，白包阶段3）：go test -json -coverprofile → go_adapter
+            # 转 pytest 风格文本，下游 evaluate/repair/report 零改动（adapter 统一文本唯一接缝）。
+            cmd = build_run_cmd_go()
         else:
             # Loop-9：round_no>1 起 cmd 限定生成物+imported——自带 tests 恒定失败不进 R-Loop
             # （三角色实验 30 题实锤：混入后补测永远修不好→熔断/预算耗尽）；
@@ -705,6 +717,10 @@ def make_nodes(deps: GraphDeps) -> dict:
                                         ["cat", xf], timeout_s=15, workdir="/work")
                     if jc.ok:
                         rows.extend(parse_junit_xml(jc.stdout))
+            elif lang == "go":
+                # go test -json 事件流逐用例落库（白包阶段3；转换前抽原始事件，同 jest 口径）
+                from ..skills.go_adapter import go_test_json_to_rows
+                rows = go_test_json_to_rows(r.get("stdout", ""))
             else:
                 jc = runner.exec_in(
                     runner.client.containers.get(state["container_name"]),
@@ -742,6 +758,13 @@ def make_nodes(deps: GraphDeps) -> dict:
                     r["stdout"] = surefire_dir_to_pytest_text(td)
             else:
                 r["stdout"] = (r.get("stdout") or "") + "\n(no surefire reports: 编译失败或用例未执行)\n"
+        if lang == "go":
+            # go_adapter：go test -json 事件流+coverprofile → 统一文本（S5 唯一合法接缝，下游零改动）
+            from ..skills.go_adapter import go_test_json_to_pytest_text
+            cov = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                 ["cat", "/tmp/go_cover.out"], timeout_s=15, workdir="/")
+            r["stdout"] = go_test_json_to_pytest_text(
+                r.get("stdout", ""), cov.stdout if (cov.ok and cov.stdout.strip()) else None)
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"],
                 "last_cmd": cmd}
 

@@ -205,6 +205,10 @@ def deterministic_recipe(stack: dict) -> dict | None:
                 "setup.py" in stack.get("manifests", []):
             install.append("pip install --no-cache-dir .")
         install.append("pip install pytest pytest-cov")
+    elif lang == "go":
+        # 白包阶段3：go 模块依赖随项目走（go.mod 在工作区，stdlib 零网络）——无安装步骤，
+        # 不落入 npm 分支（pool 加 go 后 else 分支曾产出错误 npm install，真机核出）
+        pass
     else:
         if "package-lock.json" in stack.get("lockfiles", []):
             install.append("npm ci")
@@ -220,9 +224,10 @@ def deterministic_recipe(stack: dict) -> dict | None:
         "language": lang,
         "runtime_version": str(use_ver),
         "base_image": base,
-        "package_manager": pm or ("pip" if lang == "python" else "npm"),
+        "package_manager": pm or ("pip" if lang == "python"
+                                  else ("go" if lang == "go" else "npm")),
         "install": install,
-        "test_framework": "pytest" if lang == "python" else "jest",
+        "test_framework": {"python": "pytest", "go": "go_test"}.get(lang, "jest"),
         "timeout_s": 900,
         "evidence": {"detected_from": sorted(set(
             stack.get("manifests", []) + stack.get("lockfiles", [])

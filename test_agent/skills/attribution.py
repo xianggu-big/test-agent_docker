@@ -50,6 +50,12 @@ def canary_cmd(lang: str) -> list[str]:
             f"console.log('{CANARY_OK}')"
         )
         return ["node", "-e", code]
+    if lang == "go":
+        # 白包阶段3：工具链在位 + 临时文件 IO 自检（go 无 -e 单行入口，sh 内联等价）
+        return ["sh", "-c",
+                "go version >/dev/null && "
+                "echo ok > /tmp/_canary.tmp && cat /tmp/_canary.tmp && "
+                f"rm /tmp/_canary.tmp && echo '{CANARY_OK}'"]
     raise ValueError(f"canary 不支持语言: {lang}")
 
 

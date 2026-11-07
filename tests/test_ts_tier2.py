@@ -25,7 +25,7 @@ def test_tier_strategy_typescript_full():
     assert _tier_strategy("javascript") == "full"
     assert _tier_strategy("python") == "full"
     assert _tier_strategy("java") == "full"             # 白包阶段2 接线（surefire→java_adapter）
-    assert _tier_strategy("go") == "static_only"
+    assert _tier_strategy("go") == "full"                 # 白包阶段3 接线
 
 
 # ---------- 2) 渲染层：命名与收集闸分流 ----------
@@ -76,7 +76,7 @@ def test_run_node_js_branch_accepts_typescript():
     from test_agent.graph import nodes
     import inspect
     mod_src = inspect.getsource(nodes)
-    assert 'lang not in ("python", "javascript", "typescript", "java")' in mod_src
+    assert 'lang not in ("python", "javascript", "typescript", "java", "go")' in mod_src
     assert 'lang in ("javascript", "typescript")' in mod_src
 
 
