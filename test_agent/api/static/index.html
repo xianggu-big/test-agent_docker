@@ -321,6 +321,21 @@
     <!-- ⑤ 设置（仅管理员可见完整页） -->
     <section id="page-settings" class="page hidden">
       <div class="card"><h3>基础配置</h3><div id="st-config" class="kv-list"></div></div>
+      <div class="card"><h3>LLM 模型（切换即时生效，无需重启）</h3>
+        <div id="llm-current" style="margin-bottom:10px"></div>
+        <div id="llm-presets" class="llm-presets"></div>
+        <div id="llm-custom-form" style="display:none;margin-top:10px;display:grid;gap:8px;max-width:520px">
+          <input id="llm-custom-url" placeholder="base_url（http/https，如 https://api.example.com/v1）">
+          <input id="llm-custom-model" placeholder="model 名（如 gpt-4o-mini）">
+          <input id="llm-custom-keyenv" placeholder="key 环境变量名（如 OPENAI_API_KEY）">
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn btn-sm" onclick="testLlmProfile()">测试连通性</button>
+          <button class="btn btn-primary btn-sm" onclick="applyLlmProfile()">应用</button>
+        </div>
+        <div id="llm-test-result" style="margin-top:8px"></div>
+        <div class="hint" style="margin-top:6px">key 本体永不入库：系统只存环境变量的名字；切换留痕于 app_settings（updated_by/at），实验数据以 llm_usage 台账记录的实际模型为准</div>
+      </div>
       <div class="card"><h3>容器 / 镜像管理</h3><div id="st-images"></div></div>
       <div class="card"><h3>插件管理（仅管理员）</h3><div class="hint">v1 壳：插件=内置三 Skill（install_deps / run_tests / gen_tests），管理界面属后续工作。</div></div>
       <div class="card"><h3>用户与权限（仅管理员）</h3><div id="st-users"></div></div>

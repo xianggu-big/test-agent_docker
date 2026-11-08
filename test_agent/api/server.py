@@ -1126,11 +1126,15 @@ def api_get_config(user: dict = Depends(admin)):
 
 @app.get("/api/llm-profile")
 def api_get_llm_profile(user: dict = Depends(staff)):
-    """当前 profile + 预设清单 + key 是否已配置（只报有无，永不回显值）。"""
+    """当前 profile + 预设清单（各档含 key_present 徽章数据）+ 当前 key 有无（只报有无，永不回显值）。"""
+    import os as _os
     from ..skills.llm_profile import PRESETS, current, resolve_key
     p = current()
     key_present = resolve_key(p) is not None
-    return {"profile": p, "presets": PRESETS, "key_present": key_present,
+    presets = {k: {**v, "key_present": bool(v.get("key_env") and _os.environ.get(v["key_env"]))
+                   or v.get("provider") == "local"}
+               for k, v in PRESETS.items()}
+    return {"profile": p, "presets": presets, "key_present": key_present,
             "updated_by": p.get("updated_by") or "", "updated_at": p.get("updated_at") or ""}
 
 

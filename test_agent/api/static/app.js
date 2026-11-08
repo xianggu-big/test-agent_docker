@@ -1432,11 +1432,14 @@ async function doLogout() {
 }
 
 /* ---------- 设置（仅管理员） ---------- */
+let llmSelected = null;   // 设置页当前点选的 provider（高亮态，apply 前只是选择不生效）
+
 async function refreshSettings() {
   const cfg = await api("/config");
   $("st-config").innerHTML = Object.entries(cfg).filter(([k]) => k !== "note").map(([k, v]) =>
     `<div class="k">${esc(k)}</div><div>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</div>`).join("") +
     `<div class="k">说明</div><div class="hint" style="grid-column:1/-1">${esc(cfg.note)}</div>`;
+  await refreshLlmProfile();
   const imgData = await api("/images");
   const IMG_GROUPS = { registered: "注册可构建", local: "本地已存在（未注册）", aux: "辅助依赖" };
   $("st-images").innerHTML =
@@ -1454,6 +1457,62 @@ async function refreshSettings() {
   const users = await api("/users");
   $("st-users").innerHTML = users.map(u =>
     `<div class="img-row"><span>${esc(u.username)}</span><span class="badge badge-${u.role === "developer" ? "dev" : u.role}">${ROLE_CN[u.role]}</span><span class="hint">创建于 ${esc(bjTime(u.created_at))}</span></div>`).join("");
+}
+
+/* ---------- LLM 模型卡（任务卡-LLM模型选择-20261108；结果就地显示不弹窗——抽检反馈闭环教训） ---------- */
+const LLM_PROVIDER_CN = { deepseek: "DeepSeek 云 API", qwen: "通义千问云 API", local: "本地 Ollama", custom: "自定义" };
+
+async function refreshLlmProfile() {
+  const d = await api("/llm-profile");
+  const p = d.profile || {};
+  if (!llmSelected) llmSelected = p.provider;   // 首次渲染=当前生效档
+  $("llm-current").innerHTML =
+    `<span class="badge badge-ok">当前生效：${esc(LLM_PROVIDER_CN[p.provider] || p.provider)} / ${esc(p.model)}</span>` +
+    `<span class="badge ${d.key_present ? "badge-ok" : "badge-fail"}">key（${esc(p.key_env || "无")}）${d.key_present ? "已配置 ✓" : "未配置 ⚠"}</span>` +
+    `<span class="hint" style="margin-left:8px">base_url ${esc(p.base_url)} · 切换于 ${esc(p.updated_at || "—")} by ${esc(p.updated_by || "—")}</span>`;
+  $("llm-presets").innerHTML = Object.entries(d.presets).map(([k, v]) =>
+    `<div class="llm-preset ${llmSelected === k ? "llm-preset-sel" : ""}" onclick="selectLlmPreset('${k}')">` +
+    `<b>${esc(LLM_PROVIDER_CN[k] || k)}</b>` +
+    `<div class="hint">${esc(v.model)}${k === "local" ? "（需本机 ollama serve）" : ""}</div>` +
+    `<div class="hint">key 环境变量 ${esc(v.key_env || "无")} ` +
+    `<span class="badge ${v.key_present ? "badge-ok" : "badge-fail"}" style="font-size:11px">${v.key_present ? "已配置" : "未配置"}</span></div></div>`).join("");
+  $("llm-custom-form").style.display = llmSelected === "custom" ? "grid" : "none";
+}
+
+function selectLlmPreset(k) {
+  llmSelected = k;
+  refreshLlmProfile();
+}
+
+function _llmBody() {
+  // 构造测试/应用的 body：预设档=预设定义（model 允许改——v1 简化为预设值）；custom=表单
+  if (llmSelected === "custom") {
+    return { provider: "custom", base_url: $("llm-custom-url").value.trim(),
+             model: $("llm-custom-model").value.trim(),
+             key_env: $("llm-custom-keyenv").value.trim() };
+  }
+  return { provider: llmSelected };
+}
+
+async function testLlmProfile() {
+  const box = $("llm-test-result");
+  box.innerHTML = '<span class="hint">测试中（最长 60s）…</span>';
+  try {
+    const r = await api("/llm-profile/test", { method: "POST", body: JSON.stringify(_llmBody()) });
+    box.innerHTML = r.ok
+      ? `<span class="badge badge-ok">连通 ✓ ${r.latency_ms}ms</span> <span class="hint">${esc(r.reply || "")}</span>`
+      : `<span class="badge badge-fail">失败 ✗</span> <span class="hint">${esc(r.error || "")}</span>`;
+  } catch (e) { box.innerHTML = `<span class="badge badge-fail">失败 ✗</span> <span class="hint">${esc(String(e))}</span>`; }
+}
+
+async function applyLlmProfile() {
+  const box = $("llm-test-result");
+  try {
+    const r = await api("/llm-profile", { method: "POST", body: JSON.stringify(_llmBody()) });
+    llmSelected = r.profile.provider;
+    box.innerHTML = `<span class="badge badge-ok">已应用 ✓（${esc(LLM_PROVIDER_CN[r.profile.provider] || r.profile.provider)} / ${esc(r.profile.model)}，立即生效）</span>`;
+    await refreshLlmProfile();
+  } catch (e) { box.innerHTML = `<span class="badge badge-fail">应用失败 ✗</span> <span class="hint">${esc(String(e))}</span>`; }
 }
 
 // ---------- F03 任务详情页（设计图主页面） ----------
