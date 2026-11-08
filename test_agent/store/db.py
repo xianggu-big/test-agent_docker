@@ -192,6 +192,20 @@ def init_db(db_path: Path | None = None) -> int:
             conn.executescript(config.SCHEMA_PATH.read_text(encoding="utf-8"))
             conn.commit()
         _migrate(conn)
+    finally:
+        conn.close()
+    if db_path is None:              # 仅真实库：恢复上次保存的 LLM profile（测试 tmp 库不动全局态）
+        try:
+            from ..skills.llm_profile import apply_saved_if_any   # 函数内延迟导入防循环（坑预判 #1）
+            apply_saved_if_any()
+        except Exception as e:       # noqa: BLE001 —— 恢复失败不挡启动
+            log.warning("llm profile 启动恢复失败: %s: %s", type(e).__name__, e)
+    return _count_tables(db_path)
+
+
+def _count_tables(db_path: Path | None = None) -> int:
+    conn = get_conn(db_path)
+    try:
         return conn.execute(
             "SELECT COUNT(*) AS n FROM sqlite_master "
             "WHERE type='table' AND name != 'sqlite_sequence'"
