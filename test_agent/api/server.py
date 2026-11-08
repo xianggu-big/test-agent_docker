@@ -1114,11 +1114,45 @@ def api_get_config(user: dict = Depends(admin)):
         "coverage_target": config.COVERAGE_TARGET,
         "max_repair_rounds": config.MAX_REPAIR_ROUNDS,
         "fingerprint_breaker": config.FINGERPRINT_BREAKER,
-        "llm_base_url": config.DEEPSEEK_BASE_URL,
+        "llm_base_url": config.DEEPSEEK_BASE_URL,   # 运行时现值（llm_profile.apply 改写后）
         "llm_model": config.DEEPSEEK_MODEL,
         "images": {k: str(v) for k, v in config.IMAGE_BUILD_CTX.items()},
-        "note": "v1 配置只读：实验预注册纪律要求预算值冻结，修改请改 config.py 后重启",
+        "note": "预算值仍冻结（实验预注册纪律）；LLM 模型可在设置页切换（实验数据以 llm_usage "
+                "台账记录的实际模型为准）",
     }
+
+
+# ---------- LLM 模型 profile（任务卡-LLM模型选择-20261108：三档预设+custom，key 永不入库） ----------
+
+@app.get("/api/llm-profile")
+def api_get_llm_profile(user: dict = Depends(staff)):
+    """当前 profile + 预设清单 + key 是否已配置（只报有无，永不回显值）。"""
+    from ..skills.llm_profile import PRESETS, current, resolve_key
+    p = current()
+    key_present = resolve_key(p) is not None
+    return {"profile": p, "presets": PRESETS, "key_present": key_present,
+            "updated_by": p.get("updated_by") or "", "updated_at": p.get("updated_at") or ""}
+
+
+@app.post("/api/llm-profile")
+def api_set_llm_profile(body: dict, user: dict = Depends(admin)):
+    """切换并应用（admin；caller 403 由 Depends(admin) 保证）。返回应用后的完整 profile。"""
+    from ..skills.llm_profile import apply
+    conn = get_conn()
+    try:
+        p = apply(body, conn, updated_by=str(user.get("username") or user.get("id") or "admin"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    finally:
+        conn.close()
+    return {"ok": True, "profile": p}
+
+
+@app.post("/api/llm-profile/test")
+def api_test_llm_profile(body: dict, user: dict = Depends(staff)):
+    """连通性测试：body 可带临时 profile（不落库）。返回 {ok, latency_ms, reply|error}。"""
+    from ..skills.llm_profile import test_connection
+    return test_connection(body or {})
 
 
 @app.get("/api/images")
