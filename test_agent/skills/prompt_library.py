@@ -4,6 +4,8 @@
 让 Agent 按方法逐类生成，而不是自由发挥 —— 这是生成正确率的第一道抓手。
 方法骨架 = 传统测试理论（等价类/边界值/判定表/覆盖/错误推测）的显式化。
 """
+
+from .. import config
 import re
 
 SYSTEM_PROMPT = (
@@ -426,14 +428,14 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     pitfalls: B 源·陷阱清单开关（错误推测法扩展段，按 module_lang+需求选条目）。
     defense_v2: 防御矩阵 v2（P1 环境契约统一段+P2 反惯例正例锚定；docs/防御矩阵
     -prompt与非prompt措施-20261105.md）。False=不注入（提示词逐字节不变，基线保护）。
-    max_cases 按 conditions 数动态填（上限 15 与 generate_tests 降采样上限同源）。
+    max_cases 按 conditions 数动态填（上限=GEN_MAX_CASES，与 generate_tests 降采样同源）。
     sut_mismatch: 需求-能力错配警告（B2，requirement_capability_mismatch 的确定性
     核对结果；None=无不匹配）。415 实锤：需求"登录注册"vs 产品无账户体系，生成器
     静默为不存在的功能造 11 条自 mock 用例——警告必须显式禁止编造 mock。
     """
     defense_text = ""
     if defense_v2:
-        max_cases = max(1, min(len(conditions or []), 15))
+        max_cases = max(1, min(len(conditions or []), int(config.GEN_MAX_CASES)))
         defense_text = (ENV_CONTRACT_SECTION.format(max_cases=max_cases)
                         + CONTRAST_SECTION)
     src_text = "\n\n".join(

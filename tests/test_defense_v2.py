@@ -34,11 +34,11 @@ def test_prompt_defense_v2_on注入契约与对照():
     assert "❌" in p and "✅" in p                  # P2 对照示例形态
 
 
-def test_prompt_defense_v2_max_cases_上限15与降采样同源():
+def test_prompt_defense_v2_max_cases_上限与降采样同源():
     conds = [{"condition": f"条件{i}"} for i in range(43)]
     p = build_user_prompt([("calc.py", "def add(a, b):\n    return a + b\n")],
                           "需求", conditions=conds, defense_v2=True)
-    assert "本轮最多生成 15 条用例" in p
+    assert "本轮最多生成 10 条用例" in p  # 2026-11-08 用户指令 GEN_MAX_CASES=10
 
 
 def test_prompt_defense_v2_off_逐字节不变():

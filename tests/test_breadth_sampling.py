@@ -36,7 +36,7 @@ def test_downsample_off_legacy_behavior(monkeypatch):
     monkeypatch.setattr(config, "BREADTH_SAMPLING_ENABLED", False)
     with tempfile.TemporaryDirectory() as d:
         conds, truncated = _downsample_conditions(_conds(43), Path(d), "python", 0)
-    assert len(conds) == 15 and truncated == 28  # 旧行为：纯按优先级保 15
+    assert len(conds) == 10 and truncated == 33  # 2026-11-08 用户指令：GEN_MAX_CASES=10
 
 
 def test_downsample_on_breadth_fill(monkeypatch):
@@ -52,11 +52,11 @@ def test_downsample_on_breadth_fill(monkeypatch):
             {"condition": "又一条 check_length 行为", "priority": "低", "method_hint": "边界值分析"},
         ]
         out, truncated = _downsample_conditions(conds, ws, "python", 0)
-    assert len(out) == 17  # 15 + 2 条广度补充（第三条 check_length 同域不补）
-    assert truncated == 1  # 18 条 - 17 入集 = 1 条被截
+    assert len(out) == 12  # 10 + 2 条广度补充（第三条 check_length 同域不补）
+    assert truncated == 6  # 18 条 - 12 入集 = 6 条被截
     assert any("format_report" in c["condition"] for c in out)
     assert any("send_notification" in c["condition"] for c in out)
-    assert sum(1 for c in out if "check_length" in c["condition"]) == 15  # rest 同域不补，仍 15
+    assert sum(1 for c in out if "check_length" in c["condition"]) == 10  # rest 同域不补，仍 10
 
 
 def test_downsample_on_cap_at_20(monkeypatch):
@@ -68,7 +68,7 @@ def test_downsample_on_cap_at_20(monkeypatch):
              "method_hint": "错误推测法"} for i in range(10)
         ]
         out, _truncated = _downsample_conditions(conds, ws, "python", 0)
-    assert len(out) == 15  # helper{i} 不命中任何源码函数名 → 无域可补（不盲补）
+    assert len(out) == 10  # helper{i} 不命中任何源码函数名 → 无域可补（不盲补）；cap=10
 
 
 def test_condition_function_domains():

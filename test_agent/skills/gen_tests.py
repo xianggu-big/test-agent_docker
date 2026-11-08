@@ -388,16 +388,18 @@ def _downsample_conditions(conditions: list[dict], ws: Path, lang: str,
                            task_id: int) -> tuple[list[dict], int]:
     """条件超限降采样（generate_tests 主链路与对话增补共用，可单测纯函数）。
 
-    关（默认）：按优先级保 15（旧行为逐字节不变）；开（BREADTH_SAMPLING_ENABLED）：
-    「15 优先级 + ≤5 函数域分散补充」总 ≤20（E2E 实锤 20 条=DeepSeek 稳定输出上限）——
-    从被截断条件中挑「命中前 15 未覆盖函数域」者各补 1 条，治同函数域挤占名额。"""
+    关（默认）：按优先级保 GEN_MAX_CASES 条（2026-11-08 用户指令默认 10——小步验证
+    跑通整线勿铺量；历史口径 15/20 可经 MTA_GEN_MAX_CASES 上调回）；开
+    （BREADTH_SAMPLING_ENABLED）：优先级保底后「未覆盖函数域分散补充」各 1 条，
+    总上限仍 GEN_MAX_CASES——治同函数域挤占名额。"""
+    cap = max(1, int(config.GEN_MAX_CASES))
     conditions_truncated = 0
-    if conditions and len(conditions) > 15:
+    if conditions and len(conditions) > cap:
         prio = {"高": 0, "中": 1, "低": 2}
         conditions.sort(key=lambda c: prio.get((c.get("priority") or "中"), 1))
-        conditions_truncated = len(conditions) - 15
-        rest = conditions[15:]
-        conditions = conditions[:15]
+        conditions_truncated = len(conditions) - cap
+        rest = conditions[cap:]
+        conditions = conditions[:cap]
         if config.BREADTH_SAMPLING_ENABLED and rest:
             outline = source_outline(ws, lang) or {}
             functions = outline.get("functions") or set()
@@ -416,8 +418,9 @@ def _downsample_conditions(conditions: list[dict], ws: Path, lang: str,
                     conditions_truncated -= len(extra)
                     log.info("gen_tests task=%s 广度补充 %d 条（函数域分散，总 %d 条）",
                              task_id, len(extra), len(conditions))
-        log.warning("gen_tests task=%s 条件 %d 条超限，按优先级保 15（截 %d）",
-                    task_id, conditions_truncated + len(conditions), conditions_truncated)
+        log.warning("gen_tests task=%s 条件 %d 条超限，按优先级保 %d（截 %d）",
+                    task_id, conditions_truncated + len(conditions), cap,
+                    conditions_truncated)
     return conditions, conditions_truncated
 
 

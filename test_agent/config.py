@@ -156,6 +156,11 @@ BREADTH_SAMPLING_ENABLED = _flag("MTA_BREADTH", False)
 # （test_goals 只当 plan 上下文，测试条件仍必须锚真值清单——闸不放松）。
 UNDERSTAND_ENABLED = _flag("MTA_UNDERSTAND", False)
 
+# —— 每任务用例数上限（2026-11-08 用户指令：小步验证跑通整线，勿铺量）——
+# 替代硬编码 15（原 15/20=DeepSeek 稳定输出上限实锤，仍可通过 env 上调回 15+）；
+# 消融/回归历史口径需要 15 时设 MTA_GEN_MAX_CASES=15。
+GEN_MAX_CASES = int(os.environ.get("MTA_GEN_MAX_CASES", "10") or 10)
+
 # —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
 LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg
 
