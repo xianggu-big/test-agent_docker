@@ -10,7 +10,8 @@
 
 行为：
 - 402 / "Insufficient Balance" → 抛 BudgetExhausted（RuntimeError 子类，中文可行动文案），
-  **不重试**（再试也是白烧时间）；
+  **不重试**（再试也是白烧时间）；MTA_LLM_FALLBACK=1 时先尝试本地备胎
+  （config.LLM_FALLBACK_*，产物 additional_kwargs.llm_fallback 打标；备胎不可达则照常抛）；
 - 429 / 5xx / 超时 / 连接错误 → 指数退避重试（默认 3 次，2s→4s→8s），最后一次仍失败原样抛；
 - 其它错误（400 参数错等）→ 直接抛（重试无意义）。
 """
@@ -58,6 +59,45 @@ class RobustChat:
     def __getattr__(self, name):          # 透传 model / model_name / temperature 等
         return getattr(self._inner, name)
 
+    def _try_fallback(self, messages, *a, **kw):
+        """余额耗尽时的本地备胎（MTA_LLM_FALLBACK=1 开启，默认关=旧行为逐字节不变）。
+
+        诚实纪律三条：
+        1. 降级产物必须在 additional_kwargs.llm_fallback 打标（哪个模型救的场），
+           台账/调用方可识别——防备胎产物混进 DeepSeek 口径的实验数据；
+        2. 备胎不可达/自身失败 → 返回 None，原 402 的 BudgetExhausted 照常抛，
+           绝不把"备胎挂了"变形吞掉；
+        3. 只对 API 侧余额耗尽生效；自家 token 停车线的预算停止是实验预注册边界，
+           不走这里（若停车线直接 raise BudgetExhausted 也不经过 invoke 的 budget 分支）。
+        """
+        from .. import config
+        if not getattr(config, "LLM_FALLBACK_ENABLED", False):
+            return None
+        try:
+            from langchain_openai import ChatOpenAI
+            log.warning("[llm-fallback] 主模型余额耗尽，降级本地 %s@%s（phase=%s task=%s）",
+                        config.LLM_FALLBACK_MODEL, config.LLM_FALLBACK_BASE_URL,
+                        self._phase or "-", self._task_id or "-")
+            fb = ChatOpenAI(model=config.LLM_FALLBACK_MODEL, api_key="ollama",
+                            base_url=config.LLM_FALLBACK_BASE_URL,
+                            temperature=kw.get("temperature", 0.2),
+                            timeout=config.LLM_FALLBACK_TIMEOUT, max_retries=1,
+                            max_tokens=config.LLM_FALLBACK_MAX_TOKENS)
+            resp = fb.invoke(messages, *a, **kw)
+            try:
+                base = dict(getattr(resp, "additional_kwargs", {}) or {})
+                base["llm_fallback"] = {"model": config.LLM_FALLBACK_MODEL,
+                                        "reason": "primary_budget_exhausted"}
+                resp.additional_kwargs = base
+            except Exception:             # noqa: BLE001 —— 标记失败不吞降级结果
+                log.warning("[llm-fallback] 降级结果打标失败（产物照常返回，台账将缺备胎标记）")
+            log.warning("[llm-fallback] 备胎产出 %s 字符", len(getattr(resp, "content", "") or ""))
+            return resp
+        except Exception as e:            # noqa: BLE001 —— 备胎任何失败都不改变原错误语义
+            log.error("[llm-fallback] 本地备胎不可用：%s: %s（原 402 照常抛）",
+                      type(e).__name__, str(e)[:160])
+            return None
+
     def invoke(self, messages, *a, **kw):
         last: Exception | None = None
         for attempt in range(self._retries):
@@ -66,6 +106,9 @@ class RobustChat:
             except Exception as e:        # noqa: BLE001 —— 分类后再决定抛/重试
                 kind = _classify(e)
                 if kind == "budget":
+                    fb = self._try_fallback(messages, *a, **kw)
+                    if fb is not None:
+                        return fb
                     raise BudgetExhausted(
                         "大模型余额不足（402 Insufficient Balance）：请充值后重试；"
                         "本任务未消耗后续轮次，当前结果已如实保存。"

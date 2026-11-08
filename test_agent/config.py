@@ -176,6 +176,16 @@ DIFF_GATE_REF = "HEAD~1"    # 差分闸对照 ref（基准场景可指向已知 
 FLAKY_RERUNS = int(os.environ.get("MTA_FLAKY_RERUNS", "0") or 0)
 # 连跑：>0 时疑似产品缺陷终判前同命令连跑 N 次，结果不一致在 stop_reason 标 flaky
 
+# —— LLM 本地备胎（2026-11-07；用户定调"离线模型作为 token 耗尽的备用品"） ——
+# 定位=演示/开发兜底，不是数据生产（本地 4B 质量与 DeepSeek 有实测差距，混入实验数据会破坏可比性）。
+# 只对 API 侧余额耗尽（402 类）降级；自家 token 停车线的预算停止不降级（实验预注册边界）。
+# 前置：ollama serve 已启动 + 备胎模型就绪（qwen3-4b-inst-test，见 docker/ollama/Modelfile.qwen3-instruct-test）
+LLM_FALLBACK_ENABLED = _flag("MTA_LLM_FALLBACK", False)   # True=402 时自动降级本地模型继续
+LLM_FALLBACK_BASE_URL = os.environ.get("MTA_LLM_FALLBACK_URL", "http://localhost:11434/v1")
+LLM_FALLBACK_MODEL = os.environ.get("MTA_LLM_FALLBACK_MODEL", "qwen3-4b-inst-test")
+LLM_FALLBACK_TIMEOUT = int(os.environ.get("MTA_LLM_FALLBACK_TIMEOUT", "600") or 600)
+LLM_FALLBACK_MAX_TOKENS = int(os.environ.get("MTA_LLM_FALLBACK_MAX_TOKENS", "3000") or 3000)
+
 # —— 环境自适应 recipe（任务F / 2026-11-02，docs/环境自适应调研与设计.md §6） ——
 RECIPE_ENABLED = False              # 默认关：关=EXEC_LANGUAGES 旧路径逐字节不变（可回滚）
 RECIPE_MAX_BUILD_S = 900            # 单次镜像构建超时（秒）
