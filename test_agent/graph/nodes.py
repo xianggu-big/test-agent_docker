@@ -961,6 +961,25 @@ def make_nodes(deps: GraphDeps) -> dict:
             why = "无需求文本" if not requirement else "未配置 DEEPSEEK_API_KEY"
             msg(state["session_id"], "assistant", f"[plan] {why}：跳过测试条件拆解（诚实降级）")
             return {}
+        # 需求理解与提炼层（UNDERSTAND_ENABLED 默认关）：任意形态输入（一句话/小白话/任务书）
+        # → 测试方向/目标/显式假设。产物是策略不是条件——条件仍必须锚真值清单（闸不放松）；
+        # 产物经 agent_messages 留痕（可审计），fail-open：理解失败透传原文。
+        understanding = None
+        if config.UNDERSTAND_ENABLED:
+            from ..skills.understand import understand_requirement
+            understanding = understand_requirement(
+                api_key, requirement,
+                project_hint=str(state.get("primary_language") or ""),
+                on_resp=lambda resp: log_llm_call(tid, "understand", resp))
+            if understanding:
+                goals = "；".join(understanding["test_goals"][:3])
+                extra = (f"（显式假设 {len(understanding['assumptions'])} 条）"
+                         if understanding["assumptions"] else "")
+                msg(state["session_id"], "assistant",
+                    f"[understand] 需求理解提炼：方向 {goals}{extra}")
+            else:
+                msg(state["session_id"], "assistant",
+                    "[understand] 理解层未产出（fail-open 透传原文拆解）")
         from ..skills.llm_client import make_chat  # B5：带退避重试的同签名构造
         llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
                          base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
@@ -980,7 +999,8 @@ def make_nodes(deps: GraphDeps) -> dict:
         resp = llm.invoke([("system", PLAN_SYSTEM),
                            ("user", build_plan_prompt(requirement,
                                                       hotspots=state.get("complexity_hotspots"),
-                                                      source_modules=src_outline))])
+                                                      source_modules=src_outline,
+                                                      understanding=understanding))])
         log_llm_call(tid, "plan", resp)
         conds = parse_conditions(resp.content)
         if not conds:

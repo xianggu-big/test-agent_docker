@@ -151,6 +151,11 @@ DEFECT_CLUSTERING_ENABLED = _flag("MTA_DEFECT_CLUSTER", False)
 # 分散补充」总 ≤20（E2E 实锤 20 条=DeepSeek 稳定输出上限）。默认关=提示词与闸行为逐字节不变。
 BREADTH_SAMPLING_ENABLED = _flag("MTA_BREADTH", False)
 
+# —— 需求理解与提炼层（2026-11-08：任意形态输入归一——一句话/小白话/任务书 → 测试方向/目标） ——
+# 默认关=plan 提示词逐字节不变（消融格：理解层开/关对比输入形态鲁棒性）；产物是策略不是条件
+# （test_goals 只当 plan 上下文，测试条件仍必须锚真值清单——闸不放松）。
+UNDERSTAND_ENABLED = _flag("MTA_UNDERSTAND", False)
+
 # —— 四级双轨 P1（L2 集成层，docs/四级双轨测试框架研究规划.md §3.2/§3.5/§11） ——
 LEVELS_ENABLED = False       # D9 串行任务接力总开关：True=API 下发在 L1 后自动接力 L2 leg
 

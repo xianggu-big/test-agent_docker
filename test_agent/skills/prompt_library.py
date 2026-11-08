@@ -133,10 +133,12 @@ def build_regen_prompt(sources: list[tuple[str, str]], requirement: str,
 
 
 def build_plan_prompt(requirement: str, hotspots: list[dict] | None = None,
-                      source_modules: list[str] | None = None) -> str:
+                      source_modules: list[str] | None = None,
+                      understanding: dict | None = None) -> str:
     """hotspots: W4 圈复杂度热点（radon 实测）——控制流密集函数提示设计方法倾斜。
     source_modules: 被测源码结构清单（BREADTH 广度采样，config.BREADTH_SAMPLING_ENABLED）；
-    None=提示词逐字节不变（默认关口径保护）。"""
+    understanding: 需求理解层产物（UNDERSTAND_ENABLED，任意形态输入的提炼产物）——
+    信息提供层，条件仍必须锚真值清单；None=提示词逐字节不变（默认关口径保护）。"""
     hot_text = ""
     if hotspots:
         rows = "\n".join(f"- {h['file']}::{h['name']}（圈复杂度 {h['complexity']}，rank {h['rank']}）"
@@ -156,9 +158,13 @@ def build_plan_prompt(requirement: str, hotspots: list[dict] | None = None,
 测试条件须覆盖下述模块/函数域中的大部分：同一函数域的条件不超过 3 条；
 清单中尚未被任何条件覆盖的函数域，至少各拆解 1 条条件（用例全面性优先于单点深挖）：
 {mod_rows}"""
+    und_text = ""
+    if understanding:
+        from .understand import render_understanding
+        und_text = render_understanding(understanding)
     return f"""## 用户需求
 {requirement}
-{hot_text}{src_text}
+{hot_text}{src_text}{und_text}
 ## 任务
 把需求拆解为可验证的测试条件：每条是单一行为陈述、可通过测试证伪；标注优先级（高/中/低）
 与建议的用例设计方法（等价类划分/边界值分析/判定表/语句分支覆盖/错误推测法）。
