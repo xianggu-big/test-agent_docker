@@ -4,22 +4,109 @@
 - WAL 模式；外键运行时开启，防绕过确认门的脏写入
 - 方言 SQLite，仅用标准库 sqlite3，无第三方依赖
 """
+import inspect
+import logging
 import re
 import sqlite3
+import threading
+import time
 from pathlib import Path
 
 from .. import config
 
+log = logging.getLogger(__name__)
+
+# —— 连接探针（2026-11-08 655/656 锁循环诊断设施，MTA_CONN_PROBE 默认关）——
+# 病根家族：未提交事务悬挂持锁（api 端点实锤过 19/20 locked 雪崩，write_conn 为其
+# 而生；执行图/钩子路径复发=655/656 worker 卡死在 UPDATE 上数分钟不自愈）。
+# 探针=注册每个 get_conn 产物（id→(连接, 创建栈摘要)）+后台线程周期点名 in_transaction
+# 的连接——悬挂持锁者从"只能猜"变"日志直接报创建位置"。
+# 注意：sqlite3.Connection 不支持 weakref（TypeError 实锤）——强引用注册，探针轮询时
+# 注销已 close 的连接（close 后 OS 层资源已释放，Python 对象延迟数秒析构无锁影响）。
+_CONN_REG: dict = {}             # id(conn) -> (conn, 创建位置摘要)
+_REG_LOCK = threading.Lock()
+_PROBE_STARTED = False
+
+
+def _register_conn(conn: sqlite3.Connection) -> None:
+    global _PROBE_STARTED
+    origin = "?"
+    frame = inspect.currentframe()
+    try:
+        # _register_conn ← get_conn ← 真正的调用方（再上一层是调用方的调用方，更有用）
+        f = frame.f_back.f_back if frame and frame.f_back else None
+        if f is not None:
+            origin = f"{f.f_code.co_filename.rsplit(chr(92), 1)[-1]}:{f.f_lineno} in {f.f_code.co_name}"
+    finally:
+        del frame
+    with _REG_LOCK:
+        _CONN_REG[id(conn)] = (conn, origin)
+        if not _PROBE_STARTED:
+            _PROBE_STARTED = True
+            threading.Thread(target=_probe_loop, name="conn-probe", daemon=True).start()
+
+
+def _probe_loop() -> None:
+    """每 5s 扫描：点名悬挂连接；同 (线程,创建位置) 累计 2 个周期（≈10s）仍悬挂→
+    自动 rollback 止血（未提交事务悬挂持锁的运行时兜底）。
+    计数按 (thread_ident, origin) 而非连接 id——661 实锤：重试路径每轮新建连接，
+    id 轮换导致按 id 计数永远=1 止血永不触发。正常流程写→commit 是毫秒级，探针
+    5s 采样撞见概率≈0，连续两周期命中=必然异常悬挂。止血语义：回滚=丢弃半个事务，
+    被回滚方（重试路径）下轮重写（与 write_conn 异常 rollback 同语义）。"""
+    stuck_cnt: dict = {}
+    while True:
+        time.sleep(5)
+        try:
+            stuck, closed, healed = [], [], []
+            with _REG_LOCK:
+                for cid, (c, origin) in list(_CONN_REG.items()):
+                    key = (threading.get_ident(), origin)
+                    try:
+                        if c.in_transaction:
+                            cnt = stuck_cnt.get(key, 0) + 1
+                            stuck_cnt[key] = cnt
+                            stuck.append(origin)
+                            if cnt >= 4:
+                                # 20s（4 周期）才动手：活跃写（写→commit 毫秒级）绝不连挂
+                                # 4 周期；669 实锤 2 周期止血会回滚 D2 增补的活跃写=数据丢
+                                try:
+                                    c.rollback()
+                                    healed.append(origin)
+                                except sqlite3.ProgrammingError:
+                                    closed.append(cid)
+                                stuck_cnt.pop(key, None)   # 止血后重开计数（连接保留监控）
+                        else:
+                            stuck_cnt.pop(key, None)
+                    except sqlite3.ProgrammingError:
+                        closed.append(cid)
+                        stuck_cnt.pop((threading.get_ident(), origin), None)
+                for cid in closed:
+                    _CONN_REG.pop(cid, None)
+            if stuck:
+                log.warning("[conn-probe] %d 个连接处于未提交事务（悬挂持锁）：%s",
+                            len(stuck), stuck[:8])
+            if healed:
+                log.warning("[conn-probe] 自动止血 rollback %d 个悬挂连接：%s",
+                            len(healed), healed[:8])
+        except Exception:        # noqa: BLE001 —— 探针自身永不炸业务
+            pass
+
 
 def get_conn(db_path: Path | None = None) -> sqlite3.Connection:
-    """打开连接：WAL + busy_timeout 防并发读写撞锁；行取回用 Row 便于按列名读。"""
+    """打开连接：WAL + busy_timeout 防并发读写撞锁；行取回用 Row 便于按列名读。
+    check_same_thread=False：允许跨线程访问——项目模式是"谁建谁用"短连接（无并发
+    共用），此开关只为 conn-probe 止血能力（2026-11-08 661 实锤：探针线程对主线程
+    创建的悬挂连接读 in_transaction 可行、rollback 被 check_same_thread 拦截抛
+    ProgrammingError→止血永远不生效）。"""
     path = Path(db_path) if db_path else config.DB_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA busy_timeout = 15000")   # 并发写雪崩实锤后上调（安全审计 20 并发创建 19 locked）
     conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
+    if getattr(config, "CONN_PROBE_ENABLED", False):
+        _register_conn(conn)
     return conn
 
 

@@ -465,13 +465,17 @@ def post_prep_review_hook(task_id: int) -> None:
     elif mode == "auto":
         from types import SimpleNamespace
         from ..sandbox.runner import SandboxRunner
-        deps = SimpleNamespace(conn=get_conn(), runner=SandboxRunner())
-        _auto_review_loop(deps, task_id)
-        if conn.execute("SELECT status FROM test_tasks WHERE id=?",
-                        (task_id,)).fetchone()["status"] == "ready_for_review":
-            from ..store.queue import QueueWorker   # 函数内延迟 import 防循环
-            QueueWorker.enqueue(task_id, "exec")
-            _reviewer_msg(conn, task_id, "[ai-review] D2 收敛，已自动入队阶段二")
+        deps_conn = get_conn()   # 2026-11-08 锁循环实锤：D2 循环连接必须显式 close
+        try:                     # （原实现丢弃引用=悬挂连接带事务锁全进程）
+            deps = SimpleNamespace(conn=deps_conn, runner=SandboxRunner())
+            _auto_review_loop(deps, task_id)
+            if conn.execute("SELECT status FROM test_tasks WHERE id=?",
+                            (task_id,)).fetchone()["status"] == "ready_for_review":
+                from ..store.queue import QueueWorker   # 函数内延迟 import 防循环
+                QueueWorker.enqueue(task_id, "exec")
+                _reviewer_msg(conn, task_id, "[ai-review] D2 收敛，已自动入队阶段二")
+        finally:
+            deps_conn.close()
 
 
 def _reviewer_msg(conn, task_id: int, content: str) -> None:
@@ -502,6 +506,10 @@ def _auto_review_loop(deps: GraphDeps, task_id: int) -> None:
             summary = run_review_once(llm, conn, task_id, round_no=round_no)
         except Exception as e:  # noqa: BLE001 —— 代审自身失败绝不炸链路，交人工
             log.warning("D2 代审异常 task=%s round=%s: %s", task_id, round_no, e)
+            try:
+                conn.rollback()   # 2026-11-08 锁循环实锤：写段抛异常必须回滚（悬挂事务锁全进程）
+            except Exception:     # noqa: BLE001
+                pass
             _reviewer_msg(conn, task_id,
                           f"[ai-review] 代审调用失败（{type(e).__name__}），停在待审查交人工")
             return

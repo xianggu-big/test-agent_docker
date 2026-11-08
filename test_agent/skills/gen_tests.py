@@ -207,6 +207,122 @@ def _normalize_go_imports(imports_text: str) -> list[str]:
     return out or ['"testing"']
 
 
+# —— Go 漏 import 自检自补（2026-11-08 658 实锤：LAYER_AWARE 格 AI 用例写出
+# base64.RawURLEncoding 却漏 import encoding/base64 → 整包 build failed → 8 条用例
+# 0 条执行 → 检出率假 0（用例断言已覆盖全部四条检出方向却没跑起来）。
+# 落库前确定性补齐，零 LLM 零容器；标识符点调用文本命中才补=补了必然被用，
+# 不会引入 "imported and not used"；项目内包/第三方不在映射表=不补。）
+_GO_STD_IMPORT_HINTS = {
+    "base64.": '"encoding/base64"',
+    "strings.": '"strings"',
+    "bytes.": '"bytes"',
+    "json.": '"encoding/json"',
+    "http.": '"net/http"',
+    "httptest.": '"net/http/httptest"',
+    "time.": '"time"',
+    "fmt.": '"fmt"',
+    "os.": '"os"',
+    "errors.": '"errors"',
+    "strconv.": '"strconv"',
+    "sort.": '"sort"',
+    "io.": '"io"',
+    "url.": '"net/url"',
+    "sql.": '"database/sql"',
+    "context.": '"context"',
+    "rand.": '"math/rand"',
+}
+
+
+def _go_import_pkg_name(line: str) -> str:
+    """import 行的包名（别名优先，裸路径取末段）：`alias "path"`→alias；`"a/b/c"`→c。"""
+    m = re.match(r'(?:([\w]+)\s+)?"([^"]+)"', line.strip())
+    if not m:
+        return ""
+    if m.group(1):
+        return m.group(1)
+    return m.group(2).rstrip("/").rsplit("/", 1)[-1]
+
+
+def _strip_go_undefined_calls(content: str, sources_text: str = "") -> tuple[str, list[str]]:
+    """Go 用例幻觉辅助函数手术（2026-11-08 668 实锤：用例调用 newFakeRepo() 却没
+    定义它 → undefined 整包 build failed → R-Loop 3 轮同指纹熔断）。
+    裸调用（非 pkg.Func 形式）不在「本文件定义 ∪ 被测源码定义」→删除包含它的测试
+    函数（删 1 保 N：一个幻觉函数不再一刀切死整包）。sources_text=被测源码全文
+    （项目内函数是合法调用目标——668 复盘发现 NewService 这类项目函数必须白名单，
+    否则手术误杀真实调用）。testing 方法（t.Errorf 等）带接收者=非裸调用天然排除。"""
+    m = re.search(r"import \(\n(.*?)\n\)", content)
+    if not m:
+        return content, []
+    body_start = m.end()
+    body = content[body_start:]
+    defined = set(re.findall(r"func\s+(?:\([\w ]+\*?[\w ]+\)\s+)?(\w+)\s*\(", body))
+    defined |= set(re.findall(r"func\s+(?:\([\w ]+\*?[\w ]+\)\s+)?(\w+)\s*\(",
+                              sources_text or ""))
+    # 裸调用：前面不是点/字母/下划线/引号（排除 pkg.Func、receiver.Method、字符串）
+    calls = set(re.findall(r"(?<![.\w\"/])([a-zA-Z_]\w*)\s*\(", body))
+    builtin = {"len", "cap", "make", "new", "append", "copy", "delete", "panic"}
+    undefined = {c for c in calls
+                 if c not in defined and c not in builtin and not c.startswith("Test")}
+    if not undefined:
+        return content, []
+    # 删除包含未定义调用的 func TestXxx 块（到下一个顶层 func 边界）
+    removed, out = [], []
+    blocks = re.split(r"(?=^func\s)", body, flags=re.M)
+    header = content[:body_start]
+    for blk in blocks:
+        mm = re.match(r"func\s+Test", blk)
+        if mm and any(f"{u}(" in blk for u in undefined):
+            named = re.match(r"func\s+(Test\w*)", blk)
+            removed.append(named.group(1) if named else "?")
+        else:
+            out.append(blk)
+    if not removed:
+        return content, []
+    return header + "".join(out), removed
+
+
+def _fix_go_missing_imports(content: str) -> tuple[str, list[str]]:
+    """Go 用例 import 双向修复（落库前确定性，零 LLM 零容器）：
+    ①补缺（658 实锤）：代码区「标识符+点」命中而 import 块缺对应标准库包→补块尾；
+    ②删多余（660 实锤）：import 块里整段代码零使用的包→删行——Go 的 unused import
+    是编译错误（Python/JS 只是警告），LLM 从其他语言习惯带多余 import=整包 build
+    failed 一刀切死全部用例。
+    占用检查（659 实锤）：项目内包占用同包名（internal/errors vs 标准库 errors）时禁补。
+    `_ "x"` / `. "x"` 侧效应导入不参与检查。返回 (新 content, 补了哪些包)。"""
+    m = re.search(r"import \(\n(.*?)\n\)", content, re.S)
+    if not m:
+        return content, []
+    code_part = content[m.end():]
+
+    # ① 删多余：整段代码（含注释/字符串——保守方向宁误留不误删）零使用的包
+    kept, removed = [], []
+    for ln in m.group(1).splitlines():
+        s = ln.strip()
+        name = _go_import_pkg_name(s)
+        if (not name or s.startswith(("_ ", ". "))
+                or re.search(rf"\b{re.escape(name)}\s*[.(]", code_part)):
+            kept.append(ln)
+        else:
+            removed.append(s)
+    have = {f'"{x}"' for x in re.findall(r'"([^"]+)"', "\n".join(kept))}
+    taken_names = {_go_import_pkg_name(ln) for ln in kept} - {""}
+
+    # ② 补缺：标识符点调用命中且未 import 且包名未被占用
+    added = []
+    for ident, pkg in _GO_STD_IMPORT_HINTS.items():
+        if pkg in have:
+            continue
+        if _go_import_pkg_name(pkg) in taken_names:
+            continue
+        if re.search(rf"(?<![\"\w./]){re.escape(ident)}", code_part):
+            added.append(pkg)
+
+    if not added and not removed:
+        return content, []
+    new_block = "\n".join(kept) + "".join(f"\n\t{ln}" for ln in sorted(added))
+    return content[:m.start(1)] + new_block + content[m.end(1):], added
+
+
 def _iter_source_files(ws: Path, lang: str = "python"):
     """按目标语言枚举被测源码：python=*.py；javascript/typescript=JS_SOURCE_EXTS；
     java=*.java（白包阶段2）；go=*.go（白包阶段3，排除 _test.go 生成物）；
@@ -1494,6 +1610,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   existing_cases=(args.get("existing_names") or None)
                                                   if feedback else None,
                                                   defense_v2=config.DEFENSE_V2_ENABLED,
+                                                  layer_aware=config.LAYER_AWARE_ENABLED,
                                                   sut_functions=sut_manifest,
                                                   sut_mismatch=sut_mismatch))])
     log_llm_call(task_id, phase, resp)
@@ -1658,6 +1775,15 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         content = (header + "\n"
                    + f"package {pkg}\n\nimport (\n"
                    + "".join(f"\t{ln}\n" for ln in import_lines) + ")\n\n" + body + "\n")
+        # 漏 import 自检自补（658 实锤：漏 base64 整包 build failed=8 条用例假 0 执行）
+        content, go_imports_added = _fix_go_missing_imports(content)
+        if go_imports_added:
+            log.info("gen_tests task=%s Go 漏 import 自动补: %s", task_id, go_imports_added)
+        # 幻觉辅助函数手术（668 实锤：调用未定义 newFakeRepo→undefined 整包死+R-Loop 熔断）
+        src_text = "\n".join(code for _, code in sources)
+        content, go_stripped = _strip_go_undefined_calls(content, src_text)
+        if go_stripped:
+            log.warning("gen_tests task=%s Go 幻觉函数用例剔除: %s", task_id, go_stripped)
     if is_php:
         # PHP 方法片段必须包 TestCase 类（渲染壳，类名=文件名——phpunit 显式文件运行前提）。
         # imports 字段= require_once 语句（lang_rules 约定），原样置顶。

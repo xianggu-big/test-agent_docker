@@ -39,7 +39,26 @@ def _err_message(outputs: list[str]) -> str:
     return (detail[0].strip()[:300] if detail else "")
 
 
-def go_test_json_to_rows(json_text: str) -> list[dict]:
+def _build_err_lines(json_text: str, stderr_text: str = "") -> list[str]:
+    """编译错误细节行收集（658/659 实锤）：build_run_cmd_go 带 2>&1——编译错误
+    （# pkg 头/vet:/undefined/.go:行）混在 stdout 的非 JSON 散行里被 _parse_events
+    跳过，stderr 键反而常为空——两处都扫，保归因链（task_366 stderr 丢弃同族）。"""
+    raw = list((json_text or "").splitlines()) + list((stderr_text or "").splitlines())
+    return [ln.strip() for ln in raw
+            if ln.strip() and not ln.strip().startswith("{")
+            and (".go:" in ln or "undefined:" in ln or "declared" in ln or "Error" in ln)]
+
+
+def _fill_build_err(build_err: dict, build_failed: set, err_lines: list[str]) -> None:
+    """把编译错误细节行填给 build_failed 包（首个错误行，防 # pkg 头行覆盖细节）。"""
+    if not err_lines:
+        return
+    for pkg in build_failed:
+        if pkg not in build_err:
+            build_err[pkg] = err_lines[0][:300]
+
+
+def go_test_json_to_rows(json_text: str, stderr_text: str = "") -> list[dict]:
     """go test -json → 逐用例 rows（store_case_results 同契约：nodeid/name/status/
     duration_ms/message）。编译失败无 Test 事件 → 包级 ERROR 行（nodeid=pkg::[build failed]）。"""
     events = _parse_events(json_text)
@@ -73,6 +92,8 @@ def go_test_json_to_rows(json_text: str) -> list[dict]:
         rows.append({"nodeid": f"{pkg}::{test}", "name": test, "status": status,
                      "duration_ms": int(round(float(ev.get("Elapsed") or 0) * 1000)),
                      "message": _err_message(outs)})
+    if build_failed:
+        _fill_build_err(build_err, build_failed, _build_err_lines(json_text, stderr_text))
     for pkg in sorted(build_failed):
         rows.append({"nodeid": f"{pkg}::[build failed]", "name": "[build failed]",
                      "status": "error", "duration_ms": None,
@@ -111,7 +132,8 @@ def coverprofile_to_rows(cover_text: str) -> tuple[list[dict], int]:
     return rows, total_pct
 
 
-def go_test_json_to_pytest_text(json_text: str, cover_text: str | None = None) -> str:
+def go_test_json_to_pytest_text(json_text: str, cover_text: str | None = None,
+                                stderr_text: str = "") -> str:
     """go test -json → pytest 风格统一文本（计数/FAILED/ERROR 行/panic 帧段/覆盖表）。
 
     evaluate 正则契约对齐：`(\\d+) passed` / `(\\d+) failed` / `TOTAL.*?\\s(\\d+)%`。"""
@@ -161,6 +183,8 @@ def go_test_json_to_pytest_text(json_text: str, cover_text: str | None = None) -
             body.append(f"FAILED {pkg}::{test} - {msg}")
         elif ev["Action"] == "skip":
             body.append(f"SKIP {pkg}::{test} - {msg}")
+    if build_failed:
+        _fill_build_err(build_err, build_failed, _build_err_lines(json_text, stderr_text))
     for pkg in sorted(build_failed):
         body.append(f"ERROR {pkg}::[build failed] - {build_err.get(pkg, 'build failed')}")
         failed += 1

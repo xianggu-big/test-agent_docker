@@ -1,0 +1,116 @@
+{
+  "imports": "",
+  "cases": [
+    {
+      "name": "test_div_normal_integer_等价类划分",
+      "method": "等价类划分",
+      "priority": "高",
+      "input": "a=10, b=2",
+      "steps": "调用 div(10, 2) 函数。",
+      "expected": 5,
+      "expected_basis": "需求明示",
+      "code": "def test_div_normal_integer_等价类划分():\n    result = div(10, 2)\n    assert result == 5"
+    },
+    {
+      "name": "test_div_zero_denominator_等价类划分",
+      "method": "等价类划分",
+      "priority": "高",
+      "input": "a=5, b=0",
+      "steps": "调用 div(5, 0) 函数。",
+      "expected": "raise ValueError('division by zero')",
+      "expected_basis": "docstring文档",
+      "code": "def test_div_zero_denominator_等价
+      .splitlines() + ['']\n    try:\n        div(5, 0)\n    except ValueError as e:\n        assert str(e) == 'division by zero'"
+    },
+    {
+      "name": "test_div_non_integer_type_等价类划分",
+      "method": "等价类划分",
+      "priority": "高",
+      "input": "a=10.5, b=2",
+      "steps": "调用 div(10.5, 2) 函数。",
+      "expected": "raise TypeError('arguments must be int')",
+      "expected_basis": "docstring文档",
+      "code": "def test_div_non_integer_type_等价类划分():\n    try:\n        div(10.5, 2)\n    except TypeError as e:\n        assert str(e) == 'arguments must be int'"
+    },
+    {
+      "name": "test_div_boundary_min_plus_one_边界值分析",
+      "method": "边界值分析",
+      "priority": "高",
+      "input": "a=-2**31+1, b=1",
+      "steps": "调用 div(-2**31+1, 1) 函数。",
+      "expected": -2147483648,
+      "expected_basis": "源码推导",
+      "code": "def test_div_boundary_min_plus_one_边界值分析():\n    result = div(-2**31 + 1, 1)\n    assert result == -2147483648"
+    },
+    {
+      "name": "test_div_boundary_max_minus_one_边界值分析",
+      "method": "边界值分析",
+      "priority": "高",
+      "input": "a=2**31-1, b=1",
+      "steps": "调用 div(2**31-1, 1) 函数。",
+      "expected": 2147483647,
+      "expected_basis": "源码推导",
+      "code": "def test_div_boundary_max_minus_one_边界值分析():\n    result = div(2**31 - 1, 1)\n    assert result == 2147483647"
+    },
+    {
+      "name": "test_div_negative_integer_判定表",
+      "method": "判定表",
+      "priority": "高",
+      "input": "a=-5, b=2",
+      "steps": "调用 div(-5, 2) 函数。",
+      "expected": -3,
+      "expected_basis": "源码推导",
+      "code": "def test_div_negative_integer_判定表():\n    result = div(-5, 2)\n    assert result == -3"
+    },
+    {
+      "name": "test_div_positive_integer_判定表",
+      "method": "判定表",
+      "priority": "中",
+      "input": "a=10, b=3",
+      "steps": "调用 div(10, 3) 函数。",
+      "expected": 3,
+      "expected_basis": "源码推导",
+      "code": "def test_div_positive_integer_判定表():\n    result = div(10, 3)\n    assert result == 3"
+    },
+    {
+      "name": "test_div_zero_numerator_语句分支覆盖",
+      "method": "语句分支覆盖",
+      "priority": "高",
+      "input": "a=0, b=5",
+      "steps": "调用 div(0, 5) 函数。",
+      "expected": 0,
+      "expected_basis": "源码推导",
+      "code": "def test_div_zero_numerator_语句分支覆盖():\n    result = div(0, 5)\n    assert result == 0"
+    },
+    {
+      "name": "test_div_zero_denominator_branch_uncovered_语句分支覆盖",
+      "method": "语句分支覆盖",
+      "priority": "低",
+      "input": "a=1, b=0",
+      "steps": "调用 div(1, 0) 函数，检查是否抛出 ValueError。",
+      "expected": "raise ValueError('division by zero')",
+      "expected_basis": "docstring文档",
+      "code": "def test_div_zero_denominator_branch_uncovered_语句分支覆盖():\n    try:\n        div(1, 0)\n    except ValueError as e:\n        assert str(e) == 'division by zero'"
+    },
+    {
+      "name": "test_div_non_integer_type_error_guess_错误推测法",
+      "method": "错误推测法",
+      "priority": "高",
+      "input": "a='5', b=2",
+      "steps": "调用 div('5', 2) 函数。",
+      "expected": "raise TypeError('arguments must be int')",
+      "expected_basis": "模型推断",
+      "code": "def test_div_non_integer_type_error_guess_错误推测法():\n    try:\n        div('5', 2)\n    except TypeError as e:\n        assert str(e) == 'arguments must be int'"
+    },
+    {
+      "name": "test_div_negative_denominator_错误推测法",
+      "method": "错误推测法",
+      "priority": "中",
+      "input": "a=10, b=-3",
+      "steps": "调用 div(10, -3) 函数。",
+      "expected": -3,
+      "expected_basis": "源码推导",
+      "code": "def test_div_negative_denominator_错误推测法():\n    result = div(10, -3)\n    assert result == -3"
+    }
+  ]
+}

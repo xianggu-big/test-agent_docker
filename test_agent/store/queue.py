@@ -37,7 +37,11 @@ class QueueWorker:
     # —— 入队 ——
     @staticmethod
     def enqueue(task_id: int, kind: str) -> int:
-        """入队（幂等：同任务同 kind 已有 queued/running 行则复用，不重复排）。"""
+        """入队（幂等：同任务同 kind 已有 queued/running 行则复用，不重复排）。
+        2026-11-08 锁循环实锤：INSERT busy 15s 超时抛异常时连接悬挂在开着的写事务
+        （in_transaction）→ 全进程写锁死（conn-probe 点名 queue.py:41）——异常路径
+        必须 rollback 再 close（悬挂连接的锁随 rollback 释放）。"""
+        import sqlite3
         conn = get_conn()
         try:
             row = conn.execute(
@@ -50,6 +54,12 @@ class QueueWorker:
             conn.commit()
             log.info("入队 task=%s kind=%s (queue id=%s)", task_id, kind, qid)
             return qid
+        except sqlite3.OperationalError:
+            try:
+                conn.rollback()
+            except sqlite3.Error:
+                pass
+            raise
         finally:
             conn.close()
 

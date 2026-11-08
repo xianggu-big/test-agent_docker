@@ -144,6 +144,15 @@ DEFECT_CLUSTERING_ENABLED = _flag("MTA_DEFECT_CLUSTER", False)
 # 缺陷去重/同根因聚类（任务卡-369 E：确定性签名 sha1(failure_kind|error_class|
 # 归一化消息|SUT首帧)[:12]；Sentry in-app frames/ReBucket 桶思想，零 LLM）
 
+# 层位感知生成（2026-11-08 653/652 实锤：注入 bug 在错误映射中间件，AI 用例全落
+# service 层手写 stub——stub 世界不含中间件=bug 在测试链路里根本不运行；D2 反馈
+# 指了方向 AI 仍落错层。注入层位覆盖纪律+HTTP 层骨架；默认关=提示词逐字节不变）
+LAYER_AWARE_ENABLED = _flag("MTA_LAYER_AWARE", False)
+
+# 连接探针（2026-11-08 655/656 锁循环诊断：未提交事务悬挂持锁的运行时定位器，
+# 后台线程周期点名 in_transaction 连接的创建栈；默认关=零行为变化）
+CONN_PROBE_ENABLED = _flag("MTA_CONN_PROBE", False)
+
 # —— 测试广度增强（docs 任务卡 .autonomous-loop/e9e10_daily/task_card_breadth_5q.md，2026-11-06） ——
 # E9 实锤：plan 只看需求文本，条件全挤在核心函数域（task432 的 15 条件全落 password 模块）；
 # 降采样纯按优先级保 15 同函数域挤占名额。两层治理（防御矩阵范式）：

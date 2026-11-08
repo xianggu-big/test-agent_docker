@@ -740,7 +740,8 @@ def make_nodes(deps: GraphDeps) -> dict:
             elif lang == "go":
                 # go test -json 事件流逐用例落库（白包阶段3；转换前抽原始事件，同 jest 口径）
                 from ..skills.go_adapter import go_test_json_to_rows
-                rows = go_test_json_to_rows(r.get("stdout", ""))
+                rows = go_test_json_to_rows(r.get("stdout", ""),
+                                            r.get("stderr", ""))   # 658 实锤：编译错误在 stderr
             elif lang == "php":
                 # phpunit junit XML 与 surefire 同 family（白包阶段4），parse_junit_xml 直接复用
                 jc = runner.exec_in(runner.client.containers.get(state["container_name"]),
@@ -789,7 +790,8 @@ def make_nodes(deps: GraphDeps) -> dict:
             cov = runner.exec_in(runner.client.containers.get(state["container_name"]),
                                  ["cat", "/tmp/go_cover.out"], timeout_s=15, workdir="/")
             r["stdout"] = go_test_json_to_pytest_text(
-                r.get("stdout", ""), cov.stdout if (cov.ok and cov.stdout.strip()) else None)
+                r.get("stdout", ""), cov.stdout if (cov.ok and cov.stdout.strip()) else None,
+                r.get("stderr", ""))   # 658 实锤：编译错误在 stderr，进 message 保归因链
         if lang == "php":
             # php_adapter：junit XML+clover(pcov) → 统一文本（S5 唯一合法接缝，下游零改动）。
             # junit 必须从容器 cat /tmp/php_junit.xml——原始 stdout 是 phpunit 人读文本，

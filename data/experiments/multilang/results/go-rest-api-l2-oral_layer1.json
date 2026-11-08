@@ -1,0 +1,29 @@
+{
+  "cell": "go-rest-api-l2-oral_layer1",
+  "design": "单变量=LAYER_AWARE=1，其余与 653 逐项一致（L2 口语需求原文/understand/auto 代审）",
+  "flags": {
+    "layer_aware": true,
+    "understand": true
+  },
+  "task_id": 670,
+  "status": "ready_for_review",
+  "error": "",
+  "cases_generated": 12,
+  "case_results": {
+    "passed": 0,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "rounds": [],
+  "tokens": 54507,
+  "llm_calls": 7,
+  "coverage_line": null,
+  "attribution": {
+    "failure_kinds": [],
+    "reported_kind": null,
+    "env_blocked_hit": false,
+    "flaky_hit": false
+  },
+  "stop_reason": "  "
+}

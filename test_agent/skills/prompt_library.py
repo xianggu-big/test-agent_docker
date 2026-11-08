@@ -239,6 +239,63 @@ CONTRAST_SECTION = """
    client.post("/rooms", json={"room_id": 1})
 """
 
+# —— 层位感知生成（2026-11-08 653 实锤：注入 bug 在错误映射中间件，AI 用例全落
+# service 层手写 stub——stub 世界不含中间件=bug 在测试执行链路里根本不运行。且 D2
+# 反馈已指出 404/ErrNotFound 方向、AI 忠实执行了字面断言仍落错层——层位信息不会
+# 自发升层，必须显式提供。对照先例：种子自举 coupon-api=TestClient API 形态锚定后
+# 批量用例自动走 API 层。防御矩阵第一原则：prompt 的分工是提供信息不是阻止行为）——
+LAYER_GUIDANCE_SECTION = """
+
+## 层位覆盖纪律（信息：真实缺陷的藏身处与对应测法）
+被测项目通常分层：路由/中间件/handler → service → repository/数据层。直接调函数或
+用手写 stub 替换依赖的「单元层」用例，只验证你构造的那个世界——**你 stub 掉的每一段
+真实链路，恰好是层间缺陷（错误翻译、状态码映射、序列化、中间件）的藏身处，这些代码
+在 stub 世界里根本不会运行**。
+分布要求：
+1. 凡条件是「返回某状态码 / 未找到语义 / 错误语义」类——必须至少 1 条 **HTTP 层用例**：
+   起真实路由、发真实请求、断言状态码与响应体。禁止用「service 层 stub 返回了某错误」
+   代替「HTTP 层观察到某状态码」——前者测的是 stub 的行为，不是系统行为。
+2. 校验/边界类条件可留在单元层（直接调函数），但全部用例不得落在同一层。
+3. 手写 fake/stub 只允许隔离数据库/网络等外部环境，不允许让它替你产生被测行为。
+4. 路由/服务构造方式从被测源码里定位（读 import 区与路由注册代码），禁止发明源码里
+   不存在的构造函数；项目 go.mod/requirements 已有的依赖（构建被测项目时已缓存）
+   可从源码 import 区照抄使用。
+"""
+
+LAYER_EXAMPLE_GO = """
+HTTP 层用例骨架（Go；net/http/httptest 是标准库必可用，路由构造以源码实际形态为准）：
+```go
+import (
+    "testing"
+    "net/http/httptest"
+    "<项目内路由/handler 包——从被测源码 import 区照抄>"
+)
+
+func TestGetUnknownAlbum_HTTP层_错误推测法(t *testing.T) {
+    r := <源码里真实的路由构造调用，如 NewRouter() / RegisterRoutes(...)>  // ← 先读源码替换
+    req := httptest.NewRequest("GET", "/albums/不存在的id", nil)
+    w := httptest.NewRecorder()
+    r.ServeHTTP(w, req)
+    if w.Code != 404 {
+        t.Errorf("GET /albums/不存在的id status = %d, want 404", w.Code)
+    }
+}
+```
+骨架中的尖括号是占位说明，必须替换成被测源码里真实存在的构造调用与路径——
+禁止把尖括号或占位文本原样照抄进用例。"""
+
+LAYER_EXAMPLE_PY = """
+HTTP 层用例骨架（Python；仅当被测项目是 Web 服务——存在 app/路由注册——才适用，
+纯函数项目跳过本骨架，仍遵守上面的分布要求）：
+```python
+def test_get_unknown_404_HTTP层_错误推测法():
+    from <被测源码里的 app 所在模块> import app   # ← 从源码定位
+    from fastapi.testclient import TestClient    # flask 项目用其 test_client，以 requirements 为准
+    r = TestClient(app).get("/items/不存在的id")
+    assert r.status_code == 404, f"want 404, got {r.status_code}"
+```
+骨架中的尖括号是占位说明，必须替换成被测源码里真实存在的模块与路径。"""
+
 # —— P1 环境契约统一段（docs/防御矩阵-20261105：整合散落纪律+新增 6/7 两条；
 # {max_cases} 由调用方按条件数动态填）——
 ENV_CONTRACT_SECTION = """
@@ -407,7 +464,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       seed_example: str | None = None,
                       defense_v2: bool = False,
                       sut_functions: list[str] | None = None,
-                      sut_mismatch: str | None = None) -> str:
+                      sut_mismatch: str | None = None,
+                      layer_aware: bool = False) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -432,6 +490,10 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     sut_mismatch: 需求-能力错配警告（B2，requirement_capability_mismatch 的确定性
     核对结果；None=无不匹配）。415 实锤：需求"登录注册"vs 产品无账户体系，生成器
     静默为不存在的功能造 11 条自 mock 用例——警告必须显式禁止编造 mock。
+    layer_aware: 层位感知生成（2026-11-08 653 实锤：AI 用例全落 service 层手写 stub，
+    注入在错误映射中间件的 bug 在测试链路里根本不运行——层位信息必须显式提供）。
+    True=注入层位覆盖纪律段+按 target_language 附 HTTP 层用例骨架
+    （go=httptest / python=TestClient / 其余=通用纪律）；False=不注入（逐字节不变）。
     """
     defense_text = ""
     if defense_v2:
@@ -537,6 +599,14 @@ docstring 没写的行为，按需求文档推断，禁止猜。
                            "（零产品引用的用例会被静态闸整案剔除），跳过该部分并在总结中如实"
                            "说明「需求描述的功能在本项目中不存在」；②若功能以其他命名存在——"
                            "必须从上方候选清单中选取真实函数作为被测对象。")
+
+    layer_text = ""
+    if layer_aware:
+        layer_text = LAYER_GUIDANCE_SECTION
+        if target_language == "go":
+            layer_text += LAYER_EXAMPLE_GO
+        elif target_language in ("python", ""):
+            layer_text += LAYER_EXAMPLE_PY
 
     basis_note = ("五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」"
                   "（对话增补轮另有第六项「用户反馈」：预期直接来自审查反馈但需求原文无依据时诚实标注）——"
@@ -702,7 +772,7 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
 {src_text}
 
 ## 用户需求
-{requirement or "（无额外需求，按源码行为设计）"}{sut_text}{mismatch_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
+{requirement or "（无额外需求，按源码行为设计）"}{sut_text}{mismatch_text}{layer_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
 {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}
