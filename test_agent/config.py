@@ -17,7 +17,8 @@ IMAGE_PY = "mta-test:py312"
 IMAGE_JAVA = "mta-test:jdk17-maven"
 IMAGE_JS = "mta-test:node20-jest"     # JS/TS 执行链路（jest Tier2，2026-11-01）
 IMAGE_UI = "mta-test:playwright"      # UI 黑盒执行链路（黑盒能力补齐阶段3，2026-11-07）
-IMAGE_GO = "mta-test:go122"           # Go 执行链路（白包阶段3，2026-11-07）
+IMAGE_GO = "mta-test:go126"           # Go 执行链路（白包阶段3，2026-11-07；1.26 基座 2026-11-08——
+                                      # gin-master 等新库 go.mod 要求 go>=1.26，1.22 镜像会秒失败）
 IMAGE_GRPC = "mta-test:grpcurl"       # gRPC 黑盒执行链路（黑盒能力补齐阶段4，2026-11-07）
 IMAGE_PHP = "mta-test:php83"          # PHP 执行链路（白包阶段4，2026-11-07）
 IMAGE_BUILD_CTX = {
@@ -213,7 +214,8 @@ RECIPE_IMAGE_POOL = {
                "3.13": "python:3.13-slim"},
     "javascript": {"18": "node:18-bookworm-slim", "20": "node:20-bookworm-slim",
                    "22": "node:22-bookworm-slim"},
-    "go": {"1.22": "golang:1.22", "1.21": "golang:1.21"},
+    "go": {"1.26": "golang:1.26", "1.25": "golang:1.25", "1.24": "golang:1.24",
+           "1.22": "golang:1.22", "1.21": "golang:1.21"},
     "php": {"8.3": "php:8.3-cli"},
 }
 # 辅助镜像清单（镜像管理动态化 2026-11-07）：sidecar/recipe 基础池等「仅展示」镜像——

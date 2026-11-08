@@ -126,12 +126,20 @@ def detect_stack(ws: str | Path) -> dict:
         vote("javascript")
         ev("language", "tsconfig.json（TypeScript 工程特征，node 工具链家族）")
 
-    # —— 其它语言（仅识别，不接执行） ——
+    # —— 其它语言（仅识别；go/php 已接 Tier2 执行链路） ——
+    go_version = None
     for f, lang in (("pom.xml", "java"), ("build.gradle", "java"),
                     ("go.mod", "go"), ("Cargo.toml", "rust"), ("composer.json", "php")):
         if (ws / f).is_file():
             manifests.append(f)
             vote(lang)
+            # go.mod 的 `go X.Y` 指令 = 项目声明的工具链版本（2026-11-08 任务 678/679：
+            # 声明 1.26 而镜像 1.22 → go test 秒失败零事件；recipe 需按声明精确匹配基座）
+            if f == "go.mod":
+                got = parse_go_mod_version(_read(ws / f))
+                if got:
+                    go_version = f"{got[0]}.{got[1]}"
+                    ev("runtime_version", "go.mod[go directive]")
 
     # —— 决策 ——
     if lang_votes.get("javascript", 0) > lang_votes.get("python", 0):
@@ -145,7 +153,8 @@ def detect_stack(ws: str | Path) -> dict:
         package_manager = pm
     elif lang_votes:
         language = max(lang_votes, key=lang_votes.get)
-        runtime_version = None
+        # go 的工具链版本来自 go.mod 声明（其余非执行语言维持 None）
+        runtime_version = go_version if language == "go" else None
         package_manager = ""
     else:
         language, runtime_version, package_manager = "unknown", None, ""
@@ -236,3 +245,58 @@ def deterministic_recipe(stack: dict) -> dict | None:
             "note": note},
         "source": "deterministic",
     }
+
+
+# ——— Go 工具链版本闸（2026-11-08 任务 678/679 实锤）———
+# 病根形态：仓库 go.mod 声明 `go 1.26.0`，执行镜像只有 go1.22 且 GOTOOLCHAIN=local
+# 拒绝自动下载 → `go test` 秒失败，输出仅一行散行、零 JSON 事件 → evaluate 判 0
+# 通过 0 失败/覆盖率 N/A → repair_env 三轮原地打转熔断（同一指纹重复）。
+# 版本是环境事实，repair 修不动——必须在布考场后、开考前确定性判定并诚实 stop，
+# 把"三分钟空转烧 token"换成"一句话说清为什么跑不了"。
+_GO_MOD_VER_RE = re.compile(r"^\s*go\s+(\d+)\.(\d+)(?:\.(\d+))?", re.M)
+_GO_BIN_VER_RE = re.compile(r"go(\d+)\.(\d+)(?:\.(\d+))?")
+
+
+def parse_go_mod_version(text: str) -> tuple[int, int] | None:
+    """go.mod 的 `go X.Y[.Z]` 指令 → (major, minor)；无声明/不可解析 → None。
+    只比 major.minor：Go 的兼容单元是 minor（1.26.0 与 1.26.3 同单元）。"""
+    m = _GO_MOD_VER_RE.search(text or "")
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2))
+
+
+def parse_go_bin_version(text: str) -> tuple[int, int] | None:
+    """`go version` 输出（如 `go version go1.26.1 linux/amd64`）→ (major, minor)。"""
+    m = _GO_BIN_VER_RE.search(text or "")
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2))
+
+
+def check_go_toolchain(ws: str | Path, image_go_version: str) -> dict:
+    """确定性判定：仓库要求 vs 镜像实际版本。返回 {ok, required, actual, reason}。
+    ok=False 时 reason 是可行动文案（含所需版本与镜像实况）——provision 据此诚实 stop。"""
+    ws = Path(ws)
+    gm = ws / "go.mod"
+    if not gm.exists():
+        return {"ok": True, "required": None, "actual": image_go_version, "reason": ""}
+    try:
+        required = parse_go_mod_version(gm.read_text(encoding="utf-8", errors="ignore"))
+    except OSError:
+        return {"ok": True, "required": None, "actual": image_go_version, "reason": ""}
+    actual = parse_go_bin_version(image_go_version)
+    if required is None or actual is None:
+        return {"ok": True, "required": required, "actual": image_go_version, "reason": ""}
+    if required > actual:
+        return {
+            "ok": False, "required": required, "actual": image_go_version,
+            "reason": (f"Go 工具链版本不足：仓库 go.mod 要求 go>={required[0]}.{required[1]}，"
+                       f"执行镜像实际为 go{actual[0]}.{actual[1]}"
+                       f"（GOTOOLCHAIN=local 不会自动下载新工具链）。"
+                       f"处理：①把执行镜像升级到 go>={required[0]}.{required[1]}"
+                       f"（docker/go-test 基座 + config.IMAGE_GO 同步）；"
+                       f"②或改用与该版本兼容的项目分支。"
+                       f"本任务在开考前如实终止，未浪费修复轮次。"),
+        }
+    return {"ok": True, "required": required, "actual": image_go_version, "reason": ""}

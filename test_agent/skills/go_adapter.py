@@ -58,6 +58,22 @@ def _fill_build_err(build_err: dict, build_failed: set, err_lines: list[str]) ->
             build_err[pkg] = err_lines[0][:300]
 
 
+def _synthesize_no_event_error(json_text: str, stderr_text: str = "") -> dict | None:
+    """零 JSON 事件的失败合成（2026-11-08 任务 678/679 实锤）：工具链版本不匹配时
+    `go test` 只吐一行散行（"go: go.mod requires go >= 1.26.0 …"），既非 JSON 事件
+    也没有 `[build failed]`——原实现产出 0 结果行、错误详情完全蒸发（evaluate 只看
+    到 0 通过 0 失败 → env → repair_env 空转，归因链断，与 task_366 stderr 丢弃同族）。
+    此处把散行合成为一条包级 ERROR，让台账/报告直接显示真实原因。"""
+    raw = list((json_text or "").splitlines()) + list((stderr_text or "").splitlines())
+    lines = [ln.strip() for ln in raw if ln.strip() and not ln.strip().startswith("{")]
+    if not lines:
+        return None
+    detail = " ".join(lines)[:300]
+    return {"nodeid": "go::[no test events]", "name": "[no test events]",
+            "status": "error", "duration_ms": None,
+            "message": f"go test 未产出任何事件（疑似环境/工具链问题）：{detail}"}
+
+
 def go_test_json_to_rows(json_text: str, stderr_text: str = "") -> list[dict]:
     """go test -json → 逐用例 rows（store_case_results 同契约：nodeid/name/status/
     duration_ms/message）。编译失败无 Test 事件 → 包级 ERROR 行（nodeid=pkg::[build failed]）。"""
@@ -98,6 +114,10 @@ def go_test_json_to_rows(json_text: str, stderr_text: str = "") -> list[dict]:
         rows.append({"nodeid": f"{pkg}::[build failed]", "name": "[build failed]",
                      "status": "error", "duration_ms": None,
                      "message": build_err.get(pkg, "build failed")})
+    if not rows:
+        synth = _synthesize_no_event_error(json_text, stderr_text)
+        if synth:
+            rows.append(synth)
     return rows
 
 
@@ -188,6 +208,12 @@ def go_test_json_to_pytest_text(json_text: str, cover_text: str | None = None,
     for pkg in sorted(build_failed):
         body.append(f"ERROR {pkg}::[build failed] - {build_err.get(pkg, 'build failed')}")
         failed += 1
+    if not terminal and not build_failed:
+        # 零事件但有散行（工具链版本不匹配等）→ 合成包级错误，别让详情蒸发
+        synth = _synthesize_no_event_error(json_text, stderr_text)
+        if synth:
+            body.append(f"ERROR {synth['nodeid']} - {synth['message']}")
+            failed += 1
     lines.extend(body)
     lines.append(f"=========================== {passed} passed, {failed} failed, "
                  f"{skipped} skipped ===========================")

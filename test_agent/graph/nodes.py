@@ -539,6 +539,19 @@ def make_nodes(deps: GraphDeps) -> dict:
         dep = registry.invoke(tid, skills["install_deps"], {
             "container_name": state["container_name"],
             "deps_manifest": probe_deps_manifest(state["workspace"])})
+        # Go 工具链版本闸（2026-11-08 任务 678/679 实锤）：go.mod 要求 go>=1.26 而镜像
+        # 只有 1.22 → go test 秒失败零 JSON 事件 → evaluate 0/0 → repair_env 三轮空转熔断。
+        # 版本是环境事实（repair 修不动），开考前确定性判定并诚实 stop，不烧修复轮次。
+        if state.get("primary_language") == "go":
+            try:
+                from ..skills.stack_detect import check_go_toolchain
+                gv = runner.exec_in(container, ["go", "version"], timeout_s=30)
+                gate = check_go_toolchain(state["workspace"], gv.stdout or gv.stderr or "")
+                if not gate["ok"]:
+                    msg(state["session_id"], "assistant", f"[provision·toolchain] {gate['reason']}")
+                    return {"done": True, "verdict": "stop", "stop_reason": gate["reason"]}
+            except Exception as e:   # noqa: BLE001 —— 闸自身失败不引入新失败面（fail-open）
+                log.warning("Go 工具链闸跳过（%s: %s）", type(e).__name__, e)
         # DB 感知测试环境 v1（用户需求：带库程序测试时库要参与）：检测 DB 依赖 →
         # sqlite 家族自动建库/迁移/种子；服务端库如实降级提示。fail-open 不炸 provision。
         try:

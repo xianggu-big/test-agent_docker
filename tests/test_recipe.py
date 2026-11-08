@@ -65,7 +65,17 @@ def test_detect_unknown_and_other_language(tmp_path):
     rec = deterministic_recipe(st)
     assert rec is not None and rec["language"] == "go"
     assert rec["install"] == [] and rec["test_framework"] == "go_test"
-    assert rec["base_image"] == "golang:1.22"
+    # 未声明版本的 go 项目默认取池内最高（2026-11-08 镜像升级：池最高 1.22→1.26，
+    # 新版工具链向后兼容旧声明模块；声明了版本的项目仍按版本精确匹配——见下条测试）
+    assert rec["base_image"] == "golang:1.26"
+
+
+def test_go_声明版本精确匹配不越级(tmp_path):
+    # 项目声明 go 1.22 → 仍用 golang:1.22（不因池升级被越级覆盖）
+    st = detect_stack(_ws(tmp_path / "c", {"go.mod": "module x\n\ngo 1.22\n"}))
+    assert st["runtime_version"].startswith("1.22")
+    rec = deterministic_recipe(st)
+    assert rec["base_image"] == "golang:1.22" and rec["runtime_version"] == "1.22"
 
 
 def test_detect_conflict_recorded(tmp_path):
