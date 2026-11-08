@@ -162,10 +162,10 @@ def part1_completion() -> list[Item]:
         "evaluation_rounds", "complexity_hotspots", "llm_calls",
         "test_levels", "interface_endpoints", "call_edges", "scenario_cases",
         "review_decisions", "test_case_results", "exec_queue", "image_recipes", "login_events",
-        "app_logs", "db_asserts", "ui_asserts", "grpc_asserts"}
+        "app_logs", "db_asserts", "ui_asserts", "grpc_asserts", "app_settings"}
     (ok if created == expected_tables else miss)(
-        "L5 schema 31 表契约",
-        "31 表齐备" if created == expected_tables else
+        "L5 schema 32 表契约",
+        "32 表齐备" if created == expected_tables else
         f"缺失={sorted(expected_tables - created)} 多余={sorted(created - expected_tables)}")
     tasks_ddl = re.search(r"CREATE TABLE IF NOT EXISTS test_tasks\s*\(.*?\n\)", ddl, re.S)
     (ok if tasks_ddl and "ready_for_review" in tasks_ddl.group(0) else miss)(

@@ -525,3 +525,15 @@ CREATE TABLE IF NOT EXISTS grpc_asserts (
   created_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_grpc_asserts_task_round ON grpc_asserts(task_id, round_no);
+
+-- 第 32 表：app_settings 应用级设置（任务卡-LLM模型选择-20261108）——key-value 单行
+-- 存储，当前仅 'llm_profile'（provider/base_url/model/key_env JSON）。铁律：只存
+-- key 所在环境变量的"名字"，永不存 key 本体（SQLite 文件会进备份/交接，明文密钥=泄漏面）。
+-- 无行=默认 deepseek（config 现值），老任务/老测试零感知。
+CREATE TABLE IF NOT EXISTS app_settings (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  key        TEXT NOT NULL UNIQUE,               -- 'llm_profile'
+  value      TEXT NOT NULL,                      -- profile JSON（provider/base_url/model/key_env）
+  updated_by TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
