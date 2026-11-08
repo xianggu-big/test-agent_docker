@@ -122,3 +122,80 @@ def test_apply_saved_if_any恢复(tmp_path, monkeypatch):
     assert config.DEEPSEEK_MODEL == "qwen3-4b-inst-test"
     assert config.DEEPSEEK_BASE_URL == "http://localhost:11434/v1"
     conn.close()
+
+
+# ---------- make_chat 兜底（任务卡验收：兜底取 profile 且显式传参仍优先） ----------
+
+def test_make_chat兜底取运行时profile(monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setattr(config, "DEEPSEEK_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setattr(config, "DEEPSEEK_MODEL", "qwen3-4b-inst-test")
+    from test_agent.skills.llm_client import make_chat
+    llm = make_chat(temperature=0.2)               # 三件套不传
+    assert llm._inner.model_name == "qwen3-4b-inst-test"
+    assert "localhost:11434" in str(llm._inner.openai_api_base)
+
+
+def test_make_chat显式传参仍优先(monkeypatch):
+    from test_agent.skills.llm_client import make_chat
+    monkeypatch.setattr(config, "DEEPSEEK_MODEL", "profile-model")   # 兜底值
+    llm = make_chat(model="explicit-model", api_key="sk-x",
+                    base_url="http://explicit.example/v1")
+    assert llm._inner.model_name == "explicit-model"
+    assert llm._inner.openai_api_key.get_secret_value() == "sk-x"
+    assert "explicit.example" in str(llm._inner.openai_api_base)
+
+
+def test_local时备胎跳过(monkeypatch):
+    # 备胎互斥（§2.6）：当前 profile=local 时 _try_fallback 直接返回 None（同端点降级无意义）
+    from test_agent.skills import llm_client
+    monkeypatch.setattr(config, "LLM_FALLBACK_ENABLED", True)
+    monkeypatch.setattr(llm_profile, "current",
+                        lambda conn=None: {**llm_profile.PRESETS["local"],
+                                           "updated_by": "", "updated_at": ""})
+    rc = llm_client.RobustChat(object(), phase="t")   # inner 不被触达（local 先短路）
+    assert rc._try_fallback([("user", "hi")]) is None
+
+
+def test_非local备胎行为不变(monkeypatch):
+    # deepseek profile：不短路，走到构造备胎——构造抛异常→None→原 402 照抛（不依赖本机 ollama）
+    from test_agent.skills import llm_client
+    monkeypatch.setattr(config, "LLM_FALLBACK_ENABLED", True)
+    monkeypatch.setattr(llm_profile, "current",
+                        lambda conn=None: {**llm_profile.PRESETS["deepseek"],
+                                           "updated_by": "", "updated_at": ""})
+
+    class _Boom:
+        def __init__(self, *a, **kw):
+            raise RuntimeError("构造失败（测试注入）")
+
+    monkeypatch.setattr("langchain_openai.ChatOpenAI", _Boom)
+    rc = llm_client.RobustChat(object(), phase="t")
+    assert rc._try_fallback([("user", "hi")]) is None
+
+
+# ---------- API 权限（caller 403：staff=admin+developer，caller 双端点皆拒） ----------
+
+def test_caller_403(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
+    from test_agent.api import server, auth
+    from fastapi.testclient import TestClient
+    with TestClient(server.app) as client:
+        r = client.post("/api/login", json={"username": "admin", "password": "admin123"})
+        assert r.status_code == 200
+        # 建 caller（非 admin/staff）并登录
+        auth.register("prof_caller", "caller123")
+        r2 = client.post("/api/login", json={"username": "prof_caller", "password": "caller123"})
+        assert r2.status_code == 200
+        h = {"Authorization": f"Bearer {r2.json()['token']}"}
+        assert client.get("/api/llm-profile", headers=h).status_code == 403    # staff 端点
+        assert client.post("/api/llm-profile", headers=h,
+                           json={"provider": "local"}).status_code == 403      # admin 端点
+        assert client.post("/api/llm-profile/test", headers=h,
+                           json={"provider": "local"}).status_code == 403      # staff 端点
+        # admin 三端点全通
+        ha = {"Authorization": f"Bearer {r.json()['token']}"}
+        assert client.get("/api/llm-profile", headers=ha).status_code == 200
+        assert client.post("/api/llm-profile", headers=ha,
+                           json={"provider": "local"}).status_code == 200
