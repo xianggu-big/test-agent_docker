@@ -156,6 +156,16 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
     if "PHP Fatal error" in text or "PHP Parse error" in text:
         if re.search(r"Call to undefined (function|class|method)|Parse error|undefined (function|class|method)", text):
             return "case_defect"
+    # 环境类失败信号（多语言；651 实锤：Go 的 PG 连接拒绝 4 条被误判 product_defect——
+    # 干净快照 GT 评测下全部成为 FP。语义=外部服务/网络不可达，非被测代码行为）：
+    # Python 的 ECONNREFUSED 已由 attribution._ENV_CASE_FAIL_HINTS 覆盖归因提示层，
+    # 这里统一接进入 classify 判词层。
+    if re.search(r"dial tcp .{0,80}connect: connection refused"
+                 r"|connection refused"
+                 r"|ECONNREFUSED"
+                 r"|no Go files in"
+                 r"|getsockopt: connection refused", text, re.I):
+        return "env"
     if "FAILED" in text or "AssertionError" in text:
         return "product_defect"   # 断言合理但行为不符 → 疑似产品缺陷
     return "env"                  # 其余先按环境问题处理（重装依赖重试一次）
