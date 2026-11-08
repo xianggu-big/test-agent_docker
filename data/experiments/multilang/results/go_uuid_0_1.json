@@ -1,0 +1,43 @@
+{
+  "task_id": 650,
+  "status": "failed",
+  "error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "cases_generated": 9,
+  "case_results": {
+    "passed": 225,
+    "failed": 1,
+    "error": 0,
+    "skipped": 1
+  },
+  "rounds": [
+    {
+      "round_no": 1,
+      "passed": 225,
+      "failed": 1,
+      "verdict": "stop",
+      "failure_kind": "product_defect",
+      "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+    }
+  ],
+  "tokens": 49805,
+  "llm_calls": 9,
+  "coverage_line": 0.88,
+  "attribution": {
+    "failure_kinds": [
+      "product_defect"
+    ],
+    "reported_kind": "product_defect",
+    "env_blocked_hit": false,
+    "flaky_hit": false
+  },
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就） 疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就） 疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "lang": "go",
+  "project": "uuid",
+  "req_idx": 0,
+  "req_title": "Parse 标准格式与错误处理",
+  "n": 1,
+  "priority": "P2",
+  "retry": 0,
+  "elapsed_s": 630.3,
+  "requirement": "测试 Parse 函数对标准 36 字符 UUID 字符串的解析，应返回正确的 16 字节 UUID 且无错误。同时测试长度非法（如 35 或 37 字符）时返回的错误应能被 IsInvalidLengthError 识别，以及包含非法十六进制字符或连字符位置错误时返回 ErrInvalidUUIDFormat。"
+}
