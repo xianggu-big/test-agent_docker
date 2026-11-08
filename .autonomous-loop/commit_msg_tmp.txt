@@ -1,0 +1,19 @@
+fix(go): A+C 真机验收通过 + 证据蒸发第二变种根修（pkg [pkg.test] 键认领）
+
+A 真机（正例 task 681 gin-master）：go126 镜像下真开考——247 结果行/245 过 2 败/
+覆盖率 0.95（对比 678/679 的 0 通过 0 失败三轮空转）；失败是 gin 上游自身在 go1.26
+下的行为差异（TestBasicAuth401/TestMappingBaseTypes），非平台问题。
+
+C 真机（负例 task 680 go-ver-gate 声明 go1.27）：25 秒诚实 stop，原因含所需版本/
+镜像实况/两处理办法，evaluation_rounds 为空（零 repair 轮次，对比 678 的三轮空转）。
+
+证据蒸发第二变种（681 顺手抓出）：go test -json 把测试编译错误的 Package 标成
+"pkg [pkg.test]"，而 [build failed] 行是裸 pkg——键不匹配 → 回退裸 build failed。
+_fill_build_err 升级为三路认领：同包错误键前缀 → 该前缀包的 output 事件行 →
+通用首行；两处调用点补传 events。单测 681 重放（用 json.dumps 构造事件，规避
+heredoc 吃转义的老坑）。
+
+新增 verify driver=scripts/verify_go_toolchain_gate.py（neg/pos 双臂）；
+demo 项目 data/demo/go-ver-gate（声明 go1.27 的闸负例标本）。
+
+回归 840 passed/1 skipped/守卫 138 OK/0 FINDING。

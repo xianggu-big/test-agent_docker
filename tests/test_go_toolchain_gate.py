@@ -123,3 +123,22 @@ def test_recipe池含go126且按数字排序():
     # 池内版本键按数字元组比大小（字典序会把 3.9 当比 3.13 大——历史实锤坑）
     newest = max(pool, key=lambda v: tuple(int(x) for x in v.split(".")))
     assert newest == "1.26"
+
+
+# ---------- 681 实锤：pkg [pkg.test] 包名键不匹配（证据蒸发第二变种） ----------
+
+def test_681重放_测试包后缀键认领():
+    # go test 把测试编译错误的 Package 标成 "pkg [pkg.test]"，[build failed] 行是裸 pkg。
+    # 用 json.dumps 构造事件（手写 JSON 转义在 heredoc 里被吃过一次，见 658 族教训）
+    import json
+    js = "\n".join(json.dumps(ev) for ev in [
+        {"Action": "output", "Package": "example.com/app",
+         "Output": "FAIL example.com/app [build failed]\n"},
+        {"Action": "output", "Package": "example.com/app [example.com/app.test]",
+         "Output": "./TestGenR1_test.go:21:26: undefined: newFakeRepo\n"},
+    ])
+    rows = go_test_json_to_rows(js)
+    err = [r for r in rows if r["name"] == "[build failed]"][0]
+    assert "undefined: newFakeRepo" in err["message"]      # 不再裸 "build failed"
+    text = go_test_json_to_pytest_text(js)
+    assert "undefined: newFakeRepo" in text

@@ -49,13 +49,35 @@ def _build_err_lines(json_text: str, stderr_text: str = "") -> list[str]:
             and (".go:" in ln or "undefined:" in ln or "declared" in ln or "Error" in ln)]
 
 
-def _fill_build_err(build_err: dict, build_failed: set, err_lines: list[str]) -> None:
-    """把编译错误细节行填给 build_failed 包（首个错误行，防 # pkg 头行覆盖细节）。"""
-    if not err_lines:
-        return
+def _fill_build_err(build_err: dict, build_failed: set, err_lines: list[str],
+                    events: list[dict] | None = None) -> None:
+    """把编译错误细节行填给 build_failed 包（首个错误行，防 # pkg 头行覆盖细节）。
+
+    681 实锤第二变种：`go test -json` 把测试编译错误的 Package 标成
+    `pkg [pkg.test]`（如 `github.com/x/gin [github.com/x/gin.test]`），而
+    `[build failed]` 行的 Package 是裸 `pkg`——键不匹配 → 回退裸 "build failed"，
+    错误详情再蒸发一次。故：①先认领 `pkg [` 前缀的同包错误键；②再扫该前缀包的
+    output 事件行（细节常在事件里、不在散行）；③最后退回通用首行。"""
+    def _details_of(pkg: str) -> str | None:
+        for k, v in (build_err or {}).items():
+            if k.startswith(f"{pkg} [") and not v.startswith("# "):
+                return v
+        for ev in (events or []):
+            ep = ev.get("Package") or ""
+            if ep.startswith(f"{pkg} [") and ev.get("Action") == "output":
+                out = (ev.get("Output") or "").strip()
+                if out and not out.startswith(("#", "FAIL", "ok ")):
+                    return out[:300]
+        return None
+
     for pkg in build_failed:
-        if pkg not in build_err:
-            build_err[pkg] = err_lines[0][:300]
+        if pkg in build_err and not build_err[pkg].startswith("# "):
+            continue
+        hit = _details_of(pkg)
+        if hit:
+            build_err[pkg] = hit
+        elif err_lines:
+            build_err.setdefault(pkg, err_lines[0][:300])
 
 
 def _synthesize_no_event_error(json_text: str, stderr_text: str = "") -> dict | None:
@@ -109,7 +131,8 @@ def go_test_json_to_rows(json_text: str, stderr_text: str = "") -> list[dict]:
                      "duration_ms": int(round(float(ev.get("Elapsed") or 0) * 1000)),
                      "message": _err_message(outs)})
     if build_failed:
-        _fill_build_err(build_err, build_failed, _build_err_lines(json_text, stderr_text))
+        _fill_build_err(build_err, build_failed,
+                        _build_err_lines(json_text, stderr_text), events)
     for pkg in sorted(build_failed):
         rows.append({"nodeid": f"{pkg}::[build failed]", "name": "[build failed]",
                      "status": "error", "duration_ms": None,
@@ -204,7 +227,8 @@ def go_test_json_to_pytest_text(json_text: str, cover_text: str | None = None,
         elif ev["Action"] == "skip":
             body.append(f"SKIP {pkg}::{test} - {msg}")
     if build_failed:
-        _fill_build_err(build_err, build_failed, _build_err_lines(json_text, stderr_text))
+        _fill_build_err(build_err, build_failed,
+                        _build_err_lines(json_text, stderr_text), events)
     for pkg in sorted(build_failed):
         body.append(f"ERROR {pkg}::[build failed] - {build_err.get(pkg, 'build failed')}")
         failed += 1
