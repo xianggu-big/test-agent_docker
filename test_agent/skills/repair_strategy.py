@@ -59,12 +59,13 @@ def make_deepseek_fn(api_key: str | None, task_id: int | None = None):
 
     task_id 供 llm_calls 成本记账（P1-E）；None 时调用不记账（离线脚本注入场景）。
     """
+    from ..skills.llm_profile import effective_key
+    api_key = effective_key(api_key)   # 显式无→按当前 profile 的 key_env 解析
     if not api_key:
         return None
     from ..skills.llm_client import make_chat
-    llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                     base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
-                     timeout=90, max_retries=2)
+    llm = make_chat(api_key=api_key, temperature=0.1,
+                    timeout=90, max_retries=2)
 
     def fn(prompt: str) -> str:
         resp = llm.invoke([("system", REWRITE_SYSTEM), ("user", prompt)])

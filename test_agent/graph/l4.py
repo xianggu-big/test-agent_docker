@@ -55,15 +55,17 @@ def run_l4_task(task_id: int, trace_from: int | None = None) -> dict:
                      (cur.lastrowid, seq, "assistant", content))
         conn.commit()
 
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    from ..skills.llm_profile import effective_key, missing_key_message
+    api_key = effective_key()   # 显式无→按当前 profile 的 key_env 解析
     conds = [dict(r) for r in conn.execute(
         "SELECT condition, priority, method_hint FROM test_conditions "
         "WHERE task_id=? ORDER BY id", (task_id,)).fetchall()]
     if not api_key:
+        reason = missing_key_message({"provider": "未配置", "key_env": "见设置页"})
         _leg_upsert_l4(conn, task_id, status="skipped", verdict="skipped",
-                       stop_reason="未配置 DEEPSEEK_API_KEY：验收场景生成跳过（诚实降级）",
+                       stop_reason=reason + "：验收场景生成跳过（诚实降级）",
                        finished_at=_now())
-        msg("[L4·gen] 无 Key：验收场景生成跳过（诚实降级）")
+        msg(f"[L4·gen] {reason}：验收场景生成跳过（诚实降级）")
         return {"verdict": "skipped", "stop_reason": "无 LLM 密钥"}
     if not conds:
         _leg_upsert_l4(conn, task_id, status="skipped", verdict="skipped",
@@ -85,9 +87,8 @@ def run_l4_task(task_id: int, trace_from: int | None = None) -> dict:
         e["request_schema"] = json.loads(e["request_schema"]) if e.get("request_schema") else None
 
     from ..skills.llm_client import make_chat
-    llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                     base_url=config.DEEPSEEK_BASE_URL, temperature=0.2,
-                     timeout=90, max_retries=2)
+    llm = make_chat(api_key=api_key, temperature=0.2,
+                    timeout=90, max_retries=2)
     resp = llm.invoke([("system", ACCEPTANCE_SYSTEM),
                        ("user", build_acceptance_prompt(conds, endpoints))])
     log_llm_call(task_id, "l4_gen_scenarios", resp)

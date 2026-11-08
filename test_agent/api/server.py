@@ -618,12 +618,13 @@ def api_get_analysis(tid: int, user: dict = Depends(current_user)):
 def api_run_analysis(tid: int, user: dict = Depends(staff)):
     """按需生成 AI 缺陷分析与修复建议（花 LLM token，按钮触发；结果缓存）。
     无 Key 409（诚实）；无失败用例 200 skipped；输出不可解析 200 error（不硬造）。"""
-    import os
     conn = get_conn()
     row = _task_or_404(conn, tid)
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    from ..skills.llm_profile import current, effective_key, missing_key_message
+    api_key = effective_key()   # 显式无→按当前 profile 的 key_env 解析
     if not api_key:
-        raise HTTPException(409, "未配置 DEEPSEEK_API_KEY，无法生成 AI 分析（确定性证据仍可在概览查看）")
+        raise HTTPException(409, missing_key_message(current())
+                            + "，无法生成 AI 分析（确定性证据仍可在概览查看）")
     proj = conn.execute("SELECT primary_language FROM projects WHERE id=?", (row["project_id"],)).fetchone()
     # 缓存短路：同任务重复 POST 不重复烧 token（UI 按钮消失防了界面重复，API 层也要幂等）
     rep = conn.execute("SELECT analysis FROM test_reports WHERE task_id=? ORDER BY id DESC LIMIT 1",

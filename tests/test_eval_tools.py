@@ -134,6 +134,16 @@ class TestCollectMetrics:
 
 
 class TestMapRequirements:
+    @pytest.fixture(autouse=True)
+    def _no_key_env(self, monkeypatch):
+        # api_key=None 期望确定性通道——effective_key 合并后环境有 key 会改走 LLM 路径，
+        # 测试必须显式清空全部 key 来源（任务卡-LLM模型选择：判空合并=profile key 生效）
+        for k in ("DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY"):
+            monkeypatch.delenv(k, raising=False)
+        from test_agent.skills import llm_profile
+        monkeypatch.setattr(llm_profile, "current", lambda conn=None: {"provider": "deepseek", "key_env": "DEEPSEEK_API_KEY"})
+        monkeypatch.setattr(llm_profile, "resolve_key", lambda p: None)
+
     def test_启发式映射_重叠判覆盖_零重叠判缺口(self, conn):
         tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]
         r = map_requirements(conn, tid, api_key=None)   # 无 Key → 确定性通道

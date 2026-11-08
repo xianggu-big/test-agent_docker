@@ -57,7 +57,7 @@ def test_old_db_rebuild_preserves_data_and_accepts_new_status(tmp_path, monkeypa
     assert db._tasks_status_check_outdated(conn)
     conn.close()
 
-    assert db.init_db(p) == 31
+    assert db.init_db(p) == 32
     conn = db.get_conn(p)
     row = conn.execute("SELECT * FROM test_tasks WHERE id=?", (tid,)).fetchone()
     assert row["requirement_text"] == "老任务需求" and row["confirmed"] == 1

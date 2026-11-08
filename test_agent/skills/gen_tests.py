@@ -1564,9 +1564,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     api_docs = _extract_api_docs(ws) if config.DOCSTRING_GROUNDING_ENABLED else None
     usage_examples = _extract_usage_examples(ws) if config.USAGE_EXAMPLES_ENABLED else None
 
-    llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                     base_url=config.DEEPSEEK_BASE_URL,
-                     temperature=0.2, timeout=90, max_retries=2)
+    llm = make_chat(api_key=api_key, temperature=0.2, timeout=90, max_retries=2)
     seed_code = None
     if (config.SEED_BOOTSTRAP_ENABLED and not feedback and lang == "python"
             and runner is not None and args.get("container_name")):

@@ -167,6 +167,17 @@ def resolve_key(p: dict) -> str | None:
     return os.environ.get(key_env) or None
 
 
+def effective_key(explicit: str | None = None) -> str | None:
+    """调用点判空合并（任务卡 §2.3）：显式传入的 key 优先（逃生口），否则按当前
+    profile 的 key_env 解析。返回 None=两个来源都没有→调用点走既有诚实降级路径。"""
+    if explicit:
+        return explicit
+    try:
+        return resolve_key(current())
+    except Exception:                # noqa: BLE001 —— profile 读取失败=按无 key 走
+        return None
+
+
 def test_connection(p: dict, timeout_s: int = 60) -> dict:
     """连通性测试：60s 超时发一条最小 JSON 指令，返回 {ok, latency_ms, reply|error}。
     接受临时 profile（不落库——POST /test 的 body 直接传本函数）。local 无 ollama

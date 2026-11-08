@@ -22,16 +22,18 @@ def reviewer_llm():
     """代审专用 LLM（同模型角色分离；跨模型列展望）。延迟导入，无 Key 时由调用方兜底。
 
     DEEPSEEK_REVIEWER_MODEL（E10 Arm 2 交叉矩阵）：设置时审查侧切该模型、生成侧不动；
-    未设置回退 DEEPSEEK_MODEL=行为逐字节不变（角色分离默认口径）。"""
-    import os
+    未设置回退 DEEPSEEK_MODEL=行为逐字节不变（角色分离默认口径）。
+    **显式 model 传参保留**（任务卡-LLM模型选择：显式传参优先=逃生口）；api_key/base_url
+    走 profile 兜底。"""
+    from ..skills.llm_profile import effective_key, missing_key_message
     from ..skills.llm_client import make_chat
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    api_key = effective_key()   # 显式无→按当前 profile 的 key_env 解析
     if not api_key:
-        raise RuntimeError("未配置 DEEPSEEK_API_KEY，AI 代审不可用（fail-closed 交人工）")
+        raise RuntimeError(missing_key_message({"provider": "未配置", "key_env": "见设置页"})
+                           + "，AI 代审不可用（fail-closed 交人工）")
     model = getattr(config, "DEEPSEEK_REVIEWER_MODEL", None) or config.DEEPSEEK_MODEL
-    return make_chat(model=model, api_key=api_key,
-                      base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
-                      timeout=90, max_retries=2)
+    return make_chat(model=model, api_key=api_key, temperature=0.1,
+                     timeout=90, max_retries=2)
 
 
 def _extract_json(text: str):

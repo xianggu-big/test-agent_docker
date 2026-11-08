@@ -96,17 +96,18 @@ def make_l3_nodes(deps):
 
     def gen(state: L3State) -> dict:
         tid = state["task_id"]
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        from ..skills.llm_profile import effective_key, missing_key_message
+        api_key = effective_key()   # 显式无→按当前 profile 的 key_env 解析
         if not api_key:
+            reason = missing_key_message({"provider": "未配置", "key_env": "见设置页"})
             _leg_update(tid, status="skipped", verdict="skipped",
-                        stop_reason="未配置 DEEPSEEK_API_KEY：场景生成跳过（诚实降级）",
+                        stop_reason=reason + "：场景生成跳过（诚实降级）",
                         finished_at=_now())
-            msg(state["session_id"], "[L3·gen] 无 Key：场景生成跳过（诚实降级）")
+            msg(state["session_id"], f"[L3·gen] {reason}：场景生成跳过（诚实降级）")
             return {"done": True, "verdict": "skipped", "stop_reason": "无 LLM 密钥"}
         from ..skills.llm_client import make_chat
-        llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                         base_url=config.DEEPSEEK_BASE_URL, temperature=0.2,
-                         timeout=90, max_retries=2)
+        llm = make_chat(api_key=api_key, temperature=0.2,
+                        timeout=90, max_retries=2)
         eps = state["endpoints"]
         ep_text = "\n".join(f"- {e['method']} {e['path']}" for e in eps)
         from ..skills.scenario_gen import SCENARIO_SYSTEM, build_scenario_prompt

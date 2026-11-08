@@ -178,8 +178,7 @@ def gen_grpc_calls(api_key: str, endpoints: list[dict], requirement: str,
         usr = f"需求：\n{requirement}\n\nproto 清单（唯一合法来源）——\n{svc_desc}\n"
         if feedback:
             usr += f"\n上一轮以下内容被闸剔除，必须修正后重新输出全部调用：\n{feedback}"
-        chat = _make_chat(model=config.DEEPSEEK_MODEL, temperature=0,
-                          api_key=api_key, base_url=config.DEEPSEEK_BASE_URL,
+        chat = _make_chat(api_key=api_key, temperature=0,
                           timeout=120, max_tokens=2048, phase="grpc_gen")
         resp = chat.invoke([("system", sysmsg), ("user", usr)])
         last = getattr(resp, "content", "") or ""

@@ -955,12 +955,14 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "analyzing")  # 测试条件制定属测试分析阶段（理论章口径）
         requirement = (state.get("requirement") or "").strip()
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        from ..skills.llm_profile import current, effective_key, missing_key_message
+        api_key = effective_key()   # 显式无→按当前 profile 的 key_env 解析（任务卡-LLM模型选择）
         if not config.PLAN_ENABLED:   # 实验变量 V3：plan 对照组
             msg(state["session_id"], "assistant", "[plan] 实验开关关闭（对照组）：跳过测试条件拆解")
             return {}
         if not requirement or not api_key:
-            why = "无需求文本" if not requirement else "未配置 DEEPSEEK_API_KEY"
+            why = ("无需求文本" if not requirement
+                   else missing_key_message(current()))
             msg(state["session_id"], "assistant", f"[plan] {why}：跳过测试条件拆解（诚实降级）")
             return {}
         # 需求理解与提炼层（UNDERSTAND_ENABLED 默认关）：任意形态输入（一句话/小白话/任务书）
@@ -983,9 +985,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                 msg(state["session_id"], "assistant",
                     "[understand] 理解层未产出（fail-open 透传原文拆解）")
         from ..skills.llm_client import make_chat  # B5：带退避重试的同签名构造
-        llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                         base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
-                         timeout=60, max_retries=2)
+        llm = make_chat(api_key=api_key, temperature=0.1,
+                        timeout=60, max_retries=2)
         # BREADTH 广度采样（默认关=source_modules=None，提示词逐字节不变）：
         # plan 注入被测源码结构清单+广度纪律——治「条件全挤核心函数域」（E9 task432 实锤）
         src_outline = None
@@ -1029,7 +1030,8 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "generating")   # 复用"生成"语义：生成的是设计草稿非可执行用例
         ws = Path(state["workspace"])
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        from ..skills.llm_profile import effective_key
+        api_key = effective_key()   # 显式无→按当前 profile 的 key_env 解析
         summary: dict
         if api_key:
             from ..skills.static_scan import generate_static_drafts

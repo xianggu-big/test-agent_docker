@@ -239,12 +239,13 @@ def map_requirements(conn, task_id: int, api_key: str | None = None) -> dict:
            WHERE s.task_id=? AND c.enabled=1""", (task_id,))]
 
     source, mapping, note = "heuristic", None, ""
+    from ..skills.llm_profile import effective_key
+    api_key = effective_key(api_key)   # 显式无→按当前 profile 的 key_env 解析
     if conditions and cases and api_key:
         try:
             from ..skills.llm_client import make_chat  # B5：带退避重试的同签名构造
-            llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                             base_url=config.DEEPSEEK_BASE_URL, temperature=0,
-                             timeout=60, max_retries=2)
+            llm = make_chat(api_key=api_key, temperature=0,
+                            timeout=60, max_retries=2)
             resp = llm.invoke([("system",
                                 "你是测试分析员。只依据语义对应关系建立映射。只输出 JSON。"),
                                ("user", build_map_prompt(conditions, cases))])
@@ -325,12 +326,13 @@ def gen_report(conn, task_id: int, metrics: dict, rtm: dict,
                api_key: str | None = None) -> str:
     """生成叙述正文并落 test_reports.narrative。LLM 版输出 JSON 包裹防废话头。"""
     text = None
+    from ..skills.llm_profile import effective_key
+    api_key = effective_key(api_key)   # 显式无→按当前 profile 的 key_env 解析
     if api_key:
         try:
             from ..skills.llm_client import make_chat
-            llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                             base_url=config.DEEPSEEK_BASE_URL, temperature=0.2,
-                             timeout=60, max_retries=2)
+            llm = make_chat(api_key=api_key, temperature=0.2,
+                            timeout=60, max_retries=2)
             prompt = f"""## 指标包（数字唯一来源，禁止出现数据之外的数字）
 {json.dumps({k: v for k, v in metrics.items() if k != "matrix"}, ensure_ascii=False)}
 
@@ -442,12 +444,13 @@ def review_report(conn, task_id: int, report_id: int, narrative: str,
     """双闸审查：规则闸先行；LLM 闸复核一致性与证据。结论落 test_reports.review。"""
     reasons = review_rules(narrative, metrics, verdict)
     reviewer = "rules"
+    from ..skills.llm_profile import effective_key
+    api_key = effective_key(api_key)   # 显式无→按当前 profile 的 key_env 解析
     if not reasons and api_key:
         try:
             from ..skills.llm_client import make_chat
-            llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                             base_url=config.DEEPSEEK_BASE_URL, temperature=0,
-                             timeout=60, max_retries=2)
+            llm = make_chat(api_key=api_key, temperature=0,
+                            timeout=60, max_retries=2)
             resp = llm.invoke([("system", REVIEW_SYSTEM), ("user", f"""## 报告叙述
 {narrative}
 

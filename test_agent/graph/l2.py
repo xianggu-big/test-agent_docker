@@ -139,12 +139,12 @@ def build_l2_skills(runner) -> dict[str, Skill]:
                 f"http://127.0.0.1:{args.get('service_port', config.L2_SERVICE_PORT)}",
                 endpoints=endpoints)
             req_code, req_cases = "", []
-            api_key = os.environ.get("DEEPSEEK_API_KEY")
+            from ..skills.llm_profile import effective_key
+            api_key = effective_key()   # 显式无→按当前 profile 的 key_env 解析
             requirement = args.get("requirement") or ""
             if api_key and requirement and config.L2_BLACKBOX_ENABLED:
-                llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                                 base_url=config.DEEPSEEK_BASE_URL, temperature=0.1,
-                                 timeout=60, max_retries=2)
+                llm = make_chat(api_key=api_key, temperature=0.1,
+                                timeout=60, max_retries=2)
                 body_eps = [e for e in endpoints
                             if f"{e['method']} {e['path']}" in happy][:2]
                 asserts = cg.build_requirement_asserts(requirement, body_eps, happy, llm, task_id)

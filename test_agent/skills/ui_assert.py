@@ -426,8 +426,7 @@ def gen_ui_scenarios(api_key: str, snapshot: dict, requirement: str,
                f"id 清单：{ids_desc}\n可见文本：{texts_desc}\n\n{example}\n")
         if feedback:
             usr += (f"\n上一轮输出存在以下问题，必须修正后重新输出全部场景：\n{feedback}")
-        chat = _make_chat(model=config.DEEPSEEK_MODEL, temperature=0,
-                          api_key=api_key, base_url=config.DEEPSEEK_BASE_URL,
+        chat = _make_chat(api_key=api_key, temperature=0,
                           timeout=120, max_tokens=4096, phase="ui_gen")
         resp = chat.invoke([("system", sysmsg), ("user", usr)])
         last_parse_text = getattr(resp, "content", "") or ""

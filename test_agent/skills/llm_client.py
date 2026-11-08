@@ -74,6 +74,13 @@ class RobustChat:
         if not getattr(config, "LLM_FALLBACK_ENABLED", False):
             return None
         try:
+            from .llm_profile import current
+            if current().get("provider") == "local":
+                log.info("[llm-fallback] 当前 profile 已是本地模型，跳过备胎（同端点降级无意义）")
+                return None
+        except Exception:             # noqa: BLE001 —— profile 读取失败不改变备胎原有行为
+            pass
+        try:
             from langchain_openai import ChatOpenAI
             log.warning("[llm-fallback] 主模型余额耗尽，降级本地 %s@%s（phase=%s task=%s）",
                         config.LLM_FALLBACK_MODEL, config.LLM_FALLBACK_BASE_URL,
@@ -128,11 +135,27 @@ class RobustChat:
 
 
 def make_chat(**kwargs):
-    """构造带退避的 ChatOpenAI（参数与 ChatOpenAI 完全一致；延迟导入避免无 Key 场景开销）。"""
+    """构造带退避的 ChatOpenAI（参数与 ChatOpenAI 完全一致；延迟导入避免无 Key 场景开销）。
+
+    LLM 三件套兜底（任务卡-LLM模型选择-20261108）：model/base_url 未显式传时取
+    config.DEEPSEEK_*（=llm_profile.apply 改写后的运行时值，设置页切换即时生效）；
+    api_key 未传/为空时按当前 profile 的 key_env 解析（local 档恒 "ollama"）。
+    **显式传参仍优先**——逃生口：ai_reviewer 的 per-role 模型覆盖零改动。"""
     from langchain_openai import ChatOpenAI
     phase = kwargs.pop("phase", "")
     task_id = kwargs.pop("task_id", None)
     retries = kwargs.pop("retries", 3)
+    from .. import config
+    if "model" not in kwargs:
+        kwargs["model"] = config.DEEPSEEK_MODEL
+    if "base_url" not in kwargs:
+        kwargs["base_url"] = config.DEEPSEEK_BASE_URL
+    if not kwargs.get("api_key"):
+        try:
+            from .llm_profile import current, resolve_key
+            kwargs["api_key"] = resolve_key(current()) or ""
+        except Exception:             # noqa: BLE001 —— profile 读取失败=无 Key 诚实降级路径
+            kwargs["api_key"] = ""
     # 响应强制按 utf-8 解码（2026-11-05 批4 实锤：DeepSeek 部分 CDN 节点响应头
     # charset=gbk → httpx 尊重 header 解码 → 中文全部 mojibake 且 U+FFFD 丢字节
     # 无法事后逆向；DeepSeek 输出恒为 utf-8，忽略 header charset 是安全的）

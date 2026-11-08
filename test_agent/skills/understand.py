@@ -65,8 +65,7 @@ def understand_requirement(api_key: str, raw_text: str, project_hint: str = "",
         return None
     from .llm_client import make_chat
     factory = llm_factory or (lambda **kw: make_chat(**kw))
-    chat = factory(model=config.DEEPSEEK_MODEL, temperature=0,
-                   api_key=api_key, base_url=config.DEEPSEEK_BASE_URL,
+    chat = factory(api_key=api_key, temperature=0,
                    timeout=90, max_tokens=2000, phase="understand")
     sysmsg = (
         "你是测试需求理解器。输入可能是：一句话需求、非专业用户的口语描述、或一份完整的"
