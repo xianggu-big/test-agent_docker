@@ -128,12 +128,27 @@ def test_apply_saved_if_any恢复(tmp_path, monkeypatch):
 
 def test_make_chat兜底取运行时profile(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    monkeypatch.setattr(config, "DEEPSEEK_BASE_URL", "http://localhost:11434/v1")
-    monkeypatch.setattr(config, "DEEPSEEK_MODEL", "qwen3-4b-inst-test")
+    # 兜底真源=app_settings 表（current()）——674/675 实锤：内存 config 会与表漂移
+    monkeypatch.setattr(llm_profile, "current", lambda conn=None: {
+        **llm_profile.PRESETS["local"], "updated_by": "", "updated_at": ""})
     from test_agent.skills.llm_client import make_chat
     llm = make_chat(temperature=0.2)               # 三件套不传
     assert llm._inner.model_name == "qwen3-4b-inst-test"
     assert "localhost:11434" in str(llm._inner.openai_api_base)
+
+
+def test_make_chat兜底读表真源_内存漂移免疫(monkeypatch):
+    """674/675 根因回归锁定：表已切回 deepseek、进程内存 config 残留 qwen——
+    兜底必须取表值（current()），不取被污染的内存 config.DEEPSEEK_*。"""
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    config.DEEPSEEK_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"   # 模拟内存污染
+    config.DEEPSEEK_MODEL = "qwen-plus"
+    monkeypatch.setattr(llm_profile, "current", lambda conn=None: {
+        **llm_profile.PRESETS["deepseek"], "updated_by": "", "updated_at": ""})      # 表真源=deepseek
+    from test_agent.skills.llm_client import make_chat
+    llm = make_chat(temperature=0.2)
+    assert llm._inner.model_name == "deepseek-chat"                     # 表值，非内存污染值
+    assert "dashscope" not in str(llm._inner.openai_api_base)
 
 
 def test_make_chat显式传参仍优先(monkeypatch):

@@ -137,25 +137,28 @@ class RobustChat:
 def make_chat(**kwargs):
     """构造带退避的 ChatOpenAI（参数与 ChatOpenAI 完全一致；延迟导入避免无 Key 场景开销）。
 
-    LLM 三件套兜底（任务卡-LLM模型选择-20261108）：model/base_url 未显式传时取
-    config.DEEPSEEK_*（=llm_profile.apply 改写后的运行时值，设置页切换即时生效）；
-    api_key 未传/为空时按当前 profile 的 key_env 解析（local 档恒 "ollama"）。
-    **显式传参仍优先**——逃生口：ai_reviewer 的 per-role 模型覆盖零改动。"""
+    LLM 三件套兜底（任务卡-LLM模型选择-20261108）：model/base_url/api_key 未显式传时
+    取**当前 profile 真源（app_settings 表，current()）**——674/675 实锤：apply 的运行时
+    改写只发生在执行 apply 的那个进程，长驻 server 的内存 config 会与表漂移
+    （表已切回 deepseek、server 内存仍是 qwen 的 DashScope → deepseek key 发错端点
+    401）——兜底必须读表即真源，不读进程内存。**显式传参仍优先**——逃生口：
+    ai_reviewer 的 per-role 模型覆盖零改动。"""
     from langchain_openai import ChatOpenAI
     phase = kwargs.pop("phase", "")
     task_id = kwargs.pop("task_id", None)
     retries = kwargs.pop("retries", 3)
     from .. import config
-    if "model" not in kwargs:
-        kwargs["model"] = config.DEEPSEEK_MODEL
-    if "base_url" not in kwargs:
-        kwargs["base_url"] = config.DEEPSEEK_BASE_URL
-    if not kwargs.get("api_key"):
-        try:
-            from .llm_profile import current, resolve_key
-            kwargs["api_key"] = resolve_key(current()) or ""
-        except Exception:             # noqa: BLE001 —— profile 读取失败=无 Key 诚实降级路径
-            kwargs["api_key"] = ""
+    try:
+        from .llm_profile import current, resolve_key
+        p = current()                       # 表真源（无行=默认 deepseek config 现值）
+        kwargs.setdefault("model", p["model"])
+        kwargs.setdefault("base_url", p["base_url"])
+        if not kwargs.get("api_key"):
+            kwargs["api_key"] = resolve_key(p) or ""
+    except Exception:                     # noqa: BLE001 —— profile 读取失败回退 config 默认
+        kwargs.setdefault("model", config.DEEPSEEK_MODEL)
+        kwargs.setdefault("base_url", config.DEEPSEEK_BASE_URL)
+        kwargs.setdefault("api_key", "")
     # 响应强制按 utf-8 解码（2026-11-05 批4 实锤：DeepSeek 部分 CDN 节点响应头
     # charset=gbk → httpx 尊重 header 解码 → 中文全部 mojibake 且 U+FFFD 丢字节
     # 无法事后逆向；DeepSeek 输出恒为 utf-8，忽略 header charset 是安全的）
