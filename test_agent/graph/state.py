@@ -41,4 +41,6 @@ class TaskState(TypedDict, total=False):
     review_rejects: int      # 报告审查拒绝次数（硬停止计数器，与轮次预算解耦，§3.4）
     review_status: str       # pass / rejected（终态如实呈现报告审查结论）
     gen_reason: str | None   # 最近一轮 gen_tests 的 reason 透传（出题 0 条归因如实——2026-11-09）
+    ui_routes: list[str]     # MTA_ROUTER=1 时通过前置条件的可用路线（analyze 产出——
+                             # 必须声明：LangGraph 会过滤未声明键，rebuild 静默死代码教训）
     done: bool

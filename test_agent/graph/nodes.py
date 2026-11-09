@@ -477,6 +477,25 @@ def make_nodes(deps: GraphDeps) -> dict:
                     "; ".join(f"{h['file']}::{h['name']}={h['complexity']}({h['rank']})"
                               for h in hotspots)[:300])
         if strategy != "full":
+            # 多测试路线编排（期 A，MTA_ROUTER 默认关）：static_only 项目不再是死胡同——
+            # 确定性路由器按项目特征找可用路线（如纯 HTML 的 UI 交互幂等），落 route_plan
+            # 表（每条候选路线的 选/不选+理由，可审计）；找到可用路线则标记 ui_routes 供
+            # static_draft 节点走真实执行出口，未找到仍走静态草稿（旧行为不变）
+            if getattr(config, "ROUTER_ENABLED", False):
+                from ..skills.routes import extract_route_features, route_plan
+                feats = extract_route_features(ws)
+                plan_map = route_plan(state.get("requirement", ""), feats,
+                                      language=primary, conn=conn, task_id=tid,
+                                      flags={"l2": config.L2_BLACKBOX_ENABLED,
+                                             "l3": config.LEVELS_L3_ENABLED,
+                                             "l4": config.LEVELS_L3_ENABLED})
+                sel = plan_map["selected_ids"]
+                msg(state["session_id"], "assistant",
+                    f"[router] 路线编排（期 A）：候选 {len(plan_map['routes'])} 条，"
+                    f"通过前置 {len(sel)} 条 → {'、'.join(sel) or '无（仅静态兜底）'}"
+                    f"；逐条理由已落 route_plan 表")
+                if "ui_interaction_idempotency" in sel:
+                    return {**out, "static_only": True, "ui_routes": sel}
             msg(state["session_id"], "assistant",
                 f"[analyze] 主语言 {primary} 无容器执行链路 → 静态模式（Tier3 兜底）：确定性扫描 + "
                 f"AI 测试设计草稿（不执行、无覆盖率），报告将明示未验证")
@@ -1058,6 +1077,37 @@ def make_nodes(deps: GraphDeps) -> dict:
         tid = state["task_id"]
         set_status(conn, tid, "generating")   # 复用"生成"语义：生成的是设计草稿非可执行用例
         ws = Path(state["workspace"])
+        # 多测试路线编排（期 A，MTA_ROUTER 默认关）：static_only 但路由器找到可执行
+        # 路线（如纯 HTML 的 UI 交互幂等）→ 走真实执行出口而非仅静态草稿
+        ui_routes = state.get("ui_routes") or []
+        if "ui_interaction_idempotency" in ui_routes:
+            set_status(conn, tid, "generating")
+            from ..skills.ui_idempotency import run_idempotency
+            from ..skills.llm_profile import effective_key
+            res = registry.invoke(tid, skills["ui_idempotency"], {
+                "workspace": str(ws), "api_key": effective_key()})
+            try:
+                _d = json.loads(res.output)
+            except (ValueError, AttributeError):
+                _d = {"reason": (res.error or "")[:200]}
+            if _d.get("executed"):
+                summary = {"drafts": 0, "executed": _d["executed"],
+                           "passed": _d.get("passed", 0), "failed": _d.get("failed", 0)}
+                msg(state["session_id"], "assistant",
+                    f"[router·ui-idempotency] 交互幂等用例真跑：{_d['executed']} 条 "
+                    f"（{_d.get('passed', 0)} 过/{_d.get('failed', 0)} 败）——"
+                    f"oracle=状态不变量，失败行已进 evaluate 契约")
+                conn.commit()
+                return {"done": True, "verdict": "pass" if not _d.get("failed") else "stop",
+                        "failure_kind": "product_defect" if _d.get("failed") else "static",
+                        "stop_reason": ("UI 交互幂等路线：发现重复提交缺陷（状态不变量被打破），"
+                                        "如实上报" if _d.get("failed") else
+                                        "UI 交互幂等路线：交互通过幂等不变量"),
+                        "static_summary": summary,
+                        "last_stdout": _d.get("summary_text", "")}
+            msg(state["session_id"], "assistant",
+                f"[router·ui-idempotency] 交互幂等路线未产出：{_d.get('reason', '')[:150]}"
+                f"→ 回退静态草稿（诚实降级）")
         from ..skills.llm_profile import effective_key
         api_key = effective_key()   # 显式无→按当前 profile 的 key_env 解析
         summary: dict

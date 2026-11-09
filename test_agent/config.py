@@ -150,6 +150,10 @@ DEFECT_CLUSTERING_ENABLED = _flag("MTA_DEFECT_CLUSTER", False)
 # 指了方向 AI 仍落错层。注入层位覆盖纪律+HTTP 层骨架；默认关=提示词逐字节不变）
 LAYER_AWARE_ENABLED = _flag("MTA_LAYER_AWARE", False)
 
+# 多测试路线编排（期 A，2026-11-09）：确定性路由器按项目特征选路线（LLM 不得越过
+# 前置条件），route_plan 第 33 表落库每条候选的选/不选+理由；默认关=plan 行为逐字节不变
+ROUTER_ENABLED = _flag("MTA_ROUTER", False)
+
 # 连接探针（2026-11-08 655/656 锁循环诊断：未提交事务悬挂持锁的运行时定位器，
 # 后台线程周期点名 in_transaction 连接的创建栈；默认关=零行为变化）
 CONN_PROBE_ENABLED = _flag("MTA_CONN_PROBE", False)

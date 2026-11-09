@@ -203,6 +203,11 @@ def build_skills(runner) -> dict[str, Skill]:
     def grpc_assert(task_id: int, args: dict) -> str:
         return _grpc_assert_fn(api_key=None, args=args, task_id=task_id, runner=runner)
 
+    def ui_idempotency(task_id: int, args: dict) -> str:
+        # 多测试路线编排 期 A2：UI 交互幂等（oracle=状态不变量，不依赖 LLM 判定）
+        from .ui_idempotency import run_idempotency
+        return run_idempotency(args.get("api_key") or "", args, task_id, runner)
+
     return {
         "install_deps": Skill(
             name="install_deps", description="容器内安装被测项目 Python 依赖（三类清单探测分流）",
@@ -238,4 +243,8 @@ def build_skills(runner) -> dict[str, Skill]:
             arg_schema={"calls": "str(JSON)", "proto_text": "str", "proto_file": "str",
                         "container_name": "str", "host": "str", "port": "int",
                         "round_no": "int"}),
+        "ui_idempotency": Skill(
+            name="ui_idempotency", description="UI 交互幂等（期 A）：对带 id 交互元素执行单击/双击/三连击，oracle=状态不变量（重复触发不得改变计数），不依赖 LLM 判定；结果对齐 evaluate/attribution 契约",
+            func=ui_idempotency, risk_level="medium", timeout_ms=420_000,
+            arg_schema={"workspace": "str"}),
     }
