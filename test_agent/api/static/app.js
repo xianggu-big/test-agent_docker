@@ -1440,6 +1440,7 @@ async function refreshSettings() {
     `<div class="k">${esc(k)}</div><div>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</div>`).join("") +
     `<div class="k">说明</div><div class="hint" style="grid-column:1/-1">${esc(cfg.note)}</div>`;
   await refreshLlmProfile();
+  await refreshLlmRouting();
   const imgData = await api("/images");
   const IMG_GROUPS = { registered: "注册可构建", local: "本地已存在（未注册）", aux: "辅助依赖" };
   $("st-images").innerHTML =
@@ -1513,6 +1514,43 @@ async function applyLlmProfile() {
     box.innerHTML = `<span class="badge badge-ok">已应用 ✓（${esc(LLM_PROVIDER_CN[r.profile.provider] || r.profile.provider)} / ${esc(r.profile.model)}，立即生效）</span>`;
     await refreshLlmProfile();
   } catch (e) { box.innerHTML = `<span class="badge badge-fail">应用失败 ✗</span> <span class="hint">${esc(String(e))}</span>`; }
+}
+
+/* ---------- 节点→模型路由（2026-11-10 每节点 LLM 可替换） ---------- */
+const LLM_PHASE_CN = { plan: "需求理解/拆解（plan）", generate: "用例生成（generate）",
+  repair: "定向修复（repair）", report: "报告叙述（report）", review: "报告审查/代审（review）",
+  static_draft: "静态草稿（static_draft）", defect_analysis: "缺陷分析（defect_analysis）",
+  log_analyze: "日志分析（log_analyze）", ui_assert: "UI 黑盒（ui_assert）",
+  grpc_assert: "gRPC 契约（grpc_assert）", l2: "L2 契约（l2）", l3: "L3 场景（l3）",
+  l4: "L4 验收（l4）" };
+let llmRoutingDraft = null;   // {phase: profile_id|""}（保存前只是草稿）
+
+async function refreshLlmRouting() {
+  const d = await api("/llm-routing");
+  llmRoutingDraft = { ...(d.routing || {}) };
+  const profOpts = pid => `<option value="">（用默认：${esc(LLM_PROVIDER_CN[d.default] || d.default)}）</option>` +
+    Object.keys(d.profiles || {}).map(id =>
+      `<option value="${esc(id)}" ${pid === id ? "selected" : ""}>${esc(LLM_PROVIDER_CN[id] || id)} / ${esc((d.profiles[id] || {}).model || "")}</option>`).join("");
+  $("llm-routing-rows").innerHTML = (d.phase_groups || []).map(ph => {
+    const u = (d.usage_7d || {})[ph] || { calls: 0, models: {} };
+    const models = Object.entries(u.models).map(([m, n]) => `${m}×${n}`).join("，") || "—";
+    return `<div class="img-row" style="align-items:center">` +
+      `<span style="min-width:220px">${esc(LLM_PHASE_CN[ph] || ph)}` +
+      `<span class="hint" style="display:block">近 7 天 ${u.calls || 0} 次（${esc(models)}）</span></span>` +
+      `<select id="lr-${esc(ph)}" onchange="llmRoutingDraft['${esc(ph)}']=this.value" style="min-width:260px">${profOpts(llmRoutingDraft[ph] || "")}</select></div>`;
+  }).join("");
+}
+
+async function saveLlmRouting() {
+  const box = $("llm-routing-result");
+  try {
+    const clean = {};
+    Object.entries(llmRoutingDraft || {}).forEach(([k, v]) => { if (v) clean[k] = v; });
+    const r = await api("/llm-routing", { method: "PUT", body: JSON.stringify({ routing: clean }) });
+    llmRoutingDraft = { ...(r.routing || {}) };
+    box.innerHTML = `<span class="badge badge-ok">已保存 ✓（${Object.keys(r.routing || {}).length} 个节点指向非默认模型，立即生效）</span>`;
+    await refreshLlmRouting();
+  } catch (e) { box.innerHTML = `<span class="badge badge-fail">保存失败 ✗</span> <span class="hint">${esc(String(e))}</span>`; }
 }
 
 // ---------- F03 任务详情页（设计图主页面） ----------

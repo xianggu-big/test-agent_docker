@@ -335,6 +335,13 @@
         </div>
         <div id="llm-test-result" style="margin-top:8px"></div>
         <div class="hint" style="margin-top:6px">key 本体永不入库：系统只存环境变量的名字；切换留痕于 app_settings（updated_by/at），实验数据以 llm_usage 台账记录的实际模型为准</div>
+        <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+          <b style="font-size:14px">节点 → 模型（每节点 LLM 可替换，保存即生效）</b>
+          <div class="hint" style="margin:4px 0 8px">近 7 天调用量标注帮你判断改哪个节点有意义（—=无数据）；未配置的节点走上方默认档</div>
+          <div id="llm-routing-rows"></div>
+          <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="saveLlmRouting()">保存路由</button>
+          <span id="llm-routing-result" style="margin-left:8px"></span>
+        </div>
       </div>
       <div class="card"><h3>容器 / 镜像管理</h3><div id="st-images"></div></div>
       <div class="card"><h3>插件管理（仅管理员）</h3><div class="hint">v1 壳：插件=内置三 Skill（install_deps / run_tests / gen_tests），管理界面属后续工作。</div></div>
