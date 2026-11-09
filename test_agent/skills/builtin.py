@@ -157,17 +157,26 @@ def build_skills(runner) -> dict[str, Skill]:
                           ensure_ascii=False)
 
     def gen_tests(task_id: int, args: dict) -> str:
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        # 2026-11-09 修复（688/689/690 实锤）：原实现直接读 os.environ["DEEPSEEK_API_KEY"]，
+        # local 档（ollama，无需 key）被判"未配置"→两轮跳过生成→出题 0 条。统一走
+        # llm_profile.effective_key()：显式传参 → 当前 profile 的 key_env（local 恒 ollama）。
+        from .llm_profile import current, effective_key, missing_key_message
+        api_key = effective_key()
         if not api_key:
-            return "未配置 DEEPSEEK_API_KEY：跳过用例生成，运行仓库自带测试（诚实降级）"
+            return json.dumps({"generated": 0, "skip_reason": "no_key",
+                               "reason": "未配置 Key，跳过用例生成（诚实降级）："
+                                         + missing_key_message(current())},
+                              ensure_ascii=False)
         from .gen_tests import generate_tests  # 延迟导入，避免未用 Key 时的加载开销
         return generate_tests(api_key, args, task_id, runner)
 
     def log_analyze(task_id: int, args: dict) -> str:
         # 黑盒能力补齐阶段1：应用日志 LLM 摘要（证据=app_logs 确定性行，引用闸在模块内）
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        from .llm_profile import current, effective_key, missing_key_message
+        api_key = effective_key()   # 同上：local 档不应被判无 Key
         if not api_key:
-            return json.dumps({"skipped": "未配置 DEEPSEEK_API_KEY：日志分析不可用（诚实降级）"},
+            return json.dumps({"skipped": "日志分析不可用（诚实降级）："
+                                          + missing_key_message(current())},
                               ensure_ascii=False)
         from ..store.db import get_conn     # skill func 在线程池执行：连接必须自建
         from . import log_analyze as _la

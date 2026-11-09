@@ -596,11 +596,13 @@ def make_nodes(deps: GraphDeps) -> dict:
             pairs = [(nid, repair.error_class_of(state.get("last_stdout", ""), nid))
                      for nid in repair.failing_nodeids(state.get("last_stdout", ""))]
             if pairs:
+                from ..skills.llm_profile import effective_key
                 info = run_repair_strategy(
                     config.REPAIR_STRATEGY, Path(state["workspace"]), pairs, tid, conn,
                     round_no=next_round,
-                    llm_fn=make_deepseek_fn(os.environ.get("DEEPSEEK_API_KEY"),
-                                            task_id=tid),
+                    # 2026-11-09：统一 key 解析（local 档恒 ollama；原硬编码读 DEEPSEEK_API_KEY
+                    # 会让 local profile 下定向修复退化为纯剪除）
+                    llm_fn=make_deepseek_fn(effective_key(), task_id=tid),
                     runner=runner, container_name=state["container_name"],
                     requirement=state.get("requirement", ""),
                     fail_summary=(state.get("last_stdout", "") + state.get("last_stderr", ""))[-1500:])
@@ -629,8 +631,10 @@ def make_nodes(deps: GraphDeps) -> dict:
             "round_no": next_round})
         # B2+（419 教训）：需求-能力错配必须对用户显性可见——独立消息行（不只埋在
         # JSON 截断里），任务详情页/工作台实时日志直接可读
+        gen_reason = None
         try:
             _gsum = json.loads(res.output)
+            gen_reason = _gsum.get("reason")
             _mm = _gsum.get("capability_mismatch")
             if _mm:
                 msg(state["session_id"], "assistant",
@@ -639,7 +643,9 @@ def make_nodes(deps: GraphDeps) -> dict:
         except (ValueError, AttributeError):
             pass
         msg(state["session_id"], "assistant", f"[generate 第{next_round}轮] {res.output[:400]}")
-        return {"round_no": next_round}
+        # 空集归因透传（2026-11-09，任务卡-LLM模型选择 B 项）：skill 返回的 reason 随
+        # state 上行，prep 收尾的"出题 0 条"提示按实际原因生成，禁止硬编码猜测
+        return {"round_no": next_round, "gen_reason": gen_reason}
 
     # ---------- 5. 执行（容器内 pytest，确认门已在注册表层把住） ----------
     def run(state: TaskState) -> dict:

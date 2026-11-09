@@ -224,6 +224,27 @@ def _fail_task(conn, task_id: int, reason: str) -> None:
     conn.commit()
 
 
+def _empty_set_message(reason: str | None) -> str:
+    """出题 0 条的空集提示——按 gen_tests 实际返回的 reason 归因，禁止硬编码猜测
+    （2026-11-09 任务卡-LLM模型选择 B 项：原文案硬编码"LLM 输出两次不可解析"，
+    但 local 档实际原因是"无 Key 跳过"，误导排查方向）。四种典型原因各有如实文案；
+    未知原因兜底为"原因未知（详见 generate 轮消息）"，绝不编造。"""
+    r = (reason or "").strip()
+    if "未配置 Key" in r or "skip_reason" in r:
+        return f"[prep] 出题 0 条——原因：{r}。可在设置页检查 LLM 模型与 Key 配置后重试"
+    if "无法解析" in r or "不可解析" in r:
+        return ("[prep] 出题 0 条——原因：LLM 输出无法解析（原始输出已留档 llm_parse_fail/）。"
+                "多为需求条件过多导致输出截断——可在左侧「对话增补」描述你要的用例，"
+                "AI 会定向补生成")
+    if "静态审查" in r:
+        return ("[prep] 出题 0 条——原因：全部用例未过静态审查（逐条剔除留痕见 generate 轮消息）。"
+                "请核对需求与被测源码是否对得上")
+    if "模板" in r:
+        return "[prep] 出题 0 条——原因：全部用例模板展开失败（槽位无效），可重试或调整需求描述"
+    return ("[prep] 出题 0 条——原因未知（详见 generate 轮消息）。"
+            "可在左侧「对话增补」描述你要的用例，AI 会定向补生成")
+
+
 def run_task_prep(task_id: int) -> dict:
     """两阶段·阶段一入口：确认门 → 准备图（克隆/摸底/考纲/出题）→ 停在 ready_for_review。
 
@@ -279,9 +300,9 @@ def run_task_prep(task_id: int) -> dict:
             """SELECT COUNT(*) AS n FROM test_cases c JOIN test_scripts sc ON sc.id=c.script_id
                WHERE sc.task_id=? AND c.source='ai' AND c.enabled=1""", (task_id,)).fetchone()["n"]
         if n_cases == 0:
-            _reviewer_msg(conn, task_id,
-                          "[prep] 出题 0 条（LLM 输出两次不可解析，多为需求条件过多导致输出截断）——"
-                          "可在左侧「对话增补」描述你要的用例，AI 会定向补生成")
+            # 2026-11-09：空集提示按 generate 节点透传的实际 reason 归因（B 项），
+            # 不再硬编码"两次不可解析"的猜测
+            _reviewer_msg(conn, task_id, _empty_set_message(final.get("gen_reason")))
         conn.commit()
     return final
 
@@ -399,9 +420,10 @@ def run_feedback_round(task_id: int, feedback_text: str, runner=None) -> dict:
     if fb_no > config.FEEDBACK_MAX_ROUNDS:
         raise RuntimeError(f"增补预算已用尽（上限 {config.FEEDBACK_MAX_ROUNDS} 轮），"
                            f"请整理用例集后下发执行")
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    from ..skills.llm_profile import current as _llm_current, effective_key, missing_key_message
+    api_key = effective_key()   # 2026-11-09：统一 key 解析（local 档恒 ollama，不再误判无 Key）
     if not api_key:
-        raise RuntimeError("未配置 DEEPSEEK_API_KEY，无法增补生成（诚实降级）")
+        raise RuntimeError(missing_key_message(_llm_current()) + "，无法增补生成（诚实降级）")
     module_row = conn.execute("SELECT id FROM modules WHERE project_id=? AND path='.'",
                               (task["project_id"],)).fetchone()
     existing_names = [r["name"] for r in conn.execute(

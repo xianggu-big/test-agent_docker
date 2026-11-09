@@ -98,11 +98,17 @@ def probe() -> dict:
     except Exception as e:                # noqa: BLE001
         items.append(_item("workspace", "工作区可写", "failed", f"{type(e).__name__}: {e}"))
 
-    if os.environ.get("DEEPSEEK_API_KEY"):
-        items.append(_item("llm", "大模型 API Key", "ok", "已配置", blocking=False))
+    # 2026-11-09：key 探测走 llm_profile（local 档无需 Key，不得误报"未配置"）
+    from ..skills.llm_profile import current as _llm_current, effective_key, missing_key_message
+    _llm_p = _llm_current()
+    if effective_key():
+        _detail = (f"当前模型 {_llm_p.get('provider')}/{_llm_p.get('model')}"
+                   + ("（本地 Ollama，无需 Key）" if _llm_p.get("provider") == "local" else ""))
+        items.append(_item("llm", "大模型 API Key", "ok", _detail, blocking=False))
     else:
         items.append(_item("llm", "大模型 API Key", "warn",
-                           "未配置：主链路降级为只跑仓库自带测试（属诚实降级，不阻断）",
+                           missing_key_message(_llm_p)
+                           + "：主链路降级为只跑仓库自带测试（属诚实降级，不阻断）",
                            blocking=False))
 
     ready = all(i["status"] == "ok" for i in items if i["blocking"])

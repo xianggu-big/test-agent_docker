@@ -40,4 +40,5 @@ class TaskState(TypedDict, total=False):
                              # 被 LangGraph schema 过滤，rebuild 上线以来 0 次触发=静默死代码）
     review_rejects: int      # 报告审查拒绝次数（硬停止计数器，与轮次预算解耦，§3.4）
     review_status: str       # pass / rejected（终态如实呈现报告审查结论）
+    gen_reason: str | None   # 最近一轮 gen_tests 的 reason 透传（出题 0 条归因如实——2026-11-09）
     done: bool

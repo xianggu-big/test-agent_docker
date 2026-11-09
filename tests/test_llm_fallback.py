@@ -40,6 +40,11 @@ def _patch_fb_llm(monkeypatch):
     _FakeFallbackLLM.behavior = "ok"
     _FakeFallbackLLM.last_kwargs = None                 # 类属性跨测试污染防御
     monkeypatch.setattr(config, "LLM_FALLBACK_MODEL", "qwen3-4b-inst-test")
+    # 备胎互斥（2026-11-08）按"当前 profile=local"短路——本文件测的是非 local 档行为，
+    # 显式 mock current=deepseek，不依赖真实库 app_settings 的档位（用户随时可切）
+    from test_agent.skills import llm_profile
+    monkeypatch.setattr(llm_profile, "current", lambda conn=None: {
+        **llm_profile.PRESETS["deepseek"], "updated_by": "", "updated_at": ""})
     yield
 
 

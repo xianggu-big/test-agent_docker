@@ -84,7 +84,12 @@ def test_probe_docker_down_blocks(env, monkeypatch):
 
 
 def test_probe_without_llm_key_only_warns(env, monkeypatch):
-    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    # 2026-11-09：probe 走 llm_profile（current() 读 app_settings）——真实库档位随用户
+    # 切换，测试显式 mock current=deepseek 并清 key，锁定"有档位无 key"的 warn 路径
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    from test_agent.skills import llm_profile
+    monkeypatch.setattr(llm_profile, "current", lambda conn=None: {
+        **llm_profile.PRESETS["deepseek"], "updated_by": "", "updated_at": ""})
     _use(monkeypatch, _FakeClient(up=True, existing=[config.IMAGE_PY]))
 
     snap = preflight.probe()

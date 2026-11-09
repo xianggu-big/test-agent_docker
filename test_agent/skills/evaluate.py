@@ -572,6 +572,10 @@ def gen_charts(task_id: int, metrics: dict, rtm: dict,
 # ---------------------------------------------------------------------------
 
 def build_eval_skills() -> dict[str, Skill]:
+    # 2026-11-09：内部三个 LLM 触点统一 key 解析（local 档恒 ollama；原硬编码读
+    # os.environ["DEEPSEEK_API_KEY"] 会让 local profile 下 RTM/叙述/复审全部静默降级）
+    from .llm_profile import effective_key
+
     def _collect(task_id: int, args: dict) -> str:
         conn = get_conn()
         try:
@@ -585,7 +589,7 @@ def build_eval_skills() -> dict[str, Skill]:
         try:
             use_llm = args.get("use_llm", True)
             return json.dumps(map_requirements(
-                conn, task_id, os.environ.get("DEEPSEEK_API_KEY") if use_llm else None),
+                conn, task_id, effective_key() if use_llm else None),
                 ensure_ascii=False)
         finally:
             conn.close()
@@ -606,7 +610,7 @@ def build_eval_skills() -> dict[str, Skill]:
                                       " ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
                 rtm = {"matrix": json.loads(latest["matrix"]) if latest else []}
             text = gen_report(conn, task_id, metrics, rtm,
-                              os.environ.get("DEEPSEEK_API_KEY"))
+                              effective_key())   # 2026-11-09：统一 key 解析（local 恒 ollama）
             return json.dumps({"narrative_chars": len(text)}, ensure_ascii=False)
         finally:
             conn.close()
@@ -624,7 +628,8 @@ def build_eval_skills() -> dict[str, Skill]:
                                (metrics["report_id"],)).fetchone()
             result = review_report(conn, task_id, metrics["report_id"],
                                    rep["narrative"] or "", metrics,
-                                   args.get("verdict", ""), os.environ.get("DEEPSEEK_API_KEY"))
+                                   args.get("verdict", ""),
+                                   effective_key())   # 2026-11-09：统一 key 解析
             return json.dumps(result, ensure_ascii=False)
         finally:
             conn.close()
