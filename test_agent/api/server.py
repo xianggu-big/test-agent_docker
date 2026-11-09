@@ -1159,6 +1159,49 @@ def api_test_llm_profile(body: dict, user: dict = Depends(staff)):
     return test_connection(body or {})
 
 
+# ---------- 每节点 LLM 可替换（2026-11-10 任务卡 2 期：phase 组 → profile 路由） ----------
+
+@app.get("/api/llm-routing")
+def api_get_llm_routing(user: dict = Depends(admin)):
+    """profiles + routing + phase 组清单（grep 实测口径）+ 各组近 7 天调用量（诚实纪律：
+    让人知道改哪个节点有意义——确定性聚合，不让 LLM 编）。"""
+    from ..skills.llm_profile import PHASE_GROUPS, current_doc, phase_group
+    doc = current_doc()
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """SELECT phase, model, COUNT(*) n FROM llm_calls
+               WHERE created_at >= datetime('now', '-7 days') GROUP BY phase, model""")
+        usage_raw: dict = {}
+        for r in rows:
+            g = phase_group(r["phase"])
+            d = usage_raw.setdefault(g, {})
+            d[r["model"]] = d.get(r["model"], 0) + r["n"]
+    finally:
+        conn.close()
+    usage = {g: {"calls": sum(m.values()), "models": m}
+             for g, m in usage_raw.items()}
+    return {"default": doc.get("default"), "profiles": doc.get("profiles") or {},
+            "routing": doc.get("routing") or {}, "phase_groups": sorted(PHASE_GROUPS),
+            "usage_7d": usage}
+
+
+@app.put("/api/llm-routing")
+def api_put_llm_routing(body: dict, user: dict = Depends(admin)):
+    """写 routing（phase 组 → profile_id；空串=用 default）。非法组/无效 profile 400。"""
+    from ..skills.llm_profile import apply_routing
+    conn = get_conn()
+    try:
+        doc = apply_routing(body.get("routing") or {}, conn,
+                            updated_by=str(user.get("username") or "admin"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    finally:
+        conn.close()
+    return {"ok": True, "default": doc.get("default"),
+            "profiles": doc.get("profiles") or {}, "routing": doc.get("routing") or {}}
+
+
 @app.get("/api/images")
 def api_images(user: dict = Depends(staff)):
     """镜像管理动态视图（三源合并去重，2026-11-07）：

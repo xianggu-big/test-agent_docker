@@ -149,11 +149,15 @@ def make_chat(**kwargs):
     retries = kwargs.pop("retries", 3)
     from .. import config
     try:
-        from .llm_profile import current, resolve_key
-        p = current()                       # 表真源（无行=默认 deepseek config 现值）
-        kwargs.setdefault("model", p["model"])
-        kwargs.setdefault("base_url", p["base_url"])
+        # 2026-11-10 每节点 LLM 可替换：phase 命中 routing 组则用该 profile，否则
+        # default 档（routing 空/全指 default 时与原 current() 行为逐字节一致）；
+        # 显式传参仍优先——逃生口（ai_reviewer per-role 覆盖零改动）
+        from .llm_profile import resolve_phase
+        p = resolve_phase(phase)
+        kwargs.setdefault("model", p.get("model") or config.DEEPSEEK_MODEL)
+        kwargs.setdefault("base_url", p.get("base_url") or config.DEEPSEEK_BASE_URL)
         if not kwargs.get("api_key"):
+            from .llm_profile import resolve_key
             kwargs["api_key"] = resolve_key(p) or ""
     except Exception:                     # noqa: BLE001 —— profile 读取失败回退 config 默认
         kwargs.setdefault("model", config.DEEPSEEK_MODEL)

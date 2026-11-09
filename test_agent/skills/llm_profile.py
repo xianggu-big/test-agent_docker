@@ -105,17 +105,25 @@ def current(conn=None) -> dict:
 
 
 def apply(p: dict, conn, updated_by: str = "") -> dict:
-    """校验 → 写表 → 运行时改写 config 模块属性（立即全局生效，不需重启）。
-    非法 profile 抛 ValueError（server 转 400）。返回应用后的完整 profile。"""
+    """校验 → upsert 进文档 profiles[id] 并把 default 指向它 → 写表 → 运行时改写
+    config 模块属性（立即全局生效，不需重启）。
+    文档模式（2026-11-10 每节点可替换）：profiles 按 provider id 累积（不覆盖其他档），
+    default=本次应用的档——设置页"切换默认模型"语义不变。非法 profile 抛 ValueError。
+    返回应用后的完整 profile。"""
     norm = _normalize(p)
     if norm is None:
         raise ValueError("非法 profile：provider 必须是 deepseek/qwen/local/custom；"
                          "custom 档 base_url（http/https）/model/key_env 全部必填")
+    doc = load_doc(conn)
+    pid = norm["provider"]
+    profiles = doc.get("profiles") or {}
+    profiles[pid] = {k: norm[k] for k in ("provider", "base_url", "model", "key_env")}
+    doc = {"default": pid, "profiles": profiles, "routing": doc.get("routing") or {}}
     conn.execute(
         "INSERT INTO app_settings(key, value, updated_by) VALUES (?,?,?) "
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value, "
         "updated_by=excluded.updated_by, updated_at=datetime('now')",
-        (PROFILE_KEY, json.dumps(norm, ensure_ascii=False), updated_by))
+        (PROFILE_KEY, json.dumps(doc, ensure_ascii=False), updated_by))
     conn.commit()
     _apply_runtime(norm)
     log.info("[llm-profile] 切换 → %s/%s（key_env=%s，by=%s）",
@@ -210,3 +218,121 @@ def make_test_chat(p: dict, timeout_s: int = 60):
         model=p["model"], api_key=resolve_key(p) or "ollama",
         base_url=p["base_url"], temperature=0, timeout=timeout_s, max_retries=1,
         max_tokens=64, http_client=httpx.Client(default_encoding="utf-8"))
+
+
+# —————————————————————————— 每节点 LLM 可替换（2026-11-10，任务卡 2 期） ——————————————————————————
+
+# 路由组（grep 实测 llm_calls.phase 21 种原始值 → 14 个用户口径组；新 phase 落
+# other 兜底=走 default，不误路由）
+PHASE_GROUPS: dict[str, list[str]] = {
+    "plan": ["plan", "understand", "map_rtm"],
+    "generate": ["gen_tests", "gen_feedback", "refill", "regen_case", "cross_review"],
+    "repair": ["rewrite"],
+    "report": ["gen_report"],
+    "review": ["review_report", "ai_review_d1", "ai_review_d2"],
+    "static_draft": ["static_draft"],
+    "defect_analysis": ["defect_analysis"],
+    "log_analyze": ["log_analyze"],
+    "ui_assert": ["ui_gen"],
+    "grpc_assert": ["grpc_gen"],
+    "l2": ["L2.gen_requirement"],
+    "l3": ["l3_gen_scenarios"],
+    "l4": ["l4_gen_scenarios"],
+}
+_RAW_TO_GROUP: dict[str, str] = {raw: g for g, raws in PHASE_GROUPS.items() for raw in raws}
+
+
+def phase_group(raw_phase: str) -> str:
+    """原始 phase → 路由组；未知 → "other"（走 default，不误路由）。"""
+    return _RAW_TO_GROUP.get((raw_phase or "").strip(), "other")
+
+
+def _migrate_legacy(value: dict) -> dict | None:
+    """旧单 profile 格式 → 多 profile 文档；已是新格式/未知形态返回 None。"""
+    if not isinstance(value, dict):
+        return None
+    if "profiles" in value:
+        return None                       # 已是新格式
+    if "provider" not in value:
+        return None                       # 未知形态（不动它）
+    pid = str(value.get("provider") or "default")
+    doc = {"default": pid,
+           "profiles": {pid: {k: v for k, v in value.items()
+                              if k in ("provider", "base_url", "model", "key_env")}},
+           "routing": {}}
+    return doc
+
+
+def load_doc(conn) -> dict:
+    """读 llm_profile 文档；旧格式自动迁移（幂等，迁移后写回）；无行=config 默认。"""
+    from .. import config
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (PROFILE_KEY,)).fetchone()
+    if not row:
+        pid = "deepseek"
+        return {"default": pid, "routing": {},
+                "profiles": {pid: {**PRESETS["deepseek"],
+                                   "base_url": config.DEEPSEEK_BASE_URL,
+                                   "model": config.DEEPSEEK_MODEL}}}
+    try:
+        value = json.loads(row["value"])
+    except (ValueError, KeyError):
+        return {"default": "deepseek", "profiles": {"deepseek": PRESETS["deepseek"]},
+                "routing": {}}
+    doc = _migrate_legacy(value)
+    if doc is not None:
+        conn.execute("UPDATE app_settings SET value=?, updated_at=datetime('now') "
+                     "WHERE key=?", (json.dumps(doc, ensure_ascii=False), PROFILE_KEY))
+        conn.commit()
+        log.info("[llm-profile] 旧单 profile 格式已迁移为多 profile 文档（default=%s）",
+                 doc["default"])
+        return doc
+    # 新格式：补缺字段（routing/profiles 容错）
+    return {"default": value.get("default") or next(iter(value.get("profiles") or {"deepseek": 1})),
+            "profiles": value.get("profiles") or {},
+            "routing": value.get("routing") or {}}
+
+
+def current_doc(conn=None) -> dict:
+    """多 profile 文档（GET /llm-routing 用）。conn=None 时自建短连接。"""
+    own = False
+    if conn is None:
+        from ..store.db import get_conn
+        conn = get_conn()
+        own = True
+    try:
+        return load_doc(conn)
+    finally:
+        if own:
+            conn.close()
+
+
+def resolve_phase(raw_phase: str = "", conn=None) -> dict:
+    """make_chat 路由键解析：raw_phase → 组 → routing[group] 命中则用该 profile，
+    否则 default 档。routing 空/全指 default 时与 current() 逐字节一致（单测锁）。"""
+    doc = current_doc(conn)
+    profiles = doc.get("profiles") or {}
+    group = phase_group(raw_phase)
+    pid = (doc.get("routing") or {}).get(group) or doc.get("default")
+    p = profiles.get(pid) or profiles.get(doc.get("default")) or {}
+    return dict(p)
+
+
+def apply_routing(routing: dict, conn, updated_by: str = "") -> dict:
+    """写 routing（phase 组 → profile_id；空串/None=用 default）。返回应用后文档。"""
+    doc = load_doc(conn)
+    profiles = doc.get("profiles") or {}
+    clean = {}
+    for group, pid in (routing or {}).items():
+        if group not in PHASE_GROUPS:
+            raise ValueError(f"未知路由组：{group}（合法={sorted(PHASE_GROUPS)}）")
+        if not pid or pid not in profiles:
+            continue                      # 空/无效=用 default（不写死约束）
+        clean[group] = pid
+    doc["routing"] = clean
+    conn.execute("UPDATE app_settings SET value=?, updated_by=?, updated_at=datetime('now') "
+                 "WHERE key=?",
+                 (json.dumps(doc, ensure_ascii=False), updated_by, PROFILE_KEY))
+    conn.commit()
+    log.info("[llm-routing] 更新 → %s（by=%s）", json.dumps(clean, ensure_ascii=False),
+             updated_by or "-")
+    return doc

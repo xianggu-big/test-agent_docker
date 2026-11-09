@@ -1175,6 +1175,19 @@ def make_nodes(deps: GraphDeps) -> dict:
             f"[review·collect] 通过{metrics['passed']} 失败{metrics['failed']}"
             f" 覆盖率{metrics['coverage_line']}｜工具成功率{metrics.get('tool_success_rate')}"
             f"｜六要素完整率{metrics.get('six_elem_rate')}")
+        # 混合模型构成标注（2026-11-10 诚实纪律）：llm_calls 确定性聚合，不让 LLM 编；
+        # 单模型时不打扰（只有真的混了才显示）
+        try:
+            _mrows = conn.execute(
+                "SELECT model, COUNT(*) n FROM llm_calls WHERE task_id=? GROUP BY model",
+                (tid,)).fetchall()
+            if len(_mrows) > 1:
+                _mix = "、".join(f"{r['model']}×{r['n']}" for r in _mrows)
+                msg(state["session_id"], "assistant",
+                    f"[review·models] 本任务混合模型构成：{_mix}"
+                    f"（按 phase 路由；实验数据口径以 llm_usage 台账为准）")
+        except Exception as e:      # noqa: BLE001 —— 标注失败不影响审查主链路
+            log.warning("模型构成标注失败: %s", e)
         if res_r.status == "ok":
             msg(state["session_id"], "assistant",
                 f"[review·rtm] 条件覆盖 {rtm['covered']}/{rtm['conditions_total']}"

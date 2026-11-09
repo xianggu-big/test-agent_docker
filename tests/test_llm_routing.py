@@ -1,0 +1,151 @@
+# -*- coding: utf-8 -*-
+"""每节点 LLM 可替换（2026-11-10 任务卡 2 期）：多 profile 文档+phase 路由。
+
+纪律锁：default 与 routing 全部指向同一 profile 时行为与单 profile 逐字节一致；
+显式传参仍优先（逃生口）；老格式自动迁移幂等；未知 phase 组走 default 不误路由。
+"""
+import json
+import sqlite3
+
+import pytest
+
+from test_agent import config
+from test_agent.skills import llm_profile
+from test_agent.skills.llm_client import make_chat
+from test_agent.skills.llm_profile import (PHASE_GROUPS, apply, apply_routing,
+                                           current, current_doc, load_doc,
+                                           phase_group, resolve_phase)
+
+
+@pytest.fixture(autouse=True)
+def _restore_config():
+    saved = (config.DEEPSEEK_BASE_URL, config.DEEPSEEK_MODEL)
+    yield
+    config.DEEPSEEK_BASE_URL, config.DEEPSEEK_MODEL = saved
+
+
+@pytest.fixture()
+def db(tmp_path):
+    from test_agent.store.db import init_db
+    p = tmp_path / "t.db"
+    init_db(p)
+    conn = sqlite3.connect(p)
+    conn.row_factory = sqlite3.Row
+    yield conn
+    conn.close()
+
+
+def _seed_two_profiles(db, monkeypatch=None):
+    """default=deepseek（deepseek-chat），另建 local profile。"""
+    apply({"provider": "deepseek"}, db)
+    apply({"provider": "local"}, db)          # default 指到 local
+    apply({"provider": "deepseek"}, db)       # 再回 deepseek=default
+    # 此时 profiles 应含 deepseek 与 local 两个 id
+    doc = current_doc(db)
+    assert set(doc["profiles"]) >= {"deepseek", "local"}
+    if monkeypatch is not None:
+        monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+
+
+# ---------- 老格式迁移 ----------
+
+def test_老格式迁移_幂等写回(db):
+    legacy = {"provider": "qwen", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+              "model": "qwen-plus", "key_env": "DASHSCOPE_API_KEY"}
+    db.execute("INSERT INTO app_settings(key, value) VALUES('llm_profile', ?)",
+               (json.dumps(legacy),))
+    db.commit()
+    doc = load_doc(db)                        # 读即迁移
+    assert doc["default"] == "qwen"
+    assert doc["profiles"]["qwen"]["model"] == "qwen-plus"
+    assert doc["routing"] == {}
+    row = json.loads(db.execute(
+        "SELECT value FROM app_settings WHERE key='llm_profile'").fetchone()["value"])
+    assert "profiles" in row and "default" in row     # 迁移后写回新格式
+    doc2 = load_doc(db)                               # 幂等：再读不再变形
+    assert doc2["default"] == doc["default"] and doc2["profiles"] == doc["profiles"]
+
+
+# ---------- 路由命中 / 回退 / 逐字节一致 ----------
+
+def test_routing命中_与回退_default(db, monkeypatch):
+    _seed_two_profiles(db, monkeypatch)
+    apply_routing({"generate": "local", "plan": "deepseek"}, db)
+    assert resolve_phase("gen_tests", db)["model"] == "qwen3-4b-inst-test"   # generate 组命中 local
+    assert resolve_phase("plan", db)["model"] == "deepseek-chat"             # plan 组指 deepseek
+    assert resolve_phase("gen_report", db)["model"] == "deepseek-chat"       # 未列出→回退 default
+    assert resolve_phase("definitely_new_phase", db)["model"] == "deepseek-chat"
+
+
+def test_phase_group映射_grep实测口径():
+    assert phase_group("gen_tests") == "generate"
+    assert phase_group("gen_feedback") == "generate"
+    assert phase_group("map_rtm") == "plan"
+    assert phase_group("rewrite") == "repair"
+    assert phase_group("ai_review_d2") == "review"
+    assert phase_group("ui_gen") == "ui_assert"
+    assert phase_group("grpc_gen") == "grpc_assert"
+    assert phase_group("L2.gen_requirement") == "l2"
+    assert phase_group("l3_gen_scenarios") == "l3"
+    assert phase_group("l4_gen_scenarios") == "l4"
+    assert phase_group("definitely_new_phase") == "other"     # 未知→other 走 default
+    assert len(PHASE_GROUPS) == 13
+
+
+def test_逐字节一致_routing空等于单profile(db, monkeypatch):
+    _seed_two_profiles(db, monkeypatch)
+    # routing 为空：resolve_phase 任何 phase 都必须等于 current()（default 档）
+    for ph in ("gen_tests", "plan", "gen_report", "understand", ""):
+        assert resolve_phase(ph, db)["model"] == current(db)["model"]
+        assert resolve_phase(ph, db)["base_url"] == current(db)["base_url"]
+
+
+def test_全指default_逐字节一致(db, monkeypatch):
+    _seed_two_profiles(db, monkeypatch)
+    apply_routing({g: "deepseek" for g in PHASE_GROUPS}, db)
+    for ph in ("gen_tests", "plan", "rewrite"):
+        assert resolve_phase(ph, db)["model"] == current(db)["model"]
+
+
+# ---------- make_chat 路由（行为锁，不真调网络） ----------
+
+def test_make_chat_phase路由生效(db, monkeypatch):
+    _seed_two_profiles(db, monkeypatch)
+    apply_routing({"generate": "local"}, db)
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    llm = make_chat(phase="gen_tests")                    # generate 组→local 档
+    assert llm._inner.model_name == "qwen3-4b-inst-test"
+    llm2 = make_chat(phase="plan")                        # 未配置组→default deepseek
+    assert llm2._inner.model_name == "deepseek-chat"
+
+
+def test_make_chat_显式传参仍优先(db, monkeypatch):
+    _seed_two_profiles(db, monkeypatch)
+    apply_routing({"generate": "local"}, db)
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    llm = make_chat(phase="gen_tests", model="explicit-model",
+                    base_url="http://explicit/v1", api_key="sk-x")
+    assert llm._inner.model_name == "explicit-model"
+    assert llm._inner.openai_api_key.get_secret_value() == "sk-x"
+
+
+def test_make_chat_未知phase回default(db, monkeypatch):
+    _seed_two_profiles(db, monkeypatch)
+    apply_routing({"generate": "local"}, db)
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    llm = make_chat(phase="multilang_gen_reqs")           # 未知组→other→default
+    assert llm._inner.model_name == "deepseek-chat"
+
+
+# ---------- apply_routing 校验 ----------
+
+def test_apply_routing_未知组拒(db):
+    _seed_two_profiles(db)
+    with pytest.raises(ValueError, match="未知路由组"):
+        apply_routing({"not_a_group": "deepseek"}, db)
+
+
+def test_apply_routing_无效profile跳过_空串用default(db):
+    _seed_two_profiles(db)
+    doc = apply_routing({"generate": "no_such_profile", "plan": ""}, db)
+    assert "generate" not in doc["routing"] and "plan" not in doc["routing"]
