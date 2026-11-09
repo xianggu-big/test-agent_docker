@@ -167,3 +167,16 @@ def test_空集归因_文案与collect闸区分():
     from test_agent.graph.builder import _empty_set_message
     m = _empty_set_message("生成物未过容器内 --collect-only 可收集性检查（整体废案）")
     assert "原因未知" in m and "无法解析" not in m
+
+
+# ---------- B 延伸：skill 自身失败时 error 透传（705 实锤：ctx 8192 装不下提示词） ----------
+
+def test_generate节点_工具失败error透传():
+    # registry 返回 status=failed 时，节点必须把 res.error 消息化+gen_reason 透传，
+    # 不能只留台账（res.output 为空串 → 用户看到 [generate 第N轮] 空行=归因断点）
+    import inspect
+    from test_agent.skills import gen_tests as _g
+    from test_agent.graph import nodes as _n
+    src = inspect.getsource(_n)
+    assert 'res.status != "ok"' in src and "res.error" in src
+    assert '"gen_reason": f"生成工具失败' in src     # error 也进 gen_reason 供 prep 收尾归因

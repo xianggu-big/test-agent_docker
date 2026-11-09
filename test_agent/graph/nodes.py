@@ -629,6 +629,15 @@ def make_nodes(deps: GraphDeps) -> dict:
                              if config.COVERAGE_FEEDBACK_ENABLED else [],  # ①缺口回灌（V4 开关）
             "coverage_target": state.get("coverage_target"),
             "round_no": next_round})
+        # skill 自身失败（如 705 实锤：qwen3-4b ctx=8192 装不下 12768 token 提示词）
+        # 必须把 error 透传给用户——error 只埋 skill_invocations 台账=归因断点
+        if res.status != "ok" or not (res.output or "").strip():
+            _fail_detail = (res.error or f"工具返回空（status={res.status}）")[:280]
+            msg(state["session_id"], "assistant",
+                f"[generate 第{next_round}轮] 生成工具失败：{_fail_detail}"
+                f"（详情见 skill_invocations 台账）")
+            return {"round_no": next_round,
+                    "gen_reason": f"生成工具失败：{_fail_detail}"}
         # B2+（419 教训）：需求-能力错配必须对用户显性可见——独立消息行（不只埋在
         # JSON 截断里），任务详情页/工作台实时日志直接可读
         gen_reason = None
