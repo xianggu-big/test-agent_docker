@@ -220,7 +220,7 @@ def build_skills(runner) -> dict[str, Skill]:
             arg_schema={"cmd": "list[str]"}),
         "gen_tests": Skill(
             name="gen_tests", description="按五种方法生成测试用例（等价类/边界值/判定表/覆盖/错误推测）",
-            func=gen_tests, risk_level="medium", timeout_ms=120_000,
+            func=gen_tests, risk_level="medium", timeout_ms=300_000,   # 2026-11-10：local 模型（qwen3-4b）生成常 >120s（711/713 timeout 实锤），调到 300s
             arg_schema={"workspace": "str", "requirement": "str", "module_hint": "str"}),
         "log_analyze": Skill(
             name="log_analyze", description="应用运行时日志 LLM 摘要与异常解释（证据=app_logs 确定性错误/警告行，叙述必须引用真实行号）",
