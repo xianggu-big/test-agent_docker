@@ -1,0 +1,416 @@
+[
+ {
+  "repo": "local://smoke",
+  "requirement": "冒烟测试",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\demo\\场景A",
+  "requirement": "场景A 测试",
+  "features": {
+   "language": "unknown",
+   "py": 2,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\demo\\场景B",
+  "requirement": "场景B 测试",
+  "features": {
+   "language": "unknown",
+   "py": 2,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\demo\\llmdemo",
+  "requirement": "测试加法和除法功能，包含正常与异常场景",
+  "features": {
+   "language": "unknown",
+   "py": 1,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "local://brick",
+  "requirement": "对抗测试：卡死恢复",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\demo\\场景C",
+  "requirement": "VIP 客户享 8 折优惠，普通客户按原价支付，不叠加任何折扣",
+  "features": {
+   "language": "unknown",
+   "py": 1,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "local://场景E",
+  "requirement": "购物车与折扣函数的功能测试：折扣范围校验、购物车累加",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\corpus\\corpus-001\\project",
+  "requirement": "# 密码强度校验器需求文档\r\n\r\n## 模块概述\r\n\r\n本模块提供密码强度校验相关功能，包含以下公开函数：\r\n\r\n- `",
+  "features": {
+   "language": "unknown",
+   "py": 1,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\corpus\\corpus-002\\project",
+  "requirement": "# 优惠券与订单折扣引擎需求文档\r\n\r\n## 1. 概述\r\n\r\n本模块提供优惠券校验、折扣计算与订单结算功能。所有金额以",
+  "features": {
+   "language": "unknown",
+   "py": 2,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\demo\\L2场景-coupon-api",
+  "requirement": "优惠券 API 需求（L2 冒烟演示）\n1. 创建优惠券：code 长度 2~8、percent 1~100（整数），成",
+  "features": {
+   "language": "python",
+   "py": 1,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": true,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "l1_unit_pytest"
+ },
+ {
+  "repo": "C:\\Users\\xianggu\\AppData\\Local\\Temp\\l2_nospec",
+  "requirement": "优惠券 API 需求（无 spec 变体：D4-③ 诚实降级验证）\n",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "C:\\Users\\xianggu\\AppData\\Local\\Temp\\l2_mutant",
+  "requirement": "优惠券 API 需求（L2 冒烟演示）\n1. 创建优惠券：code 长度 2~8、percent 1~100（整数），成",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\corpus\\corpus-003\\project",
+  "requirement": "# 会议室预约 API 需求（corpus-003）\n\n1. 创建会议室 `POST /rooms`：`name` 长度",
+  "features": {
+   "language": "python",
+   "py": 3,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": true,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "l1_unit_pytest"
+ },
+ {
+  "repo": "https://github.com/ppannuto/python-titlecase.git",
+  "requirement": "对 titlecase 库（英文标题大小写转换）做单元测试：覆盖普通句子转换、缩写词保护（iPad、PHP）、首词与末词",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "https://github.com/keleshev/schema.git",
+  "requirement": "对 schema 库（数据校验）做单元测试：Schema 基本校验（类型/必填/可选 Optional）、And/Or ",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\candidates\\python-titlecase",
+  "requirement": "对 titlecase 库（英文标题大小写转换）做单元测试：覆盖普通句子转换、缩写词保护（iPad、PHP）、首词与末词",
+  "features": {
+   "language": "python",
+   "py": 3,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "l1_unit_pytest"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\candidates\\schema",
+  "requirement": "对 schema 库（数据校验）做单元测试：Schema 基本校验（类型/必填/可选 Optional）、And/Or ",
+  "features": {
+   "language": "python",
+   "py": 4,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "l1_unit_pytest"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\candidates\\cachetools",
+  "requirement": "对 cachetools 库（缓存数据结构）做单元测试：LRUCache/TTLCache/RRCache 的容量淘汰与",
+  "features": {
+   "language": "python",
+   "py": 21,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "l1_unit_pytest"
+ },
+ {
+  "repo": "D:\\c学习数据结构\\test_1_学生管理系统",
+  "requirement": "学生管理系统页面：提交表单后列表应更新，重复提交不得重复添加",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 2,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": true,
+   "has_interactive": true,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "ui_interaction_idempotency"
+ },
+ {
+  "repo": "D:\\c学习数据结构\\llm_test",
+  "requirement": "测试一下测试链路",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 3,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "ui_static_dom"
+ },
+ {
+  "repo": "D:\\gin-master（go_test2）\\gin-master",
+  "requirement": "测试一些基础功能",
+  "features": {
+   "language": "go",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 1,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": true
+  },
+  "gt_top": "grpc_contract"
+ },
+ {
+  "repo": "D:\\go-rest-api-master（go_test1）\\go-rest-api-master",
+  "requirement": "测试一些基础功能",
+  "features": {
+   "language": "go",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 3,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": true
+  },
+  "gt_top": "db_assert"
+ },
+ {
+  "repo": "D:\\test agent_docker\\data\\demo\\db-shop",
+  "requirement": "测试一下测试链路",
+  "features": {
+   "language": "unknown",
+   "py": 0,
+   "js": 0,
+   "html": 0,
+   "proto": 0,
+   "sql": 0,
+   "has_forms": false,
+   "has_interactive": false,
+   "has_http_framework": false,
+   "has_package_json": false,
+   "has_go_mod": false
+  },
+  "gt_top": "static_scan"
+ }
+]
