@@ -1093,6 +1093,10 @@ def make_nodes(deps: GraphDeps) -> dict:
             if _d.get("executed"):
                 summary = {"drafts": 0, "executed": _d["executed"],
                            "passed": _d.get("passed", 0), "failed": _d.get("failed", 0)}
+                # 行级落库（统一 schema 最后一环）：origin 由 store 按 nodeid 匹配生成用例名
+                if _d.get("rows"):
+                    from ..skills.case_results import store_case_results
+                    store_case_results(conn, tid, 1, _d["rows"])
                 msg(state["session_id"], "assistant",
                     f"[router·ui-idempotency] 交互幂等用例真跑：{_d['executed']} 条 "
                     f"（{_d.get('passed', 0)} 过/{_d.get('failed', 0)} 败）——"

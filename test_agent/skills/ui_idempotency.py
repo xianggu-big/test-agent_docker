@@ -164,7 +164,7 @@ def run_idempotency(api_key: str, args: dict, task_id: int, runner) -> str:
     if "=== JUNIT ===" in (r.stdout or ""):
         junit = r.stdout.split("=== JUNIT ===", 1)[1]
     # 输出统一为 pytest 风格文本：evaluate/attribution 契约（期 A 纪律④，junit 权威）
-    ok_lines, fail_lines = [], []
+    ok_lines, fail_lines, rows = [], [], []
     import xml.etree.ElementTree as ET
     try:
         root = ET.fromstring(junit.strip())
@@ -174,10 +174,17 @@ def run_idempotency(api_key: str, args: dict, task_id: int, runner) -> str:
             if tc.find("failure") is not None:
                 msg = (tc.find("failure").text or "")[:200]
                 fail_lines.append(f"FAILED {nodeid} - {msg}")
+                rows.append({"nodeid": nodeid, "name": name, "status": "failed",
+                             "duration_ms": None, "message": msg})
             elif tc.find("error") is not None:
-                fail_lines.append(f"ERROR {nodeid} - {(tc.find('error').text or '')[:200]}")
+                msg = (tc.find("error").text or "")[:200]
+                fail_lines.append(f"ERROR {nodeid} - {msg}")
+                rows.append({"nodeid": nodeid, "name": name, "status": "error",
+                             "duration_ms": None, "message": msg})
             else:
                 ok_lines.append(f"PASSED {nodeid}")
+                rows.append({"nodeid": nodeid, "name": name, "status": "passed",
+                             "duration_ms": None, "message": ""})
     except ET.ParseError:
         return json.dumps({"generated": len(cases), "executed": 0,
                            "reason": "junit 不可解析（执行环境异常，诚实留痕）",
@@ -188,5 +195,5 @@ def run_idempotency(api_key: str, args: dict, task_id: int, runner) -> str:
     lines.append(f"=========================== {passed} passed, {failed} failed, "
                  f"0 skipped ===========================")
     return json.dumps({"generated": len(cases), "executed": passed + failed,
-                       "passed": passed, "failed": failed,
+                       "passed": passed, "failed": failed, "rows": rows,
                        "summary_text": "\n".join(lines)}, ensure_ascii=False)

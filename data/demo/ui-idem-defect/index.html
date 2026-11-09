@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>订单提交（幂等缺陷标本）</title></head>
+<body>
+  <h3>订单列表</h3>
+  <table id="orderTable"><tbody id="orderBody"></tbody></table>
+  <button id="submitBtn" onclick="submitOrder()">提交订单</button>
+  <script>
+    var n = 0;
+    function submitOrder() {
+      // 缺陷：无防重——每次 click 都追加一行（双击/三连击=重复提交）
+      n++;
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>订单' + n + '</td>';
+      document.getElementById('orderBody').appendChild(tr);
+    }
+  </script>
+</body></html>
