@@ -143,8 +143,11 @@ def test_make_chat兜底读表真源_内存漂移免疫(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     config.DEEPSEEK_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"   # 模拟内存污染
     config.DEEPSEEK_MODEL = "qwen-plus"
-    monkeypatch.setattr(llm_profile, "current", lambda conn=None: {
-        **llm_profile.PRESETS["deepseek"], "updated_by": "", "updated_at": ""})      # 表真源=deepseek
+    # 2026-11-10 路由化：make_chat 兜底走 current_doc（表真源），mock 它为 deepseek 档
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: {
+        "default": "deepseek",
+        "profiles": {"deepseek": llm_profile.PRESETS["deepseek"]},
+        "routing": {}})
     from test_agent.skills.llm_client import make_chat
     llm = make_chat(temperature=0.2)
     assert llm._inner.model_name == "deepseek-chat"                     # 表值，非内存污染值
