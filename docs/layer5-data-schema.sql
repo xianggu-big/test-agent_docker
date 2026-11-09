@@ -537,3 +537,17 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_by TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- 第 33 表：route_plan 测试路线编排（多测试路线编排 期 A，2026-11-09）——每任务对
+-- 全部候选路线各落一行：通过前置条件的 selected=1，被剔除的也记录原因（可审计）。
+-- MTA_ROUTER=1 时由确定性路由器写入；LLM 只能在通过前置条件的候选集内排序/给理由。
+CREATE TABLE IF NOT EXISTS route_plan (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    INTEGER NOT NULL REFERENCES test_tasks(id),
+  route_id   TEXT NOT NULL,                    -- 路线 id（routes.ROUTES）
+  selected   INTEGER NOT NULL DEFAULT 0,       -- 1=通过前置条件可选；0=被剔除
+  reason     TEXT NOT NULL DEFAULT '',         -- 选/不选的理由（审计口径）
+  priority   INTEGER NOT NULL DEFAULT 50,      -- 同通过集内排序（小者优先）
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_route_plan_task ON route_plan(task_id);
