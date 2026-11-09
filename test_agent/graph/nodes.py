@@ -1032,7 +1032,7 @@ def make_nodes(deps: GraphDeps) -> dict:
                 msg(state["session_id"], "assistant",
                     "[understand] 理解层未产出（fail-open 透传原文拆解）")
         from ..skills.llm_client import make_chat  # B5：带退避重试的同签名构造
-        llm = make_chat(api_key=api_key, temperature=0.1,
+        llm = make_chat(phase="plan", api_key=api_key, temperature=0.1,
                         timeout=60, max_retries=2)
         # BREADTH 广度采样（默认关=source_modules=None，提示词逐字节不变）：
         # plan 注入被测源码结构清单+广度纪律——治「条件全挤核心函数域」（E9 task432 实锤）

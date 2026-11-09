@@ -212,9 +212,8 @@ def generate_static_drafts(api_key: str, task_id: int, ws: Path, requirement: st
     if not conditions:
         return json.dumps({"drafts": 0, "reason": "无测试条件（plan 未产出），仅完成静态扫描"},
                           ensure_ascii=False)
-    llm = make_chat(model=config.DEEPSEEK_MODEL, api_key=api_key,
-                     base_url=config.DEEPSEEK_BASE_URL, temperature=0.2,
-                     timeout=90, max_retries=2)
+    llm = make_chat(phase="static_draft", api_key=api_key, temperature=0.2,
+                    timeout=90, max_retries=2)
     resp = llm.invoke([("system", SYSTEM_PROMPT),
                        ("user", build_draft_prompt(requirement, conditions, scan))])
     log_llm_call(task_id, "static_draft", resp)

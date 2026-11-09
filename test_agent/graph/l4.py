@@ -87,7 +87,7 @@ def run_l4_task(task_id: int, trace_from: int | None = None) -> dict:
         e["request_schema"] = json.loads(e["request_schema"]) if e.get("request_schema") else None
 
     from ..skills.llm_client import make_chat
-    llm = make_chat(api_key=api_key, temperature=0.2,
+    llm = make_chat(phase="l4_gen_scenarios", api_key=api_key, temperature=0.2,
                     timeout=90, max_retries=2)
     resp = llm.invoke([("system", ACCEPTANCE_SYSTEM),
                        ("user", build_acceptance_prompt(conds, endpoints))])

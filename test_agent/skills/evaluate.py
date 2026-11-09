@@ -331,7 +331,7 @@ def gen_report(conn, task_id: int, metrics: dict, rtm: dict,
     if api_key:
         try:
             from ..skills.llm_client import make_chat
-            llm = make_chat(api_key=api_key, temperature=0.2,
+            llm = make_chat(phase="gen_report", api_key=api_key, temperature=0.2,
                             timeout=60, max_retries=2)
             prompt = f"""## 指标包（数字唯一来源，禁止出现数据之外的数字）
 {json.dumps({k: v for k, v in metrics.items() if k != "matrix"}, ensure_ascii=False)}
@@ -449,7 +449,7 @@ def review_report(conn, task_id: int, report_id: int, narrative: str,
     if not reasons and api_key:
         try:
             from ..skills.llm_client import make_chat
-            llm = make_chat(api_key=api_key, temperature=0,
+            llm = make_chat(phase="map_rtm", api_key=api_key, temperature=0,
                             timeout=60, max_retries=2)
             resp = llm.invoke([("system", REVIEW_SYSTEM), ("user", f"""## 报告叙述
 {narrative}

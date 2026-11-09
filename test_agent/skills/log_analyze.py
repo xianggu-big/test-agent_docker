@@ -99,7 +99,7 @@ def run_log_analyze(api_key: str, conn, task_id: int, round_no: int | None = Non
     evidence = collect_log_evidence(conn, task_id, round_no)
     if not evidence["entries"]:
         return {"skipped": "该任务（轮）无应用日志错误/警告行可分析", "evidence": evidence}
-    llm = make_chat(api_key=api_key, temperature=0.1,
+    llm = make_chat(phase="log_analyze", api_key=api_key, temperature=0.1,
                     timeout=120, max_retries=2)
     resp = llm.invoke([("system", LOG_ANALYST_SYSTEM),
                        ("user", build_log_analyze_prompt(evidence))])

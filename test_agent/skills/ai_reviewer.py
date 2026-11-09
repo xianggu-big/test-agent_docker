@@ -32,7 +32,7 @@ def reviewer_llm():
         raise RuntimeError(missing_key_message({"provider": "未配置", "key_env": "见设置页"})
                            + "，AI 代审不可用（fail-closed 交人工）")
     model = getattr(config, "DEEPSEEK_REVIEWER_MODEL", None) or config.DEEPSEEK_MODEL
-    return make_chat(model=model, api_key=api_key, temperature=0.1,
+    return make_chat(phase="ai_review", model=model, api_key=api_key, temperature=0.1,
                      timeout=90, max_retries=2)
 
 

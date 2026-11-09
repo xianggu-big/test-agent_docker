@@ -106,7 +106,7 @@ def make_l3_nodes(deps):
             msg(state["session_id"], f"[L3·gen] {reason}：场景生成跳过（诚实降级）")
             return {"done": True, "verdict": "skipped", "stop_reason": "无 LLM 密钥"}
         from ..skills.llm_client import make_chat
-        llm = make_chat(api_key=api_key, temperature=0.2,
+        llm = make_chat(phase="l3_gen_scenarios", api_key=api_key, temperature=0.2,
                         timeout=90, max_retries=2)
         eps = state["endpoints"]
         ep_text = "\n".join(f"- {e['method']} {e['path']}" for e in eps)

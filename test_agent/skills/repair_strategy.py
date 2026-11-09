@@ -64,7 +64,7 @@ def make_deepseek_fn(api_key: str | None, task_id: int | None = None):
     if not api_key:
         return None
     from ..skills.llm_client import make_chat
-    llm = make_chat(api_key=api_key, temperature=0.1,
+    llm = make_chat(phase="rewrite", api_key=api_key, temperature=0.1,
                     timeout=90, max_retries=2)
 
     def fn(prompt: str) -> str:

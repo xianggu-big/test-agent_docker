@@ -128,9 +128,10 @@ def test_apply_saved_if_any恢复(tmp_path, monkeypatch):
 
 def test_make_chat兜底取运行时profile(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    # 兜底真源=app_settings 表（current()）——674/675 实锤：内存 config 会与表漂移
-    monkeypatch.setattr(llm_profile, "current", lambda conn=None: {
-        **llm_profile.PRESETS["local"], "updated_by": "", "updated_at": ""})
+    # 兜底真源=app_settings 表（2026-11-10 路由化后走 current_doc，default 档）
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: {
+        "default": "local", "profiles": {"local": llm_profile.PRESETS["local"]},
+        "routing": {}})
     from test_agent.skills.llm_client import make_chat
     llm = make_chat(temperature=0.2)               # 三件套不传
     assert llm._inner.model_name == "qwen3-4b-inst-test"
