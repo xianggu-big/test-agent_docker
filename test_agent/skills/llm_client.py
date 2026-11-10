@@ -164,6 +164,12 @@ def make_chat(**kwargs):
         p = resolve_phase(phase)
         kwargs.setdefault("model", p.get("model") or config.DEEPSEEK_MODEL)
         kwargs.setdefault("base_url", p.get("base_url") or config.DEEPSEEK_BASE_URL)
+        # G 系统臂 718~720 实锤：profile.timeout=该端点请求超时**下限**——调用点写死的
+        # 60/90/120 对 ollama（生成 ~12 tok/s）必超时，取 max(调用点值, profile 值)；
+        # 云端预设无该字段=调用点值原样生效（行为逐字节不变）
+        ptimeout = int(p.get("timeout") or 0)
+        if ptimeout:
+            kwargs["timeout"] = max(int(kwargs.get("timeout") or 0), ptimeout)
         if not kwargs.get("api_key"):
             from .llm_profile import resolve_key
             kwargs["api_key"] = resolve_key(p) or ""

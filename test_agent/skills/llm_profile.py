@@ -51,6 +51,10 @@ PRESETS: dict[str, dict] = {
         # 716 实锤：Modelfile 烘焙 num_ctx=8192 时发 15k 提示词必 400——部署事实优先于代码预设，
         # 环境变量 OLLAMA_NUM_CTX 按实际端点覆盖（默认 8192=Modelfile 现值）
         "ctx_budget": _num_ctx_default(),
+        # G 系统臂 718~720 实锤：调用点写死 timeout=60/90/120——ollama 生成 ~12 tok/s，
+        # plan 出 1.5k token 需 2 分钟必超时。profile.timeout=该端点请求超时**下限**
+        # （make_chat 取 max(调用点值, 本值)）；云端预设无此字段=行为不变
+        "timeout": 600,
     },
 }
 

@@ -60,6 +60,41 @@ def test_对账闸_台账两态落库(tmp_path, monkeypatch):
     assert [r[0] for r in rows] == [1, 0]           # 超=1，未超=0
 
 
+def test_台账_model名_未传时取响应元数据(tmp_path, monkeypatch):
+    """G 721 实锤：调用点不传 model 时列标签兜底成 DEEPSEEK_MODEL 说谎——
+    优先 response_metadata.model_name（路由后真实端点模型）。"""
+    import sqlite3
+    from types import SimpleNamespace as NS
+    from test_agent import config
+    from test_agent.skills import llm_usage
+    from test_agent.store.db import init_db
+    p = tmp_path / "t.db"
+    init_db(p)
+    monkeypatch.setattr(config, "DB_PATH", p)
+    monkeypatch.setattr(config, "DEEPSEEK_MODEL", "deepseek-chat")
+    conn = sqlite3.connect(p)
+    conn.execute("INSERT INTO users(username, password_hash) VALUES ('u', 'x')")
+    conn.execute("INSERT INTO projects(user_id, repo_url, name) VALUES (1, 'r', 'n')")
+    conn.execute("INSERT INTO test_tasks(id, project_id, user_id, requirement_text)"
+                 " VALUES (1, 1, 1, 'r')")
+    conn.commit()
+    conn.close()
+    resp = NS(usage_metadata={"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+              response_metadata={"model_name": "qwen3-4b-inst-test"})
+    llm_usage.log_llm_call(1, "plan", resp)              # 不传 model
+    resp2 = NS(usage_metadata={"input_tokens": 10, "output_tokens": 2,
+                               "total_tokens": 12})      # 无元数据：兜底 config
+    llm_usage.log_llm_call(1, "plan", resp2)
+    resp3 = NS(usage_metadata={"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+               response_metadata={"model_name": "qwen3-4b-inst-test"})
+    llm_usage.log_llm_call(1, "plan", resp3, model="explicit-model")  # 显式仍优先
+    conn = sqlite3.connect(p)
+    rows = [r[0] for r in conn.execute("SELECT model FROM llm_calls WHERE task_id=1"
+                                       " ORDER BY id").fetchall()]
+    conn.close()
+    assert rows == ["qwen3-4b-inst-test", "deepseek-chat", "explicit-model"]
+
+
 # ---------- fit_sources_to_budget ----------
 
 def _mk(n_files: int, chars: int, prefix: str = "mod") -> list[tuple[str, str]]:

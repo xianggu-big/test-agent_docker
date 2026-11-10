@@ -197,6 +197,24 @@ def test_备胎互斥_云端phase不拦(db, monkeypatch):
     assert rc._try_fallback([("user", "hi")]) is None         # 不短路→构造失败→None=原 402 照抛
 
 
+# ---------- profile.timeout 下限语义（G 系统臂 718~720 实锤：写死 60/90s 必超时） ----------
+
+def test_profile_timeout_本地档下限抬高(db, monkeypatch):
+    _seed_two_profiles(db, monkeypatch)
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    llm = make_chat(phase="plan")             # default=deepseek：云端预设无 timeout 字段
+    assert getattr(llm, "request_timeout", None) is None   # 云端行为不变
+    llm2 = make_chat(phase="plan", timeout=60)             # 云端+写死 60：原样生效
+    assert getattr(llm2, "request_timeout", None) == 60
+    apply_routing({"plan": "local"}, db)
+    llm3 = make_chat(phase="plan")                         # local：预设下限 600
+    assert getattr(llm3, "request_timeout", None) == 600
+    llm4 = make_chat(phase="plan", timeout=60)             # local+写死 60：被抬到 600
+    assert getattr(llm4, "request_timeout", None) == 600
+    llm5 = make_chat(phase="plan", timeout=900)            # 显式更大仍优先
+    assert getattr(llm5, "request_timeout", None) == 900
+
+
 # ---------- API 权限：llm-routing caller 403 ----------
 
 def test_llm_routing_caller_403(tmp_path, monkeypatch):

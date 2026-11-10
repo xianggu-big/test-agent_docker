@@ -56,6 +56,11 @@ def log_llm_call(task_id: int | None, phase: str, resp,
     u = extract_usage(resp)
     if not u:
         return
+    # 记账 model 名：调用点未传时优先取响应元数据（路由后真实端点模型，防列标签
+    # 说谎——G 系统臂 721 实锤：plan 走 local qwen 但列记成 DEEPSEEK_MODEL 兜底值）
+    meta = getattr(resp, "response_metadata", None) or {}
+    model_name = (model or meta.get("model_name") or meta.get("model")
+                  or config.DEEPSEEK_MODEL)
     truncated = 1 if is_context_truncated(u[0], base_url, ctx_budget) else 0
     if truncated:
         log.warning("[ctx-budget] phase=%s prompt=%d ≥ 预算 %d×0.95 —— 本地 KV 溢出"
@@ -67,7 +72,7 @@ def log_llm_call(task_id: int | None, phase: str, resp,
                 "INSERT INTO llm_calls(task_id, phase, prompt_tokens,"
                 " completion_tokens, total_tokens, model, truncated)"
                 " VALUES (?,?,?,?,?,?,?)",
-                (task_id, phase, u[0], u[1], u[2], model or config.DEEPSEEK_MODEL,
+                (task_id, phase, u[0], u[1], u[2], model_name,
                  truncated))
             conn.commit()
         finally:
