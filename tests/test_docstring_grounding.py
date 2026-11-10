@@ -54,3 +54,52 @@ def test_prompt_without_api_docs_unchanged():
     a = build_user_prompt(src, "需求", api_docs=None)
     b = build_user_prompt(src, "需求")
     assert a == b                                                   # 开关关=逐字节不变
+
+
+# ---------- Go godoc 提取（任务卡-F2 阶段 1 #5：C 源 godoc 去 Python 锁） ----------
+
+def _ws_go(tmp_path, files):
+    for rel, text in files.items():
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+    return tmp_path
+
+
+def test_go_godoc_提取签名与注释(tmp_path):
+    out = _extract_api_docs(_ws_go(tmp_path, {
+        "shop/order.go": ('// Package shop 订单分级服务。\n'
+                          'package shop\n\n'
+                          '// GetTier 按积分分级：>=90 "A"，>=60 "B"，其余 "C"。\n'
+                          '// Returns: 分级字符串。\n'
+                          'func GetTier(score int) string {\n'
+                          '\tif score > 90 {\n\t\treturn "A"\n\t}\n\treturn "C"\n}\n\n'
+                          '// Add 加法（对照函数）。\n'
+                          'func Add(a, b int) int {\n\treturn a + b\n}\n'),
+        "shop/order_test.go": '// 测试文件不应被提取\nfunc TestX(t *testing.T) {}\n',
+    }), lang="go")
+    assert out is not None
+    assert "### shop.GetTier" in out and '>=90 "A"' in out       # 注释体进提示词
+    assert "func GetTier(score int) string" in out               # 函数签名
+    assert "### shop.Add" in out
+    assert "TestX" not in out and "order_test" not in out        # 测试文件不提取
+
+
+def test_go_godoc_无注释返回None(tmp_path):
+    out = _extract_api_docs(_ws_go(tmp_path, {
+        "bare/main.go": "package main\n\nfunc main() {}\n"}), lang="go")
+    assert out is None
+
+
+def test_go_godoc_方法接收者签名(tmp_path):
+    out = _extract_api_docs(_ws_go(tmp_path, {
+        "cart/cart.go": ('package cart\n\n'
+                         '// Total 计算合计。\n'
+                         'func (c *Cart) Total() int {\n\treturn 0\n}\n')}), lang="go")
+    assert out is not None and "func (c *Cart) Total()" in out
+
+
+def test_auto语言探测_py优先_go兜底(tmp_path):
+    out = _extract_api_docs(_ws_go(tmp_path, {
+        "shop/order.go": '// GetTier 分级。\nfunc GetTier(score int) string {\n\treturn "A"\n}\n'}))
+    assert out is not None and "GetTier" in out                   # 无 lang 参数=自动探测

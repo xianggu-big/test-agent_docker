@@ -648,10 +648,18 @@ def _parse_cases(text: str, lang: str | None = None) -> dict | None:
     return data
 
 
-def _extract_api_docs(ws: Path, max_chars: int = 2000) -> str | None:
+def _extract_api_docs(ws: Path, max_chars: int = 2000, lang: str | None = None) -> str | None:
     """C 源·docstring grounding（领域知识注入调研 §C）：AST 遍历取模块级+顶层函数/类的
     docstring，渲染为 "### 模块.符号" + 换行 + 原文。确定性、零 LLM；超预算截断时优先
-    保留含 Args/Returns/Raises 段的（行为规范密度高）；无任何 docstring 返回 None。"""
+    保留含 Args/Returns/Raises 段的（行为规范密度高）；无任何 docstring 返回 None。
+    任务卡-F2 阶段 1 #5：去 Python 锁——lang="go"（或自动探测：无 .py 有 .go）走 godoc 分支。"""
+    if lang is None:
+        ws2 = Path(ws)
+        has_py = any(p.suffix == ".py" for p in ws2.rglob("*.py")
+                     if not any(part in config.SKIP_DIRS for part in p.parts))
+        lang = "python" if has_py else ("go" if any(ws2.rglob("*.go")) else "python")
+    if lang == "go":
+        return _extract_api_docs_go(ws, max_chars=max_chars)
     docs: list[tuple[str, str, int]] = []   # (标题, 正文, 语义密度分)
     nl = chr(10)                             # 规避 heredoc 转义坑：换行一律 chr(10)
     for p in sorted(Path(ws).rglob("*.py")):
@@ -683,6 +691,63 @@ def _extract_api_docs(ws: Path, max_chars: int = 2000) -> str | None:
             continue
         kept.append(title)
         used += len(title)
+    return nl.join(kept) if kept else None
+
+
+def _extract_api_docs_go(ws: Path, max_chars: int = 2000) -> str | None:
+    """Go godoc 提取（任务卡-F2 阶段 1 #5，确定性零 LLM）：紧贴 func 声明的连续 //
+    注释块 + 函数签名（含接收者与返回类型），渲染为 "### 包.Func" + 注释正文 + 签名。
+    跳过 _test.go；无任何注释返回 None（诚实）。godoc 惯例=注释首行以被注释的
+    标识符开头，此处不强制校验该惯例。"""
+    import re as _re
+    func_re = _re.compile(
+        r"^func\s+(?:\((?P<recv>\w+\s+\*?\w+)\)\s+)?(?P<name>\w+)\s*"
+        r"\((?P<params>[^)]*)\)(?P<rest>[^{]*)",
+        _re.M)
+    nl = chr(10)
+    docs: list[tuple[str, int]] = []   # (渲染块, 语义密度分)
+    for p in sorted(Path(ws).rglob("*.go")):
+        if any(part in config.SKIP_DIRS for part in p.parts):
+            continue
+        if p.name.endswith("_test.go"):
+            continue
+        try:
+            lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        pkg = ""
+        for line in lines:
+            if line.startswith("package "):
+                pkg = line.split(None, 1)[1].strip()
+                break
+        text = nl.join(lines)
+        for m in func_re.finditer(text):
+            name = m.group("name")
+            if name == "main":
+                continue
+            lineno = text[:m.start()].count(nl)         # func 所在行（0 基）
+            comment_lines: list[str] = []
+            j = lineno - 1
+            while j >= 0 and lines[j].lstrip().startswith("//"):
+                comment_lines.insert(0, lines[j].strip()[2:].strip())
+                j -= 1
+            if not comment_lines:
+                continue
+            recv = f"({m.group('recv')}) " if m.group("recv") else ""
+            rest = (m.group("rest") or "").strip()
+            sig = f"func {recv}{name}({m.group('params').strip()}) {rest}".rstrip()
+            body = nl.join(comment_lines)
+            score = sum(k in body for k in ("Returns", "返回", "边界", "抛出"))
+            docs.append((f"### {pkg}.{name}{nl}{body}{nl}{sig}", score))
+    if not docs:
+        return None
+    docs.sort(key=lambda d: (-d[1], d[0]))
+    kept, used = [], 0
+    for block, _score in sorted(docs, key=lambda d: (-d[1], d[0])):
+        if used + len(block) > max_chars:
+            continue
+        kept.append(block)
+        used += len(block)
     return nl.join(kept) if kept else None
 
 
@@ -1569,7 +1634,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         conditions_truncated = 0
 
     # —— 三源 grounding 注入（各自独立开关，默认关=提示词逐字节不变） ——
-    api_docs = _extract_api_docs(ws) if config.DOCSTRING_GROUNDING_ENABLED else None
+    api_docs = _extract_api_docs(ws, lang=lang) if config.DOCSTRING_GROUNDING_ENABLED else None
     usage_examples = _extract_usage_examples(ws) if config.USAGE_EXAMPLES_ENABLED else None
 
     llm = make_chat(phase="gen_tests", api_key=api_key, temperature=0.2, timeout=90, max_retries=2)

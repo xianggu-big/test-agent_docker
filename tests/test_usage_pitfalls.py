@@ -62,7 +62,7 @@ def test_usage_examples_prompt_injection(tmp_path):
 def test_pitfall_kb_structure():
     """清单结构契约：每条 {pattern, why, test_hint, keyword} 齐全（curated 清单的质量闸）。"""
     for track, items in PITFALL_KB.items():
-        assert track in ("python", "web", "cli")
+        assert track in ("python", "web", "cli", "go")   # F2 阶段 1 #3：Go 池入册
         assert len(items) >= 4
         for item in items:
             assert item["pattern"] and item["why"] and item["test_hint"] and item["keyword"]
@@ -82,3 +82,21 @@ def test_pitfall_section_expected_basis_discipline():
     assert "领域陷阱清单" in sec and "expected_basis" in sec and "常识" in sec
     assert build_user_prompt([("a.py", "x=1")], "需求", pitfalls=True,
                              module_lang="python").count("领域陷阱清单") == 1
+
+
+# ---------- 任务卡-F2 阶段 1 #3：Go 陷阱条目（error shadowing/nil map/goroutine 泄漏） ----------
+
+def test_go陷阱条目_语言路由命中():
+    from test_agent.skills.prompt_library import select_pitfalls
+    items = select_pitfalls("go", "订单分级服务：按积分分级")
+    assert items and items is not select_pitfalls("python", "订单分级服务")
+    patterns = {p["pattern"] for p in select_pitfalls("go", "通用函数测试")}
+    assert "goroutine 泄漏" in patterns and any("shadowing" in p for p in patterns)
+
+
+def test_go陷阱段_渲染含测试手法(tmp_path):
+    from test_agent.skills.prompt_library import build_pitfall_section
+    section = build_pitfall_section("go", "缓存查询服务")
+    assert "领域陷阱清单" in section
+    # 需求命中 web 关键词时按既有规则仍走 web 池（语言回退不覆盖需求路由）——锁语义
+    assert ("nil map" in section) or ("缓存穿透" in section)

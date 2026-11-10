@@ -411,6 +411,19 @@ PITFALL_KB: dict[str, list[dict]] = {
         {"pattern": "参数组合冲突", "why": "互斥 flag 同给、缺必需参数的报错质量",
          "test_hint": "互斥参数同给，断言明确报错而非静默择一", "keyword": "参数|选项|flag|开关"},
     ],
+    # 任务卡-F2 阶段 1 #3（2026-11-10）：Go 陷阱条目（AGENTS Go 缺口清单 ⑧）
+    "go": [
+        {"pattern": "error shadowing（:= 误用吞错）", "why": "if v, err := f(); v != nil 分支里 := 新建了内层 err，外层 err 恒 nil，错误被静默吞掉",
+         "test_hint": "构造使 f 返回错误的输入，断言外层返回的 error 非 nil", "keyword": "error|错误|err|失败|回退"},
+        {"pattern": "nil map 写入 panic", "why": "var m map[K]V 只声明未 make，写入即 assignment to entry in nil map panic",
+         "test_hint": "对零值结构体的 map 字段做写入路径用例，断言正常写入或显式 panic 语义", "keyword": "map|字典|初始化|make|存储"},
+        {"pattern": "goroutine 泄漏", "why": "channel 无发送方/无接收方时 goroutine 永久阻塞，资源泄漏",
+         "test_hint": "取消/超时路径后断言函数能返回（配合超时保护），而非永久挂起", "keyword": "并发|goroutine|channel|异步|超时|取消"},
+        {"pattern": "边界含不含（比较符方向）", "why": "> 与 >= 的边界语义最易错（跨语言同题：score==90 边界）",
+         "test_hint": "对每个数值边界取 min-1/min/max/max+1 四点断言", "keyword": "边界|范围|上限|下限|分级|超过|至少"},
+        {"pattern": "整数除法截断", "why": "Go 的 / 对整型直接截断，折扣/均价计算常丢精度",
+         "test_hint": "对不能整除的组合断言精确值与舍入方向", "keyword": "除|平均|折扣|比例|total|价格"},
+    ],
 }
 
 
