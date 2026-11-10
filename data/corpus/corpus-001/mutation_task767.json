@@ -1,0 +1,70 @@
+{
+ "task_id": 767,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 3,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_check_length_边界值[max]",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_check_length_边界值[min]",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_is_strong_全部满足_判定表",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_is_strong_自定义长度超界_边界值",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_is_strong_自定义长度边界_边界值"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_is_strong_自定义长度超界_边界值"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_check_length_边界值[max]",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_has_special_ASCII边界_边界值",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_has_special_含特殊字符_等价类划分",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_is_strong_全部满足_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_check_length_边界值[max]",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_has_special_ASCII边界_边界值",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_is_strong_自定义长度超界_边界值",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_is_strong_自定义长度边界_边界值"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_check_length_边界值[max]",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_has_special_不含特殊字符_等价类划分",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_has_special_空格不算特殊_边界值",
+    "data/tmp_mut/task767_irw0rout/test_gen_r1.py::test_has_special_非ASCII字符_错误推测法"
+   ]
+  }
+ ]
+}

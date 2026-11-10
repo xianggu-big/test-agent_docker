@@ -1,0 +1,68 @@
+{
+ "task_id": 777,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 3,
+ "mutants_total": 5,
+ "killed": 4,
+ "kill_rate": 0.8,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_自定义参数_边界值分析[max]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_自定义参数_边界值分析[min]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_边界值分析[min]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_is_strong_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_自定义参数_边界值分析[max]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_has_special_等价类划分[\\u6709\\u6548\\u7c7b-\\u542b\\u7279\\u6b8a\\u5b57\\u7b26]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_is_strong_判定表",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_is_strong_自定义长度边界_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_自定义参数_边界值分析[max]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_has_special_空格与可打印字符_错误推测法",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_is_strong_自定义长度边界_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_自定义参数_边界值分析[max]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_has_special_等价类划分[\\u65e0\\u6548\\u7c7b-\\u4ec5\\u5b57\\u6bcd\\u6570\\u5b57]",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_is_strong_判定表",
+    "data/tmp_mut/task777_j5sp50b_/test_gen_r2.py::test_is_strong_自定义长度边界_边界值分析"
+   ]
+  }
+ ]
+}

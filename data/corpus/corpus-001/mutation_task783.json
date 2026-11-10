@@ -1,0 +1,72 @@
+{
+ "task_id": 783,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 4,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_自定义边界_边界值分析[max=5]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_自定义边界_边界值分析[min=3]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_边界值分析[max=64]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_边界值分析[min=8]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_边界值分析[ASCII127\\u8d8a\\u754c]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_边界值分析[ASCII127\\u8d8a\\u754c]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_is_strong_自定义边界_边界值分析[max+1=11]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_自定义边界_边界值分析[max=5]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_边界值分析[max=64]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_等价类划分[\\u6709\\u6548\\u7c7b-\\u542b!]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_边界值分析[ASCII127\\u8d8a\\u754c]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_边界值分析[ASCII33\\u4e0b\\u754c]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_自定义边界_边界值分析[max=5]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_边界值分析[max=64]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_等价类划分[\\u6709\\u6548\\u7c7b-\\u8fb9\\u754c~]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_边界值分析[ASCII126\\u4e0a\\u754c]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_边界值分析[ASCII127\\u8d8a\\u754c]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_自定义边界_边界值分析[max=5]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_check_length_边界值分析[max=64]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_等价类划分[\\u65e0\\u6548\\u7c7b-\\u4ec5\\u5b57\\u6bcd\\u6570\\u5b57]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_has_special_边界值分析[ASCII127\\u8d8a\\u754c]",
+    "data/tmp_mut/task783_7i0k6zdq/test_gen_r1.py::test_is_strong_判定表"
+   ]
+  }
+ ]
+}

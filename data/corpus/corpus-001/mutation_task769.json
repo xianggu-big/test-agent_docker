@@ -1,0 +1,70 @@
+{
+ "task_id": 769,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 3,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_区间内_等价类划分",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_自定义边界_边界值分析[max]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_自定义边界_边界值分析[min]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_边界值分析[max]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_分支覆盖_语句分支覆盖"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_自定义边界_边界值分析[max]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_has_special_ASCII边界_边界值分析[!]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_has_special_等价类划分"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_自定义边界_边界值分析[max]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_has_special_ASCII边界_边界值分析[~]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_is_strong_自定义长度边界_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_自定义边界_边界值分析[max]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_has_special_空格不算特殊_边界值分析",
+    "data/tmp_mut/task769_o13tqi97/test_gen_r1.py::test_has_special_等价类划分"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,69 @@
+{
+ "task_id": 766,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 2,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_check_length_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_check_length_边界值[max=64]",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_check_length_边界值[min=8]",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_check_length_默认区间内_等价类划分",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_is_strong_全条件满足_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_check_length_分支覆盖_语句分支覆盖"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_check_length_边界值[max=64]",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_has_special_ASCII边界字符_边界值",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_has_special_等价类划分",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_is_strong_全条件满足_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_check_length_边界值[max=64]",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_has_special_ASCII边界字符_边界值",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_strength_score_长度64与65_边界值"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_check_length_边界值[max=64]",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_has_special_空格不算特殊字符_边界值",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_has_special_等价类划分",
+    "data/tmp_mut/task766_airann_e/test_gen_r1.py::test_is_strong_缺特殊字符_判定表"
+   ]
+  }
+ ]
+}

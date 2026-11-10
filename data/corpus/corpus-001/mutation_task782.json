@@ -1,0 +1,67 @@
+{
+ "task_id": 782,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 2,
+ "mutants_total": 5,
+ "killed": 4,
+ "kill_rate": 0.8,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_自定义边界_边界值分析",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_边界值分析[min]",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_is_strong_判定表",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_is_strong_自定义长度_判定表"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": false,
+   "new_failures": []
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_自定义边界_边界值分析",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_has_special_等价类划分",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_has_special_边界字符_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_自定义边界_边界值分析",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_has_special_边界字符_边界值分析"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_自定义边界_边界值分析",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_check_length_边界值分析[max]",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_has_special_分支覆盖_语句分支覆盖",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_has_special_等价类划分",
+    "data/tmp_mut/task782_u9v831hi/test_gen_r1.py::test_is_strong_判定表"
+   ]
+  }
+ ]
+}
