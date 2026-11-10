@@ -1618,7 +1618,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   defense_v2=config.DEFENSE_V2_ENABLED,
                                                   layer_aware=config.LAYER_AWARE_ENABLED,
                                                   sut_functions=sut_manifest,
-                                                  sut_mismatch=sut_mismatch))])
+                                                  sut_mismatch=sut_mismatch,
+                                                  ctx_budget=getattr(llm, "_ctx_budget", None)))])
     log_llm_call(task_id, phase, resp,
                  ctx_budget=getattr(llm, "_ctx_budget", None),
                  base_url=getattr(llm, "_base_url", ""))

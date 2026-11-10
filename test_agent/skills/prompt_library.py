@@ -465,7 +465,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       defense_v2: bool = False,
                       sut_functions: list[str] | None = None,
                       sut_mismatch: str | None = None,
-                      layer_aware: bool = False) -> str:
+                      layer_aware: bool = False,
+                      ctx_budget: int | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -494,6 +495,9 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     注入在错误映射中间件的 bug 在测试链路里根本不运行——层位信息必须显式提供）。
     True=注入层位覆盖纪律段+按 target_language 附 HTTP 层用例骨架
     （go=httptest / python=TestClient / 其余=通用纪律）；False=不注入（逐字节不变）。
+    ctx_budget: 上下文预算（任务卡-H，2026-11-10；来自 profile.ctx_budget，如
+    local=16384）：超预算时源码按入口/热点排序降采样+末尾显式截断声明；
+    None=不限（行为与旧版逐字节一致）。
     """
     defense_text = ""
     if defense_v2:
@@ -607,6 +611,13 @@ docstring 没写的行为，按需求文档推断，禁止猜。
             layer_text += LAYER_EXAMPLE_GO
         elif target_language in ("python", ""):
             layer_text += LAYER_EXAMPLE_PY
+
+    # 任务卡-H 步骤 3：预算降采样（在 sources 拼 src_text 前执行——入口/热点优先存活）
+    if ctx_budget:
+        sources, trunc_decl = fit_sources_to_budget(sources, ctx_budget)
+        trunc_note = f"\n\n## ⚠ 上下文预算截断声明\n{trunc_decl}" if trunc_decl else ""
+    else:
+        trunc_note = ""
 
     basis_note = ("五选一：「需求明示」「docstring文档」「源码推导」「常识」「模型推断」"
                   "（对话增补轮另有第六项「用户反馈」：预期直接来自审查反馈但需求原文无依据时诚实标注）——"
@@ -775,7 +786,7 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
 {requirement or "（无额外需求，按源码行为设计）"}{sut_text}{mismatch_text}{layer_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
-{method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}
+    {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}{trunc_note}
 
 ## 输出格式
 只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。{lang_rules}
@@ -794,3 +805,91 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "expected": "预期输出/状态变化",
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
     "code": "{code_example}"}}]}}{final_lang_reminder}"""
+
+
+# —————————————————————————— 上下文预算管理（任务卡-H 步骤 3/4，2026-11-10） ——————————————————————————
+
+def estimate_tokens(text: str) -> int:
+    """粗估 token 数（chars/2.5 起步；研究文档 §5 系数，llm_calls 实测可校准）。
+    中英混合提示词的经验值：1 token ≈ 2.5 字符（中文略高、代码略低）。"""
+    return max(1, int(len(text or "") / 2.5))
+
+
+def _source_rank_key(rel_path: str) -> tuple:
+    """源码文件排序权重（预算下谁先活）：入口文件 > 非测试主源 > 路径深度浅者 > 名字短者。
+    入口=main/app/server/manage/routes（fastapi/flask 项目惯例入口）。"""
+    name = rel_path.rsplit("/", 1)[-1].lower()
+    entry = 0 if any(name.startswith(e) for e in ("main", "app", "server", "manage", "routes")) else 1
+    testish = 0 if "test" not in name else 1
+    depth = rel_path.count("/")
+    return (entry, testish, depth, len(name))
+
+
+def fit_sources_to_budget(sources: list[tuple[str, str]], ctx_budget: int,
+                          reserve_tokens: int = 2500,
+                          ) -> tuple[list[tuple[str, str]], str]:
+    """预算降采样（任务卡-H 步骤 3，纯函数）：ctx_budget 下源码段总预算=
+    ctx_budget − reserve（骨架/条件/输出格式等固定段预留）。文件按 _source_rank_key
+    排序（入口优先），逐文件放下则整收、放不下则截断尾部并停（后续文件丢弃）。
+    返回 (新 sources, 截断声明)。声明显式告知『源码已按预算截断至 X 字符，共 Y 字符』
+    ——禁止静默裁剪（诚实纪律：LLM 应知道它看到的是部分源码）。"""
+    if not ctx_budget or ctx_budget <= 0:
+        return sources, ""
+    budget_chars = int((ctx_budget - reserve_tokens) * 2.5)
+    if budget_chars <= 200:
+        budget_chars = 200
+    total = sum(len(c) for _, c in sources)
+    if total <= budget_chars:
+        return sources, ""
+    ranked = sorted(sources, key=lambda sc: _source_rank_key(sc[0]))
+    out, used, dropped = [], 0, []
+    for rel, code in ranked:
+        if used + len(code) <= budget_chars:
+            out.append((rel, code))
+            used += len(code)
+        else:
+            keep = budget_chars - used
+            if keep > 400:
+                out.append((rel + "（预算截断）", code[:keep]
+                            + "\n/* …（超出预算截断，完整文件见仓库）*/"))
+                used += keep
+            dropped.append(f"{rel}（{len(code)} 字符，收录 {max(0, keep)}）")
+    decl = (f"（源码已按上下文预算 {ctx_budget} tokens 截断至 {used} 字符，原共 {total} 字符；"
+            f"丢弃/截断：{'；'.join(dropped[:6])}"
+            f"{' 等' if len(dropped) > 6 else ''}）——你看到的是部分源码，"
+            f"断言请基于已收录部分并如实标注 expected_basis")
+    return out, decl
+
+
+def fit_prompt_sections(prompt: str, ctx_budget: int,
+                        markers: list[tuple[str, str]] | None = None) -> tuple[str, str]:
+    """段落裁剪（任务卡-H 步骤 4，纯函数）：预算仍超时按序砍段，每段砍多少留痕。
+
+    markers=[(段落起始标记, 段落终止标记)] 按裁剪优先序给出：
+    方法骨架示例段 → 覆盖缺口明细 → 条件尾部 → 源码尾部（卡定义顺序）。
+    每砍一段重算；全砍完仍超则截 prompt 尾部兜底。返回 (新 prompt, 裁剪留痕)。"""
+    if not ctx_budget or ctx_budget <= 0:
+        return prompt, ""
+    trail = []
+    cur = prompt
+    limit_chars = int(ctx_budget * 2.5)
+    for start, end in (markers or []):
+        if estimate_tokens(cur) <= ctx_budget:
+            break
+        i = cur.find(start)
+        if i < 0:
+            continue
+        # 段落=[start, end)：end 标记本身保留在文中（它是下一裁剪候选或边界哨兵）
+        j = cur.find(end, i + len(start))
+        if j < 0:
+            seg = cur[i:]
+            cur = cur[:i]
+        else:
+            seg = cur[i:j]
+            cur = cur[:i] + cur[j:]
+        trail.append(f"裁段落[{start[:12]}…]（{len(seg)} 字符）")
+    if estimate_tokens(cur) > ctx_budget:
+        cut = int(limit_chars)
+        trail.append(f"尾部兜底截断（{len(cur) - cut} 字符）")
+        cur = cur[:cut]
+    return cur, ("；".join(trail) if trail else "")
