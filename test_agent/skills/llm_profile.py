@@ -294,9 +294,16 @@ def load_doc(conn) -> dict:
         log.info("[llm-profile] 旧单 profile 格式已迁移为多 profile 文档（default=%s）",
                  doc["default"])
         return doc
-    # 新格式：补缺字段（routing/profiles 容错）
-    return {"default": value.get("default") or next(iter(value.get("profiles") or {"deepseek": 1})),
-            "profiles": value.get("profiles") or {},
+    # 新格式：补缺字段（routing/profiles 容错）；预设档缺字段按 PRESETS 补齐——
+    # 715 实锤：ctx_budget 引入前存的 local 条目无该字段 → 预算降采样永不触发
+    profiles = value.get("profiles") or {}
+    for pid, prof in profiles.items():
+        if isinstance(prof, dict) and prof.get("provider") in PRESETS:
+            for k, v in PRESETS[prof["provider"]].items():
+                if k not in prof:
+                    prof[k] = v
+    return {"default": value.get("default") or next(iter(profiles or {"deepseek": 1})),
+            "profiles": profiles,
             "routing": value.get("routing") or {}}
 
 

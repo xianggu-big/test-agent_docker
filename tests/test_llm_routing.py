@@ -213,3 +213,26 @@ def test_llm_routing_caller_403(tmp_path, monkeypatch):
         assert client.put("/api/llm-routing", headers=hc,
                           json={"routing": {}}).status_code == 403
         assert client.get("/api/llm-routing", headers=ha).status_code == 200
+
+
+# ---------- 任务卡-H 衔接：老 profiles 条目缺字段按预设补齐（715 实锤） ----------
+
+def test_老profiles条目缺ctx_budget读时补齐(db, monkeypatch):
+    # ctx_budget 字段引入前存的 local 条目没有该键——load_doc 必须按 PRESETS 补齐，
+    # 否则预算降采样永不触发（715：15295 tokens 发给 ctx=8192 的 qwen → 400）
+    db.execute("INSERT INTO app_settings(key, value) VALUES('llm_profile', '{}') "
+               "ON CONFLICT(key) DO NOTHING", ())
+    legacy_doc = {"default": "local",
+                  "profiles": {"local": {"provider": "local",
+                                          "base_url": "http://localhost:11434/v1",
+                                          "model": "qwen3-4b-inst-test", "key_env": ""}},
+                  "routing": {}}
+    db.execute("UPDATE app_settings SET value=? WHERE key='llm_profile'",
+               (json.dumps(legacy_doc),))
+    db.commit()
+    doc = load_doc(db)
+    assert doc["profiles"]["local"]["ctx_budget"] == 16384
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    from test_agent.skills.llm_client import make_chat
+    llm = make_chat(phase="gen_tests")
+    assert getattr(llm, "_ctx_budget", None) == 16384      # 预算到位 → 降采样可触发
