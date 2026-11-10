@@ -140,7 +140,7 @@ def apply(p: dict, conn, updated_by: str = "") -> dict:
     doc = load_doc(conn)
     pid = norm["provider"]
     profiles = doc.get("profiles") or {}
-    profiles[pid] = {k: norm[k] for k in ("provider", "base_url", "model", "key_env", "ctx_budget") if k in norm}
+    profiles[pid] = {k: norm[k] for k in ("provider", "base_url", "model", "key_env", "ctx_budget", "timeout") if k in norm}
     doc = {"default": pid, "profiles": profiles, "routing": doc.get("routing") or {}}
     conn.execute(
         "INSERT INTO app_settings(key, value, updated_by) VALUES (?,?,?) "
