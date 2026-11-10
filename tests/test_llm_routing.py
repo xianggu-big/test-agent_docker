@@ -156,8 +156,9 @@ def test_ctx_budget_透传给调用方(db, monkeypatch):
     _seed_two_profiles(db, monkeypatch)
     apply_routing({"generate": "local"}, db)
     monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "16384")   # FA+KV 部署后的提档（研究文档 §1 L1）
     llm = make_chat(phase="gen_tests")
-    assert getattr(llm, "_ctx_budget", None) == 16384      # local 档预算（H 卡锚点）
+    assert getattr(llm, "_ctx_budget", None) == 16384      # 环境变量覆盖=部署事实优先
 
 
 def test_ctx_budget_云端档无预算(monkeypatch):
@@ -231,8 +232,8 @@ def test_老profiles条目缺ctx_budget读时补齐(db, monkeypatch):
                (json.dumps(legacy_doc),))
     db.commit()
     doc = load_doc(db)
-    assert doc["profiles"]["local"]["ctx_budget"] == 16384
+    assert doc["profiles"]["local"]["ctx_budget"] == 8192   # 默认=Modelfile 现值（716 实锤 16k 超端点）
     monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
     from test_agent.skills.llm_client import make_chat
     llm = make_chat(phase="gen_tests")
-    assert getattr(llm, "_ctx_budget", None) == 16384      # 预算到位 → 降采样可触发
+    assert getattr(llm, "_ctx_budget", None) == 8192       # 预算到位 → 降采样可触发

@@ -20,6 +20,14 @@ log = logging.getLogger(__name__)
 PROFILE_KEY = "llm_profile"
 PROVIDERS = ("deepseek", "qwen", "local", "custom")
 
+
+def _num_ctx_default() -> int:
+    """本地档预算默认值：OLLAMA_NUM_CTX 环境变量（部署事实）> 8192（Modelfile 现值）。"""
+    try:
+        return max(2048, int(os.environ.get("OLLAMA_NUM_CTX", "8192")))
+    except ValueError:
+        return 8192
+
 # 云端预设：base_url 固定；model 预设值可改（用户可覆盖）；key_env=环境变量"名字"
 PRESETS: dict[str, dict] = {
     "deepseek": {
@@ -39,7 +47,10 @@ PRESETS: dict[str, dict] = {
         "base_url": "http://localhost:11434/v1",
         "model": "qwen3-4b-inst-test",
         "key_env": "",               # 本地无需 key
-        "ctx_budget": 16384,         # 任务卡-H：q8_0 KV 下 16k 可用（研究文档 §1；云端档省略=不限）
+        # 任务卡-H：16k 需 OLLAMA_FLASH_ATTENTION=1 + OLLAMA_KV_CACHE_TYPE=q8_0（研究文档 §1）；
+        # 716 实锤：Modelfile 烘焙 num_ctx=8192 时发 15k 提示词必 400——部署事实优先于代码预设，
+        # 环境变量 OLLAMA_NUM_CTX 按实际端点覆盖（默认 8192=Modelfile 现值）
+        "ctx_budget": _num_ctx_default(),
     },
 }
 
@@ -328,8 +339,17 @@ def resolve_phase(raw_phase: str = "", conn=None) -> dict:
     profiles = doc.get("profiles") or {}
     group = phase_group(raw_phase)
     pid = (doc.get("routing") or {}).get(group) or doc.get("default")
-    p = profiles.get(pid) or profiles.get(doc.get("default")) or {}
-    return dict(p)
+    p = dict(profiles.get(pid) or profiles.get(doc.get("default")) or {})
+    # local 档 ctx_budget 动态求值（716 实锤：部署 num_ctx 可随时改，存档是快照会过期；
+    # env OLLAMA_NUM_CTX > 存档值时以 env 为准——部署事实优先）
+    if p.get("provider") == "local":
+        try:
+            env_ctx = int(os.environ.get("OLLAMA_NUM_CTX", "0"))
+            if env_ctx > 0:
+                p["ctx_budget"] = env_ctx
+        except ValueError:
+            pass
+    return p
 
 
 def apply_routing(routing: dict, conn, updated_by: str = "") -> dict:
