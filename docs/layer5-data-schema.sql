@@ -276,6 +276,8 @@ CREATE TABLE IF NOT EXISTS llm_calls (
   completion_tokens INTEGER NOT NULL,
   total_tokens      INTEGER NOT NULL,        -- = prompt + completion（langchain usage_metadata 原值，缺失时按和补）
   model             TEXT,                    -- config.DEEPSEEK_MODEL 快照（成本换算需按模型计价）
+  truncated         INTEGER NOT NULL DEFAULT 0,  -- 任务卡-H 对账闸：实际 prompt_tokens ≥ num_ctx×0.95 时置 1
+                                                 -- （本地端点 KV 溢出 CPU=5 倍掉速，打标供归因与预算治理）
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

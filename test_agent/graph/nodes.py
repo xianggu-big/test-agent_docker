@@ -1021,7 +1021,9 @@ def make_nodes(deps: GraphDeps) -> dict:
             understanding = understand_requirement(
                 api_key, requirement,
                 project_hint=str(state.get("primary_language") or ""),
-                on_resp=lambda resp: log_llm_call(tid, "understand", resp))
+                on_resp=lambda resp: log_llm_call(tid, "understand", resp,
+                    ctx_budget=getattr(llm, "_ctx_budget", None),
+                    base_url=getattr(llm, "_base_url", "")))
             if understanding:
                 goals = "；".join(understanding["test_goals"][:3])
                 extra = (f"（显式假设 {len(understanding['assumptions'])} 条）"
@@ -1051,7 +1053,9 @@ def make_nodes(deps: GraphDeps) -> dict:
                                                       hotspots=state.get("complexity_hotspots"),
                                                       source_modules=src_outline,
                                                       understanding=understanding))])
-        log_llm_call(tid, "plan", resp)
+        log_llm_call(tid, "plan", resp,
+                     ctx_budget=getattr(llm, "_ctx_budget", None),
+                     base_url=getattr(llm, "_base_url", ""))
         conds = parse_conditions(resp.content)
         if not conds:
             msg(state["session_id"], "assistant", "[plan] 需求拆解不可解析，跳过（诚实降级）")

@@ -103,7 +103,9 @@ def run_log_analyze(api_key: str, conn, task_id: int, round_no: int | None = Non
                     timeout=120, max_retries=2)
     resp = llm.invoke([("system", LOG_ANALYST_SYSTEM),
                        ("user", build_log_analyze_prompt(evidence))])
-    log_llm_call(task_id, "log_analyze", resp)
+    log_llm_call(task_id, "log_analyze", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     parsed = parse_log_summary(resp.content)
     if parsed is None:
         return {"error": "日志分析输出不可解析（诚实降级，不硬造）", "evidence": evidence}

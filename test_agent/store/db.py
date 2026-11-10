@@ -126,6 +126,7 @@ _MIGRATIONS = {
     "evaluation_rounds": {"level": "TEXT DEFAULT 'L1'"},  # 四级双轨：老库补级别维度，存量行=L1
     "call_edges": {"file": "TEXT", "lineno": "INTEGER"},  # 跨级溯源：老库补函数定义位置
     "test_scripts": {"filename": "TEXT"},        # 两阶段：布考场按审查结论重建生成文件的键
+    "llm_calls": {"truncated": "INTEGER NOT NULL DEFAULT 0"},  # 任务卡-H：上下文截断对账闸打标
 }
 
 

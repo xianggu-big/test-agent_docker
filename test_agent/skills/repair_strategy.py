@@ -69,7 +69,9 @@ def make_deepseek_fn(api_key: str | None, task_id: int | None = None):
 
     def fn(prompt: str) -> str:
         resp = llm.invoke([("system", REWRITE_SYSTEM), ("user", prompt)])
-        log_llm_call(task_id, "rewrite", resp)
+        log_llm_call(task_id, "rewrite", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
         return resp.content
 
     return fn

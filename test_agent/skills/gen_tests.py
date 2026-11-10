@@ -1314,7 +1314,9 @@ def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
                            include_methods=include_methods, pbt=pbt, cond_forced=True,
                            templates=False,   # 补生成轮保持自由通道（定向补缺不做结构先验）
                            existing_cases=[c["name"] for c in cases]))])
-    log_llm_call(task_id, "refill", resp)
+    log_llm_call(task_id, "refill", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     data = _parse_cases(resp.content, lang=lang)
     if not data:
         info["note"] = "补生成轮 LLM 输出不可解析（诚实放弃）"
@@ -1408,7 +1410,9 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
         return cases, info
     resp = llm.invoke([("system", CROSS_REVIEW_SYSTEM),
                        ("user", build_cross_review_prompt(requirement, cases))])
-    log_llm_call(task_id, "cross_review", resp)
+    log_llm_call(task_id, "cross_review", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     verdicts = parse_cross_review(resp.content)
     if verdicts is None:
         info["note"] = "审查输出不可解析（fail-open 放行，留痕备查）"
@@ -1425,7 +1429,9 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
         r2 = llm.invoke([("system", SYSTEM_PROMPT),
                          ("user", build_regen_prompt(sources, requirement, c,
                                                      verdicts[c["name"]]["reason"]))])
-        log_llm_call(task_id, "regen_case", r2)
+        log_llm_call(task_id, "regen_case", r2,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
         data = _parse_cases(r2.content, lang=lang)
         new: dict | None = None
         if data and data["cases"]:
@@ -1449,7 +1455,9 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
     if regen:
         resp3 = llm.invoke([("system", CROSS_REVIEW_SYSTEM),
                             ("user", build_cross_review_prompt(requirement, regen))])
-        log_llm_call(task_id, "cross_review", resp3)
+        log_llm_call(task_id, "cross_review", resp3,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
         v3 = parse_cross_review(resp3.content)
         survived = []
         for c in regen:
@@ -1611,7 +1619,9 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   layer_aware=config.LAYER_AWARE_ENABLED,
                                                   sut_functions=sut_manifest,
                                                   sut_mismatch=sut_mismatch))])
-    log_llm_call(task_id, phase, resp)
+    log_llm_call(task_id, phase, resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     data = _parse_cases(resp.content, lang=lang)
     if data is None:
         # 可观测性（批4 12/12 全降级实锤的教训）：解析失败必须留原始输出，否则

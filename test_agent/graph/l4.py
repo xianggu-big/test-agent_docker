@@ -91,7 +91,9 @@ def run_l4_task(task_id: int, trace_from: int | None = None) -> dict:
                     timeout=90, max_retries=2)
     resp = llm.invoke([("system", ACCEPTANCE_SYSTEM),
                        ("user", build_acceptance_prompt(conds, endpoints))])
-    log_llm_call(task_id, "l4_gen_scenarios", resp)
+    log_llm_call(task_id, "l4_gen_scenarios", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     valid, rejected = parse_acceptance(resp.content, endpoints)
     n = save_scenarios(conn, task_id, valid, level="L4")
     msg(f"[L4·gen] 验收场景 {n} 个落库待确认"

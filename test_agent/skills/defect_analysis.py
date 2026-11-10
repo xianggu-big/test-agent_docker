@@ -149,7 +149,9 @@ def run_defect_analysis(api_key: str, conn, task_id: int, ws: Path | None = None
                      timeout=120, max_retries=2)
     resp = llm.invoke([("system", DEFECT_ANALYST_SYSTEM),
                        ("user", build_analysis_prompt(evidence, sources_text))])
-    log_llm_call(task_id, "defect_analysis", resp)
+    log_llm_call(task_id, "defect_analysis", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     parsed = parse_analysis(resp.content)
     if parsed is None:
         return {"error": "分析输出不可解析（诚实降级，未缓存）", "evidence": evidence}

@@ -219,7 +219,9 @@ def generate_static_drafts(api_key: str, task_id: int, ws: Path, requirement: st
                     timeout=90, max_retries=2)
     resp = llm.invoke([("system", SYSTEM_PROMPT),
                        ("user", build_draft_prompt(requirement, conditions, scan))])
-    log_llm_call(task_id, "static_draft", resp)
+    log_llm_call(task_id, "static_draft", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     drafts = parse_drafts(resp.content)
     if not drafts:
         return json.dumps({"drafts": 0, "reason": "设计草稿 LLM 输出不可解析（诚实降级），静态扫描结果已落库",

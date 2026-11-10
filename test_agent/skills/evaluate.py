@@ -249,7 +249,9 @@ def map_requirements(conn, task_id: int, api_key: str | None = None) -> dict:
             resp = llm.invoke([("system",
                                 "你是测试分析员。只依据语义对应关系建立映射。只输出 JSON。"),
                                ("user", build_map_prompt(conditions, cases))])
-            log_llm_call(task_id, "map_rtm", resp)
+            log_llm_call(task_id, "map_rtm", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
             data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
             valid_names = {c["name"] for c in cases}
             mapping = {c["id"]: [n for n in (m.get("cases") or []) if n in valid_names]
@@ -349,7 +351,9 @@ hotspots_total 字段时写"无复杂度热点数据"，不得编造；无 llm_t
 token 消耗 输入P/输出C/合计T。
 只输出 JSON：{{"report": "markdown 全文"}}"""
             resp = llm.invoke([("system", REPORT_SYSTEM), ("user", prompt)])
-            log_llm_call(task_id, "gen_report", resp)
+            log_llm_call(task_id, "gen_report", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
             text = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))["report"]
         except Exception as e:              # noqa: BLE001
             log.warning("gen_report LLM 失败，降级确定性模板: %s", e)
@@ -463,7 +467,9 @@ def review_report(conn, task_id: int, report_id: int, narrative: str,
 结论是否有指标证据。tool_invocations 与 duration 属评估工具运行中台账，统计时点允许自然漂移，
 不要因此判不一致。只输出 JSON：
 {{"consistent": true/false, "reasons": ["不一致点"]}}""")])
-            log_llm_call(task_id, "review_report", resp)
+            log_llm_call(task_id, "review_report", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
             data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
             reviewer = "rules+llm"
             if not data.get("consistent"):

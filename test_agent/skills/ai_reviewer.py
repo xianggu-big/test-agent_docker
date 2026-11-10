@@ -84,7 +84,9 @@ def run_d1_review(llm, conn, task_id: int, requirement: str, repo_url: str) -> d
     """D1 准入代审：写审查意见书并落库 review_decisions（决策点 1）。
     返回解析结果；不可解析返回 None（调用方 fail-closed 停等人工，绝不自动放行）。"""
     resp = llm.invoke([("system", D1_SYSTEM), ("user", build_d1_prompt(requirement, repo_url))])
-    log_llm_call(task_id, "ai_review_d1", resp)
+    log_llm_call(task_id, "ai_review_d1", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     parsed = parse_d1(resp.content)
     if parsed is None:
         return None
@@ -224,7 +226,9 @@ def run_review_once(llm, conn, task_id: int, round_no: int = 1) -> dict | None:
 
     resp = llm.invoke([("system", REVIEWER_SYSTEM),
                        ("user", build_d2_prompt(requirement, conditions, cases))])
-    log_llm_call(task_id, "ai_review_d2", resp)
+    log_llm_call(task_id, "ai_review_d2", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
     decisions = parse_review_decisions(resp.content)
     if decisions is None:
         return None

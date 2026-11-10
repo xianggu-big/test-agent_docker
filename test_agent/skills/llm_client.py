@@ -178,9 +178,11 @@ def make_chat(**kwargs):
         import httpx
         kwargs["http_client"] = httpx.Client(default_encoding="utf-8")
     rc = RobustChat(ChatOpenAI(**kwargs), retries=retries, phase=phase, task_id=task_id)
-    # 任务卡-H 步骤 3：路由后 profile 的 ctx_budget 透传给调用方（build_user_prompt 预算降采样）
+    # 任务卡-H 步骤 2/3：路由后 profile 的 ctx_budget 与实际端点透传给调用方——
+    # log_llm_call 的对账闸与 build_user_prompt 的预算降采样都从这里读
     try:
         rc._ctx_budget = int(p.get("ctx_budget") or 0) or None
     except Exception:                 # noqa: BLE001 —— 无 ctx_budget=不限（云端档）
         rc._ctx_budget = None
+    rc._base_url = str(kwargs.get("base_url") or "")
     return rc

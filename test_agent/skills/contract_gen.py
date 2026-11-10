@@ -336,7 +336,9 @@ def build_requirement_asserts(requirement: str, endpoints: list[dict], happy: di
                   "响应字段名必须严格取自 response_schema 已定义的字段，禁止自拟字段名。")
         try:
             resp = llm.invoke([("system", _REQ_SYSTEM), ("user", prompt)])
-            log_llm_call(task_id, "L2.gen_requirement", resp)
+            log_llm_call(task_id, "L2.gen_requirement", resp,
+                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                 base_url=getattr(llm, "_base_url", ""))
             data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
             got = [a for a in (data.get("asserts") or [])
                    if isinstance(a, dict) and isinstance(a.get("exprs"), list) and a.get("exprs")]

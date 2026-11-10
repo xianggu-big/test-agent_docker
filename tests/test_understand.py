@@ -135,7 +135,7 @@ def test_plan_node_wires_understanding():
     from test_agent.graph import nodes
     src = inspect.getsource(nodes.make_nodes)
     assert "understand_requirement(" in src
-    assert "log_llm_call(tid, \"understand\", resp)" in src   # token 记账完整性
+    assert "log_llm_call(tid, \"understand\", resp," in src   # token 记账完整性（2026-11-10 起带 ctx_budget 对账参数）
     assert "understanding=understanding" in src               # 注入 plan 提示词
     assert "[understand] 理解层未产出（fail-open 透传原文拆解）" in src
 
