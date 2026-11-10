@@ -856,9 +856,9 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
 # —————————————————————————— 上下文预算管理（任务卡-H 步骤 3/4，2026-11-10） ——————————————————————————
 
 def estimate_tokens(text: str) -> int:
-    """粗估 token 数（chars/2.5 起步；研究文档 §5 系数，llm_calls 实测可校准）。
-    中英混合提示词的经验值：1 token ≈ 2.5 字符（中文略高、代码略低）。"""
-    return max(1, int(len(text or "") / 2.5))
+    """粗估 token 数（chars/2.2；717 真机校准：离线估 10364 vs ollama 实报 11341，
+    系数偏保守方向修——宁可少装不溢出）。中文/代码混合提示词实测 1 token≈2.2 字符。"""
+    return max(1, int(len(text or "") / 2.2))
 
 
 def _source_rank_key(rel_path: str) -> tuple:
@@ -872,7 +872,7 @@ def _source_rank_key(rel_path: str) -> tuple:
 
 
 def fit_sources_to_budget(sources: list[tuple[str, str]], ctx_budget: int,
-                          reserve_tokens: int = 2500,
+                          reserve_tokens: int = 5200,
                           ) -> tuple[list[tuple[str, str]], str]:
     """预算降采样（任务卡-H 步骤 3，纯函数）：ctx_budget 下源码段总预算=
     ctx_budget − reserve（骨架/条件/输出格式等固定段预留）。文件按 _source_rank_key
@@ -881,7 +881,7 @@ def fit_sources_to_budget(sources: list[tuple[str, str]], ctx_budget: int,
     ——禁止静默裁剪（诚实纪律：LLM 应知道它看到的是部分源码）。"""
     if not ctx_budget or ctx_budget <= 0:
         return sources, ""
-    budget_chars = int((ctx_budget - reserve_tokens) * 2.5)
+    budget_chars = int((ctx_budget - reserve_tokens) * 2.2)   # 系数与 estimate_tokens 同源
     if budget_chars <= 200:
         budget_chars = 200
     total = sum(len(c) for _, c in sources)
@@ -895,11 +895,15 @@ def fit_sources_to_budget(sources: list[tuple[str, str]], ctx_budget: int,
             used += len(code)
         else:
             keep = budget_chars - used
-            if keep > 400:
+            if keep <= 400 and out:
+                keep = 0                             # 已有存活源码：直接丢弃留痕
+            elif keep <= 400:
+                keep = min(400, len(code))           # 首文件最小段兜底（空源码=废提示词）
+            if keep:
                 out.append((rel + "（预算截断）", code[:keep]
                             + "\n/* …（超出预算截断，完整文件见仓库）*/"))
                 used += keep
-            dropped.append(f"{rel}（{len(code)} 字符，收录 {max(0, keep)}）")
+            dropped.append(f"{rel}（{len(code)} 字符，收录 {keep}）")
     decl = (f"（源码已按上下文预算 {ctx_budget} tokens 截断至 {used} 字符，原共 {total} 字符；"
             f"丢弃/截断：{'；'.join(dropped[:6])}"
             f"{' 等' if len(dropped) > 6 else ''}）——你看到的是部分源码，"
@@ -918,7 +922,7 @@ def fit_prompt_sections(prompt: str, ctx_budget: int,
         return prompt, ""
     trail = []
     cur = prompt
-    limit_chars = int(ctx_budget * 2.5)
+    limit_chars = int(ctx_budget * 2.2)   # 系数与 estimate_tokens 同源（717 校准）
     for start, end in (markers or []):
         if estimate_tokens(cur) <= ctx_budget:
             break

@@ -15,7 +15,49 @@ _SRC = [("calc.py", "def add(a, b):\n    return a + b\n")]
 
 def test_估算系数():
     assert estimate_tokens("") == 1
-    assert estimate_tokens("a" * 250) == 100        # chars/2.5
+    assert estimate_tokens("a" * 250) == 113        # chars/2.2（717 真机校准）
+
+
+# ---------- 对账闸两态（任务卡-H 步骤 2 验收项） ----------
+
+def test_对账闸两态():
+    from test_agent.skills.llm_usage import is_context_truncated
+    # 未超：8192×0.95=7782，7781 → False
+    assert is_context_truncated(7781, ctx_budget=8192) is False
+    # 恰好 ≥95% → True（KV 溢出 5 倍掉速边界）
+    assert is_context_truncated(7782, ctx_budget=8192) is True
+    # 云端档无预算=不限 → 恒 False
+    assert is_context_truncated(999999, ctx_budget=None) is False
+    assert is_context_truncated(999999, ctx_budget=0) is False
+
+
+def test_对账闸_台账两态落库(tmp_path, monkeypatch):
+    import sqlite3
+    from types import SimpleNamespace as NS
+    from test_agent import config
+    from test_agent.skills import llm_usage
+    from test_agent.store.db import init_db
+    p = tmp_path / "t.db"
+    init_db(p)
+    monkeypatch.setattr(config, "DB_PATH", p)
+    conn = sqlite3.connect(p)
+    conn.execute("INSERT INTO users(username, password_hash) VALUES ('u', 'x')")
+    conn.execute("INSERT INTO projects(user_id, repo_url, name) VALUES (1, 'r', 'n')")
+    conn.execute("INSERT INTO test_tasks(id, project_id, user_id, requirement_text)"
+                 " VALUES (1, 1, 1, 'r')")   # FK：llm_calls.task_id → test_tasks
+    conn.commit()
+    conn.close()
+    resp_ok = NS(usage_metadata={"input_tokens": 100, "output_tokens": 5,
+                                 "total_tokens": 105})
+    resp_over = NS(usage_metadata={"input_tokens": 8000, "output_tokens": 5,
+                                   "total_tokens": 8005})
+    llm_usage.log_llm_call(1, "gen_tests", resp_ok, model="qwen3-4b", ctx_budget=8192)
+    llm_usage.log_llm_call(1, "gen_tests", resp_over, model="qwen3-4b", ctx_budget=8192)
+    conn = sqlite3.connect(p)
+    rows = conn.execute("SELECT truncated FROM llm_calls WHERE task_id=1"
+                        " ORDER BY id DESC LIMIT 2").fetchall()
+    conn.close()
+    assert [r[0] for r in rows] == [1, 0]           # 超=1，未超=0
 
 
 # ---------- fit_sources_to_budget ----------
@@ -51,7 +93,7 @@ def test_超预算_声明含丢弃清单():
     out, decl = fit_sources_to_budget(srcs, 4096)
     assert "a.py" in decl and "b.py" in decl        # 丢弃文件留痕
     kept_chars = sum(len(c) for _, c in out)
-    assert kept_chars <= int((4096 - 2500) * 2.5) + 400   # 预算红线（含尾段容差）
+    assert kept_chars <= 400 + 400                  # 4096<reserve+400：首文件最小段兜底 400+尾标记
 
 
 def test_全部截断仍给最小源码段():
@@ -101,7 +143,7 @@ def test_段落裁剪_预算内不动():
 def test_段落裁剪_全砍仍超_尾部兜底():
     prompt = "X" * 30000
     out, trail = fit_prompt_sections(prompt, 2000, [("NOMARK", "NOMARK")])
-    assert len(out) <= 2000 * 2.5 + 1
+    assert len(out) <= 2000 * 2.2 + 1
     assert "头部兜底截断" in trail
 
 
