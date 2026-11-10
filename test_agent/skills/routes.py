@@ -94,6 +94,11 @@ class Route:
     oracle_type: str         # 对齐 attribution 语义的判定来源
     cost: str                # low / medium / high
     priority: int = 50       # 同通过集内排序（小者优先）
+    # 观察方式（2026-11-10 补，依据 docs/经典测试流程与路线参考 §0）：
+    # 路线 = 观察方式 × 判据类型。observation 描述"从哪里取得可观察行为"，
+    # oracle_type 描述"用什么判定正确"——两轴正交，语言只决定实现后端。
+    # 取值：in_process / http / rpc / dom / db / cli / source_static / human_review
+    observation: str = ""
 
 
 def _c_lang_eq(f: dict, lang: str) -> tuple[bool, str]:
@@ -153,6 +158,23 @@ ROUTES: list[Route] = [
           {"image": "", "skill": "static_scan"}, "static_draft", "low", 90),
 ]
 
+# 观察方式标注（2026-11-10，依据 docs/经典测试流程与路线参考 §0 的两轴模型）：
+# 用常量表统一回填，避免改动每条 Route 的位置参数（robust against 后续增删路线）。
+_OBSERVATION = {
+    "l1_unit_pytest": "in_process",              # 进程内直接调用被测函数
+    "l2_contract_http": "http",                  # HTTP 请求 + 响应契约
+    "l3_scenario": "http",                       # HTTP 业务流序列
+    "l4_acceptance": "human_review",             # GWT 清单辅助人工确认（非自动观察）
+    "ui_static_dom": "dom",                      # DOM 可达性树
+    "ui_interaction_idempotency": "dom",         # DOM 交互后状态
+    "db_assert": "db",                           # 数据库查询结果
+    "grpc_contract": "rpc",                      # gRPC 调用
+    "static_scan": "source_static",              # 源码文本（不执行）
+}
+for _r in ROUTES:
+    if not _r.observation:
+        _r.observation = _OBSERVATION.get(_r.id, "")
+
 _BY_ID = {r.id: r for r in ROUTES}
 
 _COND_FN = {
@@ -198,13 +220,13 @@ def route_plan(requirement: str, features: dict, language: str | None = None,
                 and not flags.get(route.id.split("_")[0]):
             out.append({"route_id": route.id, "name": route.name, "selected": False,
                         "reason": f"路线随执行链路开关关闭（{route.id.split('_')[0]} 旗标 off）",
-                        "priority": route.priority, "oracle_type": route.oracle_type,
+                        "priority": route.priority, "oracle_type": route.oracle_type, "observation": route.observation,
                         "cost": route.cost})
             continue
         ok, why = evaluate_route(route, f)
         out.append({"route_id": route.id, "name": route.name, "selected": ok,
                     "reason": why, "priority": route.priority,
-                    "oracle_type": route.oracle_type, "cost": route.cost})
+                    "oracle_type": route.oracle_type, "observation": route.observation, "cost": route.cost})
     sel = sorted([r for r in out if r["selected"]], key=lambda r: r["priority"])
     result = {"routes": out, "selected_ids": [r["route_id"] for r in sel]}
     if conn is not None and task_id is not None:

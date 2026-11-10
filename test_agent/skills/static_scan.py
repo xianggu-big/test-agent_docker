@@ -56,6 +56,9 @@ _SYMBOL_RES = [
     ("cpp", re.compile(r"^\w[\w\s\*:&<>]*\s+\**(\w+)\s*\([^;]*\)\s*\{")),
     # C#（白包阶段5）：public/private 修饰符形态与 java 同构，复用同款正则
     ("csharp", re.compile(r"^\s*(?:public|private|protected|internal)\s+[\w<>\[\]]+\s+(\w+)\s*\(")),
+    # PHP（2026-11-10 补配）：此前 .php 不在后缀白名单，PHP 项目落 static_only 后
+    # 扫描 0 文件 = 与 687 同族的"静默空转"缺陷
+    ("php", re.compile(r"^\s*(?:(?:public|private|protected|static|final|abstract)\s+)*function\s+(\w+)")),
 ]
 
 
@@ -73,7 +76,7 @@ def scan_workspace(ws: Path, max_funcs: int = 20) -> dict:
     for p in sorted(ws.rglob("*")):
         if not p.is_file() or p.suffix.lower() not in (".py", ".js", ".ts", ".jsx", ".tsx",
                                                        ".java", ".go", ".c", ".cpp", ".cc", ".h",
-                                                       ".cs"):
+                                                       ".cs", ".php"):
             continue
         if any(part in config.SKIP_DIRS for part in p.parts):
             continue
@@ -87,7 +90,7 @@ def scan_workspace(ws: Path, max_funcs: int = 20) -> dict:
         lang = {".py": "python", ".js": "javascript", ".jsx": "javascript",
                 ".ts": "typescript", ".tsx": "typescript", ".java": "java",
                 ".go": "go", ".c": "c", ".cpp": "cpp", ".cc": "cpp", ".h": "c",
-                ".cs": "csharp"}.get(ext, "")
+                ".cs": "csharp", ".php": "php"}.get(ext, "")
         lang_counts[lang] = lang_counts.get(lang, 0) + len(lines)
         sym_re = next((r for name, r in _SYMBOL_RES if name == lang), None)
         cur_func: tuple[str, int, str] | None = None
