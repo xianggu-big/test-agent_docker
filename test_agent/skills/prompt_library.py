@@ -779,14 +779,23 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
 用例位于 test/ 子目录或上跳目录。"""
         code_example = "def test_xxx_等价类划分():\\n    ..."
         imports_hint = "测试文件顶部所需的全部 import 语句"
-    return f"""## 被测源码
+    if ctx_budget:
+        # 任务卡-H 步骤 4：预算路径（下方 final_prompt 分支做段落裁剪）
+        pass
+    else:
+        pass  # （原无预算 return 已上移）
+
+    # 任务卡-H 步骤 4：源码降采样后仍超预算 → 对整串做段落裁剪（骨架→缺口→模板段，
+    # 卡定义顺序；固定段「输出格式/语言规则/截断声明」是契约不裁）。裁多少留痕。
+    if not ctx_budget:
+        return f"""## 被测源码
 {src_text}
 
 ## 用户需求
 {requirement or "（无额外需求，按源码行为设计）"}{sut_text}{mismatch_text}{layer_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
-    {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}{trunc_note}
+    {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}
 
 ## 输出格式
 只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。{lang_rules}
@@ -804,7 +813,44 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "steps": "操作步骤",
     "expected": "预期输出/状态变化",
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
-    "code": "{code_example}"}}]}}{final_lang_reminder}"""
+    "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
+
+    final_prompt = f"""## 被测源码
+{src_text}
+
+## 用户需求
+{requirement or "（无额外需求，按源码行为设计）"}{sut_text}{mismatch_text}{layer_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
+
+## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
+    {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}
+
+## 输出格式
+只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。{lang_rules}
+expected = 预期结果（断言依据，必须先于执行确定）；expected_basis = 该预期值的出处，
+{basis_note}
+预期值不得从实际运行结果反推。
+「需求明示」仅限预期值能在需求原文中直接找到依据时使用；凭你的知识/经验推断的一律
+标「源码推导」「常识」或「模型推断」（系统会对「需求明示」做需求重叠确定性校验，
+无依据的假标注会被降级为「模型推断」并留痕——错误标注会污染归因）。
+{{"imports": "{imports_hint}",
+  "cases": [{{"name": "test_xxx_等价类划分",
+    "method": "等价类划分",
+    "priority": "高/中/低",
+    "input": "输入条件（来自需求的输入域）",
+    "steps": "操作步骤",
+    "expected": "预期输出/状态变化",
+    "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
+    "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
+
+    _markers = [("## 用例设计方法", "## 输出格式"),
+                ("## 上一轮覆盖缺口", "## 用例设计方法"),
+                ("## 槽位模板通道", "## 用例设计方法"),
+                ("## 正误对照", "## 输出格式")]
+    final_prompt, fit_trail = fit_prompt_sections(final_prompt, ctx_budget, _markers)
+    if fit_trail:
+        final_prompt += ("\n\n（系统注：为满足本地模型上下文预算，以下段落已按序裁剪并留痕："
+                         + fit_trail + "——被裁段落的方法知识不影响输出契约）")
+    return final_prompt
 
 
 # —————————————————————————— 上下文预算管理（任务卡-H 步骤 3/4，2026-11-10） ——————————————————————————
@@ -890,6 +936,6 @@ def fit_prompt_sections(prompt: str, ctx_budget: int,
         trail.append(f"裁段落[{start[:12]}…]（{len(seg)} 字符）")
     if estimate_tokens(cur) > ctx_budget:
         cut = int(limit_chars)
-        trail.append(f"尾部兜底截断（{len(cur) - cut} 字符）")
-        cur = cur[:cut]
+        trail.append(f"头部兜底截断（{len(cur) - cut} 字符）——输出契约段（尾部）保留")
+        cur = cur[-cut:]          # 保尾不保头：输出格式/截断声明/语言规则都在尾部（契约优先）
     return cur, ("；".join(trail) if trail else "")

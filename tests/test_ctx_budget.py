@@ -102,7 +102,7 @@ def test_段落裁剪_全砍仍超_尾部兜底():
     prompt = "X" * 30000
     out, trail = fit_prompt_sections(prompt, 2000, [("NOMARK", "NOMARK")])
     assert len(out) <= 2000 * 2.5 + 1
-    assert "兜底截断" in trail
+    assert "头部兜底截断" in trail
 
 
 def test_段落裁剪_无预算零感知():
