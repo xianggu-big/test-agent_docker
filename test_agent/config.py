@@ -160,6 +160,11 @@ DIFF_ROUTE_ENABLED = _flag("MTA_DIFF_ROUTE", False)
 SNAPSHOT_ROUTE_ENABLED = _flag("MTA_SNAPSHOT_ROUTE", False)
 SNAPSHOT_DIR = Path(os.environ.get("MTA_SNAPSHOT_DIR", "data/snapshots"))
 
+# 任务卡-E A 版（2026-11-09）：模块级画像与策略建议——只"看与建议"不改执行链。
+# 默认关=analyze 只写 path='.' 整仓行（旧行为逐字节不变）；开=追加逐模块画像落
+# module_profiles（第 34 表）+报告页建议卡
+MODULE_PLAN_ENABLED = _flag("MTA_MODULE_PLAN", False)
+
 # 连接探针（2026-11-08 655/656 锁循环诊断：未提交事务悬挂持锁的运行时定位器，
 # 后台线程周期点名 in_transaction 连接的创建栈；默认关=零行为变化）
 CONN_PROBE_ENABLED = _flag("MTA_CONN_PROBE", False)

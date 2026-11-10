@@ -602,6 +602,27 @@ def api_report(tid: int, user: dict = Depends(current_user)):
     return reports
 
 
+@app.get("/api/tasks/{tid}/module-profiles")
+def api_module_profiles(tid: int, user: dict = Depends(current_user)):
+    """模块级画像与策略建议（任务卡-E A 版，只看与建议不改执行链）。
+    任务→项目→module_profiles（第 34 表）；未开启 MTA_MODULE_PLAN 的项目返回
+    空表（前端不渲染卡片=诚实）。挂 current_user：画像属报告数据（caller 可读）。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    t = conn.execute("SELECT project_id FROM test_tasks WHERE id=?", (tid,)).fetchone()
+    rows = conn.execute(
+        """SELECT path, profile_json, suggested_routes, reason, weight, created_at
+           FROM module_profiles WHERE project_id=? ORDER BY weight DESC, path""",
+        (t["project_id"],)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["profile"] = json.loads(d.pop("profile_json") or "{}")
+        d["suggested_routes"] = json.loads(d.pop("suggested_routes") or "[]")
+        out.append(d)
+    return {"task_id": tid, "modules": out}
+
+
 @app.get("/api/tasks/{tid}/analysis")
 def api_get_analysis(tid: int, user: dict = Depends(current_user)):
     """AI 缺陷分析缓存（最新报告行）+ 确定性证据包（失败行/预期/归因，零 LLM，总是可用）。"""

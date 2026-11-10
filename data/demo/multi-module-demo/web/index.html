@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>条目管理</title></head>
+<body>
+  <h1>条目管理</h1>
+  <form id="f">
+    <input id="name" type="text">
+    <button id="submit" type="submit">创建</button>   <!-- D4：提交无禁用防重复 -->
+  </form>
+  <ul id="list"></ul>
+  <script>
+    document.getElementById("f").addEventListener("submit", function (e) {
+      fetch("/items", {method: "POST", body: JSON.stringify({name: document.getElementById("name").value})})
+        .then(function () { location.reload(); });
+    });
+  </script>
+</body>
+</html>

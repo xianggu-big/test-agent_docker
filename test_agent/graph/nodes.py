@@ -476,6 +476,34 @@ def make_nodes(deps: GraphDeps) -> dict:
                     "[analyze] W4 复杂度热点：" +
                     "; ".join(f"{h['file']}::{h['name']}={h['complexity']}({h['rank']})"
                               for h in hotspots)[:300])
+        # 任务卡-E A 版（MTA_MODULE_PLAN 默认关）：模块级画像与策略建议——只"看与
+        # 建议"不改执行链。切分（确定性）→9 维画像→规则表→规则未命中 LLM 兜底一次
+        # （理由落库可审计）；失败不挡主链路（fail-open 如实留痕）
+        if config.MODULE_PLAN_ENABLED:
+            try:
+                from ..skills.llm_client import make_chat
+                from ..skills.llm_usage import log_llm_call
+
+                def _module_llm(prompt: str) -> str:
+                    llm = make_chat(phase="module_profile", temperature=0,
+                                    timeout=60, max_retries=1)
+                    resp = llm.invoke([("user", prompt)])
+                    log_llm_call(tid, "module_profile", resp,
+                                 ctx_budget=getattr(llm, "_ctx_budget", None),
+                                 base_url=getattr(llm, "_base_url", ""))
+                    return resp.content
+
+                from ..skills.module_profile import analyze_modules
+                from ..skills.module_profile import persist as persist_profiles
+                rep = analyze_modules(ws, primary, llm_fn=_module_llm)
+                n = persist_profiles(conn, pid, rep)
+                msg(state["session_id"], "assistant",
+                    f"[analyze·modules] 模块画像 {n} 个落 module_profiles（第 34 表）"
+                    + (f"；{rep['note']}" if rep.get("note") else ""))
+            except Exception as e:              # noqa: BLE001 —— 画像失败不挡主链路
+                msg(state["session_id"], "assistant",
+                    f"[analyze·modules] 画像失败（{type(e).__name__}: {str(e)[:120]}），"
+                    "主链路继续（如实留痕）")
         if strategy != "full":
             # 多测试路线编排（期 A，MTA_ROUTER 默认关）：static_only 项目不再是死胡同——
             # 确定性路由器按项目特征找可用路线（如纯 HTML 的 UI 交互幂等），落 route_plan

@@ -1273,7 +1273,7 @@ async function loadReport() {
   if (!tid) return;
   // 切任务即清上一任务的导出预览（用户截图实锤：366 选中却残留 365 的导出全文，易误读）
   $("rp-export-view").classList.add("hidden");
-  const [reports, logs, rtm, charts, levels, tdetail, an] = await Promise.all([
+  const [reports, logs, rtm, charts, levels, tdetail, an, mprof] = await Promise.all([
     api(`/tasks/${tid}/report`).catch(() => []),
     api(`/tasks/${tid}/logs`).catch(() => []),
     api(`/tasks/${tid}/rtm`).catch(() => null),
@@ -1281,6 +1281,7 @@ async function loadReport() {
     api(`/tasks/${tid}/levels`).catch(() => null),
     api(`/tasks/${tid}`).catch(() => null),
     api(`/tasks/${tid}/analysis`).catch(() => null),
+    api(`/tasks/${tid}/module-profiles`).catch(() => null),
   ]);
   const latest = reports[0];
   const rate = latest && latest.pass_rate != null ? Math.round(latest.pass_rate * 100) : null;
@@ -1326,8 +1327,8 @@ async function loadReport() {
   const openAll = !!latest && (!fkTop || fkTop === "none");   // report 节点 pass 时写的是字符串 "none"
   $("rp-overview").innerHTML = renderVerdict(tdetail, latest, an) +
     `<details class="v-details" ${openAll ? "open" : ""}>
-      <summary>执行信息 · 四级卡 · 报告叙述 · 图表（点击展开/收起）</summary>` +
-    execCard(latest) + renderLevels(levels) + summaryHtml + chartsHtml + `</details>`;
+      <summary>执行信息 · 四级卡 · 模块画像 · 报告叙述 · 图表（点击展开/收起）</summary>` +
+    execCard(latest) + renderLevels(levels) + renderModuleProfiles(mprof) + summaryHtml + chartsHtml + `</details>`;
 
   // RTM 矩阵（测试条件 ↔ 用例映射）——用例六要素移至「测试用例库」tab（D9 分离关注点）
   if (rtm && (rtm.matrix.length || rtm.cases.length)) {
@@ -1634,6 +1635,36 @@ function renderPipeline(logs, levels) {
     `${l.level} ${l.status === "done" ? "✓" : "●"}${l.verdict ? "(" + l.verdict + ")" : ""}`).join(" → ") : "";
   return `<div style="line-height:3">${pills}</div>` +
     `<div class="hint">级别调度：${esc(legs || "（未走 levels 流）")}｜调度说明：R-Loop 失败不回炉，同指纹熔断 ≥2 次或预算耗尽诚实停机</div>`;
+}
+
+// 模块画像与策略建议（任务卡-E A 版，纯展示不驱动执行）：模块×画像×建议×理由×权重
+function renderModuleProfiles(mp) {
+  if (!mp || !mp.modules || !mp.modules.length) return "";   // 未开启旗标=不渲染（诚实）
+  const rows = mp.modules.map(m => {
+    const p = m.profile || {};
+    const routes = (m.suggested_routes || []).map(s =>
+      `<div>${esc(s.route)} <span class="badge ${s.route === "skip" ? "badge-queued" : "badge-ok"}">w=${s.weight}</span> ` +
+      `<span style="color:var(--muted)">${esc(s.reason || "")}</span></div>`).join("")
+      || '<span style="color:var(--muted)">—</span>';
+    const feats = [
+      `LOC ${p.loc ?? "?"}`, `文件 ${p.file_count ?? "?"}`,
+      `复杂度 ${p.complexity ?? "?"}`, `扇入 ${p.fan_in ?? "?"}`,
+      p.pure_data ? "纯数据" : "", p.web_entry ? "Web入口" : "",
+      p.db_calls ? "DB调用" : "", p.has_own_tests ? "自带测试" : "",
+    ].filter(Boolean).map(x => `<span class="fchip">${esc(x)}</span>`).join(" ");
+    const label = m.kind_label ? ` <span class="badge badge-queued">${esc(m.kind_label)}</span>` : "";
+    return `<tr><td>${esc(m.path)}${label}</td>` +
+      `<td>${esc(p.kind || "?")} ${feats}</td>` +
+      `<td><span class="badge ${m.weight >= 2 ? "badge-fail" : m.weight > 0 ? "badge-ok" : "badge-queued"}">${m.weight}</span></td>` +
+      `<td>${routes}</td><td style="color:var(--muted)">${esc(m.reason || "")}</td></tr>`;
+  }).join("");
+  return `<div class="card" style="margin-top:12px">` +
+    `<div style="font-size:15px;font-weight:800;margin-bottom:8px">模块画像与策略建议` +
+    ` <span style="font-size:12px;color:var(--muted);font-weight:400">（A 版：只建议不改执行链；` +
+    `确定性规则表，未命中才 LLM 兜底且理由落库）</span></div>` +
+    `<div style="overflow-x:auto"><table class="table"><thead><tr>` +
+    `<th>模块</th><th>类型·画像</th><th>权重</th><th>建议路线</th><th>判定理由</th></tr></thead>` +
+    `<tbody>${rows}</tbody></table></div></div>`;
 }
 
 // R2/F10 缺陷归因清单（摘要态：任务级 defects 三分类+日志 FAILED 行；

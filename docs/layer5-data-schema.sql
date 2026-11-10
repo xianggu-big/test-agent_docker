@@ -553,3 +553,24 @@ CREATE TABLE IF NOT EXISTS route_plan (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_route_plan_task ON route_plan(task_id);
+
+-- ============================================================================
+-- 第 34 表：module_profiles 模块级画像与策略建议（任务卡-E A 版，2026-11-09）
+-- ----------------------------------------------------------------------------
+-- 只做"看与建议"，不改执行链（B 版=按模块限定 generate/run，列未来工作）。
+-- 每项目多行：path=真实模块目录（posix 相对路径）；模块切分由确定性代码完成
+-- （绝不让 LLM 定边界）；建议路线由确定性规则表产生，规则未命中才 LLM 兜底
+-- 语义分类一次且理由必须落库（可审计）。MTA_MODULE_PLAN 默认关=analyze 只写
+-- path='.' 的整仓行（旧行为逐字节不变）。
+CREATE TABLE IF NOT EXISTS module_profiles (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id      INTEGER NOT NULL REFERENCES projects(id),
+  path            TEXT NOT NULL,                 -- 模块目录（posix 相对路径；'.'=整仓保留行）
+  profile_json    TEXT NOT NULL DEFAULT '{}',    -- 9 维画像（语言/类型/LOC/文件数/复杂度/扇入/自带测试/Web入口/DB调用）
+  suggested_routes TEXT NOT NULL DEFAULT '[]',   -- 建议路线 JSON：[{route, reason, weight}]
+  reason          TEXT NOT NULL DEFAULT '',      -- 规则命中摘要或 LLM 兜底分类理由（审计口径）
+  weight          REAL NOT NULL DEFAULT 1.0,     -- 风险权重（复杂度×扇入 加倍规则）
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (project_id, path)
+);
+CREATE INDEX IF NOT EXISTS idx_module_profiles_project ON module_profiles(project_id);
