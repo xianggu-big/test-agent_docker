@@ -1,0 +1,15 @@
+{
+ "task_id": 721,
+ "profile": "local",
+ "levels": [
+  "L1"
+ ],
+ "wall_clock_s": 1394.5,
+ "llm_calls": 2,
+ "total_tokens": 8587,
+ "error": null,
+ "score": {
+  "error": "D:\\test agent_docker\\data\\workspaces\\task_721 无 test_*.py/*_test.py（空交付如实拒收）",
+  "label": "system_local_task721"
+ }
+}

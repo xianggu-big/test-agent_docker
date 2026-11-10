@@ -1,0 +1,47 @@
+{
+ "label": "t1",
+ "suite_files": [
+  "test_d1.py",
+  "test_d2.py"
+ ],
+ "n_tests": 2,
+ "passed": 1,
+ "failed": 1,
+ "errors": 0,
+ "wall_clock_s": 0.01,
+ "baseline_failures": 2,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "test_d1.py::test_d1"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "test_d2.py::test_d2"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": false,
+   "tests": [],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": false,
+   "tests": [],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": false,
+   "tests": [],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 2,
+ "defects_real": 5,
+ "detection_rate": 0.4
+}

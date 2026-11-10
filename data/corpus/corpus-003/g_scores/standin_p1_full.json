@@ -1,0 +1,72 @@
+{
+ "label": "standin_p1_full",
+ "suite_files": [
+  "test_api_r1.py",
+  "test_gen_r1.py"
+ ],
+ "n_tests": 38,
+ "passed": 16,
+ "failed": 22,
+ "errors": 0,
+ "wall_clock_s": 4.51,
+ "baseline_failures": 22,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_e0v9a2h2/test_gen_r1.py::test_validate_duration_边界值分析[max]"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_e0v9a2h2/test_gen_r1.py::test_quote_total_折扣_判定表"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_e0v9a2h2/test_gen_r1.py::test_create_booking_成功与持久化_语句分支覆盖"
+   ],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_e0v9a2h2/test_gen_r1.py::test_create_booking_相邻不重叠_判定表",
+    "data/tmp_g_score/gscore_e0v9a2h2/test_gen_r1.py::test_has_overlap_判定表"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_e0v9a2h2/test_gen_r1.py::test_cancel_booking_流程_语句分支覆盖"
+   ],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 5,
+ "defects_real": 5,
+ "detection_rate": 1.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_bookings_create_then_read_顺序场景",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_bookings_booking_created_with_active_status_and_persisted_需求断言",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_bookings_booking_total_price_with_discount_需求断言",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_bookings_happy_契约黑盒",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_bookings_必填缺失_契约黑盒",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_bookings_必填缺失_契约黑盒_2",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_bookings_边界越界_契约黑盒",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_bookings_边界越界_契约黑盒_2",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_rooms_create_room_echoes_input_fields_需求断言",
+  "data/tmp_g_score/gscore_e0v9a2h2/test_api_r1.py::test_post_rooms_create_room_returns_id_需求断言"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档",
+ "mutation": {
+  "mutants_total": 17,
+  "killed": 17,
+  "kill_rate": 1.0
+ }
+}

@@ -1,0 +1,15 @@
+{
+ "task_id": 719,
+ "profile": "local",
+ "levels": [
+  "L1"
+ ],
+ "wall_clock_s": 577.3,
+ "llm_calls": 0,
+ "total_tokens": 0,
+ "error": "RateLimited: 大模型服务连续 3 次不可用（限流/超时/服务端错误）：APITimeoutError: Request timed out.",
+ "score": {
+  "error": "D:\\test agent_docker\\data\\workspaces\\task_719 无 test_*.py/*_test.py（空交付如实拒收）",
+  "label": "system_local_task719"
+ }
+}
