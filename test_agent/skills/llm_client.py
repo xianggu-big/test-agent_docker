@@ -74,11 +74,19 @@ class RobustChat:
         if not getattr(config, "LLM_FALLBACK_ENABLED", False):
             return None
         try:
-            from .llm_profile import current
-            if current().get("provider") == "local":
-                log.info("[llm-fallback] 当前 profile 已是本地模型，跳过备胎（同端点降级无意义）")
+            # 2026-11-10 升级（任务卡-B 设计 5）：按路由后的实际端点判断——
+            # phase 路由到 local 而.default=deepseek 时，旧"看 current 档位"判据会漏
+            from .llm_profile import current_doc, resolve_phase
+            rp = resolve_phase(self._phase or "")
+            fb_host = "localhost:11434" in (config.LLM_FALLBACK_BASE_URL or "")
+            main_host = "localhost:11434" in (rp.get("base_url") or "")
+            if main_host and (fb_host or (current_doc().get("profiles") or {})
+                              .get(rp.get("provider"), {}).get("provider") == "local"):
+                log.info("[llm-fallback] 主模型已是本地端点（phase=%s → %s），"
+                         "跳过备胎（同端点降级无意义）", self._phase or "-",
+                         rp.get("base_url"))
                 return None
-        except Exception:             # noqa: BLE001 —— profile 读取失败不改变备胎原有行为
+        except Exception:             # noqa: BLE001 —— 判定失败不改变备胎原有行为
             pass
         try:
             from langchain_openai import ChatOpenAI
@@ -169,4 +177,10 @@ def make_chat(**kwargs):
     if "http_client" not in kwargs:
         import httpx
         kwargs["http_client"] = httpx.Client(default_encoding="utf-8")
-    return RobustChat(ChatOpenAI(**kwargs), retries=retries, phase=phase, task_id=task_id)
+    rc = RobustChat(ChatOpenAI(**kwargs), retries=retries, phase=phase, task_id=task_id)
+    # 任务卡-H 步骤 3：路由后 profile 的 ctx_budget 透传给调用方（build_user_prompt 预算降采样）
+    try:
+        rc._ctx_budget = int(p.get("ctx_budget") or 0) or None
+    except Exception:                 # noqa: BLE001 —— 无 ctx_budget=不限（云端档）
+        rc._ctx_budget = None
+    return rc

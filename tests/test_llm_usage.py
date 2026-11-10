@@ -177,6 +177,7 @@ class TestApiReportLlm:
         with TestClient(server.app) as client:
             r = client.post("/api/login", json={"username": "admin",
                                                 "password": "admin123"})
+            assert r.status_code == 200, f"login 失败: {r.status_code} {r.text[:200]}"
             h = {"Authorization": f"Bearer {r.json()['token']}"}
             c = db.get_conn()
             uid = c.execute("SELECT id FROM users WHERE username='admin'").fetchone()[0]

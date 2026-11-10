@@ -166,12 +166,12 @@ def test_make_chat显式传参仍优先(monkeypatch):
 
 
 def test_local时备胎跳过(monkeypatch):
-    # 备胎互斥（§2.6）：当前 profile=local 时 _try_fallback 直接返回 None（同端点降级无意义）
+    # 备胎互斥（§2.6，2026-11-10 升级）：按路由后实际端点判断——local 端点直接 None
     from test_agent.skills import llm_client
     monkeypatch.setattr(config, "LLM_FALLBACK_ENABLED", True)
-    monkeypatch.setattr(llm_profile, "current",
-                        lambda conn=None: {**llm_profile.PRESETS["local"],
-                                           "updated_by": "", "updated_at": ""})
+    monkeypatch.setattr(llm_profile, "resolve_phase",
+                        lambda ph="", conn=None: {**llm_profile.PRESETS["local"],
+                                                  "updated_by": "", "updated_at": ""})
     rc = llm_client.RobustChat(object(), phase="t")   # inner 不被触达（local 先短路）
     assert rc._try_fallback([("user", "hi")]) is None
 

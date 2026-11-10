@@ -149,3 +149,67 @@ def test_apply_routing_无效profile跳过_空串用default(db):
     _seed_two_profiles(db)
     doc = apply_routing({"generate": "no_such_profile", "plan": ""}, db)
     assert "generate" not in doc["routing"] and "plan" not in doc["routing"]
+
+# ---------- 任务卡-B 补尾：ctx_budget 透传 + 备胎互斥按路由端点 ----------
+
+def test_ctx_budget_透传给调用方(db, monkeypatch):
+    _seed_two_profiles(db, monkeypatch)
+    apply_routing({"generate": "local"}, db)
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    llm = make_chat(phase="gen_tests")
+    assert getattr(llm, "_ctx_budget", None) == 16384      # local 档预算（H 卡锚点）
+
+
+def test_ctx_budget_云端档无预算(monkeypatch):
+    from test_agent.skills.llm_client import make_chat
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: {
+        "default": "deepseek", "profiles": {"deepseek": llm_profile.PRESETS["deepseek"]},
+        "routing": {}})
+    llm = make_chat(phase="plan")
+    assert getattr(llm, "_ctx_budget", None) is None       # 云端省略=不限
+
+
+def test_备胎互斥_按路由端点判断(db, monkeypatch):
+    # 任务卡-B 设计 5：generate 路由到 local 而 default=deepseek——旧"看 current 档位"
+    # 判据会漏；升级后按 resolve_phase 的实际端点跳过
+    from test_agent.skills import llm_client
+    _seed_two_profiles(db, monkeypatch)
+    apply_routing({"generate": "local"}, db)
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    monkeypatch.setattr(config, "LLM_FALLBACK_ENABLED", True)
+    rc = llm_client.RobustChat(object(), phase="gen_tests")   # 该 phase 路由到 local
+    assert rc._try_fallback([("user", "hi")]) is None         # 互斥（不构造备胎）
+
+
+def test_备胎互斥_云端phase不拦(db, monkeypatch):
+    from test_agent.skills import llm_client
+    _seed_two_profiles(db, monkeypatch)
+    apply_routing({"generate": "local"}, db)
+    monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
+    monkeypatch.setattr(config, "LLM_FALLBACK_ENABLED", True)
+
+    class _Boom:
+        def __init__(self, *a, **kw):
+            raise RuntimeError("x")
+    monkeypatch.setattr("langchain_openai.ChatOpenAI", _Boom)
+    rc = llm_client.RobustChat(object(), phase="plan")        # plan 走 deepseek（云端）
+    assert rc._try_fallback([("user", "hi")]) is None         # 不短路→构造失败→None=原 402 照抛
+
+
+# ---------- API 权限：llm-routing caller 403 ----------
+
+def test_llm_routing_caller_403(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
+    from test_agent.api import server, auth
+    from fastapi.testclient import TestClient
+    with TestClient(server.app) as client:
+        r = client.post("/api/login", json={"username": "admin", "password": "admin123"})
+        ha = {"Authorization": f"Bearer {r.json()['token']}"}
+        auth.register("route_caller", "caller123")
+        r2 = client.post("/api/login", json={"username": "route_caller", "password": "caller123"})
+        hc = {"Authorization": f"Bearer {r2.json()['token']}"}
+        assert client.get("/api/llm-routing", headers=hc).status_code == 403
+        assert client.put("/api/llm-routing", headers=hc,
+                          json={"routing": {}}).status_code == 403
+        assert client.get("/api/llm-routing", headers=ha).status_code == 200

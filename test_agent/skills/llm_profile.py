@@ -39,6 +39,7 @@ PRESETS: dict[str, dict] = {
         "base_url": "http://localhost:11434/v1",
         "model": "qwen3-4b-inst-test",
         "key_env": "",               # 本地无需 key
+        "ctx_budget": 16384,         # 任务卡-H：q8_0 KV 下 16k 可用（研究文档 §1；云端档省略=不限）
     },
 }
 
@@ -74,8 +75,15 @@ def _normalize(p: dict) -> dict | None:
         return None
     if not re.match(r"^[A-Z_][A-Z0-9_]*$", key_env):
         return None                  # 环境变量名形态校验（防注入面）
-    return {"provider": "custom", "base_url": base_url, "model": model,
-            "key_env": key_env}
+    out = {"provider": "custom", "base_url": base_url, "model": model,
+           "key_env": key_env}
+    cb = p.get("ctx_budget")
+    if cb:
+        try:
+            out["ctx_budget"] = max(1024, int(cb))
+        except (TypeError, ValueError):
+            pass
+    return out
 
 
 def current(conn=None) -> dict:
@@ -117,7 +125,7 @@ def apply(p: dict, conn, updated_by: str = "") -> dict:
     doc = load_doc(conn)
     pid = norm["provider"]
     profiles = doc.get("profiles") or {}
-    profiles[pid] = {k: norm[k] for k in ("provider", "base_url", "model", "key_env")}
+    profiles[pid] = {k: norm[k] for k in ("provider", "base_url", "model", "key_env", "ctx_budget") if k in norm}
     doc = {"default": pid, "profiles": profiles, "routing": doc.get("routing") or {}}
     conn.execute(
         "INSERT INTO app_settings(key, value, updated_by) VALUES (?,?,?) "
