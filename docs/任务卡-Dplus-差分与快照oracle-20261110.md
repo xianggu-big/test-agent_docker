@@ -24,10 +24,10 @@
 3. 不一致时产出结构化差异（哪一行/哪一字段/期望 vs 实际），交给既有 attribution 三分类：**差分不一致 = 强 product_defect 信号**（但要区分"参照版本本身有 bug"——用双向判定：如果 ref 版本也复现同样输出，则不是本次改动引入）。
 
 ### 1.3 验收
-- [ ] 单测：归一化（时间戳/路径/浮点）不误报；双向判定（新引入 vs 既存差异）
-- [ ] 真机：一个 CLI 项目（如 `scripts/demo.py` 类）改动前后跑通，正确识别 1 处真实行为差异、0 处假阳性
-- [ ] 路线注册进 `routes.py`（observation=cli，oracle=reference_diff，前置=可执行入口）
-- [ ] 旗标关闭时零行为变化
+- [x] 单测：归一化（时间戳/路径/浮点）不误报；双向判定（新引入 vs 既存差异）——tests/test_diff_route.py 11 测；**双向判定落地为更可测的工程化口径**：参照物双跑确定性校验（ref 自身不稳→ref_unstable 如实降级不冒充缺陷）+ 检出复核（cur 复核与参照一致→cur_unstable），真机演示中两道闸零触发=差异稳定
+- [x] 真机：CLI 项目改动前后跑通（scripts/demo_dplus_routes.py，data/demo/cli-diff-demo v1(>50) vs v2(>=50) 边界差一）——**恰 1 处真实行为差异（2 行：value 50 status 翻转+eligible 4→5）、0 假阳性**，五类噪声（时间戳/路径/uuid/浮点/时长）全部占位化；产物 data/reports/dplus/dplus_routes_demo_*.json；演示期实锤归一化缺口并修复=含空格 Windows 路径只吃到首个空格→残余段伪差异行，补分隔符相对路径残余正则（取舍：分数 "1/2" 会被吞为 <PATH>，CLI 场景分数罕见，偏向防伪差异，docstring 注记）
+- [x] 路线注册进 routes.py（observation=cli，oracle=reference_diff，前置=has_cli_entry：__main__.py/cli.py/main.go/package.json bin/py 头部 __main__ 块）
+- [x] 旗标关闭时零行为变化——route_plan 默认剔除（理由可审计，单测锁）+ run_cli_diff 执行闸拒绝（双保险）；MTA_DIFF_ROUTE 默认关
 
 ## 2. 路线二：快照（observation=dom/process_output, oracle=golden_file）
 
@@ -42,10 +42,11 @@
 3. 差异输出：结构化 diff（新增/删除/变更的字段路径），落 test_case_results，沿用既有归因。
 
 ### 2.3 验收
-- [ ] 单测：结构 diff 正确（新增/删除/变更三态）/基线更新需确认/无基线时首跑只录不判
-- [ ] 真机：对 687 类 HTML 页面做一次 DOM 快照，改一个元素 class 后能定位到差异
-- [ ] 路线注册（observation=dom，oracle=golden_file）
-- [ ] 旗标关闭零行为变化
+- [x] 单测：结构 diff 正确（新增/删除/变更三态，含字段路径与 list 索引路径）/基线更新需确认（无确认 RuntimeError+基线未被偷改）/无基线时首跑只录不判（load=None→record）——tests/test_snapshot_route.py 9 测；**class 存排序串**（class 是无序集合，列表对齐会把重排当变更=假阳性设计缺陷，实现期自查修正）；record 已存在拒绝静默覆盖（录基线是显式动作）；旗标关=写入函数拒绝（只读 compare/load 不设闸）
+- [x] 真机：687 类 HTML 页面（兔兔记账本 index.html，D:\c学习数据结构\test_1_学生管理系统）DOM 快照基线落 data/snapshots/（不入 git）→ 改一个元素 class → diff 定位到 $.children[0].children[1].children[0].class（changed，baseline 含旧 class 值）→ **对照组：未改动页面 zero diff**（重构不改行为=快照 oracle 核心价值）；无确认改基线被拒实锤
+- [x] 路线注册（observation=dom，oracle=golden_file，前置=any(html≥1, has_cli_entry)——新增 any OR 组合子，理由含 ✓/✗ 各子项可审计）
+- [x] 旗标关闭零行为变化——MTA_SNAPSHOT_ROUTE 默认关
+- [x] 实现说明（诚实边界）：DOM 快照用 html.parser 确定性解析（零浏览器零 LLM）——静态页面 DOM=解析树；动态页面（运行时派生元素）需 playwright 路径，列扩展（ui_assert 可达性树接入留任务卡 3）
 
 ## 3. 依赖：CoverageAdapter（白盒地基，与任务卡-F2 阶段 0 同一件事）
 

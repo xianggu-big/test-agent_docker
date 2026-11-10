@@ -49,9 +49,37 @@ def test_全部路线都有判定结果_无遗漏():
     f = extract_route_features("D:/test agent_docker/data/demo/go-ver-gate")
     plan = route_plan("x", {**f, "language": "go"})
     assert {r["route_id"] for r in plan["routes"]} == {r.id for r in ROUTES}
-    assert len(plan["routes"]) == 9
+    assert len(plan["routes"]) == 11                      # 2026-11-10 D+：9→11（差分+快照）
     for r in plan["routes"]:
         assert isinstance(r["selected"], bool) and r["reason"]
+
+
+# ---------- 任务卡-D+：差分/快照路线（默认旗标关=剔除且理由可审计） ----------
+
+def test_Dplus路线_默认旗标关_剔除可审计():
+    f = {"language": "python", "py": 3, "js": 0, "html": 0, "proto": 0, "sql": 0,
+         "has_forms": False, "has_interactive": False, "has_http_framework": False,
+         "has_package_json": False, "has_go_mod": False, "has_cli_entry": True}
+    plan = route_plan("x", f)
+    diff = next(r for r in plan["routes"] if r["route_id"] == "cli_reference_diff")
+    snap = next(r for r in plan["routes"] if r["route_id"] == "snapshot_golden")
+    assert diff["selected"] is False and "MTA_DIFF_ROUTE" in diff["reason"]
+    assert snap["selected"] is False and "MTA_SNAPSHOT_ROUTE" in snap["reason"]
+
+
+def test_Dplus路线_旗标开_前置决定可选():
+    # CLI 入口项目：两路线都过前置；纯 HTML 项目：仅快照过（any 组合子）
+    cli_f = {"language": "python", "py": 3, "js": 0, "html": 0, "proto": 0, "sql": 0,
+             "has_forms": False, "has_interactive": False, "has_http_framework": False,
+             "has_package_json": False, "has_go_mod": False, "has_cli_entry": True}
+    plan = route_plan("x", cli_f, flags={"diff_route": True, "snapshot_route": True})
+    assert "cli_reference_diff" in plan["selected_ids"]
+    assert "snapshot_golden" in plan["selected_ids"]      # any: has_cli_entry 满足
+    html_f = dict(cli_f, py=0, html=2, has_cli_entry=False, language="unknown")
+    plan2 = route_plan("x", html_f, flags={"diff_route": True, "snapshot_route": True})
+    assert "cli_reference_diff" not in plan2["selected_ids"]
+    snap2 = next(r for r in plan2["routes"] if r["route_id"] == "snapshot_golden")
+    assert snap2["selected"] is True and "html" in snap2["reason"]   # any: html≥1 满足
 
 
 def test_空项目仅兜底路线():

@@ -154,6 +154,12 @@ LAYER_AWARE_ENABLED = _flag("MTA_LAYER_AWARE", False)
 # 前置条件），route_plan 第 33 表落库每条候选的选/不选+理由；默认关=plan 行为逐字节不变
 ROUTER_ENABLED = _flag("MTA_ROUTER", False)
 
+# 任务卡-D+（2026-11-10）：差分与快照两条新 oracle 路线。默认关=路线被 route_plan
+# 剔除（理由可审计）+执行函数闸拒绝，主链路行为逐字节不变
+DIFF_ROUTE_ENABLED = _flag("MTA_DIFF_ROUTE", False)
+SNAPSHOT_ROUTE_ENABLED = _flag("MTA_SNAPSHOT_ROUTE", False)
+SNAPSHOT_DIR = Path(os.environ.get("MTA_SNAPSHOT_DIR", "data/snapshots"))
+
 # 连接探针（2026-11-08 655/656 锁循环诊断：未提交事务悬挂持锁的运行时定位器，
 # 后台线程周期点名 in_transaction 连接的创建栈；默认关=零行为变化）
 CONN_PROBE_ENABLED = _flag("MTA_CONN_PROBE", False)

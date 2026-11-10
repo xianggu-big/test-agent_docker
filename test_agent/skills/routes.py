@@ -38,12 +38,16 @@ def extract_route_features(ws: str | Path, max_samples: int = 400) -> dict:
     f = {"py": 0, "js": 0, "html": 0, "proto": 0, "sql": 0,
          "has_forms": False, "has_interactive": False,
          "has_http_framework": False, "has_package_json": False,
-         "has_go_mod": False, "samples": 0}
+         "has_go_mod": False, "has_cli_entry": False, "samples": 0}
     if not ws.exists():
         return f
     pkg = ws / "package.json"
     f["has_package_json"] = pkg.is_file()
     f["has_go_mod"] = (ws / "go.mod").is_file()
+    # CLI 入口（任务卡-D+ 差分路线前置）：__main__.py / cli.py / main.go /
+    # package.json bin / py 头部 __main__ 块（采样判定）
+    f["has_cli_entry"] = ((ws / "__main__.py").is_file() or (ws / "cli.py").is_file()
+                          or (ws / "main.go").is_file())
     http_sampled = 0
     for p in sorted(ws.rglob("*")):
         if not p.is_file():
@@ -78,8 +82,16 @@ def extract_route_features(ws: str | Path, max_samples: int = 400) -> dict:
                 head = p.read_text(encoding="utf-8", errors="ignore")[:8000]
                 if _HTTP_FRAMEWORK_RE.search(head):
                     f["has_http_framework"] = True
+                if "__main__" in head:
+                    f["has_cli_entry"] = True
             except OSError:
                 pass
+    if f["has_package_json"] and not f["has_cli_entry"]:
+        try:
+            if '"bin"' in pkg.read_text(encoding="utf-8", errors="ignore")[:4000]:
+                f["has_cli_entry"] = True
+        except OSError:
+            pass
     return f
 
 
@@ -121,6 +133,16 @@ def _c_always(f: dict) -> tuple[bool, str]:
     return True, "兜底路线（永真前置）"
 
 
+def _c_any(f: dict, specs) -> tuple[bool, str]:
+    """OR 组合子：任一子前置满足即可（快照路线=DOM（html≥1）或进程输出（CLI 入口））。"""
+    ok, reasons = False, []
+    for name, arg in specs:
+        good, why = _COND_FN[name](f, arg)
+        reasons.append(("✓ " if good else "✗ ") + why)
+        ok = ok or good
+    return ok, ("满足任一：" + "；".join(reasons))
+
+
 def _c_lang_known(f: dict) -> tuple[bool, str]:
     ok = f.get("language") not in (None, "", "unknown")
     return ok, ("主语言已识别" if ok else "主语言 unknown（无可执行路线的最低前提）")
@@ -153,6 +175,13 @@ ROUTES: list[Route] = [
     Route("grpc_contract", "gRPC 契约（grpc_assert·grpcurl）",
           [("min_files", ("proto", 1))],
           {"image": "config:IMAGE_GRPC", "skill": "grpc_assert"}, "rpc_contract", "medium", 30),
+    # 任务卡-D+（2026-11-10）：oracle 谱系补白——判据来自参照物/历史输出而非人工声明
+    Route("cli_reference_diff", "CLI 差分（参照差分 oracle）",
+          [("flag", "has_cli_entry")],
+          {"image": "config:IMAGE_PY", "skill": "diff_route"}, "reference_diff", "low", 35),
+    Route("snapshot_golden", "快照测试（黄金基线 oracle）",
+          [("any", (("min_files", ("html", 1)), ("flag", "has_cli_entry")))],
+          {"image": "", "skill": "snapshot_route"}, "golden_file", "low", 36),
     Route("static_scan", "静态扫描（兜底，无执行）",
           [("always", None)],
           {"image": "", "skill": "static_scan"}, "static_draft", "low", 90),
@@ -169,6 +198,8 @@ _OBSERVATION = {
     "ui_interaction_idempotency": "dom",         # DOM 交互后状态
     "db_assert": "db",                           # 数据库查询结果
     "grpc_contract": "rpc",                      # gRPC 调用
+    "cli_reference_diff": "cli",                 # 命令行执行输出（对参照版差分）
+    "snapshot_golden": "dom",                    # DOM 骨架/进程输出（对黄金基线）
     "static_scan": "source_static",              # 源码文本（不执行）
 }
 for _r in ROUTES:
@@ -182,6 +213,7 @@ _COND_FN = {
     "min_files": lambda f, a: _c_min_files(f, a[0], a[1]),
     "flag": lambda f, a: _c_flag(f, a),
     "always": lambda f, a: _c_always(f),
+    "any": lambda f, a: _c_any(f, a),
 }
 
 
@@ -222,6 +254,19 @@ def route_plan(requirement: str, features: dict, language: str | None = None,
                         "reason": f"路线随执行链路开关关闭（{route.id.split('_')[0]} 旗标 off）",
                         "priority": route.priority, "oracle_type": route.oracle_type, "observation": route.observation,
                         "cost": route.cost})
+            continue
+        # 任务卡-D+：差分/快照路线旗标（默认关=剔除且理由可审计，主链路零行为变化）
+        if route.id == "cli_reference_diff" and not flags.get("diff_route"):
+            out.append({"route_id": route.id, "name": route.name, "selected": False,
+                        "reason": "差分路线旗标关闭（MTA_DIFF_ROUTE 默认关）",
+                        "priority": route.priority, "oracle_type": route.oracle_type,
+                        "observation": route.observation, "cost": route.cost})
+            continue
+        if route.id == "snapshot_golden" and not flags.get("snapshot_route"):
+            out.append({"route_id": route.id, "name": route.name, "selected": False,
+                        "reason": "快照路线旗标关闭（MTA_SNAPSHOT_ROUTE 默认关）",
+                        "priority": route.priority, "oracle_type": route.oracle_type,
+                        "observation": route.observation, "cost": route.cost})
             continue
         ok, why = evaluate_route(route, f)
         out.append({"route_id": route.id, "name": route.name, "selected": ok,
