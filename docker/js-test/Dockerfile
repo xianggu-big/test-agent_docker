@@ -22,12 +22,16 @@ ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY} \
 # git：差分闸（归因三闸 Task G）在容器内 git checkout 对照 ref 复跑失败子集——
 # 真机验证实锤（2026-11-04）：node:20-bookworm-slim 不带 git，差分闸对 JS 任务
 # 恒 no_git 不可用；bookworm-slim 的 apt 源自带 git，装上即修复
+# procps（ps 命令）：StrykerJS 进程清理依赖——bookworm-slim 不带（2026-11-12 实锤：
+# 临时容器单独装 procps 无效，必须进镜像；否则 Stryker 中段 spawn ps ENOENT 崩溃）
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git \
+ && apt-get install -y --no-install-recommends git procps \
  && rm -rf /var/lib/apt/lists/* \
- && git --version
+ && git --version && ps --version
 
+# 变异轨（任务卡-F 阶段 1 #7，2026-11-12）：StrykerJS 钉版本（§6 坑预判 1 防漂移）
 RUN npm install -g --no-audit --no-fund jest@29 ts-jest@29 typescript@5 @types/jest@29 \
+ && npm install -g --no-audit --no-fund @stryker-mutator/core@8.6.0 @stryker-mutator/jest-runner@8.6.0 \
  && npm cache clean --force
 
 WORKDIR /work

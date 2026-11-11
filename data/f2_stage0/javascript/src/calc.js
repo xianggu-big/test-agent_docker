@@ -10,7 +10,7 @@ function div(a, b) {
 function clamp(x, lo, hi) {
   // 故意埋的缺陷：上界用了 >= 导致 x==hi 时返回 hi-1（需求：闭区间）
   if (x < lo) return lo;
-  if (x >= hi) return hi - 1;
+  if (x > hi) return hi - 1;
   return x;
 }
 module.exports = { add, div, clamp };

@@ -12,4 +12,7 @@ RUN apt-get update \
     && pecl install pcov \
     && docker-php-ext-enable pcov \
     && rm -rf /var/lib/apt/lists/*
+# 变异轨（任务卡-F 阶段 3 #8，2026-11-12）：Infection 钉版本（§6 坑预判 1 防漂移）
+ADD https://github.com/infection/infection/releases/download/0.29.14/infection.phar /usr/local/bin/infection
+RUN chmod +x /usr/local/bin/infection && php /usr/local/bin/infection --version
 WORKDIR /work
