@@ -12,4 +12,4 @@ WORKDIR /work
 # 任务卡-F2 阶段 1 #2/#4：静态分析工具钉版本进镜像（卡 §6 坑预判 1——版本漂移防线）
 # GOPROXY 直连 proxy.golang.org 被墙（connection refused 实锤）→ 国内镜像 goproxy.cn
 ENV GOPROXY=https://goproxy.cn,direct
-RUN go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0     && go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+RUN go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0     && go install honnef.co/go/tools/cmd/staticcheck@2025.1.1     && go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.5.1
