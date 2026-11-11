@@ -559,6 +559,15 @@ def api_defects(tid: int, user: dict = Depends(current_user)):
 def api_report(tid: int, user: dict = Depends(current_user)):
     conn = get_conn()
     _task_or_404(conn, tid)
+    # B2+（419/687 教训）：需求-能力错配提示上报告页——generate 轮警告消息确定性抓取
+    # （LLM 不经手）；无错配任务该字段为 None（前端不渲染卡片）
+    warn = conn.execute(
+        """SELECT m.content FROM agent_messages m JOIN agent_sessions s
+           ON s.id=m.session_id WHERE s.task_id=?
+             AND m.content LIKE '%需求-能力对齐警告%' ORDER BY m.id LIMIT 1""",
+        (tid,)).fetchone()
+    capability_mismatch = (warn["content"].split("警告] ", 1)[1].strip()
+                           if warn and "警告] " in warn["content"] else None)
     rows = conn.execute(
         "SELECT * FROM test_reports WHERE task_id=? ORDER BY id DESC", (tid,)).fetchall()
     # W4 热点快照是任务级（重跑整体替换），与各历史报告的 per_file 交叉求值
@@ -598,6 +607,8 @@ def api_report(tid: int, user: dict = Depends(current_user)):
             d["hotspots"] = {"total": cross["total"], "uncovered": cross["uncovered"]}
         if llm:
             d["llm"] = llm
+        if capability_mismatch:          # B2+：错配随每份报告行下发（前端渲染警告卡）
+            d["capability_mismatch"] = capability_mismatch
         reports.append(d)
     return reports
 

@@ -175,16 +175,16 @@ def run_idempotency(api_key: str, args: dict, task_id: int, runner) -> str:
                 msg = (tc.find("failure").text or "")[:200]
                 fail_lines.append(f"FAILED {nodeid} - {msg}")
                 rows.append({"nodeid": nodeid, "name": name, "status": "failed",
-                             "duration_ms": None, "message": msg})
+                             "duration_ms": None, "message": msg, "origin": "ai"})
             elif tc.find("error") is not None:
                 msg = (tc.find("error").text or "")[:200]
                 fail_lines.append(f"ERROR {nodeid} - {msg}")
                 rows.append({"nodeid": nodeid, "name": name, "status": "error",
-                             "duration_ms": None, "message": msg})
+                             "duration_ms": None, "message": msg, "origin": "ai"})
             else:
                 ok_lines.append(f"PASSED {nodeid}")
                 rows.append({"nodeid": nodeid, "name": name, "status": "passed",
-                             "duration_ms": None, "message": ""})
+                             "duration_ms": None, "message": "", "origin": "ai"})
     except ET.ParseError:
         return json.dumps({"generated": len(cases), "executed": 0,
                            "reason": "junit 不可解析（执行环境异常，诚实留痕）",

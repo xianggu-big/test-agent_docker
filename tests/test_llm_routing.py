@@ -255,3 +255,30 @@ def test_老profiles条目缺ctx_budget读时补齐(db, monkeypatch):
     from test_agent.skills.llm_client import make_chat
     llm = make_chat(phase="gen_tests")
     assert getattr(llm, "_ctx_budget", None) == 8192       # 预算到位 → 降采样可触发
+
+
+# ---------- B2+ 报告页错配呈现（687 遗留：capability_mismatch 上 /api/report） ----------
+
+def test_report_api_错配字段(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
+    from test_agent.api import server, auth
+    from fastapi.testclient import TestClient
+    with TestClient(server.app) as client:
+        ha = {"Authorization": f"Bearer {client.post('/api/login', json={'username': 'admin', 'password': 'admin123'}).json()['token']}"}
+        # 建任务+一条 [generate·需求-能力对齐警告] 消息（模拟 generate 轮留痕）
+        t = client.post("/api/tasks", json={"repo_url": "r", "requirement": "x"},
+                        headers=ha).json()
+        tid = t["task_id"]
+        c = server.get_conn()
+        sess = c.execute("INSERT INTO agent_sessions(task_id, agent_role) VALUES (?,'test_agent')",
+                         (tid,)).lastrowid
+        c.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
+                  (sess, 0, "assistant",
+                   "[generate·需求-能力对齐警告] 需求提到登录注册但项目无账户体系。"))
+        c.execute("INSERT INTO test_reports(task_id, passed, failed, coverage_line) "
+                  "VALUES (?,0,0,0.0)", (tid,))
+        c.commit()
+        r = client.get(f"/api/tasks/{tid}/report", headers=ha).json()
+        rep = r["reports"][0] if isinstance(r, dict) and "reports" in r else r[0]
+        assert "需求提到登录注册" in rep["capability_mismatch"]

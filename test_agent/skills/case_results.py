@@ -92,13 +92,16 @@ def store_case_results(conn, task_id: int, round_no: int, rows: list[dict],
            WHERE s.task_id=?""", (task_id,))}
     n = 0
     for r in rows:
+        # origin 细化（2026-11-10）：rows 可自带 origin（如 ui_idempotency 路线的
+        # 交互用例不走 gen_tests 落库，名字匹配不到 gen_names——行级自带 origin
+        # 优先，否则按名字匹配归 generated/repo 旧口径）
+        origin = r.get("origin") or ("generated" if r["name"] in gen_names else "repo")
         conn.execute(
             """INSERT INTO test_case_results(task_id, round_no, level, nodeid, name,
                                             status, duration_ms, message, origin)
                VALUES (?,?,?,?,?,?,?,?,?)""",
             (task_id, round_no, level, r["nodeid"], r["name"], r["status"],
-             r.get("duration_ms"), r.get("message") or None,
-             "generated" if r["name"] in gen_names else "repo"))
+             r.get("duration_ms"), r.get("message") or None, origin))
         n += 1
     conn.commit()
     return n

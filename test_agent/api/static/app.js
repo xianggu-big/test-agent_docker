@@ -1298,6 +1298,14 @@ async function loadReport() {
      latest.hotspots.uncovered > 0 ? "fail" : "ok"]);
   if (latest && latest.llm) cells.push(
     ["LLM token", (latest.llm.total ?? 0).toLocaleString("zh-CN"), ""]);
+  // B2+（419/687 教训）：需求-能力错配警告卡——报告页显性可见（确定性抓取，禁 LLM 编）
+  const _mmBox = $("rp-mm");
+  if (_mmBox) {
+    _mmBox.innerHTML = latest && latest.capability_mismatch
+      ? `⚠ 需求-能力对齐警告：${esc(latest.capability_mismatch)} 本次生成可能未覆盖你真正想测的功能。`
+      : "";
+    _mmBox.style.display = latest && latest.capability_mismatch ? "" : "none";
+  }
   $("rp-metrics").innerHTML = latest
     ? cells.map(([k, v, c]) => `<div class="metric"><div class="k">${k}</div><div class="v ${c}">${v ?? 0}</div></div>`).join("")
     : '<div class="metric"><div class="k">暂无报告</div><div class="v">--</div></div>';
