@@ -21,27 +21,29 @@
   </dependencies>
   <build>
     <plugins>
-      <!-- 任务卡-F 阶段 2 #8（2026-11-12）：PIT 变异测试（钉版本 1.17.2；报告
-           target/pit-reports/mutations.xml → mutation_parse.parse_pit_xml 统一 schema） -->
+      <!-- 任务卡-F 阶段 2 #8（2026-11-12）：PIT 变异测试（钉版本 1.17.2） -->
       <plugin>
         <groupId>org.pitest</groupId>
         <artifactId>pitest-maven</artifactId>
         <version>1.17.2</version>
+        <dependencies>
+          <!-- JUnit 5 测试库需 pitest-junit5-plugin（否则 0 mutants 可运行） -->
+          <dependency>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-junit5-plugin</artifactId>
+            <version>1.2.1</version>
+          </dependency>
+        </dependencies>
         <configuration>
           <targetClasses><param>com.demo.*</param></targetClasses>
           <timestampedReports>false</timestampedReports>
         </configuration>
       </plugin>
-    </plugins>
-  </build>
-    <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
         <configuration>
-          <!-- 失败不中断 test phase：surefire 报告+jacoco 覆盖率全量产出（CI 惯例），
-               失败计数由宿主侧 java_adapter 从 surefire XML 读取，不依赖 mvn 退出码 -->
           <testFailureIgnore>true</testFailureIgnore>
         </configuration>
       </plugin>
