@@ -37,6 +37,8 @@
         <configuration>
           <targetClasses><param>com.demo.*</param></targetClasses>
           <timestampedReports>false</timestampedReports>
+          <!-- mutations.xml（parse_pit_xml 统一 schema 数据源） -->
+          <outputFormats><param>XML</param></outputFormats>
         </configuration>
       </plugin>
       <plugin>
