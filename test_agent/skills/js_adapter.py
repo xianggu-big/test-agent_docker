@@ -70,8 +70,24 @@ def _nodeid(file_path: str, full_name: str, title: str) -> str:
     return f"{fname}::{name}"
 
 
+LAST_UNIFIED_COVERAGE: dict | None = None   # C2 统一层通道（最近一次 jest coverageMap 的统一 schema）
+
+
 def _coverage_rows(coverage_map: dict) -> tuple[list[str], int, int]:
-    """coverageMap（istanbul 形态）→ term-missing 行；返回 (rows, total_stmts, total_miss)。"""
+    """coverageMap（istanbul 形态）→ term-missing 行；返回 (rows, total_stmts, total_miss)。
+
+    任务卡-F 阶段 1 #7（2026-11-10）C2 统一层接线：同 coverageMap 经
+    coverage_adapter.from_istanbul 出统一 schema（供 C3 回灌/看板跨语言通道）；
+    本函数保留 term-missing 文本渲染（字节兼容），双解析互证。"""
+    try:
+        from .coverage_adapter import from_istanbul
+        unified = from_istanbul(coverage_map or {})
+        # 统一层数据供下游（per_file 形态挂在模块级供调用方取用——不改变本函数输出）
+        global LAST_UNIFIED_COVERAGE
+        LAST_UNIFIED_COVERAGE = unified
+    except Exception:                 # noqa: BLE001 —— 统一层失败不影响文本渲染主链路
+        import sys as _sys
+        LAST_UNIFIED_COVERAGE = None
     rows: list[str] = []
     tot_s = tot_m = 0
     for path, fc in (coverage_map or {}).items():

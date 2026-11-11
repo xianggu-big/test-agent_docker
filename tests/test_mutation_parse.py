@@ -87,3 +87,20 @@ def test_损坏文件诚实降级(tmp_path):
     assert parse_stryker_json(b1)["total"] == 0
     b2 = _w(tmp_path, "bad2.xml", "<mutations><unclosed>")
     assert parse_pit_xml(b2)["total"] == 0
+
+
+# ---------- 段 1.1：jest coverageMap → 统一层桥接（c8/istanbul 通道） ----------
+
+def test_js_adapter_统一层桥接(tmp_path):
+    # jest --coverage 的 coverageMap（istanbul 形态）经 from_istanbul 出统一 schema；
+    # js_adapter 文本渲染主链路不变（双解析互证）
+    from test_agent.skills import js_adapter
+    cm = {"src/calc.js": {
+        "path": "src/calc.js",
+        "statementMap": {"0": {"start": {"line": 1}, "end": {"line": 1}}},
+        "s": {"0": 1},
+        "fnMap": {}, "f": {}, "branchMap": {}, "b": {}}}
+    rows, tot, miss = js_adapter._coverage_rows(cm)
+    assert tot >= 1
+    unified = getattr(js_adapter, "LAST_UNIFIED_COVERAGE", None)
+    assert unified and any(f["file"] == "src/calc.js" for f in unified["files"])
