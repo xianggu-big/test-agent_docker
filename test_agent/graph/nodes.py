@@ -229,6 +229,9 @@ def set_status(conn, task_id: int, status: str) -> None:
 
 
 _ROW = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+([\d,\s\-]+)$")
+# 适配器 3 列格式（go/java/php 统一文本：file miss pct% missing）——F2 阶段 1 #1：
+# 旧 _ROW 只认 pytest 4 列 → 三语言 per_file 恒空 → C3 缺口回灌从未生效（跨语言修）
+_ROW_ADAPTER = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)%\s+([\d,\s\-]+)$")
 
 
 def parse_conditions(text: str) -> list[dict] | None:
@@ -248,14 +251,26 @@ def parse_conditions(text: str) -> list[dict] | None:
 
 
 def _parse_per_file_coverage(stdout: str) -> list[dict]:
-    """term-missing 逐文件覆盖明细（B2）：只留有缺口的文件行，供缺口回灌与趋势图。"""
+    """term-missing 逐文件覆盖明细（B2）：只留有缺口的文件行，供缺口回灌与趋势图。
+    双格式（F2 阶段 1 #1）：pytest 4 列（file stmts miss cover% missing）优先；
+    go/java/php 适配器 3 列（file miss pct% missing）兜底——4 列先试防歧义
+    （3 列正则对 4 列行不匹配：第二数字后是空格非 %）。"""
     rows = []
     for line in stdout.splitlines():
-        m = _ROW.match(line.strip())
-        if m and m.group(1) not in ("Name", "TOTAL"):
+        line = line.strip()
+        if line.startswith(("Name", "TOTAL")):
+            continue
+        m = _ROW.match(line)
+        if m:
             rows.append({"file": m.group(1), "stmts": int(m.group(2)),
                          "miss": int(m.group(3)), "cover": int(m.group(4)),
                          "missing": m.group(5).strip()})
+            continue
+        m = _ROW_ADAPTER.match(line)
+        if m:
+            rows.append({"file": m.group(1), "stmts": None,
+                         "miss": int(m.group(2)), "cover": int(m.group(3)),
+                         "missing": m.group(4).strip()})
     return rows
 
 
@@ -476,6 +491,53 @@ def make_nodes(deps: GraphDeps) -> dict:
                     "[analyze] W4 复杂度热点：" +
                     "; ".join(f"{h['file']}::{h['name']}={h['complexity']}({h['rank']})"
                               for h in hotspots)[:300])
+        # 任务卡-F2 阶段 1 #2/#4（MTA_GO_STATIC 默认关）：Go 静态分析层——gocyclo
+        # 热点复用 complexity_hotspots 管线（radon 同尺 rank，plan 提示词风险倾斜零
+        # 改动）+ go vet 结构化发现留痕。宿主无 Go 工具链 → analyze 期 best-effort
+        # 起短命容器采集（与 radon 缺失同款 fail-open：任何失败=空表不阻断）。
+        if primary == "go" and config.GO_STATIC_ENABLED:
+            try:
+                from ..skills.go_static import collect_go_static, complexity_rank
+                _gr = SandboxRunner()
+                _name = f"mta-gostatic-{tid}"
+                _gr.cleanup(_name)
+                _c = _gr.ensure_container(config.IMAGE_GO, _name, fresh=True)
+                try:
+                    _gr.copy_dir_into(_c, ws)
+                    gstatic = collect_go_static(_gr, _c)
+                finally:
+                    _gr.cleanup(_name)
+                cyc_hot = sorted(gstatic["gocyclo"], key=lambda x: -x["complexity"])[:5]
+                cyc_hot = [h for h in cyc_hot if h["complexity"] >= 10]   # C 及以上（radon 同尺）
+                if cyc_hot:
+                    out["complexity_hotspots"] = [
+                        {"file": h["file"], "name": h["func"],
+                         "complexity": h["complexity"],
+                         "rank": complexity_rank(h["complexity"]),
+                         "lineno": h["line"]} for h in cyc_hot]
+                    for h in out["complexity_hotspots"]:
+                        conn.execute(
+                            """INSERT INTO complexity_hotspots(task_id, file, name,
+                                                              complexity, rank, lineno)
+                               VALUES (?,?,?,?,?,?)""",
+                            (tid, h["file"], h["name"], h["complexity"],
+                             h["rank"], h["lineno"]))
+                    conn.commit()
+                    msg(state["session_id"], "assistant",
+                        "[analyze·go] gocyclo 热点（进 plan 提示词倾斜）：" +
+                        "; ".join(f"{h['file']}::{h['name']}={h['complexity']}"
+                                  f"({h['rank']})" for h in out["complexity_hotspots"])[:300])
+                else:
+                    msg(state["session_id"], "assistant",
+                        "[analyze·go] gocyclo 无 C 级以上热点（如实空表）")
+                if gstatic["vet"]:
+                    msg(state["session_id"], "assistant",
+                        "[analyze·go] go vet 发现 %d 条（结构化）：" % len(gstatic["vet"]) +
+                        "; ".join(f"{v['file']}:{v['line']} {v['message'][:40]}"
+                                  for v in gstatic["vet"][:5])[:300])
+            except Exception as e:              # noqa: BLE001 —— fail-open 不阻断
+                msg(state["session_id"], "assistant",
+                    f"[analyze·go] 静态分析失败（{type(e).__name__}: {str(e)[:100]}），主链路继续")
         # 任务卡-E A 版（MTA_MODULE_PLAN 默认关）：模块级画像与策略建议——只"看与
         # 建议"不改执行链。切分（确定性）→9 维画像→规则表→规则未命中 LLM 兜底一次
         # （理由落库可审计）；失败不挡主链路（fail-open 如实留痕）

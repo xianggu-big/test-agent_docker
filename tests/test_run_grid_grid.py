@@ -69,3 +69,40 @@ def test_format_token_cell_attends_absence():
     partial = [{"tokens": 100}, {"tokens": None}]
     assert format_token_cell(partial) == "100（1/2）"
     assert format_token_cell([{"tokens": None}]) == "—（无台账）"
+
+
+# ---------- F2 阶段 1 #1：C3 缺口回灌跨语言（适配器 3 列覆盖表解析） ----------
+
+def test_per_file解析器_兼容适配器三列格式():
+    """go/java/php 适配器统一文本的覆盖表是 3 列（file miss pct% missing）；
+    旧 _ROW 只认 pytest 4 列 → 三语言 per_file 恒空 → C3 缺口回灌从未生效。
+    修复后双格式都解析，且 4 列优先（歧义防御）。"""
+    from test_agent.graph.nodes import _parse_per_file_coverage
+    go_text = (
+        "---------- coverage: platform coverprofile ----------\n"
+        f"{'Name':<44}{'Miss':>6}{'Cover':>8}   Missing\n"
+        f"{'shop/order.go':<44}{'>6':>0}"  # 占位防手误，下面用真实行
+    )
+    go_text = (
+        "---------- coverage: platform coverprofile ----------\n"
+        f"{'Name':<44}{'Miss':>6}{'Cover':>8}   Missing\n"
+        f"{'shop/order.go':<44}{2:>6}{50:>7}%   14,15\n"
+        f"{'TOTAL':<44}{'':>6}{50:>7}%\n")
+    rows = _parse_per_file_coverage(go_text)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["file"] == "shop/order.go" and r["miss"] == 2 and r["cover"] == 50
+    assert r["missing"] == "14,15"
+    # pytest 4 列（Python 原生）不回归
+    py_text = f"{'calc.py':<28}{9:>7}{2:>6}{78:>6}%   6,9"
+    rows2 = _parse_per_file_coverage(py_text)
+    assert len(rows2) == 1 and rows2[0]["stmts"] == 9 and rows2[0]["miss"] == 2 \
+        and rows2[0]["cover"] == 78
+
+
+def test_C3提示词段_适配器缺口行渲染():
+    """回灌链路末端：适配器形态的 per_file 行进 build_user_prompt 出『上一轮覆盖缺口』段。"""
+    from test_agent.skills.prompt_library import build_user_prompt
+    gaps = [{"file": "shop/order.go", "missing": "14,15", "cover": 50}]
+    p = build_user_prompt([("order.go", "package shop")], "需求", gaps, None)
+    assert "上一轮覆盖缺口" in p and "shop/order.go" in p and "14,15" in p

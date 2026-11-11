@@ -165,6 +165,11 @@ SNAPSHOT_DIR = Path(os.environ.get("MTA_SNAPSHOT_DIR", "data/snapshots"))
 # module_profiles（第 34 表）+报告页建议卡
 MODULE_PLAN_ENABLED = _flag("MTA_MODULE_PLAN", False)
 
+# 任务卡-F2 阶段 1 #2/#4（2026-11-11）：Go 静态分析层——gocyclo 热点（radon 同尺
+# rank，进 plan 提示词）+ go vet 结构化发现。默认关=analyze 对 go 项目零容器操作
+# （旧行为逐字节不变）
+GO_STATIC_ENABLED = _flag("MTA_GO_STATIC", False)
+
 # 连接探针（2026-11-08 655/656 锁循环诊断：未提交事务悬挂持锁的运行时定位器，
 # 后台线程周期点名 in_transaction 连接的创建栈；默认关=零行为变化）
 CONN_PROBE_ENABLED = _flag("MTA_CONN_PROBE", False)
