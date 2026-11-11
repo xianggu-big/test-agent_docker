@@ -228,8 +228,12 @@ def _empty_set_message(reason: str | None) -> str:
     """出题 0 条的空集提示——按 gen_tests 实际返回的 reason 归因，禁止硬编码猜测
     （2026-11-09 任务卡-LLM模型选择 B 项：原文案硬编码"LLM 输出两次不可解析"，
     但 local 档实际原因是"无 Key 跳过"，误导排查方向）。四种典型原因各有如实文案；
+    skill 自身失败（2026-11-10 起 gen_reason=生成工具失败：…）如实透传 error；
     未知原因兜底为"原因未知（详见 generate 轮消息）"，绝不编造。"""
     r = (reason or "").strip()
+    if r.startswith("生成工具失败"):
+        return (f"[prep] 出题 0 条——原因：{r}。"
+                f"处理：本地模型请确认 ollama serve 在跑；云端档检查 Key 与余额")
     if "未配置 Key" in r or "skip_reason" in r:
         return f"[prep] 出题 0 条——原因：{r}。可在设置页检查 LLM 模型与 Key 配置后重试"
     if "无法解析" in r or "不可解析" in r:

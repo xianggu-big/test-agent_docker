@@ -180,3 +180,12 @@ def test_generate节点_工具失败error透传():
     src = inspect.getsource(_n)
     assert 'res.status != "ok"' in src and "res.error" in src
     assert '"gen_reason": f"生成工具失败' in src     # error 也进 gen_reason 供 prep 收尾归因
+
+
+# ---------- 703 实锤：skill 失败前缀的归因（生成工具失败→处理建议） ----------
+
+def test_空集归因_工具失败前缀():
+    from test_agent.graph.builder import _empty_set_message
+    m = _empty_set_message("生成工具失败：RateLimited: APIConnectionError: Connection error.")
+    assert "生成工具失败" in m and "ollama serve" in m      # 可行动文案
+    assert "原因未知" not in m
