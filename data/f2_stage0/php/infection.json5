@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/infection/infection/0.29.14/resources/schema.json",
+  "source": { "directories": ["src"] },
+  "timeout": 30,
+  "logs": {
+    "json": "infection.json",
+    "text": "infection.log"
+  },
+  "tmpDir": "infection-tmp"
+}

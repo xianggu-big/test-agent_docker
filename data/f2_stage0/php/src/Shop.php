@@ -10,7 +10,7 @@ class Shop
     /** 按积分分级：>=90 "A"，>=60 "B"，其余 "C"。 */
     public static function getTier(int $score): string
     {
-        if ($score > 90) {
+        if ($score >= 90) {
             return 'A';
         }
         if ($score >= 60) {
