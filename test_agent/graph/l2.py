@@ -40,6 +40,7 @@ class L2State(TypedDict, total=False):
     workspace: str
     container_name: str
     requirement: str
+    primary_language: str         # F 卡 #7（2026-11-10）：go → go126 镜像+Go 服务启动
     # 链路产物
     endpoint_source: str          # spec:openapi.json / no_spec（D4 降级链留痕）
     endpoints: list[dict]
@@ -216,6 +217,75 @@ def _detect_app_module(ws: Path) -> str | None:
     return None
 
 
+# —— F 卡阶段 1 #7（L2 契约轨接 Go，2026-11-10）：Go 服务启动与健康检查 ——
+
+_GO_ENTRY_FILES = ("main.go", "server.go", "cmd.go")
+
+
+def _detect_go_entry(ws: Path) -> str | None:
+    """确定性地找 Go 服务入口：根目录 main.go/server.go（含 func main 优先）。
+    gin-master 形态=根目录 main.go。找不到返回 None（诚实降级）。"""
+    ws = Path(ws)
+    candidates = [ws / n for n in _GO_ENTRY_FILES if (ws / n).is_file()]
+    candidates += [p for p in sorted(ws.glob("*.go")) if p.name not in _GO_ENTRY_FILES]
+    for p in candidates:
+        try:
+            t = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "func main(" in t:
+            return p.name
+    return None
+
+
+_GO_HEALTH_PATHS = ("/ping", "/healthz", "/health")   # gin 社区惯例健康路径
+
+
+def _start_service_go(runner, container, ws: Path, port: int) -> tuple[bool, str, str]:
+    """Go 服务启动（F 卡 #7）：go build -o /tmp/app && 后台运行 → 探测就绪。
+
+    返回 (就绪?, 失败说明, 健康路径)。健康路径从 _GO_HEALTH_PATHS 逐个试，
+    全不通时 TCP 通也算就绪（契约用例对 404 一样有断言价值——路由清单已落库）。"""
+    if not (ws / "go.mod").is_file():
+        return False, "工作区无 go.mod（非 Go module 项目）", ""
+    runner.exec_in(container, ["sh", "-c", "go build -o /tmp/goapp ."],
+                   timeout_s=300, workdir="/work")
+    runner.exec_in(container, ["sh", "-c",
+                   f"mkdir -p /work/logs && cd /work && "
+                   f"nohup /tmp/goapp --port {port} > {APP_LOG_CONTAINER_PATH} 2>&1 &"],
+                   timeout_s=15)
+    wait = int(config.L2_SERVICE_WAIT_S)
+    chk = (
+        "import time,socket,sys,urllib.request\n"
+        f"deadline=time.time()+{wait}\n"
+        "paths=['" + "','".join(_GO_HEALTH_PATHS) + "']\n"
+        "ready=False; path=''\n"
+        "while time.time()<deadline:\n"
+        "    for p in paths:\n"
+        "        try:\n"
+        f"            urllib.request.urlopen('http://127.0.0.1:{port}'+p, timeout=2)\n"
+        "            ready=True; path=p; break\n"
+        "        except Exception:\n"
+        "            pass\n"
+        "    if not ready:\n"
+        "        try:\n"
+        f"            s=socket.create_connection(('127.0.0.1',{port}), timeout=2)\n"
+        "            s.close(); ready=True; path='(tcp)'\n"
+        "        except Exception:\n"
+        "            pass\n"
+        "    if ready:\n"
+        "        print('READY', path); sys.exit(0)\n"
+        "    time.sleep(1)\n"
+        "print('NOT_READY'); sys.exit(1)\n")
+    r = runner.exec_in(container, ["python3", "-c", chk], timeout_s=wait + 15)
+    if r.exit_code == 0 and "READY" in r.stdout:
+        parts = (r.stdout or "").split()
+        return True, "", (parts[1] if len(parts) > 1 else "")
+    tail = runner.exec_in(container, ["sh", "-c", f"tail -n 20 {APP_LOG_CONTAINER_PATH}"],
+                          timeout_s=10)
+    return False, (tail.stdout or tail.stderr or "Go 服务未就绪")[-300:], ""
+
+
 def _start_service(runner, container, app_module: str, port: int) -> tuple[bool, str]:
     # P2-6（2026-10-31 体检）：app_module 拼进 sh -c，文件名含 shell 元字符=命令注入；
     # 模块名必须是合法 Python 标识符（点号分层允许），否则拒绝起服务（fail-closed）
@@ -360,14 +430,44 @@ def make_l2_nodes(deps):
     def provision(state: L2State) -> dict:
         tid = state["task_id"]
         runner = deps.runner
-        container = runner.ensure_container(config.IMAGE_PY, state["container_name"], fresh=True)
+        # F 卡阶段 1 #7（2026-11-10）：primary_language=go → go126 镜像 + Go 服务启动；
+        # 其余语言维持 py312 + FastAPI/uvicorn 旧路径（逐字节不变）
+        is_go = state.get("primary_language") == "go"
+        image = config.IMAGE_GO if is_go else config.IMAGE_PY
+        container = runner.ensure_container(image, state["container_name"], fresh=True)
         runner.copy_dir_into(container, state["workspace"])
         deps.registry.invoke(tid, deps.skills["install_deps"], {
             "container_name": state["container_name"],
             "has_requirements": (Path(state["workspace"]) / "requirements.txt").exists()})
         # 测试执行器依赖（v0 单容器：requests+jsonschema 随开关装，同 hypothesis 先例）
-        runner.exec_in(container, ["pip", "install", "-q", "requests", "jsonschema"],
-                       timeout_s=300)
+        if not is_go:
+            runner.exec_in(container, ["pip", "install", "-q", "requests", "jsonschema"],
+                           timeout_s=300)
+        if is_go:
+            from ..skills.llm_profile import effective_key
+            ws = Path(state["workspace"])
+            if not _detect_go_entry(ws):
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason="未找到 Go 服务入口（根目录 main.go/server.go 含 func main）",
+                            finished_at=_now())
+                msg(state["session_id"], "[L2·provision] 未找到 Go 服务入口：本级如实终止")
+                return {"done": True, "verdict": "stop", "service_ready": False,
+                        "stop_reason": "未找到 Go 服务入口"}
+            port = int(config.L2_SERVICE_PORT)
+            ok, why, health = _start_service_go(runner, container, ws, port)
+            if not ok:
+                _collect_app_logs(state, 1)
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason=f"Go 服务启动失败：{why}",
+                            finished_at=_now())
+                msg(state["session_id"], f"[L2·provision] Go 服务启动失败：{why}")
+                return {"done": True, "verdict": "stop", "service_ready": False,
+                        "stop_reason": f"Go 服务启动失败：{why}"}
+            # requests/jsonschema/pytest 已烘焙进 go126 镜像（F 卡 #7 Dockerfile）
+            msg(state["session_id"], "assistant",
+                f"[L2·provision] Go 服务就绪（go build + 后台运行，127.0.0.1:{port}，"
+                f"健康路径 {health or '(tcp)'}）；契约用例=Python requests 黑盒（同容器打 127.0.0.1）")
+            return {"service_port": port, "service_ready": True}
         app_module = _detect_app_module(Path(state["workspace"]))
         if not app_module:
             _leg_update(tid, status="failed", verdict="stop",
@@ -512,7 +612,9 @@ def run_l2_task(task_id: int, trace_from: int | None = None) -> dict:
     from .nodes import GraphDeps, make_deps
     deps: GraphDeps = make_deps()
     conn = deps.conn
-    task = conn.execute("SELECT requirement_text FROM test_tasks WHERE id=?", (task_id,)).fetchone()
+    task = conn.execute(
+        """SELECT t.requirement_text, p.primary_language FROM test_tasks t
+           JOIN projects p ON p.id=t.project_id WHERE t.id=?""", (task_id,)).fetchone()
     if not task:
         raise ValueError(f"任务 {task_id} 不存在")
     ws = config.DATA_DIR / "workspaces" / f"task_{task_id}"
@@ -529,6 +631,7 @@ def run_l2_task(task_id: int, trace_from: int | None = None) -> dict:
         "task_id": task_id, "session_id": cur.lastrowid,
         "workspace": str(ws), "container_name": f"mta-run-{task_id}",
         "requirement": task["requirement_text"] or "",
+        "primary_language": task["primary_language"] or "",   # F 卡 #7：go→go126+Go 服务
     }
     graph = build_l2_graph(deps)
     try:

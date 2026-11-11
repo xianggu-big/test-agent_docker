@@ -17,7 +17,8 @@ from ..skills.llm_usage import log_llm_call
 from ..skills.scenario_gen import (apply_smoke_results, build_smoke_script,
                                    parse_scenarios, save_scenarios)
 from ..store.db import get_conn
-from .l2 import _detect_app_module, _now, _start_service
+from .l2 import (_detect_app_module, _detect_go_entry, _now, _start_service,
+                 _start_service_go)
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class L3State(TypedDict, total=False):
     workspace: str
     container_name: str
     requirement: str
+    primary_language: str         # F 卡 #8（2026-11-10）：go→go126+Go 服务启动
     endpoints: list
     scenarios: list
     service_port: int
@@ -55,27 +57,52 @@ def make_l3_nodes(deps):
     def prepare(state: L3State) -> dict:
         tid = state["task_id"]
         runner = deps.runner
-        container = runner.ensure_container(config.IMAGE_PY, state["container_name"], fresh=True)
+        # F 卡阶段 1 #8（2026-11-10）：primary_language=go → go126 镜像+Go 服务启动
+        is_go = state.get("primary_language") == "go"
+        image = config.IMAGE_GO if is_go else config.IMAGE_PY
+        container = runner.ensure_container(image, state["container_name"], fresh=True)
         runner.copy_dir_into(container, state["workspace"])
         # 依赖三清单走 L1 同款 install_deps（uvicorn 等服务依赖随项目走），requests 为冒烟执行器
         from ..skills.builtin import probe_deps_manifest
         registry.invoke(tid, deps.skills["install_deps"], {
             "container_name": state["container_name"],
             "deps_manifest": probe_deps_manifest(Path(state["workspace"]))})
-        runner.exec_in(container, ["pip", "install", "-q", "requests"], timeout_s=300)
-        app_module = _detect_app_module(Path(state["workspace"]))
-        if not app_module:
-            _leg_update(tid, status="failed", verdict="stop",
-                        stop_reason="未找到 FastAPI 应用模块", finished_at=_now())
-            msg(state["session_id"], "[L3·prepare] 未找到 FastAPI 应用模块：本级如实终止")
-            return {"done": True, "verdict": "stop", "stop_reason": "未找到 FastAPI 应用模块"}
-        port = int(config.L2_SERVICE_PORT)
-        ok, why = _start_service(runner, container, app_module, port)
-        if not ok:
-            _leg_update(tid, status="failed", verdict="stop",
-                        stop_reason=f"服务启动失败：{why}", finished_at=_now())
-            msg(state["session_id"], f"[L3·prepare] 服务启动失败：{why}")
-            return {"done": True, "verdict": "stop", "stop_reason": f"服务启动失败：{why}"}
+        if is_go:
+            # F 卡 #8：go126 镜像烘焙 python3+requests（#7 Dockerfile），Go 服务走 go build
+            from ..skills.llm_profile import effective_key
+            ws = Path(state["workspace"])
+            if not _detect_go_entry(ws):
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason="未找到 Go 服务入口", finished_at=_now())
+                msg(state["session_id"], "[L3·prepare] 未找到 Go 服务入口：本级如实终止")
+                return {"done": True, "verdict": "stop", "stop_reason": "未找到 Go 服务入口"}
+            port = int(config.L2_SERVICE_PORT)
+            ok, why, health = _start_service_go(runner, container, ws, port)
+            if not ok:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason=f"Go 服务启动失败：{why}", finished_at=_now())
+                msg(state["session_id"], f"[L3·prepare] Go 服务启动失败：{why}")
+                return {"done": True, "verdict": "stop",
+                        "stop_reason": f"Go 服务启动失败：{why}"}
+            msg(state["session_id"], "assistant",
+                f"[L3·prepare] Go 服务就绪（127.0.0.1:{port}，健康 {health or '(tcp)'}）")
+            state["service_port"] = port
+        else:
+            runner.exec_in(container, ["pip", "install", "-q", "requests"], timeout_s=300)
+            app_module = _detect_app_module(Path(state["workspace"]))
+            if not app_module:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason="未找到 FastAPI 应用模块", finished_at=_now())
+                msg(state["session_id"], "[L3·prepare] 未找到 FastAPI 应用模块：本级如实终止")
+                return {"done": True, "verdict": "stop", "stop_reason": "未找到 FastAPI 应用模块"}
+            port = int(config.L2_SERVICE_PORT)
+            ok, why = _start_service(runner, container, app_module, port)
+            if not ok:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason=f"服务启动失败：{why}", finished_at=_now())
+                msg(state["session_id"], f"[L3·prepare] 服务启动失败：{why}")
+                return {"done": True, "verdict": "stop", "stop_reason": f"服务启动失败：{why}"}
+            state["service_port"] = port
         rows = conn.execute(
             """SELECT method, path, operation_id, params, request_schema FROM interface_endpoints
                WHERE task_id=? ORDER BY id""", (tid,)).fetchall()
@@ -218,8 +245,9 @@ def run_l3_task(task_id: int, trace_from: int | None = None) -> dict:
     from .nodes import GraphDeps, make_deps
     deps: GraphDeps = make_deps()
     conn = deps.conn
-    task = conn.execute("SELECT requirement_text FROM test_tasks WHERE id=?",
-                        (task_id,)).fetchone()
+    task = conn.execute(
+        """SELECT t.requirement_text, p.primary_language FROM test_tasks t
+           JOIN projects p ON p.id=t.project_id WHERE t.id=?""", (task_id,)).fetchone()
     if not task:
         raise ValueError(f"任务 {task_id} 不存在")
     ws = config.DATA_DIR / "workspaces" / f"task_{task_id}"
@@ -233,6 +261,7 @@ def run_l3_task(task_id: int, trace_from: int | None = None) -> dict:
     conn.commit()
     init: L3State = {
         "task_id": task_id, "session_id": cur.lastrowid,
+        "primary_language": task["primary_language"] or "",
         "workspace": str(ws), "container_name": f"mta-run-{task_id}",
         "requirement": task["requirement_text"] or "",
     }

@@ -1,0 +1,75 @@
+{
+ "task_id": 834,
+ "corpus_id": "corpus-001",
+ "baseline_failures": 10,
+ "mutants_total": 5,
+ "killed": 5,
+ "kill_rate": 1.0,
+ "detail": [
+  {
+   "module": "checker.py",
+   "site": 0,
+   "mutation": "cmp Lt",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_等价类划分[\\u6709\\u6548\\u7c7b\\u957f\\u5ea610]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_自定义参数_边界值[max=6]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_自定义参数_边界值[min=4]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_边界值[max=64]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_边界值[min=8]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 1,
+   "mutation": "cmp GtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_digit_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_lowercase_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_special_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_uppercase_错误推测法[None\\u8f93\\u5165]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 2,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_自定义参数_边界值[max=6]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_边界值[max=64]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_digit_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_lowercase_错误推测法[None\\u8f93\\u5165]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 3,
+   "mutation": "cmp LtE",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_自定义参数_边界值[max=6]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_边界值[max=64]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_digit_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_lowercase_错误推测法[None\\u8f93\\u5165]"
+   ]
+  },
+  {
+   "module": "checker.py",
+   "site": 4,
+   "mutation": "boolop And",
+   "killed": true,
+   "new_failures": [
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_自定义参数_边界值[max=6]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_边界值[max=64]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_check_length_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_digit_错误推测法[None\\u8f93\\u5165]",
+    "data/tmp_mut/task834_rgu3chzk/test_gen_r1.py::test_has_lowercase_错误推测法[None\\u8f93\\u5165]"
+   ]
+  }
+ ]
+}

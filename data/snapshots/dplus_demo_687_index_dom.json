@@ -1,0 +1,437 @@
+{
+ "children": [
+  {
+   "children": [
+    {
+     "children": [
+      {
+       "children": [],
+       "class": "",
+       "id": "",
+       "tag": "meta",
+       "text": ""
+      },
+      {
+       "children": [],
+       "class": "",
+       "id": "",
+       "tag": "meta",
+       "text": ""
+      },
+      {
+       "children": [],
+       "class": "",
+       "id": "",
+       "tag": "title",
+       "text": "兔兔记账本 🐰"
+      },
+      {
+       "children": [],
+       "class": "",
+       "id": "",
+       "tag": "style",
+       "text": ":root{ --pink:#ffb7c5; --pink-deep:#ff8fab; --pink-soft:#fff0f4; --brown:#6b4f4b"
+      }
+     ],
+     "class": "",
+     "id": "",
+     "tag": "head",
+     "text": ""
+    },
+    {
+     "children": [
+      {
+       "children": [],
+       "class": "bunny-bg",
+       "id": "",
+       "tag": "div",
+       "text": "🐰"
+      },
+      {
+       "children": [
+        {
+         "children": [
+          {
+           "children": [],
+           "class": "",
+           "id": "",
+           "tag": "h1",
+           "text": "🐰 兔兔记账本"
+          },
+          {
+           "children": [],
+           "class": "sub",
+           "id": "",
+           "tag": "p",
+           "text": "每一笔小钱钱，都帮你记好啦～"
+          },
+          {
+           "children": [],
+           "class": "badge ok",
+           "id": "store-badge",
+           "tag": "span",
+           "text": "数据只保存在本机浏览器"
+          }
+         ],
+         "class": "hero",
+         "id": "",
+         "tag": "header",
+         "text": ""
+        },
+        {
+         "children": [
+          {
+           "children": [],
+           "class": "card-title",
+           "id": "form-title",
+           "tag": "h2",
+           "text": "✏️ 记一笔"
+          },
+          {
+           "children": [
+            {
+             "children": [
+              {
+               "children": [],
+               "class": "active seg-btn",
+               "id": "",
+               "tag": "button",
+               "text": "支出 🥕"
+              },
+              {
+               "children": [],
+               "class": "seg-btn",
+               "id": "",
+               "tag": "button",
+               "text": "收入 💰"
+              }
+             ],
+             "class": "seg",
+             "id": "type-seg",
+             "tag": "div",
+             "text": ""
+            },
+            {
+             "children": [
+              {
+               "children": [
+                {
+                 "children": [],
+                 "class": "",
+                 "id": "",
+                 "tag": "span",
+                 "text": "金额（元）"
+                },
+                {
+                 "children": [],
+                 "class": "",
+                 "id": "f-amount",
+                 "tag": "input",
+                 "text": ""
+                }
+               ],
+               "class": "field",
+               "id": "",
+               "tag": "label",
+               "text": ""
+              },
+              {
+               "children": [
+                {
+                 "children": [],
+                 "class": "",
+                 "id": "",
+                 "tag": "span",
+                 "text": "分类"
+                },
+                {
+                 "children": [],
+                 "class": "",
+                 "id": "f-category",
+                 "tag": "select",
+                 "text": ""
+                }
+               ],
+               "class": "field",
+               "id": "",
+               "tag": "label",
+               "text": ""
+              },
+              {
+               "children": [
+                {
+                 "children": [],
+                 "class": "",
+                 "id": "",
+                 "tag": "span",
+                 "text": "日期"
+                },
+                {
+                 "children": [],
+                 "class": "",
+                 "id": "f-date",
+                 "tag": "input",
+                 "text": ""
+                }
+               ],
+               "class": "field",
+               "id": "",
+               "tag": "label",
+               "text": ""
+              },
+              {
+               "children": [
+                {
+                 "children": [],
+                 "class": "",
+                 "id": "",
+                 "tag": "span",
+                 "text": "备注（选填）"
+                },
+                {
+                 "children": [],
+                 "class": "",
+                 "id": "f-note",
+                 "tag": "input",
+                 "text": ""
+                }
+               ],
+               "class": "field",
+               "id": "",
+               "tag": "label",
+               "text": ""
+              }
+             ],
+             "class": "grid",
+             "id": "",
+             "tag": "div",
+             "text": ""
+            },
+            {
+             "children": [],
+             "class": "error hint",
+             "id": "form-error",
+             "tag": "p",
+             "text": ""
+            },
+            {
+             "children": [
+              {
+               "children": [],
+               "class": "btn primary",
+               "id": "save-btn",
+               "tag": "button",
+               "text": "保存 🐰"
+              },
+              {
+               "children": [],
+               "class": "btn ghost",
+               "id": "cancel-edit",
+               "tag": "button",
+               "text": "取消编辑"
+              }
+             ],
+             "class": "row",
+             "id": "",
+             "tag": "div",
+             "text": ""
+            },
+            {
+             "children": [
+              {
+               "children": [],
+               "class": "",
+               "id": "f-newcat",
+               "tag": "input",
+               "text": ""
+              },
+              {
+               "children": [],
+               "class": "btn ghost small",
+               "id": "btn-addcat",
+               "tag": "button",
+               "text": "＋ 添加分类"
+              }
+             ],
+             "class": "cat-add",
+             "id": "",
+             "tag": "div",
+             "text": ""
+            }
+           ],
+           "class": "",
+           "id": "record-form",
+           "tag": "form",
+           "text": ""
+          }
+         ],
+         "class": "card form-card",
+         "id": "",
+         "tag": "section",
+         "text": ""
+        },
+        {
+         "children": [
+          {
+           "children": [
+            {
+             "children": [
+              {
+               "children": [],
+               "class": "",
+               "id": "sum-expense",
+               "tag": "strong",
+               "text": "0.00"
+              }
+             ],
+             "class": "expense sum-item",
+             "id": "",
+             "tag": "div",
+             "text": "支出合计"
+            },
+            {
+             "children": [
+              {
+               "children": [],
+               "class": "",
+               "id": "sum-income",
+               "tag": "strong",
+               "text": "0.00"
+              }
+             ],
+             "class": "income sum-item",
+             "id": "",
+             "tag": "div",
+             "text": "收入合计"
+            },
+            {
+             "children": [
+              {
+               "children": [],
+               "class": "",
+               "id": "sum-balance",
+               "tag": "strong",
+               "text": "0.00"
+              }
+             ],
+             "class": "balance sum-item",
+             "id": "",
+             "tag": "div",
+             "text": "结余"
+            }
+           ],
+           "class": "summary",
+           "id": "summary",
+           "tag": "div",
+           "text": ""
+          }
+         ],
+         "class": "card",
+         "id": "",
+         "tag": "section",
+         "text": ""
+        },
+        {
+         "children": [
+          {
+           "children": [
+            {
+             "children": [],
+             "class": "card-title",
+             "id": "",
+             "tag": "h2",
+             "text": "📒 全部记录"
+            },
+            {
+             "children": [
+              {
+               "children": [],
+               "class": "btn ghost small",
+               "id": "btn-export",
+               "tag": "button",
+               "text": "导出备份"
+              },
+              {
+               "children": [],
+               "class": "btn ghost small",
+               "id": "btn-import",
+               "tag": "button",
+               "text": "导入恢复"
+              },
+              {
+               "children": [],
+               "class": "",
+               "id": "file-import",
+               "tag": "input",
+               "text": ""
+              }
+             ],
+             "class": "row tight",
+             "id": "",
+             "tag": "div",
+             "text": ""
+            }
+           ],
+           "class": "list-head",
+           "id": "",
+           "tag": "div",
+           "text": ""
+          },
+          {
+           "children": [],
+           "class": "list",
+           "id": "record-list",
+           "tag": "ul",
+           "text": ""
+          }
+         ],
+         "class": "card",
+         "id": "",
+         "tag": "section",
+         "text": ""
+        },
+        {
+         "children": [],
+         "class": "foot",
+         "id": "",
+         "tag": "p",
+         "text": "🐰 兔兔记账本 · 数据不会上传，换设备请用「导出备份」"
+        }
+       ],
+       "class": "wrap",
+       "id": "",
+       "tag": "main",
+       "text": ""
+      },
+      {
+       "children": [],
+       "class": "toast",
+       "id": "toast",
+       "tag": "div",
+       "text": ""
+      },
+      {
+       "children": [],
+       "class": "",
+       "id": "",
+       "tag": "script",
+       "text": "(function () { 'use strict'; var LS_RECORDS = 'ledger.records.v1'; var LS_CATEGO"
+      }
+     ],
+     "class": "",
+     "id": "",
+     "tag": "body",
+     "text": ""
+    }
+   ],
+   "class": "",
+   "id": "",
+   "tag": "html",
+   "text": ""
+  }
+ ],
+ "class": [],
+ "id": "",
+ "tag": "#document",
+ "text": ""
+}

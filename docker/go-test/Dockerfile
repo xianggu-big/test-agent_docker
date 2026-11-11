@@ -13,3 +13,9 @@ WORKDIR /work
 # GOPROXY 直连 proxy.golang.org 被墙（connection refused 实锤）→ 国内镜像 goproxy.cn
 ENV GOPROXY=https://goproxy.cn,direct
 RUN go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0     && go install honnef.co/go/tools/cmd/staticcheck@2025.1.1     && go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.5.1
+# 任务卡-F 阶段 1 #7（L2 契约轨接 Go，2026-11-10）：加装 python3+requests——L2 契约
+# 用例是 Python requests 黑盒（打 127.0.0.1:port 的 Go 服务），单容器闭环零跨容器网络：
+# go run 服务（127.0.0.1:8080）与 pytest 同容器共存。pytest/jsonschema 是断言执行依赖。
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --break-system-packages --no-cache-dir requests jsonschema pytest
