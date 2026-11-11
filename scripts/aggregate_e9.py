@@ -15,8 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "reports" / "e9_full"
 
-TARGETS = {"A1": 384, "A2": 90, "A5": 400}
-TOKEN_BUDGET = {"A1": 23_000_000, "A2": 16_000_000, "A5": 30_000_000}  # 任务包 §1 预算
+# 2026-11-10 口径：总上限 500 跑/总预算 6500 万 token；Arm 目标=11-06 ≈100 格档拍板
+# （A1 前 17 组合×2 语料×3n=102 记 127 实跑；A2 90；A3 54；A5 50；A4 8×3×5=120 列后续）
+TARGETS = {"A1": 102, "A2": 90, "A3": 54, "A4": 120, "A5": 50}
+TOTAL_RUN_CAP = 500
+TOTAL_TOKEN_BUDGET = 65_000_000
 WAVE_THROUGHPUT_TOKENS_PER_H = 8_000_000  # 任务包单机 3h≈8000万 的校准口径
 
 
@@ -45,7 +48,7 @@ def main() -> int:
     lines += ["## 各 Arm 总览", "",
               "| Arm | 完成/目标 | 失败格 | 失败率 | 累计 token | 预算 | 剩余量 |",
               "|---|---|---|---|---|---|---|"]
-    for arm in ("A1", "A2", "A5"):
+    for arm in ("A1", "A2", "A3", "A4", "A5"):
         cs = by_arm.get(arm, [])
         done = [c for c in cs if c.get("status") == "done"]
         # 失败口径：真失败=error/budget_exhausted/unreadable；abandoned_prev_wave=中断留痕单列
@@ -56,13 +59,13 @@ def main() -> int:
         total_tokens += toks
         remain = TARGETS[arm] - len(cs)
         lines.append(f"| {arm} | {len(cs)}/{TARGETS[arm]} | {len(failed)} | "
-                     f"{pct(len(failed), len(cs))} | {toks:,} | {TOKEN_BUDGET[arm]:,} | "
+                     f"{pct(len(failed), len(cs))} | {toks:,} | 总口径 65,000,000 | "
                      f"{remain} 格（另有中断留痕 {len(abandoned)}） |")
     lines += ["", f"- 全局：完成 {total_done} 格 / 累计 {total_tokens:,} token "
               f"（≈{total_tokens / 10000:.0f} 万）",
               f"- 预计剩余波次：按单波 {WAVE_THROUGHPUT_TOKENS_PER_H // 10000} 万 token 口径，"
               f"全包余量 ≈ "
-              f"{max(0, sum(TOKEN_BUDGET.values()) - total_tokens) / WAVE_THROUGHPUT_TOKENS_PER_H:.1f} 波",
+              f"{max(0, TOTAL_TOKEN_BUDGET - total_tokens) / WAVE_THROUGHPUT_TOKENS_PER_H:.1f} 波",
               ""]
 
     a1 = by_arm.get("A1", [])
