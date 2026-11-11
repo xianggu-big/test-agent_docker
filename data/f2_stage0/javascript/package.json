@@ -1,1 +1,1 @@
-{ "name": "js-calc-demo", "version": "1.0.0", "private": true, "scripts": { "test": "jest" } }
+{"name":"js-calc-demo","version":"1.0.0","private":true,"scripts":{"test":"jest"},"dependencies":{"jest":"^29.7.0"}}

@@ -91,15 +91,21 @@ def parse_infection_json(report_path: str | Path) -> dict:
     except (ValueError, OSError):
         return _unified(0, 0, 0, [])
     stats = data.get("stats") or {}
-    killed = int(stats.get("killed") or 0)
-    escaped = int(stats.get("escaped") or 0)
-    errors = int(stats.get("errors") or 0) + int(stats.get("timed_out") or 0)
+    # 0.29.14 真机实锤：字段名是 killedCount/escapedCount/errorCount/timeOutCount
+    # （不是 killed/escaped/errors）——双命名兼容；killed 明细在 data["killed"] 数组
+    killed = int(stats.get("killedCount") or stats.get("killed") or 0)
+    escaped = int(stats.get("escapedCount") or stats.get("escaped") or 0)
+    errors = (int(stats.get("errorCount") or stats.get("errors") or 0)
+              + int(stats.get("timeOutCount") or stats.get("timed_out") or 0))
     survivors = []
-    for m in (data.get("escaped_mutants") or [])[:10]:
-        survivors.append({"mutator": m.get("mutator"),
-                          "location": f"{m.get('originalFilePath', '?')}:{m.get('originalStartingLine', '?')}"})
+    for m in (data.get("escaped") or data.get("escaped_mutants") or [])[:10]:
+        mut = m.get("mutator")
+        mutator = mut.get("mutatorName") if isinstance(mut, dict) else (mut or "?")
+        loc = m.get("originalFilePath") or m.get("originalDefinedClass") or "?"
+        line = m.get("originalStartingLine") or m.get("originalLineNumber") or "?"
+        survivors.append({"mutator": mutator, "location": f"{loc}:{line}"})
     return {"killed": killed, "survived": escaped, "timeout": errors,
             "total": killed + escaped + errors,
             "kill_rate": round(killed / max(1, killed + escaped + errors), 3),
-            "score": float(stats.get("mutationScoreIndicator") or 0),
+            "score": float(stats.get("msi") or stats.get("mutationScoreIndicator") or 0),
             "survivors": survivors, "source": "mutation_report"}

@@ -21,6 +21,20 @@
   </dependencies>
   <build>
     <plugins>
+      <!-- 任务卡-F 阶段 2 #8（2026-11-12）：PIT 变异测试（钉版本 1.17.2；报告
+           target/pit-reports/mutations.xml → mutation_parse.parse_pit_xml 统一 schema） -->
+      <plugin>
+        <groupId>org.pitest</groupId>
+        <artifactId>pitest-maven</artifactId>
+        <version>1.17.2</version>
+        <configuration>
+          <targetClasses><param>com.demo.*</param></targetClasses>
+          <timestampedReports>false</timestampedReports>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+    <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
