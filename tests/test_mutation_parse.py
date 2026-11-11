@@ -52,6 +52,18 @@ def test_pit_xml状态解析(tmp_path):
     assert r["survivors"][0]["location"] == "Calc.java:22"
 
 
+def test_pit_xml_部分属性缺省容错(tmp_path):
+    # 717 真机实锤：mutations.xml 里部分 mutation 无 sourceFile/lineNumber 子元素
+    xml = """<mutations>
+  <mutation status='KILLED' mutator='Math'><sourceFile>Calc.java</sourceFile><lineNumber>10</lineNumber></mutation>
+  <mutation status='SURVIVED' mutator='Math'><description>no source children</description></mutation>
+  <mutation status='TIMED_OUT' mutator='Math'><description>no source children</description></mutation>
+</mutations>"""
+    r = parse_pit_xml(_w(tmp_path, "pit2.xml", xml))
+    assert r["total"] == 3 and r["killed"] == 1
+    assert "None" not in r["survivors"][0]["location"]
+
+
 def test_infection_escaped同义survived(tmp_path):
     data = {"stats": {"killed": 5, "escaped": 2, "errors": 1,
                       "total": 8, "mutationScoreIndicator": 75.0},
