@@ -29,3 +29,6 @@ data/benchmarks/repos/
 data/experiments/multilang/repos/
 data/experiments/multilang/tarballs/
 data/experiments/multilang/handle.exe
+data/f2_stage0/javascript/node_modules/
+data/f2_stage0/javascript/stryker-tmp/
+data/f2_stage0/javascript/reports/
