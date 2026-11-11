@@ -150,10 +150,13 @@ def parse_go_routes(text: str) -> list[dict]:
         seen.add(key)
         params = [{"name": p, "in": "path", "required": True, "schema": {}}
                   for p in re.findall(r"\{(\w+)\}", path)]
+        # REST 语义：POST 创建默认 201（其余 200）——724 真机实锤：go_route 端点
+        # 恒 200 会让 POST 契约断言自错（201 实际=契约断言 200 的假失败）
+        success = 201 if method == "POST" else 200
         out.append({"method": method, "path": path, "operation_id": None,
                     "params": params, "request_schema": None,
                     "response_schema": None, "source": "go_route",
-                    "success_code": 200, "documented_codes": []})
+                    "success_code": success, "documented_codes": []})
     # HandleFunc 形态（net-http）：方法=GET（语义为全方法注册，契约轨按 GET 试探）
     hf_re = re.compile(r'\bhttp\.HandleFunc\s*\(\s*"(/[^"]*)"')
     for ln in (text or "").splitlines():

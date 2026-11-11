@@ -222,6 +222,10 @@ def render_contract_module(endpoints: list[dict], base_url: str
             body += f"    payload = {_payload_literal(lit)}\n"
             for k, var in assign.items():
                 body += f"    payload[{k!r}] = {var}\n"
+        elif ep["method"] in ("POST", "PUT", "PATCH") and not ep.get("request_schema"):
+            # go_route 等无契约体端点（schema 如实 None）：仍发 payload={}——
+            # requests json={} 合法，服务端校验决定 400/201，契约断言落在状态码上
+            body += "    payload = {}\n"
         body += _request_expr(ep, url_expr)
         body += expect_line
         lines.append(body)
