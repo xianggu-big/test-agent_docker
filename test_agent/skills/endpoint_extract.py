@@ -19,6 +19,8 @@ log = logging.getLogger(__name__)
 
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 _SPEC_NAMES = ("openapi.json", "swagger.json")
+_SKIP_DIRS = {".git", "__pycache__", "node_modules", "vendor", ".venv", "venv",
+              "dist", "build"}          # 与 routes.py/_SKIP 同口径（本文件此前无此常量）
 _MAX_REF_DEPTH = 12
 
 # —— proto3 文本解析（黑包阶段4）：正则子集，覆盖 demo/常见 proto3 形态 ——
@@ -121,6 +123,54 @@ def parse_openapi(spec: dict) -> list[dict]:
     return out
 
 
+def parse_go_routes(text: str) -> list[dict]:
+    """Go 路由注册提取（任务卡-F2 阶段 1 #6，确定性正则零 LLM）：gin/echo/chi/
+    net-http 主形态 `(r|e|router|mux|app).METHOD("path", ...)` 与
+    `http.HandleFunc("path", ...)`。路径参数 `:id` → `{id}`（与 spec 端点口径一致）；
+    schema 如实 None（静态提取无契约体）；success_code 恒 200（文档未声明）。
+    注释行与非 HTTP 方法调用自然不匹配=剔除。"""
+    route_re = re.compile(
+        r"\b(?:[A-Za-z_]\w*)\.(GET|POST|PUT|DELETE|PATCH|get|post|put|delete|patch"
+        r"|Get|Post|Put|Delete|Patch)"
+        r'\s*\(\s*"(/[^"]*)"')
+    out: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for ln in (text or "").splitlines():
+        stripped = ln.strip()
+        if stripped.startswith("//"):
+            continue                                   # 注释行剔除
+        m = route_re.search(stripped)
+        if not m:
+            continue
+        method = m.group(1).upper()
+        path = re.sub(r":([A-Za-z_]\w*)", r"{\1}", m.group(2))
+        key = (method, path)
+        if key in seen:
+            continue
+        seen.add(key)
+        params = [{"name": p, "in": "path", "required": True, "schema": {}}
+                  for p in re.findall(r"\{(\w+)\}", path)]
+        out.append({"method": method, "path": path, "operation_id": None,
+                    "params": params, "request_schema": None,
+                    "response_schema": None, "source": "go_route",
+                    "success_code": 200, "documented_codes": []})
+    # HandleFunc 形态（net-http）：方法=GET（语义为全方法注册，契约轨按 GET 试探）
+    hf_re = re.compile(r'\bhttp\.HandleFunc\s*\(\s*"(/[^"]*)"')
+    for ln in (text or "").splitlines():
+        stripped = ln.strip()
+        if stripped.startswith("//"):
+            continue
+        m = hf_re.search(stripped)
+        if m and ("GET", m.group(1)) not in seen:
+            seen.add(("GET", m.group(1)))
+            out.append({"method": "GET", "path": m.group(1), "operation_id": None,
+                        "params": [], "request_schema": None,
+                        "response_schema": None, "source": "go_route",
+                        "success_code": 200, "documented_codes": []})
+    out.sort(key=lambda e: (e["path"], e["method"]))
+    return out
+
+
 def probe_endpoint_source(ws: Path) -> tuple[list[dict] | None, str]:
     """D4 降级链探测：返回 (端点清单|None, 来源说明)。None = 无可用提取路径（诚实降级）。"""
     ws = Path(ws)
@@ -148,4 +198,17 @@ def probe_endpoint_source(ws: Path) -> tuple[list[dict] | None, str]:
         if eps:
             return eps, f"proto:{p.name}"
         log.warning("proto %s 无可收 rpc，降级试下一个来源", p.name)
+    # ⑤ Go 路由注册提取（任务卡-F2 阶段 1 #6）：项目含 .go 才尝试——确定性正则，
+    # schema 如实 None（无契约体的端点照样可跑契约用例的路径/方法/状态码断言）
+    if any(p.suffix == ".go" for p in ws.rglob("*.go")
+           if not any(part in _SKIP_DIRS for part in p.parts)):
+        go_text = "\n".join(
+            p.read_text(encoding="utf-8", errors="replace")
+            for p in sorted(ws.rglob("*.go"))
+            if not p.name.endswith("_test.go")
+            and not any(part in _SKIP_DIRS for part in p.parts))
+        eps = parse_go_routes(go_text)
+        if eps:
+            return eps, "go_route"
+        log.warning("go 路由提取 0 端点（诚实降级）")
     return None, "no_spec"
