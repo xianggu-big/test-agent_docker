@@ -142,6 +142,35 @@ class RobustChat:
             f"{type(last).__name__}: {last}") from last
 
 
+# qwen3.5+ 系列默认开思考，而 Ollama 的 OpenAI 兼容端点 **不认 `think: false`**
+# （2026-11-12 实测：不传参 67.8s 烧满 3000 token、content 为空、_parse_cases 判废；
+#   传 reasoning_effort="none" 则 28.4s 正常产出 6 条用例）。Modelfile 里
+# `PARAMETER think false` 会报 unknown parameter，系统提示塞 /no_think 也无效——
+# 关闭思考只有调用侧这一条路，且本地/云端开关名不同。
+# 只对**本地端点**注入：云端供应商对未声明参数的容忍度不一致，不碰。
+_THINKING_MODEL_PREFIXES = ("qwen3.5", "qwen35", "qwen3.6", "qwen36", "qwen3.8", "qwen38")
+
+
+def _is_local_endpoint(base_url: str) -> bool:
+    u = (base_url or "").lower()
+    return "localhost" in u or "127.0.0.1" in u or ":11434" in u
+
+
+def _thinking_model(model: str) -> bool:
+    m = (model or "").lower()
+    return any(m.startswith(p) for p in _THINKING_MODEL_PREFIXES)
+
+
+def _apply_local_think_off(kwargs: dict) -> None:
+    """给本地思考型模型补 reasoning_effort="none"；调用方显式设过则原样尊重。"""
+    if not (_thinking_model(kwargs.get("model", "")) and
+            _is_local_endpoint(kwargs.get("base_url", ""))):
+        return
+    mk = dict(kwargs.get("model_kwargs") or {})
+    mk.setdefault("reasoning_effort", "none")
+    kwargs["model_kwargs"] = mk
+
+
 def make_chat(**kwargs):
     """构造带退避的 ChatOpenAI（参数与 ChatOpenAI 完全一致；延迟导入避免无 Key 场景开销）。
 
@@ -180,6 +209,8 @@ def make_chat(**kwargs):
     # 响应强制按 utf-8 解码（2026-11-05 批4 实锤：DeepSeek 部分 CDN 节点响应头
     # charset=gbk → httpx 尊重 header 解码 → 中文全部 mojibake 且 U+FFFD 丢字节
     # 无法事后逆向；DeepSeek 输出恒为 utf-8，忽略 header charset 是安全的）
+    # 本地思考型模型（qwen3.5+）必须显式关思考，否则 content 恒空——见上方常量注释
+    _apply_local_think_off(kwargs)
     if "http_client" not in kwargs:
         import httpx
         kwargs["http_client"] = httpx.Client(default_encoding="utf-8")

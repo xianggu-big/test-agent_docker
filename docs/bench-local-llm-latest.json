@@ -1,0 +1,24 @@
+[
+  {
+    "model": "qwen35-4b-text",
+    "num_gpu": 40,
+    "num_ctx": 8192,
+    "wall_s": 25.350680112838745,
+    "prompt_tok": 803,
+    "prefill_tps": 1310.3614835315466,
+    "gen_tok": 977,
+    "gen_tps": 45.76708563302789,
+    "vram_mb": 2903.7099990844727,
+    "total_mb": 2903.7099990844727,
+    "content_chars": 2845,
+    "thinking_chars": 0,
+    "parse_ok": true,
+    "n_cases": 6,
+    "methods": [
+      "等价类划分",
+      "边界值分析",
+      "错误推测法"
+    ],
+    "preview": "{   \"imports\": [\"import pytest\"],   \"cases\": [     {       \"name\": \"test_div_normal_integers_equivalence_class\",       \""
+  }
+]

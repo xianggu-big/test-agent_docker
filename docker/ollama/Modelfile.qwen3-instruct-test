@@ -8,4 +8,9 @@ PARAMETER repeat_penalty 1.15
 PARAMETER repeat_last_n 128
 PARAMETER num_ctx 8192
 PARAMETER num_predict 3000
+# 显存分层（2026-11-12 实测矩阵）：默认 auto 只把 55% 层放 GPU（2300/4151MB），
+# gen 仅 15 tok/s；24→19.8 / 28→24.9 / 32→31.9 / 36→26.7 / 40→33.1（VRAM 3613MB）。
+# 32 层是速度/显存的安全交点（3175MB，31.9 tok/s）；40 层多 438MB 只多 1.2 tok/s，
+# 且会把整卡顶到 3613MB 走共享内存，与 docker 并发时易抖。故取 32。
+PARAMETER num_gpu 32
 SYSTEM """你是资深软件测试工程师。严格按给定的用例设计方法生成 pytest 用例，断言必须先于执行结果确定（预期结果来自需求而非实际输出）。只输出 JSON，第一个字符必须是 {。"""

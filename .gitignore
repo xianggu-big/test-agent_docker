@@ -39,3 +39,6 @@ data/demo/java-api-book/target/
 data/demo/js-api-book/node_modules/
 data/demo/js-api-book/coverage/
 data/demo/php-api-book/vendor/
+
+# 本地 LLM 模型权重（GB 级，不入库；重建走 ollama create 或 registry manifest+blob 绕 Clash fake-ip）
+docker/ollama/qwen35/model.gguf

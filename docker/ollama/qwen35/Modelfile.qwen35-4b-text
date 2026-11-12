@@ -1,0 +1,31 @@
+# qwen3.5:4b 的纯文本派生版：砍掉 675MB mmproj（视觉编码器），只留 2.65GB 文本权重
+#
+# 为什么这么做：
+#   官方 qwen3.5:4b tag 是 3.32GB = 2.65GB 文本权重 + 675MB 视觉投影器。
+#   本项目的 gen_tests/evaluate/plan 全是纯文本任务，vision 一路用不上，
+#   但那 675MB 照样要挤 4GB 显存——实测 4GB 卡上全层上线要 3089MiB，装不下。
+#   砍掉后 2.65GB ≈ 现役 qwen3:4b 的 2.5GB，显存占用回到同档。
+#
+# thinking 说明：qwen3.5 的 renderer 默认开思考，且 Modelfile 里写 PARAMETER think 会报
+#   unknown parameter（Ollama 0.40.16 实测）。关闭方式只能在调用侧：
+#     原生 /api/chat  → "think": false
+#     OpenAI /v1      → "reasoning_effort": "none"（think:false 在 /v1 上被忽略）
+#   本文件只烘焙采样参数，不做（做不到的）思考开关。
+FROM ./model.gguf
+
+# 非思考模式官方推荐采样（temperature 0.7 / top_p 0.8 / top_k 20 / presence_penalty 1.5）
+# 测试生成要的是稳定复现不是创意，temperature 压到 0.3；presence_penalty 保 1.5 防复读循环
+PARAMETER temperature 0.3
+PARAMETER top_p 0.8
+PARAMETER top_k 20
+PARAMETER presence_penalty 1.5
+PARAMETER repeat_penalty 1.15
+PARAMETER repeat_last_n 128
+PARAMETER num_ctx 8192
+PARAMETER num_predict 3000
+# 显存分层：实测矩阵 24→19.8 / 28→24.9 / 32→31.9 / 36→26.7 tok/s
+# 40 层是文本版的最佳点（VRAM 2904MB，45.8 tok/s）；默认 auto 只给 ~15 tok/s
+# 调高到 99 会 VRAM 超配反跌，故写死 40
+PARAMETER num_gpu 40
+
+SYSTEM """你是资深软件测试工程师。严格按给定的用例设计方法生成 pytest 用例，断言必须先于执行结果确定（预期结果来自需求而非实际输出）。只输出 JSON，第一个字符必须是 {。"""
