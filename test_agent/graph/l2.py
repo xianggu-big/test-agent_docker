@@ -320,6 +320,61 @@ def _start_service(runner, container, app_module: str, port: int) -> tuple[bool,
     return False, (tail.stdout or tail.stderr or "服务未就绪")[-300:]
 
 
+_JAVA_MAIN_RE = re.compile(r"@(SpringBootApplication|RestController)?")
+
+
+def _detect_java_main(ws: Path) -> str | None:
+    """Java 服务入口探测（F 卡能力补齐，2026-11-12）：src/main/java 下
+    @SpringBootApplication 类 > 含 main 方法的 Application/Main 类。返回全限定类名。"""
+    src_root = ws / "src" / "main" / "java"
+    if not src_root.is_dir():
+        return None
+    spring, with_main = [], []
+    for p in src_root.rglob("*.java"):
+        try:
+            t = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        rel = p.relative_to(src_root).with_suffix("")
+        fqcn = ".".join(rel.parts)
+        if "@SpringBootApplication" in t:
+            spring.append(fqcn)
+        elif re.search(r"public\s+static\s+void\s+main\s*\(", t):
+            with_main.append(fqcn)
+    return (spring or with_main or [None])[0]
+
+
+def _start_service_java(runner, container, main_class: str, port: int) -> tuple[bool, str]:
+    """Java 服务后台启动（spring-boot:run 优先，退化 exec:java 主类）→ TCP 就绪探测。"""
+    import re as _re
+    if not _re.fullmatch(r"[\w.]+", main_class or ""):
+        return False, f"主类名非法：{main_class[:60]}"
+    runner.exec_in(container, ["sh", "-c",
+                   f"mkdir -p /work/logs && cd /work && "
+                   f"nohup mvn -q spring-boot:run "
+                   f"-Dspring-boot.run.arguments=--server.port={port} "
+                   f"> {APP_LOG_CONTAINER_PATH} 2>&1 &"],
+                   timeout_s=15)
+    wait = int(config.L2_SERVICE_WAIT_S)
+    chk_script = "\n".join([
+        "import time,socket,sys",
+        f"deadline=time.time()+{wait}",
+        "while True:",
+        "    try:",
+        f"        s=socket.create_connection(('127.0.0.1',{port}), timeout=2)",
+        "        s.close(); print('READY'); sys.exit(0)",
+        "    except Exception:",
+        "        if time.time()>deadline: print('NOT_READY'); sys.exit(1)",
+        "        time.sleep(1)",
+    ])
+    r = runner.exec_in(container, ["python3", "-c", chk_script], timeout_s=wait + 15)
+    if r.exit_code == 0 and "READY" in (r.stdout or ""):
+        return True, ""
+    tail = runner.exec_in(container, ["sh", "-c", f"tail -n 20 {APP_LOG_CONTAINER_PATH}"],
+                          timeout_s=10)
+    return False, (tail.stdout or tail.stderr or "Java 服务未就绪")[-300:]
+
+
 def judge_l2(stdout: str, last_exit: int, endpoints: list, skipped_routes: list) -> tuple[dict, str, str]:
     """L2 判读纯函数（Loop-1 自 run() 内联抽出，语义除 P2-5a 修复外逐字节不变）。
 
@@ -430,10 +485,13 @@ def make_l2_nodes(deps):
     def provision(state: L2State) -> dict:
         tid = state["task_id"]
         runner = deps.runner
-        # F 卡阶段 1 #7（2026-11-10）：primary_language=go → go126 镜像 + Go 服务启动；
-        # 其余语言维持 py312 + FastAPI/uvicorn 旧路径（逐字节不变）
-        is_go = state.get("primary_language") == "go"
-        image = config.IMAGE_GO if is_go else config.IMAGE_PY
+        # F 卡阶段 1 #7 + 能力补齐（2026-11-10/12）：契约用例=Python requests 黑盒
+        # （打 127.0.0.1 的服务）——四语言按 primary_language 分发镜像与服务启动：
+        # go=go126（烘焙 python3）/java=jdk17-maven+python3（pom 同容器 mvn run）/
+        # php=php83+python3（内置服务器）/python=py312+uvicorn（旧路径逐字节不变）
+        lang = state.get("primary_language") or "python"
+        image = {"go": config.IMAGE_GO, "java": config.IMAGE_JAVA,
+                 "php": config.IMAGE_PHP}.get(lang, config.IMAGE_PY)
         container = runner.ensure_container(image, state["container_name"], fresh=True)
         runner.copy_dir_into(container, state["workspace"])
         deps.registry.invoke(tid, deps.skills["install_deps"], {
@@ -443,7 +501,8 @@ def make_l2_nodes(deps):
         if not is_go:
             runner.exec_in(container, ["pip", "install", "-q", "requests", "jsonschema"],
                            timeout_s=300)
-        if is_go:
+        if lang == "go":
+            is_go = True
             from ..skills.llm_profile import effective_key
             ws = Path(state["workspace"])
             if not _detect_go_entry(ws):
@@ -467,6 +526,58 @@ def make_l2_nodes(deps):
             msg(state["session_id"], "assistant",
                 f"[L2·provision] Go 服务就绪（go build + 后台运行，127.0.0.1:{port}，"
                 f"健康路径 {health or '(tcp)'}）；契约用例=Python requests 黑盒（同容器打 127.0.0.1）")
+            return {"service_port": port, "service_ready": True}
+        if lang == "java":
+            # Java 服务启动（能力补齐，2026-11-12）：探测 main 类 → mvn spring-boot:run
+            # 或 mvn compile exec:java（demo 无 spring 时 exec 主类）；健康 TCP 兜底
+            from ..skills.llm_profile import effective_key
+            main_cls = _detect_java_main(Path(state["workspace"]))
+            if not main_cls:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason="未找到 Java 服务入口（src/main/java 无 @SpringBootApplication 或 main 类）",
+                            finished_at=_now())
+                msg(state["session_id"], "[L2·provision] 未找到 Java 服务入口：本级如实终止")
+                return {"done": True, "verdict": "stop", "service_ready": False,
+                        "stop_reason": "未找到 Java 服务入口"}
+            port = int(config.L2_SERVICE_PORT)
+            ok, why = _start_service_java(runner, container, main_cls, port)
+            if not ok:
+                _collect_app_logs(state, 1)
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason=f"Java 服务启动失败：{why}", finished_at=_now())
+                msg(state["session_id"], f"[L2·provision] Java 服务启动失败：{why}")
+                return {"done": True, "verdict": "stop", "service_ready": False,
+                        "stop_reason": f"Java 服务启动失败：{why}"}
+            msg(state["session_id"], "assistant",
+                f"[L2·provision] Java 服务就绪（{main_cls}，127.0.0.1:{port}）；契约用例=Python requests 黑盒")
+            return {"service_port": port, "service_ready": True}
+        if lang == "php":
+            # PHP 服务启动（能力补齐）：php -S 内置服务器（index.php 入口惯例，零探测）
+            port = int(config.L2_SERVICE_PORT)
+            runner.exec_in(container, ["sh", "-c",
+                           f"mkdir -p /work/logs && cd /work && "
+                           f"nohup php -S 127.0.0.1:{port} index.php > {APP_LOG_CONTAINER_PATH} 2>&1 &"],
+                           timeout_s=15)
+            php_chk = "\n".join([
+                "import time,socket,sys,urllib.request",
+                f"deadline=time.time()+{int(config.L2_SERVICE_WAIT_S)}",
+                "while True:",
+                "    try:",
+                f"        urllib.request.urlopen('http://127.0.0.1:{port}', timeout=2)",
+                "        print('READY'); sys.exit(0)",
+                "    except Exception:",
+                "        if time.time()>deadline: print('NOT_READY'); sys.exit(1)",
+                "        time.sleep(1)",
+            ])
+            r = runner.exec_in(container, ["python3", "-c", php_chk], timeout_s=int(config.L2_SERVICE_WAIT_S) + 15)
+            if r.exit_code != 0 or "READY" not in (r.stdout or ""):
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason="PHP 内置服务器未就绪", finished_at=_now())
+                msg(state["session_id"], "[L2·provision] PHP 服务未就绪：本级如实终止")
+                return {"done": True, "verdict": "stop", "service_ready": False,
+                        "stop_reason": "PHP 内置服务器未就绪"}
+            msg(state["session_id"], "assistant",
+                f"[L2·provision] PHP 服务就绪（内置服务器 127.0.0.1:{port}）")
             return {"service_port": port, "service_ready": True}
         app_module = _detect_app_module(Path(state["workspace"]))
         if not app_module:

@@ -31,3 +31,9 @@ RUN java -version 2>&1 | head -1 \
  && mvn -version | head -2
 
 CMD ["sleep", "infinity"]
+
+# 任务卡-F 能力补齐（2026-11-12）：L2 契约用例=Python requests 黑盒（打 127.0.0.1 的
+# Java 服务）——单容器闭环（与 go126 同策略）：python3+requests 同容器共存
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --break-system-packages --no-cache-dir requests jsonschema pytest
