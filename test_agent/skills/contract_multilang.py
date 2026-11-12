@@ -147,7 +147,17 @@ def render_contract_java(endpoints: list[dict], base_url: str, class_name: str =
 
 def render_contract_php(endpoints: list[dict], base_url: str, class_name: str = "ContractApiTest"
                         ) -> tuple[str, list[dict], list[str]]:
-    """PHP curl 契约用例（PHPUnit 类壳；<?php 必须首行——php83 渲染纪律）。"""
+    """PHP curl 契约用例（PHPUnit 类壳；<?php 必须首行——php83 渲染纪律）。
+    payload 用 PHP 数组字面量 ['k' => v]（JSON 对象花括号是 JS 语法=PHP Parse error）。"""
+
+    def _php_array(payload: dict) -> str:
+        # PHP 数组字面量（递归，标量 json_encode）
+        if not isinstance(payload, dict):
+            return json.dumps(payload, ensure_ascii=False)
+        items = [f"{json.dumps(k, ensure_ascii=False)} => {_php_array(v)}"
+                 for k, v in payload.items()]
+        return "[" + ", ".join(items) + "]"
+
     lines = [
         "<?php",
         "use PHPUnit\\Framework\\TestCase;",
@@ -189,7 +199,8 @@ def render_contract_php(endpoints: list[dict], base_url: str, class_name: str = 
             if isinstance(ep.get("request_schema"), dict):
                 from .contract_gen import example_from_schema
                 payload = example_from_schema(ep["request_schema"]) or {}
-            body += f"        [$code] = $this->http({json.dumps(ep['method'])}, {json.dumps(ep['path'])}, {json.dumps(payload, ensure_ascii=False)});\n"
+            body += (f"        [$code] = $this->http({json.dumps(ep['method'])}, "
+                     f"{json.dumps(ep['path'])}, {_php_array(payload)});\n")
         else:
             body += f"        [$code] = $this->http({json.dumps(ep['method'])}, {json.dumps(ep['path'])});\n"
         body += (f"        $this->assertSame({success}, $code, "

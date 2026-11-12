@@ -1,0 +1,1 @@
+{"version":2,"defects":[],"times":{"ContractApiTest::test_get__ping_\u5951\u7ea6\u9ed1\u76d2":0.005,"ContractApiTest::test_get__books_\u5951\u7ea6\u9ed1\u76d2":0.003,"ContractApiTest::test_post__books_\u5951\u7ea6\u9ed1\u76d2":0.002}}
