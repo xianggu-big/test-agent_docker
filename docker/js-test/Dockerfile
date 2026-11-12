@@ -29,6 +29,15 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && git --version && ps --version
 
+# python3（F 卡 C5，2026-11-12）：L3 冒烟执行器=Python requests 打 127.0.0.1（同 C4 契约
+# 架构：执行器语言无关，语言只决定服务启动）——node20-jest 原本无 python3，
+# 与 java/php 镜像同源补法；pip 软链保证 `pip install requests` 原命令可用
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 python3-pip \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -sf /usr/bin/pip3 /usr/local/bin/pip \
+ && python3 --version && pip --version
+
 # 变异轨（任务卡-F 阶段 1 #7，2026-11-12）：StrykerJS 钉版本（§6 坑预判 1 防漂移）
 RUN npm install -g --no-audit --no-fund jest@29 ts-jest@29 typescript@5 @types/jest@29 \
  && npm install -g --no-audit --no-fund @stryker-mutator/core@8.6.0 @stryker-mutator/jest-runner@8.6.0 \

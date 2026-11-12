@@ -17,8 +17,9 @@ from ..skills.llm_usage import log_llm_call
 from ..skills.scenario_gen import (apply_smoke_results, build_smoke_script,
                                    parse_scenarios, save_scenarios)
 from ..store.db import get_conn
-from .l2 import (_detect_app_module, _detect_go_entry, _now, _start_service,
-                 _start_service_go)
+from .l2 import (_detect_app_module, _detect_go_entry, _detect_java_main,
+                 _detect_js_entry, _now, _start_service, _start_service_go,
+                 _start_service_java, _start_service_js, _start_service_php)
 
 log = logging.getLogger(__name__)
 
@@ -57,9 +58,16 @@ def make_l3_nodes(deps):
     def prepare(state: L3State) -> dict:
         tid = state["task_id"]
         runner = deps.runner
-        # F 卡阶段 1 #8（2026-11-10）：primary_language=go → go126 镜像+Go 服务启动
-        is_go = state.get("primary_language") == "go"
-        image = config.IMAGE_GO if is_go else config.IMAGE_PY
+        # F 卡 C5（2026-11-12）：primary_language 四语言分发镜像与服务启动
+        # （go=go126/Go 服务；java=jdk17-maven+spring-boot:run；php=php83+内置服务器；
+        #   js=node20-jest+node 服务；python=py312+uvicorn 旧路径逐字节不变）。
+        # 冒烟执行器全语言统一=Python requests 打 127.0.0.1（同 C4 契约架构）——
+        # java/php 镜像已烘焙 python3，js 镜像补 python3（Dockerfile 同 commit）；
+        # go126 已烘焙 requests。冒烟脚本=build_smoke_script（语言无关）。
+        lang = state.get("primary_language") or "python"
+        image = {"go": config.IMAGE_GO, "java": config.IMAGE_JAVA,
+                 "php": config.IMAGE_PHP, "javascript": config.IMAGE_JS,
+                 "typescript": config.IMAGE_JS}.get(lang, config.IMAGE_PY)
         container = runner.ensure_container(image, state["container_name"], fresh=True)
         runner.copy_dir_into(container, state["workspace"])
         # 依赖三清单走 L1 同款 install_deps（uvicorn 等服务依赖随项目走），requests 为冒烟执行器
@@ -67,16 +75,19 @@ def make_l3_nodes(deps):
         registry.invoke(tid, deps.skills["install_deps"], {
             "container_name": state["container_name"],
             "deps_manifest": probe_deps_manifest(Path(state["workspace"]))})
-        if is_go:
+        port = int(config.L2_SERVICE_PORT)
+        ws = Path(state["workspace"])
+        if lang != "go":
+            # go126 镜像已烘焙 requests；其余语言容器运行时补（python3 镜像内可用）
+            runner.exec_in(container, ["pip", "install", "-q", "requests"],
+                           timeout_s=300)
+        if lang == "go":
             # F 卡 #8：go126 镜像烘焙 python3+requests（#7 Dockerfile），Go 服务走 go build
-            from ..skills.llm_profile import effective_key
-            ws = Path(state["workspace"])
             if not _detect_go_entry(ws):
                 _leg_update(tid, status="failed", verdict="stop",
                             stop_reason="未找到 Go 服务入口", finished_at=_now())
                 msg(state["session_id"], "[L3·prepare] 未找到 Go 服务入口：本级如实终止")
                 return {"done": True, "verdict": "stop", "stop_reason": "未找到 Go 服务入口"}
-            port = int(config.L2_SERVICE_PORT)
             ok, why, health = _start_service_go(runner, container, ws, port)
             if not ok:
                 _leg_update(tid, status="failed", verdict="stop",
@@ -87,15 +98,59 @@ def make_l3_nodes(deps):
             msg(state["session_id"], "assistant",
                 f"[L3·prepare] Go 服务就绪（127.0.0.1:{port}，健康 {health or '(tcp)'}）")
             state["service_port"] = port
+        elif lang == "java":
+            main_cls = _detect_java_main(ws)
+            if not main_cls:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason="未找到 Java 服务入口（src/main/java 无 @SpringBootApplication 或 main 类）",
+                            finished_at=_now())
+                msg(state["session_id"], "[L3·prepare] 未找到 Java 服务入口：本级如实终止")
+                return {"done": True, "verdict": "stop", "stop_reason": "未找到 Java 服务入口"}
+            ok, why = _start_service_java(runner, container, main_cls, port)
+            if not ok:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason=f"Java 服务启动失败：{why}", finished_at=_now())
+                msg(state["session_id"], f"[L3·prepare] Java 服务启动失败：{why}")
+                return {"done": True, "verdict": "stop",
+                        "stop_reason": f"Java 服务启动失败：{why}"}
+            msg(state["session_id"], "assistant",
+                f"[L3·prepare] Java 服务就绪（{main_cls}，127.0.0.1:{port}）")
+            state["service_port"] = port
+        elif lang == "php":
+            ok, why = _start_service_php(runner, container, port)
+            if not ok:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason=f"{why}（L3）", finished_at=_now())
+                msg(state["session_id"], f"[L3·prepare] {why}：本级如实终止")
+                return {"done": True, "verdict": "stop", "stop_reason": f"{why}（L3）"}
+            msg(state["session_id"], "assistant",
+                f"[L3·prepare] PHP 服务就绪（内置服务器 127.0.0.1:{port}）")
+            state["service_port"] = port
+        elif lang in ("javascript", "typescript"):
+            entry = _detect_js_entry(ws)
+            if not entry:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason="未找到 JS 服务入口（package.json main 或含 listen( 的 server/app/index/main.js）",
+                            finished_at=_now())
+                msg(state["session_id"], "[L3·prepare] 未找到 JS 服务入口：本级如实终止")
+                return {"done": True, "verdict": "stop", "stop_reason": "未找到 JS 服务入口"}
+            ok, why = _start_service_js(runner, container, entry, port)
+            if not ok:
+                _leg_update(tid, status="failed", verdict="stop",
+                            stop_reason=f"JS 服务启动失败：{why}"[:300], finished_at=_now())
+                msg(state["session_id"], f"[L3·prepare] JS 服务启动失败：{why}"[:200])
+                return {"done": True, "verdict": "stop",
+                        "stop_reason": f"JS 服务启动失败：{why}"[:300]}
+            msg(state["session_id"], "assistant",
+                f"[L3·prepare] JS 服务就绪（node {entry}，127.0.0.1:{port}）")
+            state["service_port"] = port
         else:
-            runner.exec_in(container, ["pip", "install", "-q", "requests"], timeout_s=300)
-            app_module = _detect_app_module(Path(state["workspace"]))
+            app_module = _detect_app_module(ws)
             if not app_module:
                 _leg_update(tid, status="failed", verdict="stop",
                             stop_reason="未找到 FastAPI 应用模块", finished_at=_now())
                 msg(state["session_id"], "[L3·prepare] 未找到 FastAPI 应用模块：本级如实终止")
                 return {"done": True, "verdict": "stop", "stop_reason": "未找到 FastAPI 应用模块"}
-            port = int(config.L2_SERVICE_PORT)
             ok, why = _start_service(runner, container, app_module, port)
             if not ok:
                 _leg_update(tid, status="failed", verdict="stop",

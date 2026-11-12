@@ -323,6 +323,89 @@ def _start_service(runner, container, app_module: str, port: int) -> tuple[bool,
 _JAVA_MAIN_RE = re.compile(r"@(SpringBootApplication|RestController)?")
 
 
+def _detect_js_entry(ws: Path) -> str | None:
+    """JS 服务入口探测（F 卡 C5，2026-11-12）：package.json main 字段 >
+    server.js/app.js/index.js/main.js（根目录，含 listen( 或 createServer 特征）。
+    返回容器内相对文件名。"""
+    pkg = ws / "package.json"
+    if pkg.is_file():
+        try:
+            main = json.loads(pkg.read_text(encoding="utf-8", errors="ignore")).get("main")
+            if isinstance(main, str) and (ws / main).is_file():
+                return main
+        except (json.JSONDecodeError, OSError):
+            pass
+    for name in ("server.js", "app.js", "index.js", "main.js"):
+        p = ws / name
+        if not p.is_file():
+            continue
+        try:
+            t = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "listen(" in t or "createServer" in t:
+            return name
+    return None
+
+
+def _start_service_js(runner, container, entry: str, port: int) -> tuple[bool, str]:
+    """JS 服务后台启动（node <entry>）→ TCP 就绪轮询（与 _start_service_go 同构）。"""
+    runner.exec_in(container, ["sh", "-c",
+                   f"mkdir -p /work/logs && cd /work && "
+                   f"nohup node {entry} > {APP_LOG_CONTAINER_PATH} 2>&1 &"],
+                   timeout_s=15)
+    wait = int(config.L2_SERVICE_WAIT_S)
+    chk = "\n".join([
+        "import time,socket,sys",
+        f"deadline=time.time()+{wait}",
+        "while True:",
+        "    s=socket.socket()",
+        "    s.settimeout(2)",
+        "    try:",
+        f"        s.connect(('127.0.0.1',{port}))",
+        "        print('READY'); sys.exit(0)",
+        "    except OSError:",
+        "        if time.time()>deadline: print('NOT_READY'); sys.exit(1)",
+        "        time.sleep(1)",
+        "    finally:",
+        "        s.close()",
+    ])
+    r = runner.exec_in(container, ["python3", "-c", chk], timeout_s=wait + 15)
+    if r.exit_code != 0 or "READY" not in (r.stdout or ""):
+        tail = runner.exec_in(container, ["sh", "-c", f"tail -n 20 {APP_LOG_CONTAINER_PATH}"],
+                              timeout_s=15)
+        return False, f"JS 服务未就绪（127.0.0.1:{port}），应用日志尾部：{(tail.stdout or '')[-300:]}"
+    return True, ""
+
+
+def _php_ready_check(port: int) -> str:
+    """PHP 内置服务器就绪轮询脚本（python3 -c 执行，java/php 镜像已烘焙 python3）。"""
+    return "\n".join([
+        "import time,sys,urllib.request",
+        f"deadline=time.time()+{int(config.L2_SERVICE_WAIT_S)}",
+        "while True:",
+        "    try:",
+        f"        urllib.request.urlopen('http://127.0.0.1:{port}', timeout=2)",
+        "        print('READY'); sys.exit(0)",
+        "    except Exception:",
+        "        if time.time()>deadline: print('NOT_READY'); sys.exit(1)",
+        "        time.sleep(1)",
+    ])
+
+
+def _start_service_php(runner, container, port: int) -> tuple[bool, str]:
+    """PHP 内置服务器后台启动（php -S，index.php 入口惯例）→ HTTP 就绪轮询。"""
+    runner.exec_in(container, ["sh", "-c",
+                   f"mkdir -p /work/logs && cd /work && "
+                   f"nohup php -S 127.0.0.1:{port} index.php > {APP_LOG_CONTAINER_PATH} 2>&1 &"],
+                   timeout_s=15)
+    r = runner.exec_in(container, ["python3", "-c", _php_ready_check(port)],
+                       timeout_s=int(config.L2_SERVICE_WAIT_S) + 15)
+    if r.exit_code != 0 or "READY" not in (r.stdout or ""):
+        return False, "PHP 内置服务器未就绪"
+    return True, ""
+
+
 def _detect_java_main(ws: Path) -> str | None:
     """Java 服务入口探测（F 卡能力补齐，2026-11-12）：src/main/java 下
     @SpringBootApplication 类 > 含 main 方法的 Application/Main 类。返回全限定类名。"""
@@ -553,29 +636,15 @@ def make_l2_nodes(deps):
             return {"service_port": port, "service_ready": True}
         if lang == "php":
             # PHP 服务启动（能力补齐）：php -S 内置服务器（index.php 入口惯例，零探测）
+            # （启动/就绪轮询已抽模块级 _start_service_php，L3 C5 复用，2026-11-12）
             port = int(config.L2_SERVICE_PORT)
-            runner.exec_in(container, ["sh", "-c",
-                           f"mkdir -p /work/logs && cd /work && "
-                           f"nohup php -S 127.0.0.1:{port} index.php > {APP_LOG_CONTAINER_PATH} 2>&1 &"],
-                           timeout_s=15)
-            php_chk = "\n".join([
-                "import time,socket,sys,urllib.request",
-                f"deadline=time.time()+{int(config.L2_SERVICE_WAIT_S)}",
-                "while True:",
-                "    try:",
-                f"        urllib.request.urlopen('http://127.0.0.1:{port}', timeout=2)",
-                "        print('READY'); sys.exit(0)",
-                "    except Exception:",
-                "        if time.time()>deadline: print('NOT_READY'); sys.exit(1)",
-                "        time.sleep(1)",
-            ])
-            r = runner.exec_in(container, ["python3", "-c", php_chk], timeout_s=int(config.L2_SERVICE_WAIT_S) + 15)
-            if r.exit_code != 0 or "READY" not in (r.stdout or ""):
+            ok, why = _start_service_php(runner, container, port)
+            if not ok:
                 _leg_update(tid, status="failed", verdict="stop",
-                            stop_reason="PHP 内置服务器未就绪", finished_at=_now())
-                msg(state["session_id"], "[L2·provision] PHP 服务未就绪：本级如实终止")
+                            stop_reason=why, finished_at=_now())
+                msg(state["session_id"], f"[L2·provision] {why}：本级如实终止")
                 return {"done": True, "verdict": "stop", "service_ready": False,
-                        "stop_reason": "PHP 内置服务器未就绪"}
+                        "stop_reason": why}
             msg(state["session_id"], "assistant",
                 f"[L2·provision] PHP 服务就绪（内置服务器 127.0.0.1:{port}）")
             return {"service_port": port, "service_ready": True}
