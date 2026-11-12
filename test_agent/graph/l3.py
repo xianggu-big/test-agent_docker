@@ -78,8 +78,9 @@ def make_l3_nodes(deps):
         port = int(config.L2_SERVICE_PORT)
         ws = Path(state["workspace"])
         if lang != "go":
-            # go126 镜像已烘焙 requests；其余语言容器运行时补（python3 镜像内可用）
-            runner.exec_in(container, ["pip", "install", "-q", "requests"],
+            # go126 镜像已烘焙 requests+pytest；其余语言容器运行时补——pytest 为
+            # L4 验收回归模块（D6 转化产物）的执行环境（2026-11-12 C5 补环）
+            runner.exec_in(container, ["pip", "install", "-q", "requests", "pytest"],
                            timeout_s=300)
         if lang == "go":
             # F 卡 #8：go126 镜像烘焙 python3+requests（#7 Dockerfile），Go 服务走 go build
