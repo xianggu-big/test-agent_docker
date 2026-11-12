@@ -103,4 +103,7 @@ def test_js_adapter_统一层桥接(tmp_path):
     rows, tot, miss = js_adapter._coverage_rows(cm)
     assert tot >= 1
     unified = getattr(js_adapter, "LAST_UNIFIED_COVERAGE", None)
-    assert unified and any(f["file"] == "src/calc.js" for f in unified["files"])
+    assert unified and any(
+        f["file"].endswith("src/calc.js") for f in unified["files"])
+    # 真机 schema 字段（f2_stage0/js 覆盖统一层实测）：statements/missing_lines
+    assert all("statements" in f and "missing_lines" in f for f in unified["files"])
