@@ -130,6 +130,14 @@ def render_slot_template(kind: str, slots: dict, base_name: str = "case") -> str
             f"def {fname}({params}):\n    {tail}\n")
 
 
+# 模板方法 → 默认 expected_basis（治理一致性：T1 四语言 basis 字段缺口补齐）
+_DEFAULT_BASIS = {
+    "T1": "常识", "T2": "常识", "T5": "常识",
+    "T4": "需求明示",   # 状态迁移=需求声明语义
+    "MR": "需求明示",   # 蜕变关系=需求声明语义
+}
+
+
 def expand_template_cases(cases: list[dict]) -> tuple[list[dict], list[str]]:
     """双通道展开（gen_tests 调用）：含 template 槽位的案渲染成代码，其余原样通过。
 
@@ -151,5 +159,9 @@ def expand_template_cases(cases: list[dict]) -> tuple[list[dict], list[str]]:
         c = dict(c)
         c["code"] = code
         c.setdefault("method", KIND_METHOD.get(str(kind)))
+        # T1 basis 字段补法（治理一致性核对表 T1 ⚠️→✅，2026-11-12）：模板展开的
+        # 案若缺 expected_basis，按方法类型给确定性默认（等价类/边界值/错误推测=
+        # 「常识」；状态迁移/蜕变=「需求明示」语义）——LLM 已填的不覆盖
+        c.setdefault("expected_basis", _DEFAULT_BASIS.get(str(kind), "常识"))
         out.append(c)
     return out, rejected

@@ -69,3 +69,93 @@ def test_probe_honest_degradation(tmp_path: Path):
     (tmp_path / "openapi.json").write_text("{不是 JSON", encoding="utf-8")
     eps2, how2 = probe_endpoint_source(tmp_path)        # 坏 spec → 诚实降级不炸
     assert eps2 is None and how2 == "no_spec"
+
+
+# ---------- swag 注释提取（D4 第①级升级，2026-11-12） ----------
+
+def test_parse_swag_annotations_完整块():
+    from test_agent.skills.endpoint_extract import parse_swag_annotations
+    text = """// ListAlbums
+// @Router /albums [get]
+// @Success 200 {object} album.AlbumList
+func listAlbums() {}
+
+// DeleteAlbum
+// @Router /albums/{id} [delete]
+// @Param id path string true "Album ID"
+// @Success 200 {object} album.Empty
+func deleteAlbum() {}
+
+// CreateAlbum
+// @Router /albums [post]
+// @Param request body album.AlbumCreateRequest true "payload"
+// @Success 201 {object} album.Album
+func createAlbum() {}
+"""
+    eps = parse_swag_annotations(text)
+    assert len(eps) == 3
+    by_route = {(e["method"], e["path"]): e for e in eps}
+    assert by_route[("DELETE", "/albums/{id}")]["params"][0]["name"] == "id"
+    assert by_route[("POST", "/albums")]["request_schema"]["x-swag-ref"] == \
+        "album.AlbumCreateRequest"
+    assert by_route[("POST", "/albums")]["success_code"] == 201   # @Success 优先
+    assert by_route[("GET", "/albums")]["response_schema"]["x-swag-ref"] == "album.AlbumList"
+    assert all(e["source"] == "go_swag" for e in eps)
+
+
+def test_swag_probe链_swag优先于go_route(tmp_path):
+    from test_agent.skills.endpoint_extract import probe_endpoint_source
+    ws = tmp_path / "proj"
+    ws.mkdir()
+    (ws / "main.go").write_text(
+        "// @Router /albums [get]\n"
+        "// @Success 200 {object} album.AlbumList\n"
+        "func list() {}\n"
+        'r.GET("/albums", list)\n', encoding="utf-8")
+    eps, how = probe_endpoint_source(ws)
+    assert how == "go_swag"                       # swag schema 更全优先
+    assert eps[0]["response_schema"]["x-swag-ref"] == "album.AlbumList"
+
+
+# ---------- swag 注释提取（D4 第①级升级，2026-11-12） ----------
+
+def test_parse_swag_annotations_完整块():
+    from test_agent.skills.endpoint_extract import parse_swag_annotations
+    text = "\n".join([
+        "// ListAlbums",
+        "// @Router /albums [get]",
+        '// @Success 200 {object} album.AlbumList',
+        "func listAlbums() {}",
+        "// DeleteAlbum",
+        "// @Router /albums/{id} [delete]",
+        '// @Param id path string true "Album ID"',
+        "func deleteAlbum() {}",
+        "// CreateAlbum",
+        "// @Router /albums [post]",
+        '// @Param request body album.AlbumCreateRequest true "payload"',
+        '// @Success 201 {object} album.Album',
+        "func createAlbum() {}",
+    ])
+    eps = parse_swag_annotations(text)
+    assert len(eps) == 3
+    by_route = {(e["method"], e["path"]): e for e in eps}
+    assert by_route[("DELETE", "/albums/{id}")]["params"][0]["name"] == "id"
+    assert by_route[("POST", "/albums")]["request_schema"]["x-swag-ref"] == \
+        "album.AlbumCreateRequest"
+    assert by_route[("POST", "/albums")]["success_code"] == 201   # @Success 优先
+    assert by_route[("GET", "/albums")]["response_schema"]["x-swag-ref"] == "album.AlbumList"
+    assert all(e["source"] == "go_swag" for e in eps)
+
+
+def test_swag_probe链_swag优先于go_route(tmp_path):
+    from test_agent.skills.endpoint_extract import probe_endpoint_source
+    ws = tmp_path / "proj"
+    ws.mkdir()
+    (ws / "main.go").write_text(
+        "// @Router /albums [get]\n"
+        "// @Success 200 {object} album.AlbumList\n"
+        "func list() {}\n"
+        'r.GET("/albums", list)\n', encoding="utf-8")
+    eps, how = probe_endpoint_source(ws)
+    assert how == "go_swag"                       # swag schema 更全优先
+    assert eps[0]["response_schema"]["x-swag-ref"] == "album.AlbumList"

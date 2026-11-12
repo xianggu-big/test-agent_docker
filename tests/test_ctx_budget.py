@@ -186,3 +186,22 @@ def test_段落裁剪_无预算零感知():
     prompt = "X" * 30000
     out, trail = fit_prompt_sections(prompt, None, [("A", "B")])
     assert out == prompt and trail == ""
+
+
+# ---------- T1 basis 字段补法（治理一致性核对表 T1 ⚠️→✅） ----------
+
+def test_模板展开_basis缺省补齐():
+    from test_agent.skills.test_templates import expand_template_cases
+    # T2 六点语义要求 min-1/min/min+1/max-1/max/max+1（slots 校验闸）
+    case = {"name": "test_div_边界值", "template": "T2",
+            "slots": {"mode": "valid", "imports": "from calc import div",
+                      "target": "div({v}, 2)",
+                      "cases": [{"value": 9, "expected": 4, "label": "min-1"},
+                                {"value": 10, "expected": 5, "label": "min"},
+                                {"value": 11, "expected": 5, "label": "min+1"},
+                                {"value": 19, "expected": 9, "label": "max-1"},
+                                {"value": 20, "expected": 10, "label": "max"},
+                                {"value": 21, "expected": 10, "label": "max+1"}]}}
+    out, rej = expand_template_cases([case])
+    assert not rej
+    assert out[0]["expected_basis"] == "常识"     # T2 边界值=确定性默认

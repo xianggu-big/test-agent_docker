@@ -123,6 +123,52 @@ def parse_openapi(spec: dict) -> list[dict]:
     return out
 
 
+def probe_endpoint_source(ws: Path) -> tuple[list[dict] | None, str]:
+    """D4 降级链探测：返回 (端点清单|None, 来源说明)。None = 无可用提取路径（诚实降级）。"""
+    ws = Path(ws)
+    for name in _SPEC_NAMES:
+        p = ws / name
+        if not p.exists():
+            continue
+        try:
+            spec = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            log.warning("spec %s 解析失败，降级试下一个来源: %s", name, e)
+            continue
+        eps = parse_openapi(spec)
+        if eps:
+            return eps, f"spec:{name}"
+        log.warning("spec %s 无可收端点，降级试下一个来源", name)
+    # ④ .proto 源（黑包阶段4）：spec 之后降级——REST+proto 并存场景 spec 优先
+    for p in sorted(ws.glob("*.proto")):
+        try:
+            doc = parse_proto(p.read_text(encoding="utf-8", errors="replace"))
+        except OSError as e:
+            log.warning("proto %s 读取失败，降级试下一个来源: %s", p.name, e)
+            continue
+        eps = proto_endpoints(doc)
+        if eps:
+            return eps, f"proto:{p.name}"
+        log.warning("proto %s 无可收 rpc，降级试下一个来源", p.name)
+    # ⑤ Go 提取两级：swag 注释（schema 骨架更全）优先，0 端点降级 go_route——
+    # 任务卡-F D4 第①级升级（2026-11-12）
+    if any(p.suffix == ".go" for p in ws.rglob("*.go")
+           if not any(part in _SKIP_DIRS for part in p.parts)):
+        go_text = "\n".join(
+            p.read_text(encoding="utf-8", errors="replace")
+            for p in sorted(ws.rglob("*.go"))
+            if not p.name.endswith("_test.go")
+            and not any(part in _SKIP_DIRS for part in p.parts))
+        eps = parse_swag_annotations(go_text)
+        if eps:
+            return eps, "go_swag"
+        eps = parse_go_routes(go_text)
+        if eps:
+            return eps, "go_route"
+        log.warning("go 路由提取 0 端点（诚实降级）")
+    return None, "no_spec"
+
+
 def parse_go_routes(text: str) -> list[dict]:
     """Go 路由注册提取（任务卡-F2 阶段 1 #6，确定性正则零 LLM）：gin/echo/chi/
     net-http 主形态 `(r|e|router|mux|app).METHOD("path", ...)` 与
@@ -174,44 +220,61 @@ def parse_go_routes(text: str) -> list[dict]:
     return out
 
 
-def probe_endpoint_source(ws: Path) -> tuple[list[dict] | None, str]:
-    """D4 降级链探测：返回 (端点清单|None, 来源说明)。None = 无可用提取路径（诚实降级）。"""
-    ws = Path(ws)
-    for name in _SPEC_NAMES:
-        p = ws / name
-        if not p.exists():
+
+
+def parse_swag_annotations(text: str) -> list[dict]:
+    """swag 注释提取（任务卡-F D4 第①级升级，2026-11-12，确定性零 LLM）：
+    gin 项目惯用 swag 注释块（@Router/@Param/@Success）——比 go_route 多出
+    request/response schema 骨架（x-swag-ref 类型引用，字段级解析超 v1 如实标注），
+    在 probe 降级链中先于 go_route（schema 更全优先）。
+    注释形态：// @Router /albums/{id} [delete] / @Param id path string true "..."
+    / @Param request body album.Req true "..." / @Success 200 {object} album.Album
+    """
+    router_re = re.compile(r"@Router\s+(\S+)\s+\[(\w+)\]")
+    param_re = re.compile(
+        r'@Param\s+(\w+)\s+(\w+)\s+([\w.\[\]]+)\s+(\w+)(?:\s+"([^"]*)")?')
+    success_re = re.compile(r"@Success\s+(\d{3})\s+(?:\{object\}\s+([\w.]+))?")
+    out: list[dict] = []
+    cur: dict | None = None
+    for ln in (text or "").splitlines():
+        stripped = ln.strip()
+        if not stripped.startswith("//"):
             continue
-        try:
-            spec = json.loads(p.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as e:
-            log.warning("spec %s 解析失败，降级试下一个来源: %s", name, e)
+        if m := router_re.search(stripped):
+            if cur:
+                out.append(cur)
+            cur = {"method": m.group(2).upper(),
+                   "path": re.sub(r":([A-Za-z_]\w*)", "{\1}", m.group(1)),
+                   "operation_id": None, "params": [],
+                   "request_schema": None, "response_schema": None,
+                   "source": "go_swag", "success_code": 200,
+                   "documented_codes": []}
             continue
-        eps = parse_openapi(spec)
-        if eps:
-            return eps, f"spec:{name}"
-        log.warning("spec %s 无可收端点，降级试下一个来源", name)
-    # ④ .proto 源（黑包阶段4）：spec 之后降级——REST+proto 并存场景 spec 优先
-    for p in sorted(ws.glob("*.proto")):
-        try:
-            doc = parse_proto(p.read_text(encoding="utf-8", errors="replace"))
-        except OSError as e:
-            log.warning("proto %s 读取失败，降级试下一个来源: %s", p.name, e)
+        if cur is None:
             continue
-        eps = proto_endpoints(doc)
-        if eps:
-            return eps, f"proto:{p.name}"
-        log.warning("proto %s 无可收 rpc，降级试下一个来源", p.name)
-    # ⑤ Go 路由注册提取（任务卡-F2 阶段 1 #6）：项目含 .go 才尝试——确定性正则，
-    # schema 如实 None（无契约体的端点照样可跑契约用例的路径/方法/状态码断言）
-    if any(p.suffix == ".go" for p in ws.rglob("*.go")
-           if not any(part in _SKIP_DIRS for part in p.parts)):
-        go_text = "\n".join(
-            p.read_text(encoding="utf-8", errors="replace")
-            for p in sorted(ws.rglob("*.go"))
-            if not p.name.endswith("_test.go")
-            and not any(part in _SKIP_DIRS for part in p.parts))
-        eps = parse_go_routes(go_text)
-        if eps:
-            return eps, "go_route"
-        log.warning("go 路由提取 0 端点（诚实降级）")
-    return None, "no_spec"
+        if m := param_re.search(stripped):
+            where = m.group(2)
+            if where == "body":
+                cur["request_schema"] = {"type": "object",
+                                          "x-swag-ref": m.group(3),
+                                          "properties": {}}
+            elif where in ("path", "query"):
+                cur["params"].append({"name": m.group(1), "in": where,
+                                       "required": m.group(4) == "true",
+                                       "schema": {"type": m.group(3)}})
+        if m := success_re.search(stripped):
+            cur["success_code"] = int(m.group(1))
+            if m.group(2):
+                cur["response_schema"] = {"type": "object",
+                                           "x-swag-ref": m.group(2),
+                                           "properties": {}}
+    if cur:
+        out.append(cur)
+    seen: set = set()
+    uniq = []
+    for e in out:
+        key = (e["method"], e["path"])
+        if key not in seen:
+            seen.add(key)
+            uniq.append(e)
+    return uniq
