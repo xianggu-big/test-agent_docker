@@ -1,4 +1,4 @@
-// 最小 JS REST（F 卡 C4 契约轨真机载体）：原生 http 模块，books 列表 + 创建
+// 最小 JS REST（F 卡 C4 契约轨/C5 场景轨真机载体）：原生 http 模块，books 列表 + 创建 + 按 id 读回
 const http = require("http");
 
 const books = [];
@@ -27,6 +27,18 @@ const server = http.createServer((req, res) => {
       res.writeHead(201, { "Content-Type": "application/json" });
       res.end(JSON.stringify(b));
     });
+    return;
+  }
+  const m = url.pathname.match(/^\/books\/(\d+)$/);   // C5 场景轨：POST 创建 → 按 id 读回
+  if (m && req.method === "GET") {
+    const b = books.find((x) => String(x.id) === m[1]);
+    if (!b) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "not found" }));
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(b));
     return;
   }
   res.writeHead(404, { "Content-Type": "application/json" });
