@@ -34,7 +34,7 @@ def is_context_truncated(prompt_tokens: int, base_url: str = "",
                          ctx_budget: int | None = None) -> bool:
     """对账闸（任务卡-H 步骤 2，纯函数）：本地端点实际 prompt_tokens ≥ 预算×0.95 →
     True（KV 溢出 CPU=5 倍掉速，打标供归因与预算治理）。
-    预算来源优先级：显式 ctx_budget（make_chat 透传的 profile.ctx_budget，如 local=16384）
+    预算来源优先级：显式 ctx_budget（make_chat 透传的 profile.ctx_budget，如 local=8192——2026-11-13 实测回滚）
     > None（云端档=不限，恒 False）。base_url 仅用于注释语义（预算字段已隐含端点档位）。"""
     if not ctx_budget or ctx_budget <= 0:
         return False

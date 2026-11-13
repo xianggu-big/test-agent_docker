@@ -1,0 +1,70 @@
+[
+ {
+  "task": 1001,
+  "verdict": "stop",
+  "failure_kind": "product_defect",
+  "armA_deepseek": {
+   "chars": 2114,
+   "rules_violations": []
+  },
+  "armB_local": {
+   "chars": 575,
+   "rules_violations": [],
+   "gen": [
+    {
+     "seconds": 47.6,
+     "prompt_tokens": 1926,
+     "completion_tokens": 1718
+    }
+   ]
+  },
+  "same_input": true
+ },
+ {
+  "task": 996,
+  "verdict": "stop",
+  "failure_kind": "product_defect",
+  "armA_deepseek": {
+   "chars": 1707,
+   "rules_violations": []
+  },
+  "armB_local": {
+   "chars": 687,
+   "rules_violations": [
+    "叙述热点未覆盖 5/5 与数据 0/5 不符"
+   ],
+   "gen": [
+    {
+     "seconds": 13.1,
+     "prompt_tokens": 1798,
+     "completion_tokens": 428
+    }
+   ]
+  },
+  "same_input": true
+ },
+ {
+  "task": 990,
+  "verdict": "stop",
+  "failure_kind": "case_defect",
+  "armA_deepseek": {
+   "chars": 1220,
+   "rules_violations": []
+  },
+  "armB_local": {
+   "chars": 961,
+   "rules_violations": [
+    "叙述覆盖率 70% 与数据 13% 不符",
+    "叙述热点未覆盖 5/5 与数据 0/5 不符"
+   ],
+   "gen": [
+    {
+     "seconds": 17.7,
+     "prompt_tokens": 2181,
+     "completion_tokens": 609
+    }
+   ]
+  },
+  "same_input": true
+ }
+]

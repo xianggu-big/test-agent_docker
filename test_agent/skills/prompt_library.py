@@ -509,7 +509,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
     True=注入层位覆盖纪律段+按 target_language 附 HTTP 层用例骨架
     （go=httptest / python=TestClient / 其余=通用纪律）；False=不注入（逐字节不变）。
     ctx_budget: 上下文预算（任务卡-H，2026-11-10；来自 profile.ctx_budget，如
-    local=16384）：超预算时源码按入口/热点排序降采样+末尾显式截断声明；
+    local=8192）：超预算时源码按入口/热点排序降采样+末尾显式截断声明；
     None=不限（行为与旧版逐字节一致）。
     """
     defense_text = ""
