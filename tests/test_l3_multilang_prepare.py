@@ -103,3 +103,31 @@ def test_php_ready_check_script_self_contained():
     # 语法自给性：编译通过（端口未开，不真跑轮询）
     compile(src, "<php_ready_check>", "exec")
     assert "urllib.request" in src and "9999" in src
+
+
+def test_php_ready_check_404也算就绪():
+    # C5 真机实锤（2026-11-13）：api 型项目根路径 404 → 旧脚本 HTTPError 被当未就绪，
+    # 服务永远起不来。真行为验证：本地 404 服务器上轮询脚本必须 READY 退出 0。
+    import subprocess
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class _NotFound(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'{"error": "not found"}')
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), _NotFound)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        r = subprocess.run([sys.executable, "-c", _php_ready_check(port)],
+                           capture_output=True, text=True, timeout=30)
+        assert r.returncode == 0 and "READY" in r.stdout, f"404 应被判定就绪：{r.stdout}{r.stderr}"
+    finally:
+        srv.shutdown()
+

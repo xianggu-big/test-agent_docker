@@ -96,7 +96,7 @@ def make_l3_nodes(deps):
                 msg(state["session_id"], f"[L3·prepare] Go 服务启动失败：{why}")
                 return {"done": True, "verdict": "stop",
                         "stop_reason": f"Go 服务启动失败：{why}"}
-            msg(state["session_id"], "assistant",
+            msg(state["session_id"],
                 f"[L3·prepare] Go 服务就绪（127.0.0.1:{port}，健康 {health or '(tcp)'}）")
             state["service_port"] = port
         elif lang == "java":
@@ -114,7 +114,7 @@ def make_l3_nodes(deps):
                 msg(state["session_id"], f"[L3·prepare] Java 服务启动失败：{why}")
                 return {"done": True, "verdict": "stop",
                         "stop_reason": f"Java 服务启动失败：{why}"}
-            msg(state["session_id"], "assistant",
+            msg(state["session_id"],
                 f"[L3·prepare] Java 服务就绪（{main_cls}，127.0.0.1:{port}）")
             state["service_port"] = port
         elif lang == "php":
@@ -124,7 +124,7 @@ def make_l3_nodes(deps):
                             stop_reason=f"{why}（L3）", finished_at=_now())
                 msg(state["session_id"], f"[L3·prepare] {why}：本级如实终止")
                 return {"done": True, "verdict": "stop", "stop_reason": f"{why}（L3）"}
-            msg(state["session_id"], "assistant",
+            msg(state["session_id"],
                 f"[L3·prepare] PHP 服务就绪（内置服务器 127.0.0.1:{port}）")
             state["service_port"] = port
         elif lang in ("javascript", "typescript"):
@@ -142,7 +142,7 @@ def make_l3_nodes(deps):
                 msg(state["session_id"], f"[L3·prepare] JS 服务启动失败：{why}"[:200])
                 return {"done": True, "verdict": "stop",
                         "stop_reason": f"JS 服务启动失败：{why}"[:300]}
-            msg(state["session_id"], "assistant",
+            msg(state["session_id"],
                 f"[L3·prepare] JS 服务就绪（node {entry}，127.0.0.1:{port}）")
             state["service_port"] = port
         else:
