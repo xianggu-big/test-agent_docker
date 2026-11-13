@@ -22,12 +22,18 @@ PROVIDERS = ("deepseek", "qwen", "local", "custom")
 
 
 def _num_ctx_default() -> int:
-    """本地档预算默认值：OLLAMA_NUM_CTX 环境变量（部署事实）> 16384（Modelfile 现值；
-    2026-11-12 KV q8_0+FA 拍板落地后 Modelfile num_ctx 8192→16384）。"""
+    """本地档预算默认值：OLLAMA_NUM_CTX 环境变量（部署事实）> 8192。
+
+    2026-11-13 功能验证回滚：KV q8_0+FA 在 runner 侧真生效（日志 flash_attn=enabled/
+    K,V q8_0），但本机 ollama 构建 0.40.16 的 server 层对提示词有 8192 硬钳制——
+    模型参数/请求 options/OLLAMA_CONTEXT_LENGTH（16k、32k）/LLAMA_ARG_FIT=0/进程重启
+    五组对照全部截断在 8194=8192+2。预算若虚标 16384，10-16k 提示词会过 H 预算闸后
+    被 ollama 从头部静默截断（需求文本在开头=最坏形态）。q8_0+FA 保留（8192 下 KV
+    显存减半）。ollama 更新后用 OLLAMA_NUM_CTX 环境变量一键重启 16k。"""
     try:
-        return max(2048, int(os.environ.get("OLLAMA_NUM_CTX", "16384")))
+        return max(2048, int(os.environ.get("OLLAMA_NUM_CTX", "8192")))
     except ValueError:
-        return 16384
+        return 8192
 
 # 云端预设：base_url 固定；model 预设值可改（用户可覆盖）；key_env=环境变量"名字"
 PRESETS: dict[str, dict] = {
