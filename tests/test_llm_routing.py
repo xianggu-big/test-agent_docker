@@ -250,11 +250,11 @@ def test_老profiles条目缺ctx_budget读时补齐(db, monkeypatch):
                (json.dumps(legacy_doc),))
     db.commit()
     doc = load_doc(db)
-    assert doc["profiles"]["local"]["ctx_budget"] == 8192   # 默认=Modelfile 现值（716 实锤 16k 超端点）
+    assert doc["profiles"]["local"]["ctx_budget"] == 16384  # 默认=Modelfile 现值（2026-11-12 拍板 KV q8_0+FA 后 16k 落地；旧值 8192）
     monkeypatch.setattr(llm_profile, "current_doc", lambda conn=None: current_doc(db))
     from test_agent.skills.llm_client import make_chat
     llm = make_chat(phase="gen_tests")
-    assert getattr(llm, "_ctx_budget", None) == 8192       # 预算到位 → 降采样可触发
+    assert getattr(llm, "_ctx_budget", None) == 16384      # 预算到位 → 降采样可触发
 
 
 # ---------- B2+ 报告页错配呈现（687 遗留：capability_mismatch 上 /api/report） ----------

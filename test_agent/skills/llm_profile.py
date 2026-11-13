@@ -22,11 +22,12 @@ PROVIDERS = ("deepseek", "qwen", "local", "custom")
 
 
 def _num_ctx_default() -> int:
-    """本地档预算默认值：OLLAMA_NUM_CTX 环境变量（部署事实）> 8192（Modelfile 现值）。"""
+    """本地档预算默认值：OLLAMA_NUM_CTX 环境变量（部署事实）> 16384（Modelfile 现值；
+    2026-11-12 KV q8_0+FA 拍板落地后 Modelfile num_ctx 8192→16384）。"""
     try:
-        return max(2048, int(os.environ.get("OLLAMA_NUM_CTX", "8192")))
+        return max(2048, int(os.environ.get("OLLAMA_NUM_CTX", "16384")))
     except ValueError:
-        return 8192
+        return 16384
 
 # 云端预设：base_url 固定；model 预设值可改（用户可覆盖）；key_env=环境变量"名字"
 PRESETS: dict[str, dict] = {

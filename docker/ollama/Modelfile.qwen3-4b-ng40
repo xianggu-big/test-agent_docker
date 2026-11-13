@@ -1,12 +1,13 @@
 # 本地测试派生模型 v2：官方无思考变体 + 4GB 显存适配参数
 # qwen3:4b-instruct-2507 = Qwen 官方无思考版（治思考块烧预算/content 为空问题的治本方案）
-# num_ctx 8192 = 4GB 显存的 KV 缓存上限（16k 会溢出 CPU 掉速到 ~3 tok/s）
+# num_ctx 16384 = KV q8_0+FA 后的实测可行档（2026-11-12 拍板落地；
+# 原 8192 是无量化上限——16k 溢出 CPU 掉速；q8_0 砍半 KV 占用后 16k 驻留显存）
 # repeat_penalty 1.15 = 防复读循环（Ollama "token repeat limit reached" 中止）
 FROM qwen3:4b-instruct
 PARAMETER temperature 0.2
 PARAMETER repeat_penalty 1.15
 PARAMETER repeat_last_n 128
-PARAMETER num_ctx 8192
+PARAMETER num_ctx 16384
 PARAMETER num_predict 3000
 SYSTEM """你是资深软件测试工程师。严格按给定的用例设计方法生成 pytest 用例，断言必须先于执行结果确定（预期结果来自需求而非实际输出）。只输出 JSON，第一个字符必须是 {。"""
 
