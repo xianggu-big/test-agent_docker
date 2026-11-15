@@ -120,6 +120,22 @@ def build_skills(runner) -> dict[str, Skill]:
             r = runner.exec_in(container, ["pip", "install", "-r", "requirements.txt"],
                                timeout_s=300)
             parts.append(f"requirements exit={r.exit_code}\n{r.stdout[-1500:]}{r.stderr[-500:]}")
+            # httpx 补装（2026-11-16 全语言 18 格实锤 task 1166：multi-module-demo 的
+            # requirements 只声明 fastapi，漏 httpx——fastapi/starlette 的 TestClient
+            # 运行时必需，collect 闸 import 炸→三轮废案→同指纹熔断。requirements 漏
+            # 声明是高频真实形态，环境适配补装（非改项目文件））
+            try:
+                has_fastapi = runner.exec_in(
+                    container, ["python", "-c", "import fastapi"], timeout_s=20).exit_code == 0
+                has_httpx = runner.exec_in(
+                    container, ["python", "-c", "import httpx"], timeout_s=20).exit_code == 0
+                if has_fastapi and not has_httpx:
+                    rh = runner.exec_in(container, ["pip", "install", "-q", "httpx"],
+                                        timeout_s=180)
+                    parts.append(f"httpx 补装（fastapi/starlette TestClient 运行时依赖，"
+                                 f"requirements 漏声明）exit={rh.exit_code}")
+            except Exception as e:      # noqa: BLE001 —— 补装探测失败不炸主流程
+                parts.append(f"httpx 补装探测失败：{type(e).__name__}: {e}")
         elif manifest in ("pyproject", "setup_py"):
             # PEP 621 / setup.py 项目：装项目自身，把 [project].dependencies 拉进来；
             # 构建失败时 exit_code 如实上报（诚实降级，不吞错）
