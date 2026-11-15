@@ -131,7 +131,11 @@ def task_env(tmp_path, monkeypatch):
 
 def test_run_task_exec_guards(task_env):
     conn, tid, ws = task_env
-    # 状态不是 ready_for_review：拒（放行锁语义）
+    # 状态不是 ready_for_review：拒（放行锁语义）。2026-11-15 状态机四断点后 queued
+    # 也是合法放行态（api_run 放行即置 queued，锁同步放行）——非法态用 done 验证；
+    # queued 被锁接受的行为锁在 tests/test_state_machine_fixes.py::test_exec_lock_accepts_queued
+    conn.execute("UPDATE test_tasks SET status='done' WHERE id=?", (tid,))
+    conn.commit()
     with pytest.raises(RuntimeError, match="待审查"):
         builder.run_task_exec(tid)
     # two_stage=0：拒（单阶段任务走原下发）

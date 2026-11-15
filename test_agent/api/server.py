@@ -281,6 +281,7 @@ def api_confirm(tid: int, user: dict = Depends(staff)):
     if row["two_stage"] == 1 and row["status"] not in ("ready_for_review",):
         # 阶段一入队（hybrid/off：跑完停等人工；auto：停等点由代审接管——见 _prep_worker）
         _enqueue(tid, "prep")
+        _mark_queued(tid)   # 重确认（failed → queued）也回到排队态，与新任务一致
         started = True
     return {"task_id": tid, "confirmed": 1, "stage1_started": started, "d1_by_ai": d1_done}
 
@@ -294,6 +295,29 @@ def _enqueue(tid: int, kind: str) -> dict:
     qid = QueueWorker.enqueue(tid, kind)
     return {"queued": True, "queue_id": qid,
             "position": QueueWorker.pending_count()}
+
+
+def _already_queued(conn, tid: int) -> bool:
+    """该任务是否有在途队列行（queued/running）——放行幂等守卫。"""
+    return conn.execute(
+        "SELECT id FROM exec_queue WHERE task_id=? AND kind IN ('exec','auto')"
+        " AND status IN ('queued','running')", (tid,)).fetchone() is not None
+
+
+def _mark_queued(tid: int) -> None:
+    """入队后把任务置 queued（2026-11-15 放行疑云实锤，状态机四断点之一）：
+    旧行为放行后任务停在 ready_for_review，直到图自己改状态——worker 排队期间
+    用户看到的仍是"待审查"，点没点上无从分辨（1139-1147 实测）。乐观 UPDATE：
+    条件不命中（并发已变化）静默跳过，worker 侧放行锁兼容 queued/ready_for_review。"""
+    conn = get_conn()
+    try:
+        conn.execute(
+            f"UPDATE test_tasks SET status='queued', updated_at=datetime('now')"
+            f" WHERE id=? AND status NOT IN ({','.join('?' * len(ACTIVE))})",
+            (tid, *ACTIVE))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _prep_worker(tid: int) -> None:
@@ -334,11 +358,15 @@ def _auto_worker(tid: int) -> None:
 
 @app.post("/api/tasks/{tid}/run")
 def api_run(tid: int, user: dict = Depends(staff)):
-    """下发执行。两阶段任务：仅待审查态可放行阶段二（执行图）；单阶段任务行为逐字节不变。"""
+    """下发执行。两阶段任务：仅待审查态可放行阶段二（执行图）；单阶段任务行为逐字节不变。
+    2026-11-15 状态机四断点：放行即置 queued（排队期状态可见）+已排队重复放行诚实 409。"""
     conn = get_conn()
     row = _task_or_404(conn, tid)
     if row["status"] in ACTIVE:
         raise HTTPException(409, "任务正在执行中")
+    if row["status"] == "queued" and _already_queued(conn, tid):
+        raise HTTPException(409, "任务已放行，正在队列中等待执行（前序任务完成后自动开跑）")
+    # queued 但无在途队列行（重启恢复遗留孤儿态）——放行自愈，不拦
     if row["confirmed"] != 1:
         raise HTTPException(409, "任务未确认（fail-closed 确认门），禁止下发")
     if row["two_stage"] == 1:
@@ -348,9 +376,11 @@ def api_run(tid: int, user: dict = Depends(staff)):
         # L1 环境守卫：Docker/工作区缺失时自动开始补齐，不把"环境没准备"留到图里炸
         env_gate()
         q = _enqueue(tid, "exec")
+        _mark_queued(tid)
         return {"task_id": tid, "started": True, "stage": 2, **q}
     env_gate()
     q = _enqueue(tid, "exec")
+    _mark_queued(tid)
     return {"task_id": tid, "started": True, **q}
 
 
@@ -1185,11 +1215,13 @@ def api_batch_auto_run(body: dict, user: dict = Depends(staff)):
             out.append({"task_id": tid, "started": False, "reason": "执行中"})
         elif row["status"] == "ready_for_review" and row["confirmed"] == 1:
             _enqueue(tid, "exec")
+            _mark_queued(tid)
             out.append({"task_id": tid, "started": True, "stage": 2})
         elif row["confirmed"] == 1:
             out.append({"task_id": tid, "started": False, "reason": f"状态 {row['status']} 无需代审"})
         else:
             _enqueue(tid, "auto")
+            _mark_queued(tid)
             out.append({"task_id": tid, "started": True, "stage": "auto"})
     return {"results": out}
 
@@ -1474,12 +1506,54 @@ def _sweep_orphan_active_tasks() -> None:
         log.warning("启动清扫：%d 个 ACTIVE 态孤儿任务已标记 failed（服务重启变砖防护）", n)
 
 
+def _sweep_stale_active_tasks(max_age_s: int = 2 * 3600) -> int:
+    """运行中陈旧中间态兜底（2026-11-15 放行疑云/1140 家族实锤，状态机四断点之三）：
+    worker 线程被杀/图线程静默死亡时任务永久滞留 ACTIVE（provisioning/running…），
+    服务还活着就没人收尸（04:33 worker 被杀 4 任务悬挂同族）。updated_at 超时未动的
+    ACTIVE 任务标 failed 留痕——set_status 每节点都刷新 updated_at，活图不会误杀。
+    启动清扫（_sweep_orphan_active_tasks）覆盖重启场景；本函数补"服务活着但执行方
+    死了"场景，由周期线程每 10 分钟跑一次。"""
+    conn = get_conn()
+    try:
+        n = conn.execute(
+            f"UPDATE test_tasks SET status='failed', error=?, updated_at=datetime('now')"
+            f" WHERE status IN ({','.join('?' * len(ACTIVE))})"
+            f" AND updated_at < datetime('now', ?)",
+            ("任务在中间态滞留超时（执行线程已死/宿主休眠）——自动标记失败，请重新下发",
+             *ACTIVE, f"-{max_age_s} seconds")).rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    if n:
+        log.warning("陈旧中间态清扫：%d 个 ACTIVE 滞留任务标记 failed（>%.1f 小时无进度）",
+                    n, max_age_s / 3600)
+    return n
+
+
+def _run_one_sweep() -> None:
+    """单次清扫兜底：库忙等异常不炸周期线程（worker 永不因单次异常退出的同款纪律）。"""
+    try:
+        _sweep_stale_active_tasks()
+    except Exception as e:      # noqa: BLE001 —— 清扫失败不影响服务
+        log.warning("陈旧中间态清扫失败: %s: %s", type(e).__name__, e)
+
+
+def _stale_sweep_loop(stop: threading.Event, interval_s: int = 600) -> None:
+    """周期清扫线程：每 10 分钟兜底一次陈旧 ACTIVE（daemon，随进程退出）。"""
+    while not stop.wait(interval_s):
+        _run_one_sweep()
+
+
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
     auth.ensure_default_users()
     _sweep_orphan_containers()
     _sweep_orphan_active_tasks()
+    # 陈旧中间态周期兜底（服务活着但执行线程死了的场景，daemon 随进程退出）
+    _stale_sweep_stop = threading.Event()
+    threading.Thread(target=_stale_sweep_loop, args=(_stale_sweep_stop,),
+                     name="stale-active-sweep", daemon=True).start()
     # B1：启动执行队列 worker（单线程串行；重启把遗留 running 行标中断，queued 继续消费）
     try:
         from ..store.queue import start_worker

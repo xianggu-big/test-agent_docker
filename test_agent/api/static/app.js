@@ -18,7 +18,9 @@ function truncName(s, max = 30) {
   }
   return s;
 }
-const STATUS_CN = { queued: "待下发", cloning: "克隆中", analyzing: "分析中", provisioning: "准备环境",
+// queued 文案（2026-11-15 放行疑云：放行即置 queued，排队期状态要能看出来；新任务
+// 未确认时同为此态，故用中性措辞不带"已放行"）
+const STATUS_CN = { queued: "排队等待执行（前序任务完成后自动开跑）", cloning: "克隆中", analyzing: "分析中", provisioning: "准备环境",
   generating: "生成用例", ready_for_review: "待审查", running: "执行中", reporting: "出报告中",
   done: "已完成", failed: "失败", cancelled: "已取消" };
 const STEPS = ["输入项目信息", "AI 生成测试任务", "脚本工作台", "人工确认", "下发执行", "查看报告"];

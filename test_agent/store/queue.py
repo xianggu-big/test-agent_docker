@@ -24,6 +24,30 @@ log = logging.getLogger(__name__)
 _worker: "QueueWorker | None" = None
 _lock = threading.Lock()
 
+_TASK_TERMINAL = ("done", "failed", "cancelled")
+
+
+def _fail_task_if_pending(task_id: int, err: str | None) -> None:
+    """队列失败→任务终态回写（2026-11-15 放行疑云实锤，状态机四断点之二）。
+
+    旧行为：worker 失败只写 exec_queue 行，任务停在放行时原态（ready_for_review/
+    queued）——1144/1145 队列已 failed 而任务"仍待审查"，用户以为没点上。
+    仅当任务尚未到终态时回写：图自己的 _fail_task 已写的精确错误不覆盖（rowcount=0），
+    cancelled 是用户意图不覆盖。锁前异常（SQLite busy/工作区守卫前炸）与图内失败
+    兜底两种形态都落到 failed，重新下发即可重试。"""
+    conn = get_conn()
+    try:
+        n = conn.execute(
+            "UPDATE test_tasks SET status='failed', error=?, updated_at=datetime('now')"
+            " WHERE id=? AND status NOT IN ('done','failed','cancelled')",
+            (f"队列执行失败：{err or '原因未知（详见队列行与任务日志）'}（重新下发即可重试）"[:500],
+             task_id)).rowcount
+        conn.commit()
+        if n:
+            log.warning("队列失败回写：task=%s → failed（原状态非终态，queue 行已留痕）", task_id)
+    finally:
+        conn.close()
+
 
 class QueueWorker:
     """单线程串行消费 exec_queue。start() 幂等。"""
@@ -197,6 +221,8 @@ class QueueWorker:
             conn.commit()
         finally:
             conn.close()
+        if not ok:
+            _fail_task_if_pending(tid, err)   # 状态机四断点：失败必须落到任务终态
         return True
 
 

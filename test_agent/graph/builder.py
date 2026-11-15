@@ -340,10 +340,12 @@ def run_task_exec(task_id: int) -> dict:
     if task["two_stage"] != 1:
         guard.close()
         raise RuntimeError("任务未开启两阶段流程，请走单阶段下发")
-    # 放行锁：仅待审查态可启动阶段二（准备阶段未完成 = 没有可执行的用例集）
+    # 放行锁：仅待审查态可启动阶段二（准备阶段未完成 = 没有可执行的用例集）。
+    # 2026-11-15 状态机四断点：api_run 放行即置 queued（worker 排队期间状态可见），
+    # 锁同步放行 queued——否则 worker 取行时锁失败，任务永远启动不了。
     lock = guard.execute(
         """UPDATE test_tasks SET status='provisioning', updated_at=datetime('now')
-           WHERE id=? AND status='ready_for_review'""", (task_id,))
+           WHERE id=? AND status IN ('ready_for_review','queued')""", (task_id,))
     guard.commit()
     if lock.rowcount == 0:
         guard.close()
