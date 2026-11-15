@@ -89,23 +89,38 @@ def parse_jest_results(stdout: str) -> list[dict]:
     return out
 
 
+def normalize_case_name(n: str) -> str:
+    """用例名规范化（origin 匹配用，2026-11-15 卡 3）：LLM 登记名带习惯前缀
+    （test_TestX_方法），go 渲染层跨轮改名（Test→TestR{round}_）后执行名与登记名
+    失配 → AI 用例成绩全错标 repo（1138 实锤 16 条）。剥 test_ 前缀/轮次标记
+    （TestR1_/TestFb2_）/Test 前缀后小写比对——python/js/php 登记名与执行名
+    原样相等形式归一后仍相等，零行为变化。"""
+    n = (n or "").strip()
+    n = re.sub(r"^test_", "", n, flags=re.I)
+    n = re.sub(r"^Test(?:R\d+|Fb\d+)?_", "", n)
+    n = re.sub(r"^Test", "", n)
+    return n.lower()
+
+
 def store_case_results(conn, task_id: int, round_no: int, rows: list[dict],
                        level: str = "L1") -> int:
     """逐用例结果落库（delete-first per round，与 evaluation_rounds 同幂等语义）。
-    origin：nodeid 剥参数化后与任务生成用例名匹配 → generated，否则 repo（自带测试）。
+    origin：name 规范化后与任务生成用例名匹配 → generated，否则 repo（自带测试）。
     返回落库条数。"""
     if round_no <= 1:
         conn.execute("DELETE FROM test_case_results WHERE task_id=? AND level=?",
                      (task_id, level))    # 重跑再进图 round 从 1 起：以本轮为准
-    gen_names = {r["name"] for r in conn.execute(
+    gen_names = {normalize_case_name(r["name"]) for r in conn.execute(
         """SELECT c.name FROM test_cases c JOIN test_scripts s ON s.id=c.script_id
            WHERE s.task_id=?""", (task_id,))}
     n = 0
     for r in rows:
         # origin 细化（2026-11-10）：rows 可自带 origin（如 ui_idempotency 路线的
         # 交互用例不走 gen_tests 落库，名字匹配不到 gen_names——行级自带 origin
-        # 优先，否则按名字匹配归 generated/repo 旧口径）
-        origin = r.get("origin") or ("generated" if r["name"] in gen_names else "repo")
+        # 优先，否则按规范化名匹配归 generated/repo 旧口径）
+        origin = r.get("origin") or ("generated"
+                                     if normalize_case_name(r["name"]) in gen_names
+                                     else "repo")
         conn.execute(
             """INSERT INTO test_case_results(task_id, round_no, level, nodeid, name,
                                             status, duration_ms, message, origin)

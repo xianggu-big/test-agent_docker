@@ -2022,17 +2022,25 @@ def rebuild_gen_files_from_db(conn, task_id: int, ws: Path) -> int:
 
 def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[str]:
     """阶段一顺延的收集闸（两阶段执行图 provision 快照后补跑）：逐生成文件做容器内收集闸
-    （Python: pytest --collect-only / JS: node --check），失败文件整体废案，返回废案文件名清单。
-    test_imported.py 只报告不删库（人工插入用例保留审计，交由人工在评审页处理）。"""
+    （Python: pytest --collect-only / JS: node --check / PHP: php -l），失败文件整体废案，
+    返回废案文件名清单。test_imported.* 只报告不删库（人工插入用例保留审计，交由人工在
+    评审页处理）。
+    2026-11-15 卡 3 取证实锤（1142）：旧清单只有 python/js 形态——go/java/php 生成文件
+    不进清单 → 顺延闸对三语言空转 → run 时 [build failed] 无人拦截（TestR1 结果 0 条）。
+    补：php 文件级闸（php -l 逐文件）；go/java 项目级闸（闸命令编译全项目/包——go build
+    ./... && go test -c / mvn test-compile，一次跑全部生成文件，失败整组废案：闸只回退出
+    码无法文件级归责，与 gen_tests 主路径"整体废案"同语义）。"""
     names = sorted(p.name for p in Path(ws).glob("test_gen_r*.py")) \
         + sorted(p.name for p in Path(ws).glob("test_gen_fb*.py")) \
-        + sorted(p.name for p in Path(ws).glob("test_gen_*.test.js"))
-    for imported_name in ("test_imported.py", "test_imported.test.js"):
+        + sorted(p.name for p in Path(ws).glob("test_gen_*.test.js")) \
+        + sorted(p.name for p in Path(ws).glob("TestGen*.php"))
+    for imported_name in ("test_imported.py", "test_imported.test.js", "test_imported.php"):
         if (Path(ws) / imported_name).exists():
             names.append(imported_name)
     dropped: list[str] = []
     for fname in names:
         gate_cmd = (["node", "--check", fname] if fname.endswith(".test.js")
+                    else ["php", "-l", fname] if fname.endswith(".php")
                     else ["pytest", "--collect-only", "-q", fname])
         r = runner.exec_in(container, gate_cmd, timeout_s=120)
         if r.exit_code == 0:
@@ -2040,7 +2048,7 @@ def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[
         dropped.append(fname)
         (Path(ws) / fname).unlink(missing_ok=True)
         runner.exec_in(container, ["rm", "-f", f"/work/{fname}"], timeout_s=30)
-        if fname != "test_imported.py":
+        if fname not in ("test_imported.py", "test_imported.php"):
             conn.execute(
                 """DELETE FROM test_cases WHERE script_id IN
                    (SELECT id FROM test_scripts WHERE task_id=? AND filename=?)""",
@@ -2050,4 +2058,32 @@ def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[
             conn.commit()
         log.warning("collect_gate_files task=%s 废案 %s: %s", task_id, fname,
                     (r.stderr or "")[-160:])
+    # 项目级闸（go/java）：闸命令本身编译全项目/包，文件级归责不了——整组一次。
+    # 闸执行证据留痕（1142 教训：闸为何没拦住 [build failed] 无从定位——证据蒸发）。
+    for lang, pats in (("go", ("TestGen*_test.go",)),
+                       ("java", ("src/test/java/TestGen*.java",))):
+        files = sorted(str(p.relative_to(ws)).replace("\\", "/")
+                       for pat in pats for p in ws.glob(pat))
+        if not files:
+            continue
+        r = runner.exec_in(container, collect_gate_cmd(lang, files[0]), timeout_s=300)
+        if r.exit_code == 0:
+            log.info("collect_gate_files task=%s %s 项目级闸通过（%s 个生成文件）",
+                     task_id, lang, len(files))
+            continue
+        dropped.extend(files)
+        for fname in files:
+            (ws / fname).unlink(missing_ok=True)
+            conn.execute(
+                """DELETE FROM test_cases WHERE script_id IN
+                   (SELECT id FROM test_scripts WHERE task_id=? AND filename=?)""",
+                (task_id, fname))
+            conn.execute("DELETE FROM test_scripts WHERE task_id=? AND filename=?",
+                         (task_id, fname))
+        conn.commit()
+        runner.exec_in(container,
+                       ["sh", "-c", "rm -f " + " ".join(f"/work/{f}" for f in files)],
+                       timeout_s=30)
+        log.warning("collect_gate_files task=%s %s 项目级闸失败，整组废案 %s: %s",
+                    task_id, lang, files, (r.stderr or "")[-200:])
     return dropped
