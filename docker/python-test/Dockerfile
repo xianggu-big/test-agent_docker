@@ -20,8 +20,12 @@ ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
     PYTHONUNBUFFERED=1
 
 # 执行：pytest + 覆盖率；静态/安全扫描：ruff + bandit（低占比语言与 Python 静态检查共用）
+# 2026-11-16 环境体检实锤（18 格 task 1166 族）：requests（HTTP 用例/契约轨）/
+# httpx（fastapi TestClient 运行时依赖，requirements 漏声明高频形态）/jsonschema
+# （L2 schema 校验）是生成用例高频 import——镜像层烘焙，漏装=collect 闸三轮废案
 RUN pip install --no-cache-dir --retries 3 \
       pytest pytest-cov coverage \
+      requests jsonschema httpx \
       ruff bandit
 
 # git：设计假设变更（2026-11-04 真机验证实锤）——原「沙箱内不跑 git」（见上方约定②），
@@ -37,9 +41,10 @@ RUN useradd --create-home --shell /bin/bash tester \
  && chown -R tester:tester /work
 USER tester
 
-# 自检（fail-fast）：镜像入库前确认四件工具都能跑，装坏了构建期就报错
+# 自检（fail-fast）：镜像入库前确认工具链都能跑，装坏了构建期就报错
 RUN pytest --version \
  && coverage --version \
+ && python -c "import requests, jsonschema, httpx" \
  && ruff --version \
  && bandit --version
 

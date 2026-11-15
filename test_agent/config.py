@@ -257,7 +257,7 @@ RECIPE_IMAGE_POOL = {
                    "22": "node:22-bookworm-slim"},
     "go": {"1.27": "golang:1.27", "1.26": "golang:1.26", "1.25": "golang:1.25",
            "1.24": "golang:1.24", "1.22": "golang:1.22", "1.21": "golang:1.21"},
-    "php": {"8.3": "php:8.3-cli"},
+    "php": {"8.3": "php:8.3-cli", "8.4": "php:8.4-cli"},
 }
 # 辅助镜像清单（镜像管理动态化 2026-11-07）：sidecar/recipe 基础池等「仅展示」镜像——
 # 接入方式：可自动构建的注册进 IMAGE_BUILD_CTX（buildable=true）；仅作依赖/基础镜像

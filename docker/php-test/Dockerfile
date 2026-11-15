@@ -3,7 +3,8 @@
 # + zip 扩展与 unzip（composer dist 下载必需——真机实锤：缺 zip 时 composer install
 #   "The zip extension and unzip/7z commands are both missing" 直接失败）。
 # PHPUnit 等测试依赖随项目走（composer.json → composer install，依赖装进容器工作区）。
-FROM php:8.3-cli
+ARG PHP_BASE=8.3
+FROM php:${PHP_BASE}-cli
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc make autoconf libc-dev pkg-config \
