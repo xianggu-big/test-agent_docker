@@ -188,6 +188,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         _rebuild_test_tasks(conn)
     if _endpoints_source_check_outdated(conn):
         _rebuild_table_check(conn, "interface_endpoints", "interface_endpoints")
+    # 重建（DROP TABLE）会连带删掉该表全部索引——同轮开头的 executescript 已跑过
+    # 不会补，老库首启触发重建的整个服务会话无索引。收尾再幂等执行一遍 schema
+    # （IF NOT EXISTS 只补缺失索引，不动表数据——2026-11-15 闲时找bug :memory: 实锤）
+    conn.executescript(config.SCHEMA_PATH.read_text(encoding="utf-8"))
     for table, cols in _MIGRATIONS.items():
         have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
         for col, ddl in cols.items():

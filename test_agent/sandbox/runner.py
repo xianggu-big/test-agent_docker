@@ -83,6 +83,9 @@ def snapshot_plan(src_dir: str | Path, max_total: int | None = None,
     excludes = set(config.SNAPSHOT_EXCLUDE_DIRS if exclude_dirs is None else exclude_dirs)
     spec = _load_gitignore_spec(src)
     files: list[Path] = []
+    dirs_kept: list[str] = []      # 目录相对路径（posix）：打 tar 时保留目录条目——
+                                   # 空目录（logs/、fixture 目录）丢失会让应用/测试
+                                   # 因目录不存在失败且无留痕（2026-11-15 闲时找bug）
     sizes: dict[str, int] = {}
     total = 0
     skipped_files: list[tuple[str, int]] = []
@@ -100,6 +103,7 @@ def snapshot_plan(src_dir: str | Path, max_total: int | None = None,
                 excluded_dirs.append((rel_d, _dir_size(Path(root) / d)))
                 continue
             keep.append(d)
+            dirs_kept.append(rel_d)
         dirs[:] = keep
         for f in names:
             rel_f = (rel_root / f).as_posix()
@@ -127,7 +131,7 @@ def snapshot_plan(src_dir: str | Path, max_total: int | None = None,
             f"②调大 config.SNAPSHOT_MAX_TOTAL_BYTES 后重跑 ③清理工作区后重跑。"
             f"已排除目录：{[d for d, _ in excluded_dirs[:8]] or '（无）'}")
 
-    return {"files": files, "total_bytes": total, "skipped_files": skipped_files,
+    return {"files": files, "dirs": dirs_kept, "total_bytes": total, "skipped_files": skipped_files,
             "excluded_dirs": excluded_dirs, "gitignore_used": spec is not None}
 
 
@@ -252,6 +256,8 @@ class SandboxRunner:
         os.close(fd)
         try:
             with tarfile.open(tmp, "w") as tar:
+                for d in plan.get("dirs") or []:
+                    tar.add(src / d, arcname=d, recursive=False)   # 目录条目（含空目录）
                 for p in plan["files"]:
                     tar.add(p, arcname=p.relative_to(src))
             with open(tmp, "rb") as fh:            # 文件句柄 → requests 流式上传

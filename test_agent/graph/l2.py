@@ -378,7 +378,13 @@ def _detect_js_entry(ws: Path) -> str | None:
     if pkg.is_file():
         try:
             main = json.loads(pkg.read_text(encoding="utf-8", errors="ignore")).get("main")
-            if isinstance(main, str) and (ws / main).is_file():
+            # P2-6 同款（2026-11-15 闲时找bug）：entry 会拼进 sh -c——main 含 shell
+            # 元字符=命令注入（Python 版 _start_service 已有同校验，JS 版漏）。
+            # 白名单=安全相对路径字符集 + 禁 .. 穿越
+            import re as _re
+            if (isinstance(main, str) and (ws / main).is_file()
+                    and _re.fullmatch(r"[A-Za-z0-9_][\w\-/]*\.js", main)
+                    and ".." not in main):
                 return main
         except (json.JSONDecodeError, OSError):
             pass
@@ -396,7 +402,14 @@ def _detect_js_entry(ws: Path) -> str | None:
 
 
 def _start_service_js(runner, container, entry: str, port: int) -> tuple[bool, str]:
-    """JS 服务后台启动（node <entry>）→ TCP 就绪轮询（与 _start_service_go 同构）。"""
+    """JS 服务后台启动（node <entry>）→ TCP 就绪轮询（与 _start_service_go 同构）。
+
+    P2-6 同款 fail-closed（2026-11-15 闲时找bug）：entry 拼进 sh -c——含 shell
+    元字符/穿越即拒绝起服务（_detect_js_entry 已白名单，此处双保险防新调用点绕过）。"""
+    import re as _re
+    if (not _re.fullmatch(r"[A-Za-z0-9_][\w\-/]*\.js", entry or "")
+            or ".." in (entry or "")):
+        return False, f"JS 入口非法（含元字符/穿越）：{(entry or '')[:60]}"
     runner.exec_in(container, ["sh", "-c",
                    f"mkdir -p /work/logs && cd /work && "
                    f"nohup node {entry} > {APP_LOG_CONTAINER_PATH} 2>&1 &"],

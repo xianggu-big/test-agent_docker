@@ -125,6 +125,16 @@ def current(conn=None) -> dict:
     if row:
         try:
             p = json.loads(row["value"])
+            # 文档格式（apply() 自 2026-11-10 起写入）优先：{default, profiles, routing}
+            # ——旧实现只认旧单 profile 格式（顶层 provider），文档格式被当"无存档"：
+            # 重启后 apply_saved_if_any 静默失效、effective_key 恒解析 deepseek key
+            # 劫持 local/qwen 档（2026-11-15 闲时找bug :memory: 实锤）
+            if isinstance(p, dict) and p.get("profiles"):
+                pid = p.get("default") or "deepseek"
+                prof = dict((p["profiles"] or {}).get(pid)
+                            or PRESETS.get("deepseek") or {})
+                return {**prof, "updated_by": row["updated_by"],
+                        "updated_at": row["updated_at"]}
             if isinstance(p, dict) and p.get("provider") in PROVIDERS:
                 return {**p, "updated_by": row["updated_by"],
                         "updated_at": row["updated_at"]}

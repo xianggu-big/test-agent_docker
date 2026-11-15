@@ -619,7 +619,10 @@ def run_ui_scenarios(runner, container, kept: list[dict], base_url: str,
     host_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
         with tarfile.open(fileobj=io.BytesIO(bits)) as tf:
-            tf.extractall(td)
+            # data filter=拒绝绝对路径/../穿越与危险链接（2026-11-15 闲时找bug：
+            # 与 _extract_tarball_strip1 的手写穿越拒绝对齐——容器内生成物可经
+            # symlink 影响回传 tar 成员）
+            tf.extractall(td, filter="data")
         src = Path(td) / "ui_evidence"
         if src.exists():
             for item in src.iterdir():
