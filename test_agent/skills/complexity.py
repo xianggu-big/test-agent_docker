@@ -29,7 +29,9 @@ def complexity_hotspots(ws: Path, top: int = 5) -> list[dict]:
         return []
     out: list[dict] = []
     for p in sorted(Path(ws).rglob("*.py")):
-        if any(part in config.SKIP_DIRS for part in p.parts):
+        # 相对路径 parts（2026-11-15 闲时找bug，db_probe.py:53 同型）：绝对路径的
+        # parts 含祖先目录——祖先名撞排除集（build/venv/...）即全量误杀
+        if any(part in config.SKIP_DIRS for part in p.relative_to(ws).parts):
             continue
         if p.name.startswith("test_") or p.name.endswith("_test.py"):
             continue

@@ -40,7 +40,11 @@ EXEC_LANGUAGES = {"python": IMAGE_PY, "javascript": IMAGE_JS, "typescript": IMAG
 
 # —— 噪声目录（clone 快照 / 语言统计 / 源码收集共用一份定义） ——
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "vendor", "dist",
-              "build", ".idea"}   # vendor=php/composer（白包阶段4）
+              "build", ".idea",   # vendor=php/composer（白包阶段4）
+              ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", "target",
+              ".gradle", ".cache", "htmlcov", ".next", ".nuxt", "coverage",
+              "*.egg-info"}   # 与 SNAPSHOT_EXCLUDE_DIRS 对齐（2026-11-15 闲时找bug：
+                              # 两表漂移会让 .tox/target 只挡容器快照、不挡 LOC/热点/源码收集）
 
 # —— 工作区快照预算（任务B/2026-11-01：#281 7.7GB 工作区 io.BytesIO 打 tar 宿主 OOM 实锤） ——
 # copy_dir_into 尊重 .gitignore（pathspec）+ 内置排除 + 以下预算；总量超限复制前 fail-fast

@@ -145,6 +145,10 @@ def _validate_repo_url(src: str) -> None:
         raise RuntimeError(f"repo_url 非法（含空白/引号/shell 元字符或 Option 前缀）：{src[:80]}")
     if not re.match(r"^https?://|^git@|^ssh://", src):
         raise RuntimeError(f"repo_url 非法（仅支持 http(s)/git@/ssh URL 或本地路径）：{src[:80]}")
+    if re.match(r"^https?://[^/@]+:[^/@]*@", src):
+        # 带 userinfo 的 URL 会把口令原样入库（projects.repo_url），克隆失败时 git
+        # stderr 还会回显到任务 error——fail-closed 拒绝（2026-11-15 闲时找bug）
+        raise RuntimeError("repo_url 不得携带账号口令（userinfo）——请用匿名 https 或凭据助手")
 
 
 def _extract_tarball_strip1(data: bytes, dest: Path) -> int:
@@ -342,6 +346,38 @@ def prepare_task_image(runner, image: str, auto: bool) -> tuple[bool, str]:
     return False, "本地缺失（未开启自动准备）"
 
 
+def _force_rmtree(path) -> None:
+    """Windows 兼容删除：git 把 loose object 置只读，裸 rmtree 在 Windows 删只读文件
+    直接 PermissionError——git 任务重跑必炸（2026-11-15 闲时找bug）。onerror 清
+    只读属性后重试（Python 官方 recipes 同款）。"""
+    import stat
+
+    def _onerr(func, p, _exc):
+        os.chmod(p, stat.S_IWRITE)
+        func(p)
+
+    shutil.rmtree(path, onerror=_onerr)
+
+
+def _git_clone(src: str, ws) -> object | None:
+    """git clone --depth 1（抽纯函数便于超时语义单测）。超时（挂起型代理）返回
+    None 与 returncode!=0 同路——codeload 回退正是为代理失效场景设计的，旧实现
+    TimeoutExpired 直接上抛永远走不到回退（2026-11-15 闲时找bug）。"""
+    try:
+        return subprocess.run(["git", "clone", "--depth", "1", src, str(ws)],
+                              capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        return None
+
+
+def _pick_primary(counts: dict[str, int]) -> str:
+    """主语言确定性选择：LOC 降序、同 LOC 按字母序——rglob 枚举序（重克隆可变）
+    不得影响结果，否则重跑 primary 翻转→分级/镜像/报告不可比（2026-11-15 闲时找bug）。"""
+    if not counts:
+        return "unknown"
+    return sorted(counts, key=lambda k: (-counts[k], k))[0]
+
+
 def make_nodes(deps: GraphDeps) -> dict:
     conn, runner = deps.conn, deps.runner
     registry, skills = deps.registry, deps.skills
@@ -359,7 +395,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         set_status(conn, tid, "cloning")
         ws = config.DATA_DIR / "workspaces" / f"task_{tid}"
         if ws.exists():
-            shutil.rmtree(ws)
+            _force_rmtree(ws)
         ws.mkdir(parents=True)
         src = state["repo_url"]
         _validate_repo_url(src)  # Loop-6/TODO-13：非法 URL/路径 fail-closed
@@ -386,9 +422,8 @@ def make_nodes(deps: GraphDeps) -> dict:
             shutil.copytree(src, ws, dirs_exist_ok=True, ignore=_gi_ignore)
             how = "本地目录快照（尊重 .gitignore）"
         else:
-            r = subprocess.run(["git", "clone", "--depth", "1", src, str(ws)],
-                               capture_output=True, text=True, timeout=300)
-            if r.returncode != 0:
+            r = _git_clone(src, ws)
+            if r is None or r.returncode != 0:
                 # D2（2026-10-30 H1 备料实锤）：git 走系统代理，代理失效时真实 GitHub URL
                 # 必炸 env 类错误；codeload tarball 直连可达 → 确定性回退，失败原因如实留痕
                 fb = _codeload_fallback(src, ws)
@@ -436,7 +471,9 @@ def make_nodes(deps: GraphDeps) -> dict:
         for p in ws.rglob("*"):
             if not p.is_file() or p.suffix.lower() not in _EXT_LANG:
                 continue
-            if any(part in config.SKIP_DIRS for part in p.parts):
+            # 相对路径 parts（2026-11-15 闲时找bug，db_probe.py:53 同型）：绝对路径
+            # parts 含工作区祖先——祖先目录名撞排除集（build/venv/...）即全量误杀
+            if any(part in config.SKIP_DIRS for part in p.relative_to(ws).parts):
                 continue
             try:
                 lang = _EXT_LANG[p.suffix.lower()]
@@ -445,7 +482,7 @@ def make_nodes(deps: GraphDeps) -> dict:
                 continue
         total = sum(counts.values()) or 1
         ratios = {k: round(v / total, 3) for k, v in counts.items()}
-        primary = max(ratios, key=ratios.get) if ratios else "unknown"
+        primary = _pick_primary(counts)
 
         conn.execute("UPDATE projects SET primary_language=?, language_ratios=?, clone_status='ok' WHERE id=?",
                      (primary, json.dumps(ratios, ensure_ascii=False), pid))
