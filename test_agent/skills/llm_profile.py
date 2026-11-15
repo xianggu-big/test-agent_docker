@@ -259,7 +259,10 @@ PHASE_GROUPS: dict[str, list[str]] = {
     "generate": ["gen_tests", "gen_feedback", "refill", "regen_case", "cross_review"],
     "repair": ["rewrite"],
     "report": ["gen_report"],
-    "review": ["review_report", "ai_review_d1", "ai_review_d2"],
+    # ai_review=reviewer_llm 的 make_chat 构造 phase（d1/d2 是记账 phase）——两个
+    # 字面量都必须命中 review 组，否则代审调用恒走 default（2026-11-15 闲时找bug：
+    # map_requirements/review_report 同族第三起）
+    "review": ["review_report", "ai_review", "ai_review_d1", "ai_review_d2"],
     "static_draft": ["static_draft"],
     "defect_analysis": ["defect_analysis"],
     "log_analyze": ["log_analyze"],

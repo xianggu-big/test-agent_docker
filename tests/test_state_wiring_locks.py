@@ -90,3 +90,14 @@ def test_gen_tests_insert_is_delete_first_by_filename():
     # delete-first 必须出现在主 INSERT 之前（按源码顺序）
     assert (src.index("DELETE FROM test_cases WHERE script_id IN")
             < src.index("INSERT INTO test_scripts(task_id, module_id, framework, version, filename"))
+
+
+def test_plan_assigns_llm_before_understand_callback():
+    """understand 的记账回调读 llm 元数据（_ctx_budget/_base_url）——llm 必须在
+    回调可能触发的 understand_requirement 调用之前赋值。旧顺序：lambda 定义处引用
+    尚未赋值的 llm → 回调时 NameError 被 understand.py 的 except 吞 →
+    UNDERSTAND_ENABLED 时理解层 LLM 调用零记账（llm_calls 缺行、token 成本低估）。"""
+    src = (GRAPH / "nodes.py").read_text(encoding="utf-8")
+    assert 'llm = make_chat(phase="plan"' in src, "plan 构造点变了请同步本锁"
+    assert (src.index('llm = make_chat(phase="plan"')
+            < src.index("understanding = understand_requirement("))

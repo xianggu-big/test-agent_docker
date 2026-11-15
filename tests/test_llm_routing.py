@@ -83,6 +83,9 @@ def test_phase_group映射_grep实测口径():
     assert phase_group("map_rtm") == "plan"
     assert phase_group("rewrite") == "repair"
     assert phase_group("ai_review_d2") == "review"
+    # 2026-11-15 闲时找bug：make_chat 实际用的构造 phase（ai_reviewer.reviewer_llm）
+    # 也必须命中 review 组——否则 D1/D2 代审恒走 default，review 组路由对代审不生效
+    assert phase_group("ai_review") == "review"
     assert phase_group("ui_gen") == "ui_assert"
     assert phase_group("grpc_gen") == "grpc_assert"
     assert phase_group("L2.gen_requirement") == "l2"
