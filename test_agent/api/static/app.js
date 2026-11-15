@@ -360,10 +360,15 @@ async function loadReview(tid) {
       loadReview(tid);
     } catch (e) { $("rv-release-result").textContent = "放行失败：" + e.message; }
   };
-  // 阶段一跑动中：5s 轮询刷新（粘性，离开页面即清）
+  // 阶段一跑动中：5s 轮询刷新（粘性，离开页面即清）。
+  // 守卫（2026-11-15 闲时找bug）：在途回调归来时可能已切到别的任务/页面——
+  // 无守卫会把旧任务数据周期性覆盖新视图（或在别的页面续拉）。续挂前校验
+  // 仍是本任务的评审页；清定时器只清自己那条链（防止误杀新链）。
   clearTimeout(REVIEW_POLL);
   if (["cloning", "analyzing", "generating"].includes(detail.status)) {
-    REVIEW_POLL = setTimeout(() => loadReview(tid), 5000);
+    REVIEW_POLL = setTimeout(() => {
+      if (REVIEW_TID === tid && location.hash.startsWith("#/review/")) loadReview(tid);
+    }, 5000);
   }
 }
 
@@ -751,9 +756,21 @@ async function watchStage1(tid, alertOnFail, tries = 0) {
       }
       return;
     }
-    CONFIRM_TIMER = setTimeout(() => watchStage1(tid, alertOnFail, tries + 1), 3000);
+    // 守卫（2026-11-15 闲时找bug）：await 归来时可能已切任务/离开工作台——
+    // 无守卫旧链会在别的页面复活（最长 10 分钟双请求/弹旧任务失败 alert）
+    if (location.hash.includes("workbench") || location.hash === "#/new") {
+      CONFIRM_TIMER = setTimeout(() => {
+        if (location.hash.includes("workbench") || location.hash === "#/new")
+          watchStage1(tid, alertOnFail, tries + 1);
+      }, 3000);
+    }
   } catch (_) {
-    CONFIRM_TIMER = setTimeout(() => watchStage1(tid, alertOnFail, tries + 1), 5000);   // 网络抖动重试
+    if (location.hash.includes("workbench") || location.hash === "#/new") {
+      CONFIRM_TIMER = setTimeout(() => {
+        if (location.hash.includes("workbench") || location.hash === "#/new")
+          watchStage1(tid, alertOnFail, tries + 1);
+      }, 5000);   // 网络抖动重试
+    }
   }
 }
 
@@ -903,7 +920,14 @@ async function pollTasks() {
     renderTasks();
   } catch (_) {}
   finally { TASK_PAGE.loading = false; }
-  if (!pollTimer) pollTimer = setInterval(pollTasks, 3000);
+  // 守卫（2026-11-15 闲时找bug）：在途请求/防抖迟到触发会在任意页面重建 interval
+  //（离开任务页后仍每 3s 拉全量并重渲染隐藏 DOM）——只在任务页建
+  if (!pollTimer && location.hash.startsWith("#/tasks")) {
+    pollTimer = setInterval(() => {
+      if (location.hash.startsWith("#/tasks")) pollTasks();
+      else { clearInterval(pollTimer); pollTimer = null; }
+    }, 3000);
+  }
 }
 
 const PG_COLLAPSED = new Set();   // 收起的项目名（粘性：3s 轮询重渲染不丢）
@@ -1448,6 +1472,19 @@ async function doLogout() {
   try { await api("/logout", { method: "POST", body: "{}" }); } catch (_) {}
   localStorage.removeItem("token");
   ME = null;
+  // 登出清全部定时器（2026-11-15 闲时找bug）：不清会在登出后每 3~4s 打一轮 401
+  // 最长 20 分钟；换账号登录还可能弹旧账号任务的失败 alert
+  for (const t of [typeof REVIEW_POLL !== "undefined" && REVIEW_POLL,
+                   typeof TD_POLL !== "undefined" && TD_POLL,
+                   typeof EXEC_POLL !== "undefined" && EXEC_POLL,
+                   typeof CONFIRM_TIMER !== "undefined" && CONFIRM_TIMER,
+                   typeof pollTimer !== "undefined" && pollTimer,
+                   typeof ENV_TIMER !== "undefined" && ENV_TIMER]) {
+    if (t) { clearTimeout(t); clearInterval(t); }
+  }
+  if (typeof FINAL_WATCH !== "undefined") {
+    for (const k in FINAL_WATCH) { clearTimeout(FINAL_WATCH[k]); }
+  }
   showLogin();
 }
 
