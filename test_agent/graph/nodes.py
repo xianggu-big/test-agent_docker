@@ -190,6 +190,41 @@ def extract_service_port(ws: Path, lang: str) -> int | None:
     return hits.most_common(1)[0][0] if hits else None
 
 
+_HTTP_CLIENT_RE = re.compile(r"curl_init|fetch\(|axios|supertest|http://|https://")
+
+
+def detect_api_blackbox(ws: Path, lang: str) -> bool:
+    """API 型黑盒识别（存疑 35② 拍板口径）：生成用例走真 HTTP 客户端
+    （curl_init/fetch/axios/supertest/URL 直写）→ 被测服务在另一进程，
+    插桩（istanbul/clover）结构性测不到。仅 js/ts/php 适用（python 的
+    TestClient 进程内形态不受此限）。"""
+    if lang not in ("javascript", "typescript", "php"):
+        return False
+    for pat in ("test_gen_r*.js", "test_gen_fb*.js", "TestGen*.php",
+                "test_imported.test.js", "test_imported.php"):
+        for gf in Path(ws).glob(pat):
+            try:
+                head = gf.read_text(encoding="utf-8", errors="ignore")[:8000]
+            except OSError:
+                continue
+            if _HTTP_CLIENT_RE.search(head):
+                return True
+    return False
+
+
+def api_blackbox_stop(blackbox: bool, verdict: str, failed: int, exit_code: int,
+                      passed: int, coverage: float | None
+                      ) -> tuple[str, str, str] | None:
+    """黑盒全过且 decide 因覆盖率卡住给 repair_gen → 覆盖为诚实 stop 声明。
+    有失败用例（failed>0）不适用——正常归因分诊优先；非黑盒/非 repair_gen 返回 None。"""
+    if not blackbox or verdict != "repair_gen" or failed != 0 or exit_code != 0:
+        return None
+    return ("stop", "none",
+            f"API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——"
+            f"用例 {passed} 过 0 败，接口级通过数为准（存疑 35② 拍板口径）；"
+            f"覆盖率 {coverage if coverage is not None else 'N/A'} 不作准出判据")
+
+
 def cache_binds_for(image: str) -> dict | None:
     """组装镜像的构建缓存 bind mount（2026-11-15 卡 4，冷缓存家族总解）：
     go126 挂 GOMODCACHE/GOCACHE、jdk17-maven 挂本地 .m2——fresh 重建/跨任务共享
@@ -1267,6 +1302,18 @@ def make_nodes(deps: GraphDeps) -> dict:
             state.get("round_no", 0), coverage,
             state.get("coverage_target"),
             witness_nodeids=witness if config.WITNESS_CONTINUE_ENABLED else None)
+        # API 型黑盒覆盖率不可达声明（2026-11-16 存疑 35② 拍板"去修复吧"落地）：
+        # js/php 生成用例走真 HTTP（黑盒），被测服务在另一进程——istanbul/clover
+        # 插桩结构性测不到（1161 恒 2%/1208 N/A 实锤），"通过但覆盖率低→补测"永远
+        # 补不出来 → 三轮同指纹熔断收尾更差。识别=生成用例含 HTTP 客户端特征；
+        # 全过（0 败）且 decide 给 repair_gen（覆盖率卡住）→ 诚实 stop 声明
+        # （接口通过数为准）。有失败用例时不适用（正常归因分诊）。
+        bb = api_blackbox_stop(
+            detect_api_blackbox(Path(state.get("workspace", "")),
+                                state.get("primary_language", "")),
+            verdict, failed, exit_code, passed, coverage)
+        if bb:
+            verdict, kind, reason = bb
         # —— 归因三闸·差分闸（11.4 恢复计划 §3；LIBRO buggy/fixed 口径，默认关）——
         # 疑似产品缺陷先在对照 ref 复跑失败子集：对照也失败 → 排除产品缺陷（用例/环境错），
         # 对照通过 → 高置信缺陷暴露。不可用（no_git/no_ref）→ 维持原归因，不硬猜。

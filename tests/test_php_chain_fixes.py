@@ -188,3 +188,27 @@ def test_clover_denominator_excludes_vendor_and_generated():
     rows, total = clover_to_rows(xml)
     assert total == 69, f"(6+5)/(6+10)=68.75→69，got {total}"
     assert len(rows) == 1 and rows[0]["file"].endswith("Miss.php"),         "vendor/测试文件/生成物不得进分母与缺口行"
+
+
+# ---------- 7. API 型黑盒覆盖率口径（存疑 35② 拍板落地） ----------
+
+def test_detect_api_blackbox_forms(tmp_path):
+    from test_agent.graph.nodes import detect_api_blackbox
+    (tmp_path / "TestGenR1.php").write_text(
+        "<?php $ch = curl_init('http://127.0.0.1:8080/ping');", encoding="utf-8")
+    assert detect_api_blackbox(tmp_path, "php") is True
+    (tmp_path / "test_gen_r1.js").write_text(
+        "const r = await fetch('http://x/api');", encoding="utf-8")
+    assert detect_api_blackbox(tmp_path, "javascript") is True
+    (tmp_path / "test_gen_r2.php").write_text("<?php $x = Shop::tier(1);", encoding="utf-8")
+    assert detect_api_blackbox(tmp_path / "e", "php") is False  # 无 HTTP 特征
+    assert detect_api_blackbox(tmp_path, "python") is False     # python TestClient 进程内不受限
+
+
+def test_api_blackbox_stop_semantics():
+    from test_agent.graph.nodes import api_blackbox_stop
+    r = api_blackbox_stop(True, "repair_gen", 0, 0, 35, None)
+    assert r and r[0] == "stop" and "黑盒覆盖率不可达" in r[2], "全过+覆盖率卡住→诚实 stop"
+    assert api_blackbox_stop(True, "repair_gen", 3, 1, 10, None) is None,         "有失败用例=正常归因分诊，不适用"
+    assert api_blackbox_stop(True, "pass", 0, 0, 10, 0.9) is None, "已 pass 不覆盖"
+    assert api_blackbox_stop(False, "repair_gen", 0, 0, 10, None) is None, "非黑盒不适用"
