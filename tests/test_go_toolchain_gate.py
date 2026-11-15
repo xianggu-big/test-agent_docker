@@ -111,7 +111,7 @@ def test_空输出不合成():
 
 def test_镜像常量与构建上下文一致():
     from test_agent import config
-    assert config.IMAGE_GO == "mta-test:go126"
+    assert config.IMAGE_GO == "mta-test:go127"
     assert config.IMAGE_GO in config.IMAGE_BUILD_CTX
     assert config.EXEC_LANGUAGES["go"] == config.IMAGE_GO
 
@@ -119,10 +119,10 @@ def test_镜像常量与构建上下文一致():
 def test_recipe池含go126且按数字排序():
     from test_agent import config
     pool = config.RECIPE_IMAGE_POOL["go"]
-    assert pool["1.26"] == "golang:1.26"
+    assert pool["1.26"] == "golang:1.26" and pool["1.27"] == "golang:1.27"
     # 池内版本键按数字元组比大小（字典序会把 3.9 当比 3.13 大——历史实锤坑）
     newest = max(pool, key=lambda v: tuple(int(x) for x in v.split(".")))
-    assert newest == "1.26"
+    assert newest == "1.27"
 
 
 # ---------- 681 实锤：pkg [pkg.test] 包名键不匹配（证据蒸发第二变种） ----------

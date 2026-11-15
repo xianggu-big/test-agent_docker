@@ -7,7 +7,7 @@
 # （输出仅一行 "go.mod requires go >= 1.26.0"）→ evaluate 0 通过 0 失败 → repair_env
 # 三轮原地打转熔断。1.26 基座同时兼容 go.mod 声明 1.22/1.23/1.24/1.25 的项目
 # （Go 的向后兼容承诺：新版工具链可编译旧版声明模块）。
-FROM golang:1.26
+FROM golang:1.27
 WORKDIR /work
 # 任务卡-F2 阶段 1 #2/#4：静态分析工具钉版本进镜像（卡 §6 坑预判 1——版本漂移防线）
 # GOPROXY 直连 proxy.golang.org 被墙（connection refused 实锤）→ 国内镜像 goproxy.cn
