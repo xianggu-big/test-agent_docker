@@ -171,3 +171,20 @@ def test_unified_text_untouched_when_junit_present():
     unified = "==== 3 passed, 0 failed ====\n"
     assert php_unified_with_raw(unified, "old raw", "", has_junit=True) == unified
     assert php_unified_with_raw(unified, "", "", has_junit=False) == unified, "无原始输出不附加"
+
+
+# ---------- 6. clover 分母净化（1181 实锤：vendor 稀释 TOTAL→0% 熔断） ----------
+
+def test_clover_denominator_excludes_vendor_and_generated():
+    from test_agent.skills.php_adapter import clover_to_rows
+    xml = ('<report><project>'
+           '<file name="/work/vendor/composer/ClassLoader.php">'
+           '<metrics statements="147" coveredstatements="0"/></file>'
+           '<file name="/work/TestGenR1.php"><metrics statements="30" coveredstatements="30"/></file>'
+           '<file name="/work/tests/ShopTest.php"><metrics statements="3" coveredstatements="0"/></file>'
+           '<file name="/work/src/Shop.php"><metrics statements="6" coveredstatements="6"/></file>'
+           '<file name="/work/src/Miss.php"><metrics statements="10" coveredstatements="5"/></file>'
+           '</project></report>')
+    rows, total = clover_to_rows(xml)
+    assert total == 69, f"(6+5)/(6+10)=68.75→69，got {total}"
+    assert len(rows) == 1 and rows[0]["file"].endswith("Miss.php"),         "vendor/测试文件/生成物不得进分母与缺口行"

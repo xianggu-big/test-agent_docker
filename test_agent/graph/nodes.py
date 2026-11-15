@@ -73,14 +73,27 @@ def build_run_cmd_js(round_no: int = 1, gen_files: list[str] | None = None) -> l
     return cmd
 
 
-def build_run_cmd_java() -> list[str]:
+def build_run_cmd_java(ws: Path | None = None) -> list[str]:
     """Java 执行链路（Tier2，白包阶段2）：mvn test 跑全项目（surefire+jacoco，
     依赖随项目走）。round>1 位置参数不适用（surefire 扫全 test 类）——R-Loop 限定
     生成物语义由 gen 侧保证（首轮 TestGenR1，补测轮 TestGenR2 独立类共存，自带
     tests 第 2 轮起不隔离属已知边界：maven 无 jest testPathPattern 等价物，诚实入档）。
     2026-11-16 存疑 35 全修：命令行注入 jacoco 插桩+报告（goal 带版本直调，无需项目
-    pom 声明）——1162 实锤 52 过 0 败但 coverage=None（无 TOTAL 行=八指标 6 空转）。
-    版本钉 0.8.12（中央仓库，卡 4 预热已拉 plugin）。"""
+    pom 声明）——1162 实锤 52 过 0 败但 coverage=None。
+    2026-11-16 全语言 18 格实锤（1174 java-shop）：**项目 pom 自带 jacoco 时命令行
+    再注入 0.8.12 = 双 -javaagent 同 destfile → forked VM exit 134 崩溃 → surefire
+    零报告 → repair_env 三轮熔断**。修=探测 pom 含 jacoco 时用项目版本（无版本前缀
+    goal 调用取 pom 声明版本，真机验证 EXIT=0+报告完整）；无 jacoco 才注入 0.8.12。"""
+    has_jacoco = False
+    pom = (ws / "pom.xml") if ws else None
+    if pom and pom.exists():
+        try:
+            has_jacoco = "jacoco" in pom.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            pass
+    if has_jacoco:
+        return ["sh", "-c",
+                "mvn -q test org.jacoco:jacoco-maven-plugin:report 2>&1"]
     return ["sh", "-c",
             "mvn -q org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test "
             "org.jacoco:jacoco-maven-plugin:0.8.12:report 2>&1"]
@@ -156,6 +169,9 @@ def extract_service_port(ws: Path, lang: str) -> int | None:
         pats = ("TestGen*.php", "test_imported.php")
     elif lang == "java":
         pats = ("src/test/java/**/*.java",)
+    elif lang in ("javascript", "typescript"):
+        pats = ("test_gen_r*.js", "test_gen_fb*.js", "test_gen_*.test.js",
+                "test_imported.test.js")
     else:
         return None
     hits: collections.Counter[int] = collections.Counter()
@@ -222,17 +238,26 @@ def start_service_for_repair(runner, container, ws: Path, lang: str,
     连接类失败 + 用例可解析目标端口 → 容器内起被测服务（复用 L2 真机验证过的
     启动器）→ 本轮重跑拿到真实响应。fail-open：不适用/解析不到/启动失败都如实
     留痕继续，不引入新失败面。返回留痕消息（None=不适用）。"""
-    if lang not in ("php", "java") or verdict != "repair_env":
+    if lang not in ("php", "java", "javascript", "typescript") or verdict != "repair_env":
         return None
     if not _CONNECTION_FAIL_RE.search(evidence or ""):
         return None
     port = extract_service_port(ws, lang)
     if port is None:
         return "[provision·service] 连接类失败但用例中未解析到目标端口——跳过起服务（fail-open）"
-    from .l2 import _detect_java_main, _start_service_java, _start_service_php
+    from .l2 import (_detect_java_main, _detect_js_entry, _start_service_java,
+                     _start_service_js, _start_service_php)
     if lang == "php":
         ok, why = _start_service_php(runner, container, port)
         label = f"php -S 127.0.0.1:{port} index.php"
+    elif lang in ("javascript", "typescript"):
+        # js/ts 补（2026-11-16 全语言 18 格实锤 1168 js-api-book）：js 生态同样有
+        # API 型项目（node http 服务），生成用例真 HTTP → ECONNREFUSED 同族
+        entry = _detect_js_entry(ws)
+        if not entry:
+            return "[provision·service] 连接类失败但未探测到 JS 服务入口——跳过起服务（fail-open）"
+        ok, why = _start_service_js(runner, container, entry, port)
+        label = f"node {entry}@{port}"
     else:
         main_cls = _detect_java_main(ws)
         if not main_cls:
@@ -1058,7 +1083,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         elif lang == "java":
             # Java 执行链路（Tier2，白包阶段2）：mvn test → surefire XML/JaCoCo 经 java_adapter
             # 转 pytest 风格文本，下游 evaluate/repair/report 零改动（adapter 统一文本唯一接缝）。
-            cmd = build_run_cmd_java()
+            cmd = build_run_cmd_java(ws)
         elif lang == "go":
             # Go 执行链路（Tier2，白包阶段3）：go test -json -coverprofile → go_adapter
             # 转 pytest 风格文本，下游 evaluate/repair/report 零改动（adapter 统一文本唯一接缝）。

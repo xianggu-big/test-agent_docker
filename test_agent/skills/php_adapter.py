@@ -6,6 +6,7 @@ case_results.parse_junit_xml（本模块只做文本渲染与覆盖表）。
 - coverage：PHPUnit --coverage-clover XML（pcov 驱动）→ 文件级 statements/coveredstatements
   缺口行（B2 口径：全覆盖文件不进行列表；TOTAL 无条件输出——go 实锤教训）。
 """
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 
@@ -21,6 +22,17 @@ def clover_to_rows(clover_text: str) -> tuple[list[dict], int]:
         metrics = f.find("metrics")
         if metrics is None:
             continue
+        name = (f.get("name") or "").replace("\\", "/")
+        # 分母净化（2026-11-16 全语言 18 格实锤 1181/1161）：--coverage-filter . 把
+        # vendor/测试文件全收进 clover——vendor ClassLoader 147 语句 0 覆盖把 TOTAL
+        # 稀释成 0%（f2_stage0/php 实际 src/Shop.php 100% 覆盖却恒报 0%→三轮熔断）。
+        # 只统计项目源码（噪声口径对齐 config.SKIP_DIRS：vendor/node_modules/tests/
+        # 生成物 test_*）
+        low = name.lower()
+        if (any(seg in low for seg in ("/vendor/", "/node_modules/", "/tests/", "/test/"))
+                or Path(name).name.lower().startswith(("testgen", "test_"))
+                or "/test_gen_" in low):
+            continue
         stmts = int(metrics.get("statements") or 0)
         covered = int(metrics.get("coveredstatements") or 0)
         tot_s += stmts
@@ -29,7 +41,6 @@ def clover_to_rows(clover_text: str) -> tuple[list[dict], int]:
         if miss > 0:
             missing = [int(ln.get("num")) for ln in f.iter("line")
                        if ln.get("type") == "stmt" and ln.get("count") == "0"]
-            name = (f.get("name") or "").replace("\\", "/")
             rows.append({"file": name, "miss": miss, "cover": covered,
                          "pct": round(100 * covered / stmts) if stmts else 0,
                          "missing": sorted(set(missing))})

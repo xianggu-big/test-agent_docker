@@ -86,7 +86,10 @@ def test_install_requirements_manifest(monkeypatch):
     r = _FakeRunner()
     out = _install_deps(r).func(1, {"container_name": "mta-run-1",
                                      "deps_manifest": "requirements"})
-    assert r.calls == [(["pip", "install", "-r", "requirements.txt"], 300)]
+    # httpx 探测两连（1166 实锤：fastapi 有而 httpx 缺→补装）——fake 全过故无补装
+    assert r.calls == [(["pip", "install", "-r", "requirements.txt"], 300),
+                       (["python", "-c", "import fastapi"], 20),
+                       (["python", "-c", "import httpx"], 20)]
     assert "requirements exit=0" in out
 
 
@@ -117,7 +120,10 @@ def test_install_legacy_has_requirements_compat(monkeypatch):
     r = _FakeRunner()
     _install_deps(r).func(1, {"container_name": "mta-run-1",
                               "has_requirements": True})
-    assert r.calls == [(["pip", "install", "-r", "requirements.txt"], 300)]
+    # httpx 探测两连（1166 实锤：fastapi 有而 httpx 缺→补装）——fake 全过故无补装
+    assert r.calls == [(["pip", "install", "-r", "requirements.txt"], 300),
+                       (["python", "-c", "import fastapi"], 20),
+                       (["python", "-c", "import httpx"], 20)]
 
 
 def test_install_pbt_appends_hypothesis(monkeypatch):
