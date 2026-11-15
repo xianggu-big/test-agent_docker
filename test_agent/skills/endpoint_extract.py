@@ -159,19 +159,12 @@ def probe_endpoint_source(ws: Path) -> tuple[list[dict] | None, str]:
         if eps:
             return eps, f"spec:{name}"
         log.warning("spec %s 无可收端点，降级试下一个来源", name)
-    # ④ .proto 源（黑包阶段4）：spec 之后降级——REST+proto 并存场景 spec 优先
-    for p in sorted(ws.glob("*.proto")):
-        try:
-            doc = parse_proto(p.read_text(encoding="utf-8", errors="replace"))
-        except OSError as e:
-            log.warning("proto %s 读取失败，降级试下一个来源: %s", p.name, e)
-            continue
-        eps = proto_endpoints(doc)
-        if eps:
-            return eps, f"proto:{p.name}"
-        log.warning("proto %s 无可收 rpc，降级试下一个来源", p.name)
     # ⑤ Go 提取两级：swag 注释（schema 骨架更全）优先，0 端点降级 go_route——
-    # 任务卡-F D4 第①级升级（2026-11-12）
+    # 任务卡-F D4 第①级升级（2026-11-12）。
+    # 顺序修正（2026-11-15 闲时找bug）：go 档提到 proto 之前——proto 产物是
+    # service/rpc 异形（无 method/path），本链唯一消费方 l2 extract 落库即
+    # KeyError 被吞成 failed；Go+proto 并存项目被 proto 截胡则 go 档永远轮不到，
+    # L2 假报 no_spec。proto 档保留在最后兜底（grpc 轨的 parse_proto 独立直用不受影响）
     if any(p.suffix == ".go" for p in ws.rglob("*.go")
            if not any(part in _SKIP_DIRS for part in p.parts)):
         go_text = "\n".join(
@@ -186,6 +179,18 @@ def probe_endpoint_source(ws: Path) -> tuple[list[dict] | None, str]:
         if eps:
             return eps, "go_route"
         log.warning("go 路由提取 0 端点（诚实降级）")
+    # ④ .proto 源（黑包阶段4）：HTTP 源全部落空后兜底——产物为 service/rpc 异形
+    #（grpc 轨消费；L2 HTTP 轨拿到也只作"项目确有接口面"的留痕，不入 interface_endpoints）
+    for p in sorted(ws.glob("*.proto")):
+        try:
+            doc = parse_proto(p.read_text(encoding="utf-8", errors="replace"))
+        except OSError as e:
+            log.warning("proto %s 读取失败，降级试下一个来源: %s", p.name, e)
+            continue
+        eps = proto_endpoints(doc)
+        if eps:
+            return eps, f"proto:{p.name}"
+        log.warning("proto %s 无可收 rpc，降级试下一个来源", p.name)
     return None, "no_spec"
 
 

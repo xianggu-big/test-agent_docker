@@ -476,10 +476,11 @@ def api_dashboard(user: dict = Depends(current_user)):
         "SELECT COALESCE(SUM(total_tokens),0) AS t FROM llm_calls "
         "WHERE date(created_at)=date('now')").fetchone()["t"]
     # 在跑：准备阶段与执行阶段都算（前端据此显示实时执行卡）
-    running = [dict(r) for r in conn.execute(
+    # progress 注入与 /api/tasks 同源（漏注入=执行卡进度恒 0%，2026-11-15 闲时找bug）
+    running = [dict(r, progress=PROGRESS.get(r["status"], 0)) for r in conn.execute(
         _TASK_ROW_SQL + " WHERE t.status IN ('cloning','analyzing','generating',"
                         " 'provisioning','running','reporting','queued') ORDER BY t.id DESC LIMIT 6")]
-    pending = [dict(r) for r in conn.execute(
+    pending = [dict(r, progress=PROGRESS.get(r["status"], 0)) for r in conn.execute(
         _TASK_ROW_SQL + " WHERE t.status='ready_for_review' ORDER BY t.id DESC LIMIT 8")]
     projects = [dict(r) for r in conn.execute(
         """SELECT p.id, p.name, p.primary_language, COUNT(t.id) AS n,
@@ -491,7 +492,7 @@ def api_dashboard(user: dict = Depends(current_user)):
                   MAX(t.updated_at) AS last
            FROM projects p LEFT JOIN test_tasks t ON t.project_id=p.id
            GROUP BY p.id HAVING n > 0 ORDER BY last DESC LIMIT 8""")]
-    feed = [dict(r) for r in conn.execute(
+    feed = [dict(r, progress=PROGRESS.get(r["status"], 0)) for r in conn.execute(
         _TASK_ROW_SQL + " ORDER BY COALESCE(t.updated_at, t.created_at) DESC LIMIT 8")]
     return {
         "kpi": {"total": total, "today": today,
@@ -731,8 +732,17 @@ def api_verify_fix(tid: int, user: dict = Depends(staff)):
     本地目录项目请先确认修复已落盘（快照即新版）。"""
     conn = get_conn()
     _task_or_404(conn, tid)
-    from ..skills.verify_fix import create_verify_task
+    from ..skills.verify_fix import create_verify_task, prepare_verify_workspace
     vid = create_verify_task(conn, tid)
+    # 工作区必须同轮准备（快照=修复后代码，407 语义）：此前只有离线脚本调用，
+    # UI 通道创建的任务下发阶段二必失败"工作区不存在"（2026-11-15 闲时找bug 实锤）
+    try:
+        prepare_verify_workspace(conn, vid)
+    except ValueError as e:
+        conn.execute("UPDATE test_tasks SET status='failed', error=? WHERE id=?",
+                     (str(e)[:300], vid))
+        conn.commit()
+        raise HTTPException(status_code=409, detail=str(e)) from e
     row = conn.execute("SELECT id, status, requirement_text FROM test_tasks WHERE id=?",
                        (vid,)).fetchone()
     return {"verify_task_id": vid, "status": row["status"],
@@ -819,8 +829,8 @@ def api_levels(tid: int, user: dict = Depends(current_user)):
     _task_or_404(conn, tid)
     levels = []
     for r in conn.execute(
-            "SELECT id, level, strategy, status, verdict, stop_reason, trace_from,"
-            " summary, started_at, finished_at FROM test_levels WHERE task_id=?"
+            "SELECT id, task_id, level, strategy, status, verdict, stop_reason,"
+            " trace_from, summary, started_at, finished_at FROM test_levels WHERE task_id=?"
             " ORDER BY CASE level WHEN 'L1' THEN 1 WHEN 'L2' THEN 2"
             " WHEN 'L3' THEN 3 ELSE 4 END, id", (tid,)):
         d = dict(r)
@@ -843,6 +853,7 @@ def api_levels(tid: int, user: dict = Depends(current_user)):
             (tid,)).fetchone()
         if t and (latest or (cases and cases["n"])):
             levels.append({
+                "task_id": tid,     # 前端四级卡动作按钮靠 l.task_id 跳转（缺键=落到任务 0）
                 "level": "L1", "strategy": "full", "status": t["status"],
                 "verdict": latest["verdict"] if latest else None,
                 "stop_reason": latest["stop_reason"] if latest else None,

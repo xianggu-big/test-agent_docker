@@ -73,8 +73,14 @@ def build_l2_skills(runner) -> dict[str, Skill]:
         conn = get_conn()
         try:
             eps, how = probe_endpoint_source(Path(args["workspace"]))
+            # proto 兜底档产物是 service/rpc 异形（无 method/path）——HTTP 契约轨
+            # 只收同形端点，异形如实滤除留痕（不落 interface_endpoints，2026-11-15）；
+            # None 语义保留：无可用提取路径时 endpoints 仍为 None（诚实降级契约）
+            http_eps = None if eps is None else [
+                e for e in eps if e.get("method") and e.get("path")]
+            proto_only = eps is not None and len(http_eps or []) != len(eps)
             conn.execute("DELETE FROM interface_endpoints WHERE task_id=?", (task_id,))
-            for e in eps or []:
+            for e in http_eps or []:
                 conn.execute(
                     """INSERT INTO interface_endpoints(task_id, method, path, operation_id,
                            params, request_schema, response_schema, source)
@@ -85,7 +91,12 @@ def build_l2_skills(runner) -> dict[str, Skill]:
                      json.dumps(e.get("response_schema"), ensure_ascii=False),
                      e.get("source", "spec")))
             conn.commit()
-            return json.dumps({"endpoints": eps, "how": how}, ensure_ascii=False)
+            if proto_only:
+                return json.dumps({"endpoints": http_eps, "how": how,
+                                   "note": "proto 兜底档产物为 gRPC 异形端点，"
+                                           "HTTP 契约轨无可渲染端点（grpc 轨另走 parse_proto）"},
+                                  ensure_ascii=False)
+            return json.dumps({"endpoints": http_eps, "how": how}, ensure_ascii=False)
         finally:
             conn.close()
 

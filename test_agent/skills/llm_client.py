@@ -99,11 +99,19 @@ class RobustChat:
             log.warning("[llm-fallback] 主模型余额耗尽，降级本地 %s@%s（phase=%s task=%s）",
                         config.LLM_FALLBACK_MODEL, config.LLM_FALLBACK_BASE_URL,
                         self._phase or "-", self._task_id or "-")
-            fb = ChatOpenAI(model=config.LLM_FALLBACK_MODEL, api_key="ollama",
-                            base_url=config.LLM_FALLBACK_BASE_URL,
-                            temperature=kw.get("temperature", 0.2),
-                            timeout=config.LLM_FALLBACK_TIMEOUT, max_retries=1,
-                            max_tokens=config.LLM_FALLBACK_MAX_TOKENS)
+            # 构造与主路径同款三件套（2026-11-15 闲时找bug 对齐）：
+            # ①思考型备胎必须关思考（模块自证：不传 content 恒空）；
+            # ②utf-8 http_client（CDN gbk mojibake 修复未覆盖备胎）；
+            # ③temperature 透传原构造值（invoke 期 kwargs 不含构造参数，旧恒 0.2）
+            fb_kwargs = dict(model=config.LLM_FALLBACK_MODEL, api_key="ollama",
+                             base_url=config.LLM_FALLBACK_BASE_URL,
+                             temperature=getattr(self._inner, "temperature", 0.2),
+                             timeout=config.LLM_FALLBACK_TIMEOUT, max_retries=1,
+                             max_tokens=config.LLM_FALLBACK_MAX_TOKENS)
+            _apply_local_think_off(fb_kwargs)
+            fb_kwargs.setdefault("http_client", __import__("httpx").Client(
+                default_encoding="utf-8"))
+            fb = ChatOpenAI(**fb_kwargs)
             resp = fb.invoke(messages, *a, **kw)
             try:
                 base = dict(getattr(resp, "additional_kwargs", {}) or {})
