@@ -16,6 +16,15 @@ class TaskState(TypedDict, total=False):
     primary_language: str
     image: str
     container_name: str
+    module_id: int | None     # analyze upsert 产物（重跑幂等取同一行）——container_jobs/
+                              # test_scripts/test_reports 外键链。必须声明：LangGraph 过滤
+                              # 未声明键=外键全断（2026-11-15 闲时找bug 第一轮实锤）
+    job_id: int               # provision 落 container_jobs 的行 id——report 收口 UPDATE 的键；
+                              # 不声明则 state.get("job_id", 0) 恒 0，容器台账行永远停在 running
+    complexity_hotspots: list[dict]  # analyze 产出 → plan 提示词风险分级倾斜（W4）；
+                              # 不声明=热点只落库、plan 注入是静默死代码
+    auto_prepare: bool        # 任务级"自动准备环境"（builder 三入口 init 注入、provision 消费）；
+                              # 不声明=勾选静默失效，只剩全局开关
     # R-Loop 账本
     round_no: int
     coverage_target: float   # 准出标准（分析阶段冻结进任务行，A1）
@@ -27,6 +36,8 @@ class TaskState(TypedDict, total=False):
     last_exit: int
     last_stdout: str
     last_stderr: str
+    last_cmd: list[str]      # run 节点回传的执行命令——flaky 连跑闸（MTA_FLAKY_RERUNS）
+                             # 复跑用；不声明=闸条件恒 falsy，连跑功能静默死代码
     passed: int
     failed: int
     skipped: int

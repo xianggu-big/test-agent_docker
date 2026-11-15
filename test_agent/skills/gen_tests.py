@@ -1891,6 +1891,16 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
 
     # —— 落库：脚本版本 + 用例清单（先于闸门，收集失败时可整体废案删除）；
     # filename 落列：两阶段"布考场"按审查结论重建生成文件的键 ——
+    # 重跑幂等（delete-first，2026-11-15 闲时找bug 第一轮）：工作区同轮文件是
+    # write_text 覆盖语义，DB 行必须同样覆盖——不清旧行则重跑翻倍（评审页/RTM
+    # 用例数虚高）；module_id 接通 State 后同轮重插还会撞 UNIQUE(task_id, module_id,
+    # version)。模式=同函数 collect 闸废案删除（先 cases 后 scripts）。
+    conn.execute(
+        """DELETE FROM test_cases WHERE script_id IN
+           (SELECT id FROM test_scripts WHERE task_id=? AND filename=?)""",
+        (task_id, fname))
+    conn.execute("DELETE FROM test_scripts WHERE task_id=? AND filename=?",
+                 (task_id, fname))
     cur = conn.execute(
         """INSERT INTO test_scripts(task_id, module_id, framework, version, filename, content, content_hash)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",

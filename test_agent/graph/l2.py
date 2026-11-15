@@ -51,6 +51,8 @@ class L2State(TypedDict, total=False):
     # 执行与判定
     last_exit: int
     last_stdout: str
+    last_stderr: str             # run 节点回传；不声明则被 LangGraph 过滤，evaluate 的
+                                 # raw 尾巴 stderr 恒空=归因断点（407 证据蒸发家族）
     passed: int
     failed: int
     contract_violations: int

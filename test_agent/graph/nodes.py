@@ -455,11 +455,17 @@ def make_nodes(deps: GraphDeps) -> dict:
         # → 走静态扫描兜底（Tier3）：扫描+测试设计草稿落库，报告明示"未执行"
         strategy = _tier_strategy(primary)
         # upsert：A4 允许重跑 done/failed 任务，重跑时模块行必须幂等（否则 UNIQUE 崩）
-        cur = conn.execute(
+        # upsert：A4 允许重跑 done/failed 任务，重跑时模块行必须幂等（否则 UNIQUE 崩）。
+        # 注意：冲突走 DO UPDATE 分支时 cur.lastrowid 不是模块行 id（sqlite3 语义=保持
+        # 同连接上一条成功 INSERT 的 rowid，重跑时会拿到 session 行 id 指错外键）——
+        # 必须回读 SELECT 取真 id（2026-11-15 闲时找bug 第一轮实锤）
+        conn.execute(
             """INSERT INTO modules(project_id, path, language, loc, strategy) VALUES (?, '.', ?, ?, ?)
                ON CONFLICT(project_id, path) DO UPDATE SET language=excluded.language,
                  loc=excluded.loc, strategy=excluded.strategy""",
             (pid, primary, total, strategy))
+        module_row = conn.execute(
+            "SELECT id FROM modules WHERE project_id=? AND path='.'", (pid,)).fetchone()
         # 准出标准冻结进任务行（A1）：此后 decide 只认这个值，实验中途改 config 不影响在途任务
         conn.execute("UPDATE test_tasks SET coverage_target=? WHERE id=?",
                      (config.COVERAGE_TARGET, tid))
@@ -470,7 +476,7 @@ def make_nodes(deps: GraphDeps) -> dict:
         msg(state["session_id"], "assistant",
             f"[analyze] 语言占比 {ratios} → 主语言 {primary}，分级 {strategy}，"
             f"准出标准冻结：行覆盖率 ≥ {config.COVERAGE_TARGET:.0%} 或预算耗尽")
-        out = {"primary_language": primary, "module_id": cur.lastrowid,
+        out = {"primary_language": primary, "module_id": module_row["id"] if module_row else None,
                "coverage_target": config.COVERAGE_TARGET,
                "image": config.EXEC_LANGUAGES.get(primary, config.IMAGE_PY)}
         # W4 圈复杂度热点（radon 宿主侧确定性扫描）：注入 plan 提示词做风险分级倾斜；
