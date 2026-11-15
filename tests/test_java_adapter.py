@@ -69,3 +69,25 @@ def test_java_stack_lines_parsed_for_attribution():
         (pathlib.Path(d) / "TEST-TestGenR1.xml").write_text(SUREFIRE_XML, encoding="utf-8")
         text = surefire_dir_to_pytest_text(d)
     assert "at TestGenR1.test_clamp_hi(TestGenR1.java:12)" in text
+
+
+# ---------- 2026-11-15 闲时找bug 第一轮：XML 半截文件零容错 ----------
+
+def test_surefire_truncated_xml_skipped_honestly(tmp_path):
+    """mvn 中断/磁盘满会产生半截 TEST-*.xml——旧实现 ET.parse 裸抛 ParseError 沿
+    run 节点上炸整任务。应跳过坏文件继续解析其余（php clover 同款诚实空）。"""
+    from test_agent.skills.java_adapter import surefire_dir_to_pytest_text
+    good = tmp_path / "TEST-Good.xml"
+    good.write_text(
+        '<?xml version="1.0"?><testsuite name="Good" tests="1" failures="0">'
+        '<testcase classname="Good" name="test_ok"/></testsuite>', encoding="utf-8")
+    bad = tmp_path / "TEST-Bad.xml"
+    bad.write_text('<?xml version="1.0"?><testsuite name="Bad" tests="1" fail', encoding="utf-8")
+    text = surefire_dir_to_pytest_text(tmp_path)
+    assert "1 passed" in text, "坏文件必须被跳过，好文件照常解析"
+
+
+def test_jacoco_corrupt_xml_returns_empty(tmp_path):
+    from test_agent.skills.java_adapter import jacoco_xml_to_rows
+    rows, total = jacoco_xml_to_rows('<?xml version="1.0"?><report part')
+    assert rows == [] and total == 0, "坏 jacoco XML 应诚实空（php clover 同款）"

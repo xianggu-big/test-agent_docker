@@ -402,7 +402,8 @@ def review_rules(narrative: str, metrics: dict, verdict: str) -> list[str]:
     pr = metrics.get("pass_rate")
     rate_forms = re.findall(r"通过率\s*([\d.]+)\s*%", narrative or "") + [
         f"{int(a) / int(b) * 100:.1f}"
-        for a, b in re.findall(r"通过率\s*(\d+)\s*/\s*(\d+)", narrative or "")]
+        for a, b in re.findall(r"通过率\s*(\d+)\s*/\s*(\d+)", narrative or "")
+        if int(b) > 0]   # 零分母（LLM 手滑/对抗样本）忽略，不炸规则闸（本闸在 LLM try 之前）
     for m in rate_forms:
         if pr is None:
             reasons.append("叙述给出具体通过率，但指标包无 pass_rate（无数据不得编造）")

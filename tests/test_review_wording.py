@@ -66,3 +66,11 @@ def test_红线_failed大于零全部通过_变体二():
          "pass_rate": 0.833, "failure_kind": "none"}
     reasons = review_rules("覆盖率 90%。全部通过，收工。", m, "pass")
     assert any("全部通过" in r for r in reasons), reasons
+
+
+def test_通过率分数形式零分母不炸():
+    """叙述出现"通过率 3/0"（LLM 手滑/对抗样本）不得 ZeroDivisionError 炸穿规则闸
+    （该闸在 review_report 的 LLM try 之前）。零分母的分数形式直接忽略。"""
+    from test_agent.skills.evaluate import review_rules
+    reasons = review_rules("通过率 3/0，全部通过", {"pass_rate": 1.0}, "pass")
+    assert isinstance(reasons, list)

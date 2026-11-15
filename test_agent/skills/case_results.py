@@ -71,8 +71,11 @@ def parse_jest_results(stdout: str) -> list[dict]:
             full = ar.get("fullName") or ar.get("title") or ""
             status = {"passed": "passed", "failed": "failed"}.get(ar.get("status"), "error")
             msgs = ar.get("failureMessages") or []
+            # name 取 title（jest 的用例名字段）——fullName 是 describe 链空格拼接，
+            # 取"最后一个空格分词"在 describe/标题含空格时取错词 → 与 test_cases.name
+            # 反查失败 → origin 误归 repo（2026-11-15 闲时找bug；js_adapter._nodeid 同口径）
             out.append({"nodeid": full,
-                        "name": (full.split(" ")[-1] if full else ""),
+                        "name": (ar.get("title") or (full.split(" ")[-1] if full else "")),
                         "status": status,
                         "duration_ms": int(ar.get("duration") or 0) or None,
                         "message": (msgs[0][:300] if msgs else "")})

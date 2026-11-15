@@ -13,7 +13,12 @@ from pathlib import Path
 
 
 def _parse_suite(xml_path: Path) -> dict:
-    root = ET.parse(xml_path).getroot()
+    """单个 surefire XML → 套件 dict。半截文件（mvn 中断/磁盘满）ParseError →
+    诚实空套件跳过（php clover 同款），不炸整条 run 链（2026-11-15 闲时找bug）。"""
+    try:
+        root = ET.parse(xml_path).getroot()
+    except ET.ParseError:
+        return {"name": xml_path.name, "cases": [], "unparsable": True}
     suite = {"name": root.get("name", ""), "cases": []}
     for tc in root.iter("testcase"):
         failure = tc.find("failure")
@@ -80,8 +85,12 @@ def surefire_dir_to_pytest_text(report_dir: str | Path, jacoco_xml: str | Path |
 
 
 def jacoco_xml_to_rows(xml_text: str) -> tuple[list[dict], int]:
-    """JaCoCo XML → (有缺口的类级 LINE 行, 总覆盖百分比)。B2 口径：全覆盖类不进行列表。"""
-    root = ET.fromstring(xml_text)
+    """JaCoCo XML → (有缺口的类级 LINE 行, 总覆盖百分比)。B2 口径：全覆盖类不进行列表。
+    半截 XML → 诚实空 ([], 0)（php clover 同款，2026-11-15 闲时找bug）。"""
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return [], 0
     rows: list[dict] = []
     tot_missed = tot_covered = 0
     for cls in root.iter("class"):

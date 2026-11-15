@@ -168,3 +168,15 @@ def test_受控集成_真pytest输出端到端(tmp_path, monkeypatch):
     snap = execution_snapshot(conn, tid)
     assert len(snap["cases"]) == 4 and snap["granularity"] == "round"
     conn.close()
+
+
+def test_jest_name_uses_title_not_last_word():
+    """jest fullName=describe 链空格拼接+用例标题——旧实现取最后一个空格分词，
+    describe/标题含空格时 name 取错词 → 与 test_cases.name 反查失败 → origin 误归
+    repo（generated 被记为仓库自带，2026-11-15 闲时找bug）。title 字段才是用例名。"""
+    from test_agent.skills.case_results import parse_jest_results
+    stdout = __import__("json").dumps({"testResults": [{"assertionResults": [{
+        "fullName": "calc adds two numbers adds basic case",
+        "title": "adds basic case", "status": "passed", "duration": 5}]}]})
+    rows = parse_jest_results(stdout)
+    assert rows and rows[0]["name"] == "adds basic case", "name 必须取 title 而非末词"
