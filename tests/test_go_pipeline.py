@@ -51,8 +51,11 @@ def test_gen_file_naming_go():
 
 
 def test_collect_gate_cmd_go():
+    # 2026-11-16 1207 实锤：去掉 go build ./...（package main 无 main 函数的库形态
+    # 恒 build 失败误杀）；go test -c 编译主包+测试文件=等效拦截
     cmd = collect_gate_cmd("go", "TestGenR1_test.go")
-    assert cmd == ["sh", "-c", "go build ./... && go test -c -o /tmp/mta_gate.bin ."]
+    assert cmd == ["sh", "-c", "go test -c -o /tmp/mta_gate.bin ."]
+    assert "go build" not in cmd[1]
 
 
 # —— 渲染辅助（包壳） ——

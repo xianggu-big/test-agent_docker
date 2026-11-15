@@ -83,8 +83,8 @@ class _FakeRunner:
         joined = " ".join(cmd)
         if first == "sh" and "rm -f" in joined:
             return _R(0)
-        if "go build" in joined:
-            first = "go-build-gate"
+        if "go test -c" in joined:
+            first = "go-build-gate"   # 2026-11-16 闸命令改为单 go test -c
         if any(first.startswith(p) or p in first for p in self.fail_prefixes):
             return _R(1, stderr="compile error: undefined: Fake")
         return _R(0)
