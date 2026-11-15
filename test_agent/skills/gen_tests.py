@@ -165,10 +165,12 @@ def collect_gate_cmd(lang: str, fname: str) -> list[str]:
         # fname 不进命令——maven 编译全项目；任务卡写 `mvn -q compile`，测试代码需 test-compile（偏差入档）。
         return ["mvn", "-q", "test-compile"]
     if lang == "go":
-        # 白包阶段3：A 档硬闸 go build ./...（主代码）+ go test -c（编译测试文件不执行）。
-        # go build 不编译 _test.go——测试文件编译靠 go test -c（单包语义，任务卡写 go build ./...，
-        # 补 test -c 是"生成代码必须真实编译通过"的忠实实现，偏差入档）。
-        return ["sh", "-c", "go build ./... && go test -c -o /tmp/mta_gate.bin ."]
+        # 白包阶段3：编译闸 go test -c（编译被测主包+测试文件，不执行）。
+        # 2026-11-16 全语言实锤（1207 go-ver-gate）：原命令带 go build ./...——对
+        # "package main 无 main 函数"的纯函数库 demo 恒失败 → gen 闸每轮废案 →
+        # 0/0"通过但覆盖率 0%"死循环熔断。test -c 本身编译主包（主代码编译错
+        # 一样炸=等效拦截），去掉 build ./... 不降低拦截力且不误杀库形态。
+        return ["sh", "-c", "go test -c -o /tmp/mta_gate.bin ."]
     if lang == "php":
         # 白包阶段4：语法闸 php -l（闸不过=生成缺陷整案废案）；编译/运行闸=phpunit 本身
         return ["php", "-l", fname]
