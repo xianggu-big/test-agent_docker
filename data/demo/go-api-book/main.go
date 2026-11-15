@@ -5,6 +5,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -58,6 +59,16 @@ func setupRouter() *gin.Engine {
 }
 
 func main() {
+	// 端口契约（2026-11-15 修）：provision 以 --port 下发（L2/L3 探针与契约 BASE
+	// 都按该端口）——旧版硬编码 8080 导致服务起了但探针在 8000 上空等
+	port := 8080
+	for i, arg := range os.Args {
+		if arg == "--port" && i+1 < len(os.Args) {
+			if p, err := strconv.Atoi(os.Args[i+1]); err == nil {
+				port = p
+			}
+		}
+	}
 	r := setupRouter()
-	_ = r.Run("127.0.0.1:8080")
+	_ = r.Run("127.0.0.1:" + strconv.Itoa(port))
 }

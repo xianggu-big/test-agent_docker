@@ -297,6 +297,14 @@ class SandboxRunner:
         except FutureTimeout:
             log.warning("执行超时(%ss): %s", timeout_s, cmd)
             return ExecResult(exit_code=-1, stdout="", stderr=f"timeout after {timeout_s}s: {' '.join(cmd)}")
+        except docker.errors.APIError as e:
+            # 容器级不可达结构化（2026-11-15 Go L2 实锤：容器运行中死亡→exec 409
+            # "not running" 裸抛炸整图；NotFound 的 get() 已由调用方各自兜底）
+            log.warning("容器执行不可达: %s: %s（cmd=%s）",
+                        type(e).__name__, str(e)[:120], cmd[:2])
+            return ExecResult(exit_code=-1, stdout="",
+                              stderr=f"环境错误：容器执行不可达（{type(e).__name__}）"
+                                     f"——容器已停止或被回收，本轮命令未执行: {' '.join(cmd[:2])}")
         return ExecResult(
             exit_code=code,
             stdout=(out or b"").decode("utf-8", errors="replace"),

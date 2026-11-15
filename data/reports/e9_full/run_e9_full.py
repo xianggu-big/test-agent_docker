@@ -382,12 +382,54 @@ def sweep_leftovers():
             print(f"[resume] 残留 {leftover.name} 处理失败：{e}", flush=True)
 
 
+def restore_profile_default() -> None:
+    """兜底复位 LLM 档位（2026-11-15 实锤：402 降级 worker 被杀时 finally 不跑，
+    app_settings 停在 default=local 污染后续所有任务——配置错位比格失败更贵）。
+    E9 语义=仅 DeepSeek 波谷跑：default 非 deepseek 一律复位（profiles 保留）。"""
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT value FROM app_settings WHERE key=?",
+                           (llm_profile.PROFILE_KEY,)).fetchone()
+        if not row:
+            return
+        doc = json.loads(row["value"])
+        if doc.get("default") != "deepseek" or doc.get("routing"):
+            doc["default"] = "deepseek"
+            doc["routing"] = {}
+            conn.execute("UPDATE app_settings SET value=?, updated_by='e9-profile-restore',"
+                         " updated_at=datetime('now') WHERE key=?",
+                         (json.dumps(doc, ensure_ascii=False), llm_profile.PROFILE_KEY))
+            conn.commit()
+            print("[profile] 检测到遗留非 deepseek 档 → 复位（worker 异退兜底）", flush=True)
+    finally:
+        conn.close()
+
+
+def sweep_stale_running(max_age_h: float = 2.0) -> None:
+    """陈旧 running 清理（2026-11-15 实锤：worker 被杀时 skill_invocations 悬挂
+    running 无终态，台账永远缺这格的结局）：超龄 running 标 error 留痕。"""
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "UPDATE skill_invocations SET status='error',"
+            " error='worker 异退：调用悬挂无终态（进程被杀），驱动器启动时补记'"
+            " WHERE status='running' AND created_at < datetime('now', ?)",
+            (f"-{max_age_h} hours",))
+        if cur.rowcount:
+            conn.commit()
+            print(f"[sweep] 陈旧 running 清理 {cur.rowcount} 条 → error 留痕", flush=True)
+    finally:
+        conn.close()
+
+
 def main() -> int:
     if "--worker" in sys.argv:
         return run_worker(sys.argv[sys.argv.index("--worker") + 1])
     if not acquire_lock():
         return 2
     try:
+        restore_profile_default()
+        sweep_stale_running()
         sweep_leftovers()
         baseline = tokens_total()
         t0 = time.time()
@@ -466,6 +508,8 @@ def main() -> int:
                         result[k] = params[k]
             return cid, result
 
+        params_by_cid = {cid: p for cid, p in pending}   # 402 降级取参用（2026-11-15 修：
+        # 推导式 p 不外泄——降级块 {**p} 在首次真 402 时 NameError，整波崩）
         with ThreadPoolExecutor(max_workers=CONCURRENCY) as pool:
             futures = {pool.submit(launch, cid, p): cid for cid, p in pending}
             for fut in as_completed(futures):
@@ -496,15 +540,16 @@ def main() -> int:
                     print(f"[fallback] {cid} 402 → 降级 local 档重跑一次", flush=True)
                     params_extra[cid] = {"profile": "local"}
                     pfile2 = OUT / f"{cid}.params"
-                    pfile2.write_text(json.dumps({**p, **params_extra[cid]},
+                    pfile2.write_text(json.dumps({**params_by_cid[cid], **params_extra[cid]},
                                                  ensure_ascii=False), encoding="utf-8")
                     try:
-                        cid2, rec2 = launch(cid, {**p, **params_extra[cid]})
+                        cid2, rec2 = launch(cid, {**params_by_cid[cid], **params_extra[cid]})
                     except subprocess.TimeoutExpired:
                         rec2 = {"status": "error", "error": "local fallback timeout",
                                 "tokens_spent": 0, "profile": "local_fallback"}
                     rec = rec2
                     cid = cid2
+                    restore_profile_default()   # worker 被杀时 finally 不跑 → 主进程兜底
                 (OUT / f"{cid}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=1),
                                                  encoding="utf-8")
                 for junk in (OUT / f"{cid}.running", OUT / f"{cid}.params"):

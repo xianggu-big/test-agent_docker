@@ -1,0 +1,37 @@
+{
+ "task_id": 1126,
+ "final": {},
+ "legs": {
+  "L1": {
+   "status": "done",
+   "verdict": "stop",
+   "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+  },
+  "L2": {
+   "status": "skipped",
+   "verdict": "skipped",
+   "stop_reason": "无端点提取路径（no_spec）"
+  },
+  "L3": null,
+  "L4": null
+ },
+ "scenarios": [],
+ "rounds": [
+  {
+   "level": "L1",
+   "round_no": 1,
+   "passed": 0,
+   "failed": 0,
+   "verdict": "repair_gen",
+   "sr": "通过但覆盖率 0% 低于目标 70%，补测"
+  },
+  {
+   "level": "L1",
+   "round_no": 2,
+   "passed": 7,
+   "failed": 1,
+   "verdict": "stop",
+   "sr": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+  }
+ ]
+}

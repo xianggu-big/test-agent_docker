@@ -89,7 +89,8 @@ def make_l3_nodes(deps):
                             stop_reason="未找到 Go 服务入口", finished_at=_now())
                 msg(state["session_id"], "[L3·prepare] 未找到 Go 服务入口：本级如实终止")
                 return {"done": True, "verdict": "stop", "stop_reason": "未找到 Go 服务入口"}
-            ok, why, health = _start_service_go(runner, container, ws, port)
+            ok, why, health, actual_port = _start_service_go(runner, container, ws, port)
+            port = actual_port                    # 服务硬编码端口时跟随实际（日志解析兜底）
             if not ok:
                 _leg_update(tid, status="failed", verdict="stop",
                             stop_reason=f"Go 服务启动失败：{why}", finished_at=_now())
@@ -218,7 +219,9 @@ def make_l3_nodes(deps):
             build_smoke_script(state["scenarios"], base), encoding="utf-8")
         container = runner.client.containers.get(state["container_name"])
         runner.copy_dir_into(container, ws)
-        r = runner.exec_in(container, ["python", "smoke_l3.py"], timeout_s=300)
+        # python3 统一（2026-11-15 实锤：go126 只有 python3，`python` not found→
+        # 冒烟脚本对 Go 容器从来跑不起来）；py312/java/php 四镜像 python3 全在
+        r = runner.exec_in(container, ["python3", "smoke_l3.py"], timeout_s=300)
         raw = r.stdout or ""
         if "SMOKE_JSON=" not in raw:
             _leg_update(tid, status="failed", verdict="stop",

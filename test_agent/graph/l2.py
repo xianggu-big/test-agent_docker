@@ -241,13 +241,16 @@ def _detect_go_entry(ws: Path) -> str | None:
 _GO_HEALTH_PATHS = ("/ping", "/healthz", "/health")   # gin 社区惯例健康路径
 
 
-def _start_service_go(runner, container, ws: Path, port: int) -> tuple[bool, str, str]:
+def _start_service_go(runner, container, ws: Path,
+                      port: int) -> tuple[bool, str, str, int]:
     """Go 服务启动（F 卡 #7）：go build -o /tmp/app && 后台运行 → 探测就绪。
 
-    返回 (就绪?, 失败说明, 健康路径)。健康路径从 _GO_HEALTH_PATHS 逐个试，
-    全不通时 TCP 通也算就绪（契约用例对 404 一样有断言价值——路由清单已落库）。"""
+    返回 (就绪?, 失败说明, 健康路径, 实际端口)。健康路径从 _GO_HEALTH_PATHS 逐个试，
+    全不通时 TCP 通也算就绪（契约用例对 404 一样有断言价值——路由清单已落库）。
+    实际端口兜底（2026-11-15 Go L2 实锤）：服务忽略 --port 硬编码监听时，探针在
+    下发端口上空等——从应用日志解析 gin 实际监听端口复探，契约 BASE 跟随实际端口。"""
     if not (ws / "go.mod").is_file():
-        return False, "工作区无 go.mod（非 Go module 项目）", ""
+        return False, "工作区无 go.mod（非 Go module 项目）", "", port
     runner.exec_in(container, ["sh", "-c", "go build -o /tmp/goapp ."],
                    timeout_s=300, workdir="/work")
     runner.exec_in(container, ["sh", "-c",
@@ -280,10 +283,41 @@ def _start_service_go(runner, container, ws: Path, port: int) -> tuple[bool, str
     r = runner.exec_in(container, ["python3", "-c", chk], timeout_s=wait + 15)
     if r.exit_code == 0 and "READY" in r.stdout:
         parts = (r.stdout or "").split()
-        return True, "", (parts[1] if len(parts) > 1 else "")
-    tail = runner.exec_in(container, ["sh", "-c", f"tail -n 20 {APP_LOG_CONTAINER_PATH}"],
+        return True, "", (parts[1] if len(parts) > 1 else ""), port
+    # 实际端口兜底：应用日志找 gin 实际监听端口，复探成功则以实际端口为准
+    tail = runner.exec_in(container, ["sh", "-c", f"tail -n 40 {APP_LOG_CONTAINER_PATH}"],
                           timeout_s=10)
-    return False, (tail.stdout or tail.stderr or "Go 服务未就绪")[-300:], ""
+    log_text = (tail.stdout or "") + (tail.stderr or "")
+    m = re.search(r"Listening and serving HTTP on 127\.0\.0\.1:(\d+)", log_text) or \
+        re.search(r"127\.0\.0\.1:(\d+)", log_text)
+    if m and int(m.group(1)) != port:
+        actual = int(m.group(1))
+        chk2 = (
+            "import time,socket,sys,urllib.request\n"
+            "paths=['" + "','".join(_GO_HEALTH_PATHS) + "']\n"
+            f"deadline=time.time()+10\n"
+            "while time.time()<deadline:\n"
+            "    for p in paths:\n"
+            "        try:\n"
+            f"            urllib.request.urlopen('http://127.0.0.1:{actual}'+p, timeout=2)\n"
+            "            print('READY', p); sys.exit(0)\n"
+            "        except Exception:\n"
+            "            pass\n"
+            "    try:\n"
+            f"        s=socket.create_connection(('127.0.0.1',{actual}), timeout=2)\n"
+            "        s.close(); print('READY (tcp)'); sys.exit(0)\n"
+            "    except Exception:\n"
+            "        pass\n"
+            "    time.sleep(1)\n"
+            "print('NOT_READY'); sys.exit(1)\n")
+        r2 = runner.exec_in(container, ["python3", "-c", chk2], timeout_s=25)
+        if r2.exit_code == 0 and "READY" in (r2.stdout or ""):
+            parts2 = (r2.stdout or "").split()
+            health = f"{parts2[1] if len(parts2) > 1 else '(tcp)'}@日志解析端口"
+            log.warning("Go 服务忽略 --port（实际监听 %d，下发 %d）——契约 BASE 跟随实际端口",
+                        actual, port)
+            return True, "", health, actual
+    return False, (log_text or "Go 服务未就绪")[-300:], "", port
 
 
 def _start_service(runner, container, app_module: str, port: int) -> tuple[bool, str]:
@@ -606,7 +640,8 @@ def make_l2_nodes(deps):
                 return {"done": True, "verdict": "stop", "service_ready": False,
                         "stop_reason": "未找到 Go 服务入口"}
             port = int(config.L2_SERVICE_PORT)
-            ok, why, health = _start_service_go(runner, container, ws, port)
+            ok, why, health, actual_port = _start_service_go(runner, container, ws, port)
+            port = actual_port                    # 服务硬编码端口时跟随实际（日志解析兜底）
             if not ok:
                 _collect_app_logs(state, 1)
                 _leg_update(tid, status="failed", verdict="stop",
@@ -729,7 +764,12 @@ def make_l2_nodes(deps):
         tid = state["task_id"]
         stdout = state.get("last_stdout", "")
         # Loop-1：判读抽纯函数 judge_l2（P2-5a 修复；下方消息行沿用同名局部量）
-        summary, verdict, reason = judge_l2(stdout, int(state.get("last_exit", 1) or 1),
+        # 2026-11-15 修：`or 1` 把合法的 exit=0 强转成 1——L2 全过被误判
+        # "无可执行用例"→stop（E9 手动波证据留痕实锤：raw 显示 exit=0/3 passed）。
+        # None 缺省仍按 1（未知当失败，保守方向不变）
+        _last_exit_raw = state.get("last_exit")
+        _last_exit = 1 if _last_exit_raw is None else int(_last_exit_raw)
+        summary, verdict, reason = judge_l2(stdout, _last_exit,
                                             state.get("endpoints"), state.get("skipped_routes"))
         passed = summary["passed"]
         failed = summary["failed"]
@@ -746,6 +786,12 @@ def make_l2_nodes(deps):
              reason))
         conn.commit()
         _leg_update(tid, verdict=verdict, stop_reason=reason, summary=json.dumps(summary, ensure_ascii=False))
+        # 证据留痕（407 家族教训：last_stdout 不落库=归因链断点）：exit!=0 且判不出失败时
+        # 必须能看到原始输出尾部——"通过 N 却 exit 非 0"这类矛盾才可事后定性
+        if _last_exit != 0:
+            msg(state["session_id"],
+                f"[L2·evaluate·raw] exit={state.get('last_exit')}，输出尾部：\n"
+                f"{(stdout or state.get('last_stderr', '') or '(空)')[-800:]}")
         msg(state["session_id"],
             f"[L2·evaluate] 通过{passed} 失败{failed}（需求级 {req_fail}/契约级 {contract_fail}）"
             f" 端点覆盖 {summary['endpoints_hit']}/{summary['endpoints_total']} → {verdict}")

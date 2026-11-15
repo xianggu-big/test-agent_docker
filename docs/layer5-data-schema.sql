@@ -312,7 +312,9 @@ CREATE TABLE IF NOT EXISTS interface_endpoints (
   request_schema  TEXT,                       -- JSON：requestBody schema（$ref 已确定性展开）
   response_schema TEXT,                       -- JSON：首个 2xx 响应 schema（$ref 已展开）
   source          TEXT NOT NULL DEFAULT 'spec'
-                  CHECK (source IN ('spec','ast','llm')),
+                  -- 2026-11-15 扩：go_route/go_swag 提取来源（11-11/12 接入时漏扩
+                  -- CHECK→落库 IntegrityError→Go L2 诚实降级 no_spec，矩阵最后一格被卡）
+                  CHECK (source IN ('spec','ast','llm','go_route','go_swag')),
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (task_id, method, path)
 );

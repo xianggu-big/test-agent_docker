@@ -42,7 +42,8 @@ def canary_cmd(lang: str) -> list[str]:
             "f.write(b'ok'); f.close(); os.unlink(f.name);"
             f"print('{CANARY_OK}')"
         )
-        return ["python", "-c", code]
+        # python3：金丝雀在任务容器内跑——go126/java/php 镜像无 `python` 别名
+        return ["python3", "-c", code]
     if lang == "javascript":
         code = (
             "const fs=require('fs'),os=require('os'),p=os.tmpdir()+'/_canary.tmp';"

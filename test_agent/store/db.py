@@ -144,23 +144,37 @@ def _rebuild_test_tasks(conn: sqlite3.Connection) -> None:
     历过 ALTER 补列，列序可能与新 DDL 不一致，SELECT * 按位拷贝会错位）；
     foreign_keys 临时关闭（其他表 REFERENCES test_tasks 按名解析，rename 后自动指回新表）。
     """
-    m = re.search(r"CREATE TABLE IF NOT EXISTS test_tasks\s*\(.*?\n\);",
+    _rebuild_table_check(conn, "test_tasks", "test_tasks")
+
+
+def _endpoints_source_check_outdated(conn: sqlite3.Connection) -> bool:
+    """老库 interface_endpoints 的 CHECK 枚举缺 go_route/go_swag（2026-11-11/12 接入
+    Go 提取来源时漏扩——落库 IntegrityError→Go L2 诚实降级 no_spec，矩阵最后一格被卡）。"""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='interface_endpoints'").fetchone()
+    return bool(row) and "go_route" not in (row["sql"] or "")
+
+
+def _rebuild_table_check(conn: sqlite3.Connection, table: str, tmp_prefix: str) -> None:
+    m = re.search(rf"CREATE TABLE IF NOT EXISTS {table}\s*\(.*?\n\);",
                   config.SCHEMA_PATH.read_text(encoding="utf-8"), re.S)
     if not m:
-        raise RuntimeError("schema 文件中未找到 test_tasks DDL，无法重建")
-    tmp = "test_tasks__mig"
+        raise RuntimeError(f"schema 文件中未找到 {table} DDL，无法重建")
+    tmp = f"{tmp_prefix}__mig"
     conn.execute("PRAGMA foreign_keys=OFF")
     conn.commit()
     conn.executescript(f"DROP TABLE IF EXISTS {tmp};")
-    conn.executescript(m.group(0).replace("IF NOT EXISTS test_tasks",
+    conn.executescript(m.group(0).replace(f"IF NOT EXISTS {table}",
                                           f"IF NOT EXISTS {tmp}", 1) + ";")
-    old_cols = [r["name"] for r in conn.execute("PRAGMA table_info(test_tasks)")]
+    old_cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})")]
     new_cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({tmp})")]
     common = [c for c in new_cols if c in old_cols]
     collist = ", ".join(common)
-    conn.execute(f"INSERT INTO {tmp} ({collist}) SELECT {collist} FROM test_tasks")
-    conn.execute("DROP TABLE test_tasks")
-    conn.execute(f"ALTER TABLE {tmp} RENAME TO test_tasks")
+    conn.execute(f"INSERT INTO {tmp} ({collist}) SELECT {collist} FROM {table}")
+    conn.execute(f"DROP TABLE {table}")
+    conn.execute(f"ALTER TABLE {tmp} RENAME TO {table}")
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()
     conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()
@@ -172,6 +186,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # CHECK 枚举无法 ALTER：老库 test_tasks 缺 ready_for_review 时按 12 步法重建（两阶段停等态）
     if _tasks_status_check_outdated(conn):
         _rebuild_test_tasks(conn)
+    if _endpoints_source_check_outdated(conn):
+        _rebuild_table_check(conn, "interface_endpoints", "interface_endpoints")
     for table, cols in _MIGRATIONS.items():
         have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
         for col, ddl in cols.items():
