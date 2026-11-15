@@ -379,15 +379,23 @@ def api_stop(tid: int, user: dict = Depends(staff)):
             (tid,))
         conn.commit()
         return {"task_id": tid, "stopped": True, "forced": True}
-    conn.execute("UPDATE test_tasks SET status='cancelled', updated_at=datetime('now') WHERE id=? AND status='queued'",
-                 (tid,))
-    # 排队行同步取消（2026-11-15 闲时找bug）：worker 只看 exec_queue 不复核任务状态，
-    # 且 builder 乐观锁不拦 cancelled——不清队列行=已取消任务被"复活"全链执行
-    conn.execute(
-        "UPDATE exec_queue SET status='cancelled', finished_at=datetime('now'),"
-        " error='用户取消（排队中停止）' WHERE task_id=? AND status='queued'", (tid,))
+    stopped = conn.execute(
+        "UPDATE test_tasks SET status='cancelled', updated_at=datetime('now')"
+        " WHERE id=? AND status='queued'", (tid,)).rowcount
+    if stopped:
+        # 排队行同步取消（2026-11-15 闲时找bug）：worker 只看 exec_queue 不复核任务状态，
+        # 且 builder 乐观锁不拦 cancelled——不清队列行=已取消任务被"复活"全链执行
+        conn.execute(
+            "UPDATE exec_queue SET status='cancelled', finished_at=datetime('now'),"
+            " error='用户取消（排队中停止）' WHERE task_id=? AND status='queued'", (tid,))
+        conn.commit()
+        return {"task_id": tid, "stopped": True}
+    # 非排队态（终态/停等态）零状态变化——如实报 false，不谎报成功
+    #（2026-11-15 闲时找bug：旧实现对 done/failed/ready_for_review 也返回 stopped:true）
     conn.commit()
-    return {"task_id": tid, "stopped": True}
+    return {"task_id": tid, "stopped": False,
+            "reason": f"当前状态 {row['status']} 无可停止的执行（终态无需停止；"
+                      "待审查任务请在评审页放行或忽略）"}
 
 
 @app.get("/api/tasks")
@@ -1153,12 +1161,18 @@ def api_batch_auto_run(body: dict, user: dict = Depends(staff)):
     conn = get_conn()
     out = []
     for tid in ids:
-        row = conn.execute("SELECT status, confirmed, ai_reviewer FROM test_tasks WHERE id=?",
-                           (tid,)).fetchone()
+        row = conn.execute(
+            "SELECT status, confirmed, ai_reviewer, two_stage FROM test_tasks WHERE id=?",
+            (tid,)).fetchone()
         if row is None:
             out.append({"task_id": tid, "started": False, "reason": "不存在"})
         elif row["ai_reviewer"] != "auto":
             out.append({"task_id": tid, "started": False, "reason": "未开启 auto 代审"})
+        elif not row["two_stage"]:
+            # auto 代审链=D1→prep→停等→D2→run_task_exec（两阶段专属）：单阶段任务
+            # 走到底会撞"任务未开启两阶段流程"守卫滞留停等态（2026-11-15 闲时找bug）
+            out.append({"task_id": tid, "started": False,
+                        "reason": "auto 代审需要两阶段流程（新建任务时勾选两阶段）"})
         elif row["status"] in ACTIVE:
             out.append({"task_id": tid, "started": False, "reason": "执行中"})
         elif row["status"] == "ready_for_review" and row["confirmed"] == 1:

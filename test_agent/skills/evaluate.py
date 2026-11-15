@@ -406,16 +406,24 @@ def review_rules(narrative: str, metrics: dict, verdict: str) -> list[str]:
     # 出现即与 pass_rate 白名单比对（容忍 0.5% 舍入）；分数形式"通过率 x/y"换算后同检；
     # pass_rate 缺席时任何具体通过率都不可信
     pr = metrics.get("pass_rate")
+    # 白名单=全部已知通过率口径（L1 pass_rate + 按级指标 l3 场景通过率）：叙述如实
+    # 引用任一口径均放行——只拦"任何指标都不匹配"的编造（2026-11-15 闲时找bug：
+    # 旧白名单只有 L1，gen_report 指标包含 l3.pass_rate，引用即误判造假 reject）
+    allowed = [] if pr is None else [round(pr * 100)]
+    for _k in ("l3",):
+        _r = (metrics.get(_k) or {}).get("pass_rate")
+        if _r is not None:
+            allowed.append(round(_r * 100))
     rate_forms = re.findall(r"通过率\s*([\d.]+)\s*%", narrative or "") + [
         f"{int(a) / int(b) * 100:.1f}"
         for a, b in re.findall(r"通过率\s*(\d+)\s*/\s*(\d+)", narrative or "")
         if int(b) > 0]   # 零分母（LLM 手滑/对抗样本）忽略，不炸规则闸（本闸在 LLM try 之前）
     for m in rate_forms:
-        if pr is None:
+        if not allowed:
             reasons.append("叙述给出具体通过率，但指标包无 pass_rate（无数据不得编造）")
             break
-        if abs(float(m) - round(pr * 100)) > 0.5:
-            reasons.append(f"叙述通过率 {m}% 与数据 {round(pr * 100)}% 不符")
+        if all(abs(float(m) - a) > 0.5 for a in allowed):
+            reasons.append(f"叙述通过率 {m}% 与数据 {'/'.join(map(str, sorted(allowed)))}% 不符")
             break
     if cov is not None:
         for m in re.findall(r"覆盖率\s*([\d.]+)\s*%", narrative or ""):

@@ -291,8 +291,11 @@ def run_task_prep(task_id: int) -> dict:
     except Exception as e:
         _fail_task(conn, task_id, f"{type(e).__name__}: {e}")
         raise
-    if final.get("done"):
-        # analyze 诚实降级：准备阶段无报告可出，如实失败（不做伪装的"待审查"）
+    if final.get("done") and final.get("verdict") not in ("pass", "stop"):
+        # 诚实降级短路（无 verdict 形态）：准备阶段无报告可出，如实失败（不做伪装的"待审查"）。
+        # 注意 prep 图内唯一 done 生产者是 static_draft（verdict=pass/stop，草稿/UI 结果
+        # 已落库）——2026-11-15 闲时找bug：旧代码把静态草稿的成功当降级误标 failed，
+        # 两阶段 static_only 项目评审页永不可达（与图注释"静态模式停在待审查"矛盾）
         _fail_task(conn, task_id, final.get("stop_reason") or "准备阶段诚实降级终止")
     else:
         conn.execute("UPDATE test_tasks SET status='ready_for_review', error=NULL, updated_at=datetime('now') WHERE id=?",

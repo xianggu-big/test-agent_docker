@@ -444,7 +444,11 @@ async function spotcheck(decisionId, verdict, btn) {
 }
 
 async function batchReviewer(mode) {
-  const ids = TASKS.filter(t => t.status !== "cloning" && t.status !== "running").map(t => t.id);
+  // 过滤集与后端 ACTIVE 六态+queued 对齐（旧只排 cloning/running——其余执行态任务
+  // 混进名单被后端逐个拒绝，用户只见"已应用 X/N"不知原因，2026-11-15 闲时找bug）
+  const ACTIVE6 = ["cloning", "analyzing", "provisioning", "generating", "running",
+                   "reporting", "queued"];
+  const ids = TASKS.filter(t => !ACTIVE6.includes(t.status)).map(t => t.id);
   if (!ids.length) { alert("没有可设置的任务"); return; }
   if (!confirm(`对 ${ids.length} 个任务批量设置代审模式 = ${mode}？`)) return;
   try {
@@ -708,10 +712,17 @@ async function watchStage1(tid, alertOnFail, tries = 0) {
     const [detail, logs] = await Promise.all([
       api(`/tasks/${tid}`), api(`/tasks/${tid}/logs`).catch(() => [])]);
     const st = detail.status;
-    if (st === "queued" && tries >= 10) {                 // 确认 30s 仍未起步：后台线程丢了（服务重启过）
-      $("wb-progress").innerHTML = '<div class="confirm-bar" style="margin-top:0">阶段一未启动（服务可能重启过，后台线程已丢）——' +
-        '重新点「人工确认」即可重跑准备阶段。</div>';
-      return;
+    if (st === "queued" && tries >= 10) {
+      // B1 队列化后 queued 是长时合法态（单 worker 串行，前一任务跑完才轮到）——
+      // 先查队列行再定性"线程丢失"，防误报（2026-11-15 闲时找bug 修正）
+      const q = await api("/queue").catch(() => null);
+      const mine = q && (q.items || []).some(x => x.task_id === tid);
+      $("wb-progress").innerHTML = mine
+        ? '<div class="confirm-bar" style="margin-top:0">排队中——执行队列单线程串行，' +
+          '前一任务完成后自动开始（非故障，无需重新确认）。</div>'
+        : '<div class="confirm-bar" style="margin-top:0">阶段一未启动（服务可能重启过，后台线程已丢）——' +
+          '重新点「人工确认」即可重跑准备阶段。</div>';
+      if (!mine) return;
     }
     const node = { cloning: "正在克隆仓库…", analyzing: "正在摸底（语言占比/复杂度热点/准出标准）…",
                    provisioning: "正在准备环境…", generating: "正在按考纲出题…",
