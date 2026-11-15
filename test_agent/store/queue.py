@@ -122,15 +122,26 @@ class QueueWorker:
         self._stop.set()
 
     def _recover(self) -> None:
-        """启动恢复：running 行（进程已死）标 failed 并写清原因；queued 保留继续消费。"""
+        """启动恢复：running 行（进程已死）标 failed 并写清原因；queued 保留继续消费。
+        2026-11-15 第八轮（R7）：被中断的 running 行若任务停在 queued（已放行排队中）
+        ——queued 不在 ACTIVE 启动清扫集，无人收尸会永久滞留——连带标 failed 留痕。"""
         conn = get_conn()
         try:
+            rows = conn.execute(
+                "SELECT task_id FROM exec_queue WHERE status='running'").fetchall()
             n = conn.execute(
                 "UPDATE exec_queue SET status='failed', finished_at=datetime('now'),"
                 " error='服务重启：该次执行已中断（重新下发即可）' WHERE status='running'").rowcount
+            for r in rows:
+                # queued 不在 ACTIVE（_sweep_orphan_active_tasks 不覆盖）——必须这里收尸
+                conn.execute(
+                    "UPDATE test_tasks SET status='failed', error=?, updated_at=datetime('now')"
+                    " WHERE id=? AND status='queued'",
+                    ("服务重启：排队任务中断（重新下发即可）", r["task_id"]))
             conn.commit()
             if n:
-                log.warning("队列恢复：%s 条 running 行标记中断（诚实留痕，不冒充成功）", n)
+                log.warning("队列恢复：%s 条 running 行标记中断（诚实留痕，不冒充成功）"
+                            "；queued 任务已连带收尸", n)
         finally:
             conn.close()
 
