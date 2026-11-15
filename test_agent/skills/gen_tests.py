@@ -595,7 +595,7 @@ def _parse_cases(text: str, lang: str | None = None) -> dict | None:
     混写、直到文件级 tsc 闸整案废案；解析层剔除让干净用例存活，pytest 槽位模板
     （渲染 def test_）对 JS/TS 同样不适用。
     """
-    m = re.search(r"\{.*\}", text, re.S)
+    m = re.search(r"\{.*\}", text or "", re.S)   # None 容错：content=None 诚实降级不 TypeError
     if not m:
         return None
     try:

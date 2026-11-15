@@ -12,7 +12,7 @@ def _mem_conn():
     conn.row_factory = sqlite3.Row
     conn.execute("""CREATE TABLE test_scripts (id INTEGER PRIMARY KEY AUTOINCREMENT,
                     task_id INTEGER, module_id INTEGER, framework TEXT, version INTEGER,
-                    content TEXT, content_hash TEXT)""")
+                    filename TEXT, content TEXT, content_hash TEXT)""")   # filename=产品库列（重跑幂等键）
     conn.execute("""CREATE TABLE test_cases (id INTEGER PRIMARY KEY AUTOINCREMENT,
                     script_id INTEGER, source TEXT, name TEXT, method TEXT, content TEXT,
                     enabled INTEGER DEFAULT 1)""")

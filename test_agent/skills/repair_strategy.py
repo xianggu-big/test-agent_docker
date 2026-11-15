@@ -147,11 +147,20 @@ def rewrite_strategy(ws: Path, pairs: list[tuple[str, str]], task_id: int, conn,
                + "\n\n".join(c["code"] for c in data["cases"]) + "\n")
     (ws / fname).write_text(content, encoding="utf-8")
 
-    # 落库 + 回灌容器 + 第二道闸（收集失败即整体废案，与主生成闸同款纪律）
+    # 落库 + 回灌容器 + 第二道闸（收集失败即整体废案，与主生成闸同款纪律）。
+    # delete-first + filename（2026-11-15 闲时找bug）：重跑同轮 rewrite 时旧行不清
+    # 会翻倍（module_id NULL 使 UNIQUE 完全不设防），filename 缺列使按名幂等失效
+    conn.execute(
+        """DELETE FROM test_cases WHERE script_id IN
+           (SELECT id FROM test_scripts WHERE task_id=? AND filename=?)""",
+        (task_id, fname))
+    conn.execute("DELETE FROM test_scripts WHERE task_id=? AND filename=?",
+                 (task_id, fname))
     cur = conn.execute(
-        """INSERT INTO test_scripts(task_id, framework, version, content, content_hash)
-           VALUES (?, 'pytest', ?, ?, ?)""",
-        (task_id, round_no, content, hashlib.sha256(content.encode()).hexdigest()[:16]))
+        """INSERT INTO test_scripts(task_id, framework, version, filename, content, content_hash)
+           VALUES (?, 'pytest', ?, ?, ?, ?)""",
+        (task_id, round_no, fname, content,
+         hashlib.sha256(content.encode()).hexdigest()[:16]))
     script_id = cur.lastrowid
     for c in data["cases"]:
         conn.execute("INSERT INTO test_cases(script_id, source, name, method, content) "

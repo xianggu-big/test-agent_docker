@@ -144,7 +144,7 @@ def inject_body_refs(steps: list[dict]) -> list[dict]:
 def parse_scenarios(text: str, endpoints: list[dict]) -> tuple[list[dict], list[str]]:
     """解析 LLM 输出并过静态闸。返回 (通过场景, 剔除理由列表)。"""
     import re
-    m = re.search(r"\{.*\}", text, re.S)
+    m = re.search(r"\{.*\}", text or "", re.S)
     if not m:
         return [], ["LLM 输出不可解析"]
     try:
@@ -409,7 +409,7 @@ def build_acceptance_prompt(conditions: list[dict], endpoints: list[dict],
 def parse_acceptance(text: str, endpoints: list[dict]) -> tuple[list[dict], list[str]]:
     """解析验收场景（GWT 结构 + 端点静态闸，与 L3 同源闸规则）。"""
     import re
-    m = re.search(r"\{.*\}", text, re.S)
+    m = re.search(r"\{.*\}", text or "", re.S)   # None 容错（content=None 诚实降级）
     if not m:
         return [], ["LLM 输出不可解析"]
     try:

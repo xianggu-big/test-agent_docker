@@ -378,9 +378,14 @@ def apply_routing(routing: dict, conn, updated_by: str = "") -> dict:
             continue                      # 空/无效=用 default（不写死约束）
         clean[group] = pid
     doc["routing"] = clean
-    conn.execute("UPDATE app_settings SET value=?, updated_by=?, updated_at=datetime('now') "
-                 "WHERE key=?",
-                 (json.dumps(doc, ensure_ascii=False), updated_by, PROFILE_KEY))
+    # upsert（2026-11-15 闲时找bug）：全新库 app_settings 无 llm_profile 行时裸
+    # UPDATE 命中 0 行——PUT 成功返回但路由静默丢失（GET 回读恒空）。与 apply() 同款
+    conn.execute(
+        """INSERT INTO app_settings(key, value, updated_by, updated_at)
+           VALUES (?,?,?,datetime('now'))
+           ON CONFLICT(key) DO UPDATE SET value=excluded.value,
+             updated_by=excluded.updated_by, updated_at=excluded.updated_at""",
+        (PROFILE_KEY, json.dumps(doc, ensure_ascii=False), updated_by))
     conn.commit()
     log.info("[llm-routing] 更新 → %s（by=%s）", json.dumps(clean, ensure_ascii=False),
              updated_by or "-")

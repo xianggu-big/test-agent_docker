@@ -948,28 +948,40 @@ def api_add_case(tid: int, body: dict, user: dict = Depends(staff)):
         raise HTTPException(409, "工作区不存在（任务尚未运行过），请先下发执行一次")
 
     # name 与 nodeid 对齐（A5 同款规整）：查重范围 = 任务全域用例名
-    # （test_imported.py 合并跨脚本版本的全部 imported 用例，只查最新脚本会漏重名）
-    script = conn.execute(
-        "SELECT id FROM test_scripts WHERE task_id=? ORDER BY version DESC LIMIT 1", (tid,)).fetchone()
     used = {r["name"] for r in conn.execute(
         """SELECT c.name FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
-           WHERE s.task_id = ?""", (tid,))} if script else set()
+           WHERE s.task_id = ?""", (tid,))}
     def_name = _sanitize_name(name, len(used), used)
     # A5 同款 def 名重写：name↔nodeid 对齐 + 文件内唯一性真正生效
     m = re.search(r"def\s+\w+", code)
     if m:
         code = code[:m.start()] + f"def {def_name}" + code[m.end():]
 
-    script_id = script["id"] if script else conn.execute(
-        "INSERT INTO test_scripts(task_id, framework, version, content, content_hash) "
-        "VALUES (?, 'pytest', 1, ?, ?)", (tid, "", "")).lastrowid
+    # imported 宿主脚本（2026-11-15 闲时找bug 修正）：已有 imported 用例所在行优先
+    # （历史行 filename 为 NULL 也能命中）；没有则建新行——绝不能按 version DESC 挂到
+    # 生成/反馈脚本行：旧逻辑两阶段任务必挂错宿主，toggle 重建时会把 test_imported
+    # 内容整体写进生成脚本行，阶段二布考场按库重写=fb 用例从考场消失（污染链）
+    host = conn.execute(
+        """SELECT DISTINCT s.id FROM test_scripts s JOIN test_cases c ON c.script_id=s.id
+           WHERE s.task_id=? AND c.source='imported' ORDER BY s.id LIMIT 1""",
+        (tid,)).fetchone()
+    if host is not None:
+        script_id, fresh_host = host["id"], False
+    else:
+        nxt = conn.execute(
+            "SELECT COALESCE(MAX(version),0)+1 AS v FROM test_scripts WHERE task_id=?",
+            (tid,)).fetchone()["v"]
+        script_id = conn.execute(
+            "INSERT INTO test_scripts(task_id, framework, version, content, content_hash) "
+            "VALUES (?, 'pytest', ?, '', '')", (tid, nxt)).lastrowid
+        fresh_host = True
     conn.execute(
         "INSERT INTO test_cases(script_id, source, name, method, content) VALUES (?,?,?,?,?)",
         (script_id, "imported", def_name, method, code))
     conn.commit()
 
     file_content = _rebuild_imported_file(conn, tid, ws)
-    if script is None:  # 首个用例创建的脚本行，回填内容与哈希
+    if fresh_host:  # 新建宿主行回填内容与哈希
         conn.execute("UPDATE test_scripts SET content=?, content_hash=? WHERE id=?",
                      (file_content, hashlib.sha256(file_content.encode()).hexdigest()[:16], script_id))
         conn.commit()
