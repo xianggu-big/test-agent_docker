@@ -45,7 +45,7 @@ def test_pass_rate_matches_report_card_denominator(env):
     c.execute("INSERT INTO evaluation_rounds(task_id,level,round_no,passed,failed,skipped,"
               "verdict) VALUES(?, 'L1', 1, 8, 0, 2, 'stop')", (tid,))
     c.commit()
-    r = client.get("/api/dashboard", headers=h).json()
+    r = client.get("/api/dashboard", headers=h).json()["kpi"]
     assert r["pass_rate"] == pytest.approx(0.8), "分母必须含 skipped（判决卡口径）"
 
 
@@ -58,7 +58,7 @@ def test_defects_kpi_counts_distinct_tasks(env):
     c.execute("INSERT INTO test_reports(task_id,module_id,passed,failed,skipped,defects) "
               "VALUES(?, NULL, 8, 4, 0, '[\"product_defect\"]')", (tid,))
     c.commit()
-    r = client.get("/api/dashboard", headers=h).json()
+    r = client.get("/api/dashboard", headers=h).json()["kpi"]
     assert r["defects"] == 1, "按报告行计数=重跑翻倍（应按任务去重）"
 
 
@@ -76,7 +76,9 @@ def test_recent_30_ordered_by_latest_evaluation(env):
     c.execute("INSERT INTO evaluation_rounds(task_id,level,round_no,passed,failed,"
               "skipped,verdict) VALUES(?, 'L1', 2, 0, 1, 0, 'stop')", (first,))
     c.commit()
-    r = client.get("/api/dashboard", headers=h).json()
-    # 旧口径（task_id DESC LIMIT 30，排除 first）AVG=1.0；正确口径≈(29+0)/30
-    assert r["pass_rate"] == pytest.approx(29 / 30, abs=1e-3), \
+    r = client.get("/api/dashboard", headers=h).json()["kpi"]
+    # 旧口径（task_id DESC LIMIT 30，排除 first）AVG=1.0；新口径含 first：
+    # 其任务内两轮均值 (1.0+0.0)/2=0.5 → (0.5+29*1)/30=0.9833（"按任务均值"语义不变，
+    # 只修"哪些任务算最近"的选取键）
+    assert r["pass_rate"] == pytest.approx(29.5 / 30, abs=1e-3), \
         "近 30 必须按最新评估轮次取，不是按 task_id"
