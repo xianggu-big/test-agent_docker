@@ -244,7 +244,7 @@ def map_requirements(conn, task_id: int, api_key: str | None = None) -> dict:
     if conditions and cases and api_key:
         try:
             from ..skills.llm_client import make_chat  # B5：带退避重试的同签名构造
-            llm = make_chat(api_key=api_key, temperature=0,
+            llm = make_chat(phase="map_rtm", api_key=api_key, temperature=0,
                             timeout=60, max_retries=2)
             resp = llm.invoke([("system",
                                 "你是测试分析员。只依据语义对应关系建立映射。只输出 JSON。"),
@@ -453,7 +453,7 @@ def review_report(conn, task_id: int, report_id: int, narrative: str,
     if not reasons and api_key:
         try:
             from ..skills.llm_client import make_chat
-            llm = make_chat(phase="map_rtm", api_key=api_key, temperature=0,
+            llm = make_chat(phase="review_report", api_key=api_key, temperature=0,
                             timeout=60, max_retries=2)
             resp = llm.invoke([("system", REVIEW_SYSTEM), ("user", f"""## 报告叙述
 {narrative}

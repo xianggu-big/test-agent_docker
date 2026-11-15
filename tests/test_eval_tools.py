@@ -10,7 +10,7 @@ import pytest
 from test_agent import config
 from test_agent.skills.evaluate import (build_eval_skills, collect_metrics,
                                         fallback_report, map_requirements,
-                                        review_rules)
+                                        review_report, review_rules)
 from test_agent.store import db
 
 
@@ -264,3 +264,55 @@ def test_review_rules_l2_absent_unchanged():
     metrics = {"passed": 30, "failed": 0, "skipped": 0}
     assert review_rules("通过 30", metrics, "pass") == []
     assert review_rules("通过 31", metrics, "pass")
+
+
+class _FakeLLM:
+    """make_chat 替身：只记构造 kwargs + 返回可解析 JSON；不发网络请求。"""
+
+    def __init__(self, content):
+        self._content = content
+        self.usage_metadata = None      # extract_usage 只认 langchain 元数据，None=不落账
+        self._ctx_budget = None
+        self._base_url = ""
+
+    def invoke(self, messages):
+        return self
+
+    @property
+    def content(self):
+        return self._content
+
+
+class TestPhaseRouting:
+    """路由 phase 与记账 phase / 设计真源（PHASE_GROUPS）一致性（2026-11-15 静态扫描实锤）。"""
+
+    def test_map_requirements路由必须声明map_rtm(self, conn, monkeypatch):
+        tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]
+        captured = {}
+
+        def fake_make_chat(**kw):
+            captured.update(kw)
+            return _FakeLLM('{"mappings": []}')
+
+        monkeypatch.setattr("test_agent.skills.llm_client.make_chat", fake_make_chat)
+        map_requirements(conn, tid, api_key="sk-test")
+        assert captured.get("phase") == "map_rtm", (
+            "map_requirements 的 make_chat 缺 phase='map_rtm' → 路由永远落 default 档"
+            "（每节点路由对该调用点失效，2026-11-15 静态扫描+tmp 库实证）")
+
+    def test_review_report路由名实归位到review组(self, conn, monkeypatch):
+        tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]
+        rid = conn.execute("SELECT id FROM test_reports LIMIT 1").fetchone()["id"]
+        captured = {}
+
+        def fake_make_chat(**kw):
+            captured.update(kw)
+            return _FakeLLM('{"consistent": true, "reasons": []}')
+
+        monkeypatch.setattr("test_agent.skills.llm_client.make_chat", fake_make_chat)
+        review_report(conn, tid, rid, "本次测试执行完成。",
+                      {"passed": 5, "failed": 0, "skipped": 0, "coverage_line": 0.9},
+                      "pass", api_key="sk-test")
+        assert captured.get("phase") == "review_report", (
+            "review_report 的 LLM 闸路由 phase 仍是历史遗留 'map_rtm'（记账 :470 已名实归位"
+            "为 review_report，路由侧漏改）→ 设计真源 PHASE_GROUPS['review'] 含 review_report")
