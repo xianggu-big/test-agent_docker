@@ -99,7 +99,8 @@ def test_warm_build_cache_java():
     r = _WarmR()
     msg = warm_build_cache(r, object(), "java")
     assert msg and "go-offline" in msg
-    assert "dependency:go-offline" in " ".join(r.cmds[0][0])
+    joined = " ".join(r.cmds[0][0])
+    assert "dependency:go-offline" in joined and "jacoco" in joined,         "java 预热必须连 jacoco plugin 一起拉（go-offline 不覆盖命令行 goal 的 plugin）"
 
 
 def test_warm_build_cache_fail_open():

@@ -74,11 +74,16 @@ def build_run_cmd_js(round_no: int = 1, gen_files: list[str] | None = None) -> l
 
 
 def build_run_cmd_java() -> list[str]:
-    """Java 执行链路（Tier2，白包阶段2）：mvn test 跑全项目（surefire+jacoco 由项目 pom 声明，
-    依赖随项目走）。round>1 位置参数不适用（surefire 扫全 test 类）——R-Loop 限定生成物语义
-    由 gen 侧保证（首轮 TestGenR1，补测轮 TestGenR2 独立类共存，自带 tests 第 2 轮起不隔离
-    属已知边界：maven 无 jest testPathPattern 等价物，诚实入档）。"""
-    return ["mvn", "test"]
+    """Java 执行链路（Tier2，白包阶段2）：mvn test 跑全项目（surefire+jacoco，
+    依赖随项目走）。round>1 位置参数不适用（surefire 扫全 test 类）——R-Loop 限定
+    生成物语义由 gen 侧保证（首轮 TestGenR1，补测轮 TestGenR2 独立类共存，自带
+    tests 第 2 轮起不隔离属已知边界：maven 无 jest testPathPattern 等价物，诚实入档）。
+    2026-11-16 存疑 35 全修：命令行注入 jacoco 插桩+报告（goal 带版本直调，无需项目
+    pom 声明）——1162 实锤 52 过 0 败但 coverage=None（无 TOTAL 行=八指标 6 空转）。
+    版本钉 0.8.12（中央仓库，卡 4 预热已拉 plugin）。"""
+    return ["sh", "-c",
+            "mvn -q org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test "
+            "org.jacoco:jacoco-maven-plugin:0.8.12:report 2>&1"]
 
 
 def build_run_cmd_php(gen_files: list[str]) -> list[str]:
@@ -189,7 +194,10 @@ def warm_build_cache(runner, container, lang: str) -> str | None:
     if lang == "go":
         cmd, label = ["sh", "-c", "cd /work && (go mod download 2>&1 | tail -3) || true"], "go mod download"
     elif lang == "java":
-        cmd, label = ["sh", "-c", "cd /work && (mvn -q dependency:go-offline 2>&1 | tail -3) || true"], "mvn dependency:go-offline"
+        cmd, label = ["sh", "-c", "cd /work && (mvn -q dependency:go-offline "
+                                    "org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent "
+                                    "2>&1 | tail -3) || true"], \
+            "mvn dependency:go-offline + jacoco plugin 预热"
     else:
         return None
     r = runner.exec_in(container, cmd, timeout_s=900)
@@ -1148,7 +1156,15 @@ def make_nodes(deps: GraphDeps) -> dict:
                                             ["cat", f"/tmp/sf/{xf}"], timeout_s=15, workdir="/")
                         if xj.ok:
                             (Path(td) / xf).write_text(xj.stdout, encoding="utf-8")
-                    r["stdout"] = surefire_dir_to_pytest_text(td)
+                    jacoco = runner.exec_in(runner.client.containers.get(state["container_name"]),
+                                            ["sh", "-c",
+                                             "cat target/site/jacoco/jacoco.xml 2>/dev/null || true"],
+                                            timeout_s=15, workdir="/work")
+                    jacoco_path = None
+                    if jacoco.ok and (jacoco.stdout or "").strip():
+                        jacoco_path = Path(td) / "jacoco.xml"
+                        jacoco_path.write_text(jacoco.stdout, encoding="utf-8")
+                    r["stdout"] = surefire_dir_to_pytest_text(td, jacoco_xml=jacoco_path)
             else:
                 r["stdout"] = (r.get("stdout") or "") + "\n(no surefire reports: 编译失败或用例未执行)\n"
         if lang == "go":
