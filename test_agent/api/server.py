@@ -459,15 +459,19 @@ def api_dashboard(user: dict = Depends(current_user)):
     total = sum(counts.values())
     today = conn.execute(
         "SELECT COUNT(*) AS n FROM test_tasks WHERE date(created_at)=date('now')").fetchone()["n"]
-    # 通过率：最近 30 个有评估轮次的任务（按任务均值，不按用例加权——口径与报告判决卡一致）
+    # 通过率：最近 30 个有评估轮次的任务（按任务均值，不按用例加权——口径与报告判决卡一致：
+    # 分母含 skipped=passed+failed+skipped；"最近"按最新评估轮次 MAX(e.id) 取——
+    # 旧实现按 task_id 倒序，老任务重跑后永远挤不进近 30。2026-11-15 闲时找bug 修正）
     pr = conn.execute(
         """SELECT AVG(rate) AS r FROM (
-             SELECT e.task_id, AVG(CASE WHEN e.passed+e.failed>0
-                    THEN e.passed*1.0/(e.passed+e.failed) ELSE NULL END) AS rate
+             SELECT e.task_id, AVG(CASE WHEN e.passed+e.failed+e.skipped>0
+                    THEN e.passed*1.0/(e.passed+e.failed+e.skipped) ELSE NULL END) AS rate
              FROM evaluation_rounds e WHERE e.level='L1' GROUP BY e.task_id
-             ORDER BY e.task_id DESC LIMIT 30)""").fetchone()["r"]
+             ORDER BY MAX(e.id) DESC LIMIT 30)""").fetchone()["r"]
+    # 缺陷 KPI 按任务去重：report 节点每跑一次 INSERT 一行，按行计数=重跑翻倍
     defects = conn.execute(
-        """SELECT COUNT(*) AS n FROM test_reports WHERE defects LIKE '%product_defect%'""").fetchone()["n"]
+        """SELECT COUNT(DISTINCT task_id) AS n FROM test_reports
+           WHERE defects LIKE '%product_defect%'""").fetchone()["n"]
     tok = conn.execute(
         "SELECT COALESCE(SUM(total_tokens),0) AS t FROM llm_calls "
         "WHERE date(created_at)=date('now')").fetchone()["t"]
