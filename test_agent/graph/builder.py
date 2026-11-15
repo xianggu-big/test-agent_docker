@@ -191,6 +191,10 @@ def run_task(task_id: int) -> dict:
     except Exception as e:
         conn.execute("UPDATE test_tasks SET status='failed', error=?, updated_at=datetime('now') WHERE id=?",
                      (f"{type(e).__name__}: {e}"[:500], task_id))
+        # 会话收口（2026-11-15 闲时找bug）：异常上抛前关掉本轮会话，不留永久"进行中"
+        conn.execute(
+            "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
+            (init.get("session_id"),))
         conn.commit()
         raise
     finally:
@@ -290,6 +294,10 @@ def run_task_prep(task_id: int) -> dict:
         final = graph.invoke(init, {"recursion_limit": 30})
     except Exception as e:
         _fail_task(conn, task_id, f"{type(e).__name__}: {e}")
+        conn.execute(
+            "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
+            (session_id,))
+        conn.commit()
         raise
     if final.get("done") and final.get("verdict") not in ("pass", "stop"):
         # 诚实降级短路（无 verdict 形态）：准备阶段无报告可出，如实失败（不做伪装的"待审查"）。
@@ -297,6 +305,10 @@ def run_task_prep(task_id: int) -> dict:
         # 已落库）——2026-11-15 闲时找bug：旧代码把静态草稿的成功当降级误标 failed，
         # 两阶段 static_only 项目评审页永不可达（与图注释"静态模式停在待审查"矛盾）
         _fail_task(conn, task_id, final.get("stop_reason") or "准备阶段诚实降级终止")
+        conn.execute(
+            "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
+            (session_id,))
+        conn.commit()
     else:
         conn.execute("UPDATE test_tasks SET status='ready_for_review', error=NULL, updated_at=datetime('now') WHERE id=?",
                      (task_id,))   # error 一并清空（348 实锤：重跑成功后界面仍显示上一轮失败原因）
@@ -375,6 +387,10 @@ def run_task_exec(task_id: int) -> dict:
         return final
     except Exception as e:
         _fail_task(conn, task_id, f"{type(e).__name__}: {e}")
+        conn.execute(
+            "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
+            (session_id,))
+        conn.commit()
         raise
     finally:
         try:
@@ -604,6 +620,12 @@ def run_task_auto(task_id: int) -> dict:
         conn.execute(
             "UPDATE test_tasks SET confirmed=1, confirmed_by=?, confirmed_at=datetime('now') WHERE id=?",
             (f"agent:reviewer-{session_id}", task_id))
+        conn.commit()
+        # D1 会话收口（2026-11-15 闲时找bug）：拒绝/失败路径都关了，approve 路径漏关
+        # ——prep 会开新会话，D1 会话永久悬开
+        conn.execute(
+            "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
+            (session_id,))
         conn.commit()
         run_task_prep(task_id)
     _auto_review_loop(deps, task_id)

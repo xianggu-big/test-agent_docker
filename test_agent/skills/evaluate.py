@@ -513,11 +513,27 @@ def _setup_plt():
     return plt
 
 
+def _coverage_series(trace: list[dict]) -> tuple[list, list]:
+    """趋势图数据：coverage=None 的轮（该轮未解析出覆盖率）画 NaN 断点而非假 0%
+    ——None→0 会让读者以为覆盖率崩溃，实际是"无数据"（2026-11-15 闲时找bug）。"""
+    xs = [t["round"] for t in trace]
+    ys = [t["coverage"] * 100 if t["coverage"] is not None else float("nan")
+          for t in trace]
+    return xs, ys
+
+
 def gen_charts(task_id: int, metrics: dict, rtm: dict,
                out_dir: Path | None = None) -> list[str]:
     """四图：RTM 覆盖 / 覆盖率趋势 / 判定分布 / 工具耗时。返回文件路径列表。"""
     out_dir = out_dir or config.DATA_DIR / "reports" / "charts"
     out_dir.mkdir(parents=True, exist_ok=True)
+    # delete-first（2026-11-15 闲时找bug）：重跑后本轮可能不产某图（如无 trace），
+    # 旧 PNG 残留会被 /charts glob 回读——新报告配旧图。先清本任务旧图。
+    for old_png in out_dir.glob(f"task_{task_id}_*.png"):
+        try:
+            old_png.unlink()
+        except OSError:
+            pass
     plt = _setup_plt()
     made: list[str] = []
 
@@ -540,8 +556,7 @@ def gen_charts(task_id: int, metrics: dict, rtm: dict,
 
     trace = metrics.get("trace") or []
     if trace:
-        xs = [t["round"] for t in trace]
-        ys = [t["coverage"] * 100 if t["coverage"] is not None else 0 for t in trace]
+        xs, ys = _coverage_series(trace)
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.plot(xs, ys, marker="o")
         tgt = metrics.get("coverage_target")

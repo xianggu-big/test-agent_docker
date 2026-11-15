@@ -704,10 +704,16 @@ def api_charts(tid: int, user: dict = Depends(current_user)):
     charts_dir = config.DATA_DIR / "reports" / "charts"
     if charts_dir.exists():
         for p in sorted(charts_dir.glob(f"task_{tid}_*.png")):
+            try:
+                data = p.read_bytes()
+            except OSError:
+                # 单文件删除竞态/Windows 写锁（2026-11-15 闲时找bug）：跳过该文件，
+                # 不让一张坏图 500 掉整个端点（前端 catch 会把四张全灭）
+                continue
             key = p.stem.replace(f"task_{tid}_", "")
             out.append({"name": p.name, "title": titles.get(key, key),
                         "data_url": "data:image/png;base64,"
-                                    + base64.b64encode(p.read_bytes()).decode()})
+                                    + base64.b64encode(data).decode()})
     return out
 
 
@@ -887,7 +893,9 @@ def api_logs(tid: int, user: dict = Depends(current_user)):
     rows = conn.execute(
         """SELECT m.seq, m.role, m.content, m.created_at FROM agent_messages m
            JOIN agent_sessions s ON s.id = m.session_id
-           WHERE s.task_id = ? ORDER BY s.id DESC, m.seq ASC""", (tid,)).fetchall()
+           WHERE s.task_id = ? ORDER BY s.id ASC, m.seq ASC""", (tid,)).fetchall()
+    # 会话块必须正序（2026-11-15 闲时找bug）：前端 slice(-40) 取数组尾部=最新会话
+    # 的消息；旧 DESC 让两阶段重跑的日志面板一直显示上一轮旧会话尾部
     return [dict(r) for r in rows]
 
 

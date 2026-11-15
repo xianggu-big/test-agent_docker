@@ -190,8 +190,10 @@ def test_record_spotcheck_uphold_and_override(tmp_path, monkeypatch):
         """INSERT INTO test_scripts(task_id, framework, version, filename, content, content_hash)
            VALUES (?, 'pytest', 1, 'test_gen_r1.py', 'x', 'h')""", (tid,))
     conn.execute(
+        # enabled=0：reject 决策已禁用用例（真实前置——恢复才有对象；
+        # 2026-11-15 闲时找bug：旧 seed enabled=1 锁的是 0 行 UPDATE 仍虚报的行为）
         "INSERT INTO test_cases(script_id, source, name, enabled, content) "
-        "VALUES (?, 'ai', 'test_del', 1, 'def test_del():\n    assert 1\n')", (cur.lastrowid,))
+        "VALUES (?, 'ai', 'test_del', 0, 'def test_del():\n    assert 1\n')", (cur.lastrowid,))
     conn.execute(
         """INSERT INTO review_decisions(task_id, decision, target, reasoning, reviewer_role, round)
            VALUES (?, 'reject', 'test_del', '重复覆盖', 'ai_proxy', 1)""", (tid,))

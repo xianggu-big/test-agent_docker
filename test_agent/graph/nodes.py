@@ -1318,6 +1318,12 @@ def make_nodes(deps: GraphDeps) -> dict:
                 if paths:
                     msg(state["session_id"], "assistant",
                         f"[review·charts] {len(paths)} 张图 → data/reports/charts/")
+            else:
+                # fail-open 放行但要留痕（对照 review_report 失败留痕纪律，
+                # 2026-11-15 闲时找bug：旧实现静默吞，图表区无声消失无从排查）
+                msg(state["session_id"], "assistant",
+                    f"[review·charts] 图表生成失败（fail-open 放行，留痕备查）："
+                    f"{getattr(res_c, 'error', '')[:160]}")
 
         # 回炉语义（vision §1.6）：stop（product_defect）是证人冻结的上报，审查只修叙述不改判。
         # 受控重写（快照单点根修后解锁）：reject → 以新快照重写报告一次 → 复审一次，

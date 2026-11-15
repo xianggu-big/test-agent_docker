@@ -326,10 +326,12 @@ def record_spotcheck(conn, decision_id: int, verdict: str, note: str, user_id: i
          row["round"]))
     restored = None
     if verdict == "override" and orig == "reject" and row["target"] != "task":
-        conn.execute(
+        cur = conn.execute(
             """UPDATE test_cases SET enabled=1 WHERE enabled=0 AND name=? AND script_id IN
                (SELECT id FROM test_scripts WHERE task_id=?)""", (row["target"], row["task_id"]))
-        restored = row["target"]
+        # rowcount 如实（2026-11-15 闲时找bug）：阶段一重跑 delete-first 会硬删用例，
+        # 决策行悬挂——命中 0 行不得虚报"已恢复"（前端 toast 会骗人）
+        restored = row["target"] if cur.rowcount else None
     conn.commit()
     return {"decision": new_decision, "restored": restored}
 
