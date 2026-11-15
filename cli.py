@@ -69,6 +69,10 @@ def main() -> int:
             return 0
 
         if cmd == "run":
+            if task["two_stage"] if "two_stage" in task.keys() else 0:
+                print("两阶段任务请走 Web 界面（confirm→阶段一→评审停等→放行阶段二）——"
+                      "cli run 会跳过停等点作废审查结论（2026-11-15 起拒绝）")
+                return 1
             try:
                 final = run_task(tid)
             except Exception as e:
@@ -82,7 +86,9 @@ def main() -> int:
                               ("verdict", "stop_reason", "passed", "failed",
                                "coverage_line", "round_no")},
                              ensure_ascii=False, indent=2))
-            return 0
+            # 退出码区分终态（2026-11-15 闲时找bug）：0=pass、2=stop/failed
+            #（1 保留给环境类失败）——脚本/驱动器可判成败
+            return 0 if final.get("verdict") == "pass" else 2
 
         if cmd == "status":
             print(json.dumps(dict(task), ensure_ascii=False, indent=2))
