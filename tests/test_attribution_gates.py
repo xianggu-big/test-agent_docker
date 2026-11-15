@@ -208,7 +208,7 @@ def test_run_node_env_gate_fail_fast(env, monkeypatch):
     c, tid, ses = env
     monkeypatch.setattr(config, "ENV_GATE_ENABLED", True)
     runner = ScriptedRunner([
-        (lambda cmd: cmd[:2] == ["python", "-c"], lambda: _R(1, "", "pytest: command not found"))])
+        (lambda cmd: cmd[:2] == ["python3", "-c"], lambda: _R(1, "", "pytest: command not found"))])
     registry = OkRegistry()
     nodes = make_nodes(GraphDeps(conn=c, runner=runner, registry=registry,
                                  skills={"run_tests": types.SimpleNamespace()}))
@@ -217,7 +217,7 @@ def test_run_node_env_gate_fail_fast(env, monkeypatch):
                         "round_no": 1})
     assert out["verdict"] == "stop" and "环境闸" in out["stop_reason"]
     assert registry.invoked == 0        # 真实用例未执行
-    assert any("CANARY_OK" in " ".join(cmd) or cmd[:2] == ["python", "-c"]
+    assert any("CANARY_OK" in " ".join(cmd) or cmd[:2] == ["python3", "-c"]
                for cmd in runner.calls)
 
 
