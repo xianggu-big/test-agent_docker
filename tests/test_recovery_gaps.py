@@ -54,6 +54,10 @@ def test_l1_leg_marked_failed_when_run_task_raises(tmp_path, monkeypatch):
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
+    # 隔离真 worker：startup 会拉起队列线程，1.5s 轮询可能抢走本测试 seed 的 queued 行
+    # （置 running）→ api_stop 只清 queued → 偶发竞态红（全量跑第 3 次实锤）
+    from test_agent.store.queue import QueueWorker
+    monkeypatch.setattr(QueueWorker, "start", lambda self: None)
     from test_agent.api import server
     with TestClient(server.app) as client:
         r = client.post("/api/login", json={"username": "admin", "password": "admin123"})
