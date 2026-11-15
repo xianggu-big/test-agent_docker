@@ -16,17 +16,24 @@ from .registry import Skill
 log = logging.getLogger(__name__)
 
 
-def probe_deps_manifest(workspace: str | Path) -> str | None:
+def probe_deps_manifest(workspace: str | Path, primary_language: str | None = None) -> str | None:
     """探测被测项目的依赖清单类型（provision 探测、install_deps 分流安装）。
 
-    返回 "requirements" | "pyproject" | "setup_py" | "package_json" | "ts_loose" | None。
+    返回 "requirements" | "pyproject" | "setup_py" | "package_json" | "composer_json"
+    | "ts_loose" | None。
     requirements.txt 优先：显式清单最常见且安装最便宜；pyproject.toml / setup.py 项目走
     `pip install .`；package.json（JS/TS 执行链路 Tier2）走 npm ci/install --ignore-scripts；
     ts_loose（白包阶段1）=无任何清单但有 .ts 源——不装项目依赖，只补 ts-jest 工具链
     （全局 ts-jest transformer 实测不可用，本地 node_modules 才有完整依赖树）。
     全部缺返回 None（诚实跳过，不猜依赖）。
-    """
+
+    PHP 例外（2026-11-15 卡 2，1150 wordpress 实锤）：phpunit 等 dev 依赖只能来自
+    composer——php 项目同时有 package.json 与 composer.json 时（npm 只管前端工具链）
+    composer.json 必须优先，否则 composer install 永不执行 → vendor 缺失 → phpunit
+    缺失 → 0 收集熔断。"""
     ws = Path(workspace)
+    if primary_language == "php" and (ws / "composer.json").exists():
+        return "composer_json"
     for name, kind in (("requirements.txt", "requirements"),
                        ("pyproject.toml", "pyproject"),
                        ("setup.py", "setup_py"),
@@ -131,11 +138,14 @@ def build_skills(runner) -> dict[str, Skill]:
             _try_ts_tooling(parts, runner, container)   # 白包阶段1：TS 项目补工具链
         elif manifest == "composer_json":
             # 白包阶段4（PHP）：composer install（phpunit 等 dev 依赖随项目走）；
-            # --no-interaction 非 TTY 必需；依赖随项目走原则同 JS
+            # --no-interaction 非 TTY 必需；依赖随项目走原则同 JS。
+            # 失败显式标注（2026-11-15 卡 2，1148 实锤：composer exit≠0 只记数字，
+            # provision 消息只打"ok"—— Fatal 只在输出里，证据链断在第一环）
             r = runner.exec_in(container, ["composer", "install", "--no-interaction",
                                            "--no-progress", "--no-plugins"],
                                timeout_s=600)
-            parts.append(f"composer_json(install) exit={r.exit_code}\n"
+            mark = "" if r.exit_code == 0 else "（失败）"
+            parts.append(f"composer_json(install){mark} exit={r.exit_code}\n"
                          f"{r.stdout[-1200:]}{r.stderr[-600:]}")
         elif manifest == "ts_loose":
             # 白包阶段1：散装 TS（无任何清单但有 .ts 源）——不装项目依赖（无清单可装），
@@ -160,6 +170,20 @@ def build_skills(runner) -> dict[str, Skill]:
                                          f"（{type(e).__name__}）——容器已被回收或宿主 Docker "
                                          f"不可用，本轮测试未执行（诚实降级，需重新 provision）"},
                               ensure_ascii=False)
+        # PHP 链三修（2026-11-15 卡 2，1148/1150 实锤）：vendor/bin/phpunit 不存在时
+        # 明确报错，禁止"exit 127 落 stderr + 适配器统一文本 0/0 假象"的静默 0 收集
+        # （composer install 未生效/未跑 → phpunit 缺失 → 三轮 repair_env 熔断而
+        # 用户只看到 0 passed）。前置 test -f 探测（同 npm lock 探测口径）。
+        if args.get("cmd") and str(args["cmd"][0]).startswith("vendor/bin/phpunit"):
+            probe = runner.exec_in(container, ["test", "-f", "vendor/bin/phpunit"],
+                                   timeout_s=10)
+            if probe.exit_code != 0:
+                return json.dumps(
+                    {"exit": -1, "stdout": "",
+                     "stderr": "环境错误：vendor 未安装（composer install 未执行或失败）——"
+                               "vendor/bin/phpunit 不存在，本轮测试未执行（诚实失败）。"
+                               "请检查 provision 的依赖安装输出（网络/PHP 版本要求）"},
+                    ensure_ascii=False)
         r = runner.exec_in(container, args["cmd"], timeout_s=config.DEFAULT_JOB_TIMEOUT_S)
         # stdout/stderr 分开返回，供宿主侧 Evaluator 归因判读（执行与判定分离）
         return json.dumps({"exit": r.exit_code, "stdout": r.stdout, "stderr": r.stderr},

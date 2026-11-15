@@ -100,6 +100,48 @@ def build_run_cmd_go() -> list[str]:
     return ["sh", "-c", "go test -json -coverprofile=/tmp/go_cover.out ./... 2>&1"]
 
 
+def php_exit_for_decide(lang: str, exit_code: int, passed: int, failed: int) -> int:
+    """PHP 退出码语义归一（2026-11-15 卡 2，1149 实锤：17 过 0 败 exit≠0 → classify
+    兜底 env → repair_env 三轮同指纹熔断）。phpunit 的非零退出码涵盖 warnings/risky/
+    覆盖率警告（0=无失败无警告≠pytest 语义）——按失败计数判别：0 败=通过。
+    仅 PHP 且确有通过、零失败时清零；其余语言/形态逐字节不变。"""
+    if lang == "php" and exit_code != 0 and passed > 0 and failed == 0:
+        return 0
+    return exit_code
+
+
+def php_platform_gate_result(exit_code: int, gate_text: str) -> str | None:
+    """PHP 平台闸判定（1148 实锤：composer.lock 要求 PHP>=8.4.1 而镜像 8.3.36——
+    phpunit 在 platform_check.php 即 Fatal，三轮 repair_env 空转熔断。同 Go 工具链闸
+    语义：版本/扩展是环境事实，repair 修不动，开考前确定性拦停不烧修复轮次）。
+    exit≠0 → 返回 stop 理由（截取 failed 行给用户）；exit=0 → None 放行。"""
+    if exit_code == 0:
+        return None
+    failed_lines = [ln for ln in (gate_text or "").splitlines() if "failed" in ln.lower()]
+    # composer 输出是宽列对齐（failed 在行尾 120+ 列）——压缩空白再截，保关键词可见
+    detail = "；".join(" ".join(ln.split())[:200] for ln in failed_lines[:3]) \
+        or (gate_text or "").strip()[:200]
+    return (f"PHP 平台要求不满足（composer check-platform-reqs exit={exit_code}）：{detail}"
+            "——镜像 PHP 版本/扩展与项目 composer.lock 不匹配，诚实拦停（环境事实，repair 修不动）")
+
+
+def php_unified_with_raw(unified_text: str, raw_stdout: str, raw_stderr: str,
+                         has_junit: bool) -> str:
+    """PHP run 节点证据保留（1148 实锤证据蒸发家族：phpunit Fatal（平台检查/语法错/
+    vendor 缺失 exit 127）只在原始 stdout/stderr，junit 缺失时适配器统一文本把它
+    覆盖掉——evaluate·raw 只看到 "0 passed" 假象，真实死因（如 Composer detected
+    issues in your platform: require PHP >= 8.4.1）蒸发）。junit 存在=phpunit 正常
+    跑完，统一文本即真证据，不附加；junit 缺失=phpunit 没跑成，原始输出尾部是唯一
+    死因证据，并入统一文本尾部。"""
+    if has_junit:
+        return unified_text
+    raw = ((raw_stdout or "") + ("\n" + raw_stderr if (raw_stderr or "").strip() else "")).strip()
+    if not raw:
+        return unified_text
+    return unified_text.rstrip("\n") + "\n[phpunit·raw] junit XML 缺失（phpunit 未跑成），" \
+           "原始输出尾部：\n" + raw[-600:] + "\n"
+
+
 def _tier_strategy(primary: str) -> str:
     """语言分级（analyze 用，Loop 抽出供单测）：full=容器执行链路；其余 static_only。
     typescript 升 Tier2（白包阶段1）；java 接线（白包阶段2）→ full；go 接线（白包阶段3）→ full。"""
@@ -690,7 +732,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                     "[provision] 阶段一顺延的收集闸：文件级废案 " + "、".join(dropped))
         dep = registry.invoke(tid, skills["install_deps"], {
             "container_name": state["container_name"],
-            "deps_manifest": probe_deps_manifest(state["workspace"])})
+            "deps_manifest": probe_deps_manifest(state["workspace"],
+                                                 state.get("primary_language"))})
         # Go 工具链版本闸（2026-11-08 任务 678/679 实锤）：go.mod 要求 go>=1.26 而镜像
         # 只有 1.22 → go test 秒失败零 JSON 事件 → evaluate 0/0 → repair_env 三轮空转熔断。
         # 版本是环境事实（repair 修不动），开考前确定性判定并诚实 stop，不烧修复轮次。
@@ -704,6 +747,21 @@ def make_nodes(deps: GraphDeps) -> dict:
                     return {"done": True, "verdict": "stop", "stop_reason": gate["reason"]}
             except Exception as e:   # noqa: BLE001 —— 闸自身失败不引入新失败面（fail-open）
                 log.warning("Go 工具链闸跳过（%s: %s）", type(e).__name__, e)
+        # PHP 平台闸（2026-11-15 卡 2，1148 真机复现实锤：composer.lock 要求 PHP>=8.4.1
+        # 而镜像 8.3.36——composer install 装完 vendor 但 phpunit 在 platform_check.php
+        # 即 Fatal exit 255，适配器统一文本 0/0 → repair_env 三轮空转熔断）。同 Go 闸
+        # 语义；须在 composer install 之后跑（无 vendor 时 check 只查 composer 本体恒过）。
+        if state.get("primary_language") == "php" and (Path(state["workspace"]) / "composer.json").exists():
+            try:
+                pr = runner.exec_in(container,
+                                    ["composer", "check-platform-reqs", "--no-interaction"],
+                                    timeout_s=60)
+                reason = php_platform_gate_result(pr.exit_code, pr.stdout + pr.stderr)
+                if reason:
+                    msg(state["session_id"], "assistant", f"[provision·toolchain] {reason}")
+                    return {"done": True, "verdict": "stop", "stop_reason": reason}
+            except Exception as e:   # noqa: BLE001 —— 闸自身失败不引入新失败面（fail-open）
+                log.warning("PHP 平台闸跳过（%s: %s）", type(e).__name__, e)
         # DB 感知测试环境 v1（用户需求：带库程序测试时库要参与）：检测 DB 依赖 →
         # sqlite 家族自动建库/迁移/种子；服务端库如实降级提示。fail-open 不炸 provision。
         try:
@@ -730,8 +788,13 @@ def make_nodes(deps: GraphDeps) -> dict:
              config.DEFAULT_CPU_LIMIT, config.DEFAULT_MEM_LIMIT_MB,
              5, config.DEFAULT_JOB_TIMEOUT_S, container.id))
         conn.commit()
+        # 依赖安装失败留痕（2026-11-15 卡 2，1148 实锤：composer exit≠0 只在
+        # install_deps 输出里，provision 消息只打"ok"——证据链断在第一环）
+        dep_tail = ""
+        if dep.status == "ok" and "（失败）" in (dep.output or ""):
+            dep_tail = "；⚠ 依赖安装有失败步骤，输出尾部：" + (dep.output or "").strip()[-250:]
         msg(state["session_id"], "assistant",
-            f"[provision] 容器 {state['container_name']} 就绪；依赖安装：{dep.status}")
+            f"[provision] 容器 {state['container_name']} 就绪；依赖安装：{dep.status}{dep_tail}")
         return {"job_id": cur.lastrowid}
 
     # ---------- 4. 生成用例（LLM，未配 Key 时诚实降级；repair_gen 先按策略定向修复） ----------
@@ -981,9 +1044,12 @@ def make_nodes(deps: GraphDeps) -> dict:
                                 ["cat", "/tmp/php_junit.xml"], timeout_s=15, workdir="/work")
             cv = runner.exec_in(runner.client.containers.get(state["container_name"]),
                                 ["cat", "/tmp/php_clover.xml"], timeout_s=15, workdir="/work")
-            r["stdout"] = phpunit_junit_to_pytest_text(
-                jc.stdout if (jc.ok and jc.stdout.strip()) else "",
-                cv.stdout if (cv.ok and cv.stdout.strip()) else None)
+            has_junit = bool(jc.ok and jc.stdout.strip())
+            r["stdout"] = php_unified_with_raw(
+                phpunit_junit_to_pytest_text(
+                    jc.stdout if has_junit else "",
+                    cv.stdout if (cv.ok and cv.stdout.strip()) else None),
+                r.get("stdout") or "", r.get("stderr") or "", has_junit)
         return {"last_exit": r["exit"], "last_stdout": r["stdout"], "last_stderr": r["stderr"],
                 "last_cmd": cmd}
 
@@ -1012,8 +1078,16 @@ def make_nodes(deps: GraphDeps) -> dict:
         fp = repair.fingerprint_of(
             stdout, stderr,
             exclude_nodeids=tuple(witness) if config.WITNESS_CONTINUE_ENABLED else ())
+        # PHP 退出码语义归一（2026-11-15 卡 2，1149 实锤：17 过 0 败 exit≠0 →
+        # classify 兜底 env → repair_env 三轮熔断——phpunit warnings/risky 也非零退出）
+        exit_code = php_exit_for_decide(state.get("primary_language", "python"),
+                                        state.get("last_exit", 1), passed, failed)
+        if exit_code != state.get("last_exit", 1):
+            msg(state["session_id"], "assistant",
+                f"[run·exit 语义] phpunit exit={state.get('last_exit')} 但 {passed} 过 "
+                f"{failed} 败——按失败计数判别（phpunit warnings/risky 非零退出不计失败），按通过处理")
         verdict, kind, reason = repair.decide(
-            state.get("last_exit", 1), stdout, stderr,
+            exit_code, stdout, stderr,
             state.get("fingerprints", []), fp,
             state.get("round_no", 0), coverage,
             state.get("coverage_target"),
@@ -1090,6 +1164,12 @@ def make_nodes(deps: GraphDeps) -> dict:
             tail = (stdout or stderr or "")[-400:].strip()
             msg(state["session_id"], "assistant",
                 "[evaluate·raw] 0 用例 0 失败（解析不到测试计数），执行输出尾部：" + (tail or "（空输出）"))
+        # L1 raw·stderr 补全（2026-11-15 卡 2，1149 证据蒸发家族）：exit≠0 且 stderr
+        # 有内容时 stderr 尾部同样落日志——此前 0/0 分支只打 stdout 优先，stderr 里
+        # 的 fatal/连接拒绝证据可能整轮不可见（L2 已有 raw 通道，L1 缺）
+        if state.get("last_exit", 0) != 0 and (stderr or "").strip():
+            msg(state["session_id"], "assistant",
+                "[evaluate·raw·stderr] exit≠0，执行 stderr 尾部：" + stderr[-400:].strip())
         # per-case 失败明细进日志（/defects API 与归因面板的数据源——此前从未写入，
         # F18-c 的 FAILED 行提取一直为空；Python/JS 同口径：nodeid - 错误类: 失败消息摘要）
         for nid in repair.failing_nodeids(stdout)[:20]:
