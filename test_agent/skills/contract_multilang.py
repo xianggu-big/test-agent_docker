@@ -78,8 +78,9 @@ def render_contract_js(endpoints: list[dict], base_url: str
 
 # —————————————————————————— Java HttpClient（JDK11+，零第三方） ——————————————————————————
 
-_JAVA_METHOD = {"GET": "GET", "POST": "POST", "PUT": "PUT", "PATCH": "PUT",
-                "DELETE": "DELETE"}
+_JAVA_METHOD = {"GET": "GET", "POST": "POST", "PUT": "PUT", "PATCH": "PATCH",
+                "DELETE": "DELETE"}   # PATCH 原样直发：JDK11 .method() 支持任意方法，
+                                     # 旧映射 PATCH→PUT=语义篡改→契约用例必现 404/405 假违背
 
 
 def _java_string(s: str) -> str:

@@ -64,8 +64,17 @@ def proto_endpoints(doc: dict) -> list[dict]:
 
 
 def resolve_refs(schema, components: dict, depth: int = 0):
-    """确定性展开 schema 内的 $ref（components/schemas/Name）；超深或环 → 原样返回（不炸）。"""
-    if depth > _MAX_REF_DEPTH or not isinstance(schema, dict):
+    """确定性展开 schema 内的 $ref（OAS3 #/components/schemas/Name 与 Swagger2
+    #/definitions/Name）；超深或环 → 原样返回（不炸）。
+
+    list 必须下钻（2026-11-15 闲时找bug 修正）：allOf/anyOf/oneOf/items 是 list，
+    旧实现在函数首行被 not isinstance(dict) 拦下原样返回——组合式 schema 内的
+    $ref 永不展开，"生成物自包含"承诺落空（jsonschema.validate 拿到裸 $ref）。"""
+    if depth > _MAX_REF_DEPTH:
+        return schema
+    if isinstance(schema, list):
+        return [resolve_refs(x, components, depth + 1) for x in schema]
+    if not isinstance(schema, dict):
         return schema
     ref = schema.get("$ref")
     if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
@@ -74,14 +83,22 @@ def resolve_refs(schema, components: dict, depth: int = 0):
         if isinstance(target, dict):
             return resolve_refs(target, components, depth + 1)
         return schema
-    return {k: resolve_refs(v, components, depth + 1) if isinstance(v, (dict, list)) else v
-            for k, v in schema.items()}
+    if isinstance(ref, str) and ref.startswith("#/definitions/"):
+        # Swagger 2 引用（parse_openapi 已把 definitions 并入 components.schemas）
+        name = ref.rsplit("/", 1)[-1]
+        target = (components or {}).get("schemas", {}).get(name)
+        if isinstance(target, dict):
+            return resolve_refs(target, components, depth + 1)
+        return schema
+    return {k: resolve_refs(v, components, depth + 1) for k, v in schema.items()}
 
 
 def parse_openapi(spec: dict) -> list[dict]:
     """OpenAPI 3.x/Swagger 2 端点清单。只收 5 个 HTTP 方法；2xx 响应 schema 作契约 oracle。
     paths 非字典 / 无 JSON 响应体（如 204）→ schema 置空但 success_code 如实取文档值。"""
-    components = spec.get("components") or {}
+    # Swagger 2 的 definitions 并入 schemas 视图（resolve_refs 双前缀兼容两代规范）
+    components = {"schemas": {**(spec.get("definitions") or {}),
+                              **((spec.get("components") or {}).get("schemas") or {})}}
     out: list[dict] = []
     paths = spec.get("paths")
     if not isinstance(paths, dict):
@@ -95,8 +112,11 @@ def parse_openapi(spec: dict) -> list[dict]:
                 continue
             params = []
             for p in shared_params + [p for p in (op.get("parameters") or []) if isinstance(p, dict)]:
+                # OpenAPI 规范：in=path 参数隐含 required=true（大量 spec 漏写该字段；
+                # 漏写时按 False 处理会让渲染层"跳过路径参数端点"失效→生成字面
+                # /users/{id} URL 必假失败。2026-11-15 闲时找bug 修正）
                 params.append({"name": p.get("name"), "in": p.get("in"),
-                               "required": bool(p.get("required")),
+                               "required": p.get("in") == "path" or bool(p.get("required")),
                                "schema": resolve_refs(p.get("schema") or {}, components)})
             req_schema = None
             content = ((op.get("requestBody") or {}).get("content") or {})

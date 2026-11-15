@@ -75,3 +75,26 @@ def test_全部路径参数_全跳过():
     for fn in (render_contract_js, render_contract_java, render_contract_php):
         code, cases, skipped = fn(eps, "b")
         assert cases == [] and len(skipped) == 1          # 全跳过如实留痕
+
+
+def test_java_渲染_PATCH_不被改成_PUT():
+    """JDK11 HttpRequest.Builder.method() 直发任意方法；旧映射把 PATCH 静默改成 PUT
+    →PATCH 端点契约用例必现 404/405 假"契约违背"（2026-11-15 闲时找bug）。"""
+    eps = [{"method": "PATCH", "path": "/items/1", "params": [], "request_schema": None,
+            "success_code": 200}]
+    code, cases, skipped = render_contract_java(eps, "http://127.0.0.1:8080")
+    assert 'method("PATCH"' in code, "PATCH 必须原样发 PATCH"
+    assert 'method("PUT"' not in code, "PATCH 被静默改成 PUT=语义篡改"
+
+
+def test_三语言_路径参数端点跳过_含required漏写():
+    """spec 漏写 required 的 path 参数（OpenAPI 隐含 required）——提取层修正后
+    渲染层跳过逻辑必须命中（旧实现 required=False 不跳过→字面 {id} URL 假失败）。"""
+    from test_agent.skills.endpoint_extract import parse_openapi
+    spec = {"paths": {"/users/{id}": {"get": {
+        "parameters": [{"name": "id", "in": "path", "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "ok"}}}}}}
+    eps = parse_openapi(spec)
+    for fn in (render_contract_js, render_contract_java, render_contract_php):
+        _code, _cases, skipped = fn(eps, "http://127.0.0.1:8080")
+        assert skipped and "/users/{id}" in skipped[0], f"{fn.__name__} 必须跳过路径参数端点"

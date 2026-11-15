@@ -159,3 +159,44 @@ def test_swag_probe链_swag优先于go_route(tmp_path):
     eps, how = probe_endpoint_source(ws)
     assert how == "go_swag"                       # swag schema 更全优先
     assert eps[0]["response_schema"]["x-swag-ref"] == "album.AlbumList"
+
+
+# ---------- 2026-11-15 闲时找bug 第一轮：resolve_refs 递归缺口 + path 参数隐含 required ----------
+
+def test_resolve_refs_descends_lists_allof():
+    """allOf/anyOf/oneOf/items 是 list——旧实现 list 在函数首行 not isinstance(dict) 直接
+    原样返回，组合式 schema 内 $ref 永不展开 → 渲染物拿裸 $ref 进 jsonschema.validate
+    假 ERROR（docstring 自称"生成物自包含"落空）。"""
+    comps = {"schemas": {"Pet": {"type": "object",
+                                 "properties": {"id": {"type": "integer"}}}}}
+    out = resolve_refs({"allOf": [{"$ref": "#/components/schemas/Pet"},
+                                  {"type": "object"}]}, comps)
+    assert out["allOf"][0].get("properties", {}).get("id"), "list 内 $ref 必须被展开"
+
+
+def test_parse_openapi_swagger2_definitions_resolved():
+    """Swagger 2 的 $ref 走 #/definitions/（parse_openapi docstring 声称支持 Swagger 2）。"""
+    spec = {
+        "swagger": "2.0",
+        "definitions": {"Pet": {"type": "object", "properties": {"id": {"type": "integer"}}}},
+        "paths": {"/pets": {"post": {
+            "parameters": [{"name": "body", "in": "body",
+                            "schema": {"$ref": "#/definitions/Pet"}}],
+            "responses": {"200": {"description": "ok"}}}}},
+    }
+    eps = parse_openapi(spec)
+    assert eps and eps[0]["params"][0]["schema"].get("properties", {}).get("id"), \
+        "#/definitions/ 引用必须被展开（自包含承诺）"
+
+
+def test_parse_openapi_path_param_implicitly_required():
+    """OpenAPI 规范：in=path 参数隐含 required=true（大量 spec 漏写）。旧实现
+    bool(p.get("required"))=False → 渲染层"跳过路径参数端点"失效 → 生成字面
+    /users/{id} URL 必假失败。"""
+    spec = {
+        "paths": {"/users/{id}": {"get": {
+            "parameters": [{"name": "id", "in": "path", "schema": {"type": "integer"}}],
+            "responses": {"200": {"description": "ok"}}}}},
+    }
+    eps = parse_openapi(spec)
+    assert eps[0]["params"][0]["required"] is True, "path 参数必须按规范视为 required"
