@@ -142,6 +142,67 @@ def php_unified_with_raw(unified_text: str, raw_stdout: str, raw_stderr: str,
            "原始输出尾部：\n" + raw[-600:] + "\n"
 
 
+def extract_service_port(ws: Path, lang: str) -> int | None:
+    """从生成用例文件解析被测服务目标端口（repair_env 起服务用，2026-11-15 存疑 33/34
+    拍板全修）。用例里写的端口就是服务应起的端口——LLM 生成时约定俗成（8080/8000），
+    从证据取比预设可靠；多端口取出现最多者。解析不到返回 None（fail-open）。"""
+    import collections
+    if lang == "php":
+        pats = ("TestGen*.php", "test_imported.php")
+    elif lang == "java":
+        pats = ("src/test/java/**/*.java",)
+    else:
+        return None
+    hits: collections.Counter[int] = collections.Counter()
+    for pat in pats:
+        for p in Path(ws).glob(pat):
+            try:
+                t = p.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            for m in re.finditer(r"(?:127\.0\.0\.1|localhost):(\d{2,5})", t):
+                hits[int(m.group(1))] += 1
+    return hits.most_common(1)[0][0] if hits else None
+
+
+_CONNECTION_FAIL_RE = re.compile(
+    r"connection refused|ConnectException|ECONNREFUSED"
+    r"|asserting that 0 is identical to \d+", re.I)
+
+
+def start_service_for_repair(runner, container, ws: Path, lang: str,
+                             verdict: str | None, evidence: str) -> str | None:
+    """repair_env 回炉轮的连接类失败兜底（2026-11-15 存疑 33/34 拍板全修）：
+    L1 对 API 型项目无服务编排——python/go 用例是进程内形态（TestClient/httptest）
+    天然自含，java/php 用例走真 HTTP 而 L1 没人起服务 → ConnectException（java，
+    归 env 正确但 repair 修不动）/"asserting that 0 is identical to 200"（php，
+    curl code=0 曾误归产品缺陷）。本函数在 repair_env 回炉 provision 时：
+    连接类失败 + 用例可解析目标端口 → 容器内起被测服务（复用 L2 真机验证过的
+    启动器）→ 本轮重跑拿到真实响应。fail-open：不适用/解析不到/启动失败都如实
+    留痕继续，不引入新失败面。返回留痕消息（None=不适用）。"""
+    if lang not in ("php", "java") or verdict != "repair_env":
+        return None
+    if not _CONNECTION_FAIL_RE.search(evidence or ""):
+        return None
+    port = extract_service_port(ws, lang)
+    if port is None:
+        return "[provision·service] 连接类失败但用例中未解析到目标端口——跳过起服务（fail-open）"
+    from .l2 import _detect_java_main, _start_service_java, _start_service_php
+    if lang == "php":
+        ok, why = _start_service_php(runner, container, port)
+        label = f"php -S 127.0.0.1:{port} index.php"
+    else:
+        main_cls = _detect_java_main(ws)
+        if not main_cls:
+            return "[provision·service] 连接类失败但未探测到 Java 服务主类——跳过起服务（fail-open）"
+        ok, why = _start_service_java(runner, container, main_cls, port)
+        label = f"spring-boot:run {main_cls}@{port}"
+    if ok:
+        return (f"[provision·service] 连接类失败 → 已起被测服务（{label}），"
+                "本轮重跑用例将拿到真实响应")
+    return f"[provision·service] 服务启动失败（{label}）：{(why or '')[:150]}——如实留痕继续（fail-open）"
+
+
 def _tier_strategy(primary: str) -> str:
     """语言分级（analyze 用，Loop 抽出供单测）：full=容器执行链路；其余 static_only。
     typescript 升 Tier2（白包阶段1）；java 接线（白包阶段2）→ full；go 接线（白包阶段3）→ full。"""
@@ -762,6 +823,18 @@ def make_nodes(deps: GraphDeps) -> dict:
                     return {"done": True, "verdict": "stop", "stop_reason": reason}
             except Exception as e:   # noqa: BLE001 —— 闸自身失败不引入新失败面（fail-open）
                 log.warning("PHP 平台闸跳过（%s: %s）", type(e).__name__, e)
+        # L1 服务编排兜底（2026-11-15 存疑 33/34 拍板全修）：repair_env 回炉轮遇连接类
+        # 失败（java ConnectException / php curl code=0）→ 从生成用例解析目标端口，
+        # 容器内起被测服务（复用 L2 启动器）→ 本轮重跑拿真实响应。fail-open 不炸链路。
+        try:
+            svc_msg = start_service_for_repair(
+                runner, container, Path(state["workspace"]),
+                state.get("primary_language", ""), state.get("verdict"),
+                (state.get("last_stdout") or "") + "\n" + (state.get("last_stderr") or ""))
+            if svc_msg:
+                msg(state["session_id"], "assistant", svc_msg)
+        except Exception as e:   # noqa: BLE001 —— 起服务失败不引入新失败面
+            log.warning("L1 服务编排跳过（%s: %s）", type(e).__name__, e)
         # DB 感知测试环境 v1（用户需求：带库程序测试时库要参与）：检测 DB 依赖 →
         # sqlite 家族自动建库/迁移/种子；服务端库如实降级提示。fail-open 不炸 provision。
         try:

@@ -40,7 +40,11 @@ def parse_junit_xml(text: str) -> list[dict]:
             status = {"failure": "failed", "error": "error",
                       "skipped": "skipped"}.get(tag, "error")
             # 真 pytest junit 实测：message 属性=断言表达式（无错误类）、type 属性常缺、
-            # 错误类在 traceback 尾行（"test_x.py:2: AssertionError"）——三处合成可读消息
+            # 错误类在 traceback 尾行（"test_x.py:2: AssertionError"）——三处合成可读消息。
+            # phpunit junit（2026-11-15 L1 服务编排实锤）：message 属性为空、type 属性=
+            # 异常类、text 里才是断言详情（"Failed asserting that 0 is identical to
+            # 200."）——断言详情行优先于尾行（尾行只有 file:line；curl code=0 的服务
+            # 未起指纹全在断言行里，归因特征靠它）
             short = (kids[0].get("message") or "").strip()
             txt_lines = [ln for ln in (kids[0].text or "").splitlines() if ln.strip()]
             tail = txt_lines[-1].strip() if txt_lines else ""
@@ -48,7 +52,10 @@ def parse_junit_xml(text: str) -> list[dict]:
             if not head and tail:
                 m2 = re.search(r"(\w+Error|\w+Exception|\w+Failed)\b", tail)
                 head = m2.group(1) if m2 else ""
-            body = short or tail
+            assertion_line = next(
+                (ln.strip() for ln in txt_lines
+                 if "asserting" in ln.lower() or "expecting" in ln.lower()), "")
+            body = short or assertion_line or tail
             message = (body[:300] if not head or body.startswith(head)
                        else f"{head}: {body}")[:300]
         base = name.split("[")[0]                   # 参数化后缀剥除，对齐 test_cases.name

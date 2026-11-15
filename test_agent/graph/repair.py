@@ -166,6 +166,14 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
                  r"|no Go files in"
                  r"|getsockopt: connection refused", text, re.I):
         return "env"
+    # PHP curl 形态的服务未起（2026-11-15 六语言真机实锤，task 1160：15 条全败被误
+    # 收"疑似产品缺陷"——curl 连不上时 CURLINFO_RESPONSE_CODE=0，断言消息形如
+    # "Failed asserting that 0 is identical to 200."，文本里无任何"连接"字样。
+    # actual=0 是 HTTP 语义下请求未发生的指纹（真实缺陷 actual=500/404 等非 0 值）。
+    # 既有形态兼容：junit text 不进统一文本时此特征缺失——parse_junit_xml 已改为
+    # 断言详情行优先（同 commit）。go dial tcp 形态先命中上一分支不受影响。）
+    if re.search(r"asserting that 0 is identical to \d+", text, re.I):
+        return "env"
     # 环境构建类信号（2026-11-15 E9 wcwidth 批实锤：repo 自带测试 1720 条 setup 因
     # C 扩展未编译全炸 → 全部误判 product_defect 证人，stop_reason 同一句话×1720）。
     # 扩展构建/编译器缺失属环境依赖层，非被测代码行为断言；语义两可的裸
