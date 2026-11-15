@@ -326,11 +326,14 @@ def confirm_scenario(conn, scenario_id: int, result: str, note: str | None,
     if row["status"] not in ("pending_confirm", "auto_pass", "pending",
                              "confirmed_pass", "confirmed_defect", "confirmed_scenario"):
         raise ValueError(f"当前状态 {row['status']} 不可确认")
-    from datetime import datetime
+    from datetime import datetime, timezone
+    # UTC（与同表 created_at=datetime('now') 同口径）——本地时间会让 confirmed_at
+    # 比 created_at"超前"时区偏移（2026-11-15 闲时找bug 第一轮）
     conn.execute(
         """UPDATE scenario_cases SET status=?, actual_note=?, confirmed_by=?,
            confirmed_at=? WHERE id=?""",
-        (mapping[result], note, user_id, datetime.now().isoformat(" ", "seconds"),
+        (mapping[result], note, user_id,
+         datetime.now(timezone.utc).replace(tzinfo=None).isoformat(" ", "seconds"),
          scenario_id))
     conn.commit()
     return {"scenario_id": scenario_id, "status": mapping[result]}

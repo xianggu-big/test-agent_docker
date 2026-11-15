@@ -817,8 +817,10 @@ def make_l2_nodes(deps):
 
 
 def _now() -> str:
-    from datetime import datetime
-    return datetime.now().isoformat(" ", "seconds")
+    """UTC 秒级时间戳（与全库 SQLite datetime('now') 同口径）——test_levels 全用它，
+    本地时区会让级别卡时间与 agent_sessions.ended_at 并排时超前时区偏移。"""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).replace(tzinfo=None).isoformat(" ", "seconds")
 
 
 def build_l2_graph(deps):
