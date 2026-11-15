@@ -722,7 +722,9 @@ def api_handoff(tid: int, user: dict = Depends(current_user)):
 
 
 @app.post("/api/tasks/{tid}/verify-fix")
-def api_verify_fix(tid: int, user: dict = Depends(current_user)):
+def api_verify_fix(tid: int, user: dict = Depends(staff)):
+    # 变更类端点=staff 专属（同 confirm/run/stop/cases/feedback；caller 仅新建·列表·报告
+    # ——2026-11-15 闲时找bug 对齐权限表，旧挂 current_user=caller 可创建派生任务）
     """F（任务卡-369 20261105）回归验证闭环入口：创建验证任务（复制原任务最终用例集，
     requirement 软链前缀，状态直置 ready_for_review——走阶段二执行图=执行-only，
     gen 不跑=用例冻结）。幂等：未执行的验证任务已存在则复用。
@@ -1347,6 +1349,8 @@ def api_convert_l4(tid: int, user: dict = Depends(staff)):
     for sc in confirmed:
         sc["steps"] = json.loads(sc["steps"])
     ws = Path(config.DATA_DIR) / "workspaces" / f"task_{tid}"
+    if not ws.exists():      # api_add_case 同款诚实 409（旧=裸 FileNotFoundError 500）
+        raise HTTPException(409, "工作区不存在（任务未跑过或已清理），无法转化")
     base_url = f"http://127.0.0.1:{config.L2_SERVICE_PORT}"
     from ..skills.scenario_gen import render_acceptance_module
     try:

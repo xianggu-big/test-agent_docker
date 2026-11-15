@@ -316,3 +316,23 @@ class TestPhaseRouting:
         assert captured.get("phase") == "review_report", (
             "review_report 的 LLM 闸路由 phase 仍是历史遗留 'map_rtm'（记账 :470 已名实归位"
             "为 review_report，路由侧漏改）→ 设计真源 PHASE_GROUPS['review'] 含 review_report")
+
+
+def test_map_requirements_llm重复条件累加(conn, monkeypatch):
+    """LLM 把同一条件的用例拆多条 mappings 返回（真实形态）——旧 dict 推导
+    later-wins 丢弃前面条目，RTM covered 偏低/gap 虚增（2026-11-15 闲时找bug）。"""
+    tid = conn.execute("SELECT id FROM test_tasks LIMIT 1").fetchone()["id"]
+    cid = conn.execute("SELECT id FROM test_conditions WHERE task_id=? "
+                       "ORDER BY id LIMIT 1", (tid,)).fetchone()["id"]
+
+    def fake_make_chat(**kw):
+        return _FakeLLM(json.dumps({"mappings": [
+            {"condition_id": cid, "cases": ["test_login_ok"]},
+            {"condition_id": cid, "cases": ["test_cart_total"]},
+        ]}))
+
+    monkeypatch.setattr("test_agent.skills.llm_client.make_chat", fake_make_chat)
+    r = map_requirements(conn, tid, api_key="sk-test")
+    row = next(m for m in r["matrix"] if m["id"] == cid)
+    assert set(row["cases"]) == {"test_login_ok", "test_cart_total"}, \
+        "同条件多条 mappings 必须累加，不许 later-wins 丢用例"

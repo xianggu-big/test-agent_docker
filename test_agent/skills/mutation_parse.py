@@ -36,6 +36,8 @@ def parse_stryker_json(report_path: str | Path) -> dict:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         return _unified(0, 0, 0, [])
+    if not isinstance(data, dict):     # 工具版本差异根节点非 dict → 诚实降级不炸
+        return _unified(0, 0, 0, [])
     killed = survived = timeout = 0
     survivors: list[dict] = []
     for file_path, finfo in (data.get("files") or {}).items():
@@ -104,8 +106,14 @@ def parse_infection_json(report_path: str | Path) -> dict:
         loc = m.get("originalFilePath") or m.get("originalDefinedClass") or "?"
         line = m.get("originalStartingLine") or m.get("originalLineNumber") or "?"
         survivors.append({"mutator": mutator, "location": f"{loc}:{line}"})
+    # total=0 → kill_rate/score=None（与 _unified 同口径：区分"零杀伤"与"没跑"，
+    # 跨工具聚合不拉低均值——2026-11-15 闲时找bug）。score 优先工具报告的 msi
+    # （Infection 权威值，test_infection_escaped同义survived 锁定），缺省回退计算。
+    total = killed + escaped + errors
+    msi = stats.get("msi") or stats.get("mutationScoreIndicator")
     return {"killed": killed, "survived": escaped, "timeout": errors,
-            "total": killed + escaped + errors,
-            "kill_rate": round(killed / max(1, killed + escaped + errors), 3),
-            "score": float(stats.get("msi") or stats.get("mutationScoreIndicator") or 0),
+            "total": total,
+            "kill_rate": round(killed / total, 3) if total else None,
+            "score": (float(msi) if msi is not None
+                      else (round((killed + errors) / total * 100, 1) if total else None)),
             "survivors": survivors, "source": "mutation_report"}

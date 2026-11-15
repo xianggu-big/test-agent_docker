@@ -98,7 +98,9 @@ def _coverage_rows(coverage_map: dict) -> tuple[list[str], int, int]:
             continue
         miss_lines = sorted({smap[k].get("start", {}).get("line", 0)
                              for k, cnt in hits.items() if not cnt and k in smap})
-        miss = sum(1 for k, cnt in hits.items() if not cnt)
+        # miss 与 miss_lines 同口径（k in smap 过滤）——istanbul 版本差异键集不齐时
+        # 不过滤的 miss 可大于 n → 渲染负覆盖率（2026-11-15 闲时找bug 实锤 -100%）
+        miss = sum(1 for k, cnt in hits.items() if not cnt and k in smap)
         cover = round((n - miss) / n * 100)
         rel = path.replace("\\", "/")
         rel = rel.split("/work/", 1)[-1] if "/work/" in rel else PurePosixPath(rel).name

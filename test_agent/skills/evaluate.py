@@ -254,9 +254,15 @@ def map_requirements(conn, task_id: int, api_key: str | None = None) -> dict:
                  base_url=getattr(llm, "_base_url", ""))
             data = json.loads(re.search(r"\{.*\}", resp.content, re.S).group(0))
             valid_names = {c["name"] for c in cases}
-            mapping = {c["id"]: [n for n in (m.get("cases") or []) if n in valid_names]
-                       for m in data.get("mappings", [])
-                       for c in conditions if c["id"] == m.get("condition_id")}
+            # 同条件多条 mappings 累加（later-wins 会丢用例→RTM covered 偏低/gap 虚增，
+            # 2026-11-15 闲时找bug）；同用例重复出现时去重保序
+            mapping: dict = {}
+            for m in data.get("mappings", []):
+                for c in conditions:
+                    if c["id"] == m.get("condition_id"):
+                        slot = mapping.setdefault(c["id"], [])
+                        slot.extend(n for n in (m.get("cases") or [])
+                                    if n in valid_names and n not in slot)
             for c in conditions:            # LLM 漏答的条件补空
                 mapping.setdefault(c["id"], [])
             source = "llm"
