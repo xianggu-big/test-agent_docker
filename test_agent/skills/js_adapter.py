@@ -177,11 +177,10 @@ def jest_json_to_pytest_text(stdout: str, stderr: str = "") -> str:
         out.append("---------- coverage: unavailable ----------")
         out.append("coverageMap 为空：用例未通过 require 加载被测代码"
                    "（vm/readFileSync 模式无法插桩）——覆盖率不可用，非解析断点")
-    # 套件崩溃计入 failed（853刷题系统实锤：无工程文件的散装 JS 套件 require 崩溃，
-    # 0 passed/0 failed 只有 errors 行 → evaluate 判"没解析到"走 repair_env 循环熔断；
-    # 计入 failed 后归因走 case_defect——生成用例与项目模块系统不匹配是用例侧问题）
-    if errors and failed == 0:
-        failed = errors
+    # 套件崩溃计入失败口径（853刷题系统实锤：散装 JS 套件 require 崩溃，0 failed 只有
+    # errors → 归因走 case_defect）。计数契约（2026-11-15 闲时找bug 修正）：evaluate 侧
+    # 解析本摘要行后执行 failed += errors——errors 只能经 "N errors" 行计入一次；
+    # 此处不再 fold 进 failed（旧 fold 与 evaluate 叠加=同一批错误双计，failed=2N）。
     parts = []
     if failed:
         parts.append(f"{failed} failed")
