@@ -644,6 +644,16 @@ def _parse_cases(text: str, lang: str | None = None) -> dict | None:
                                "template": kind, "slots": dict(data)}]}
             return data
         return None
+    # 字段类型归一（2026-11-15 E9 corpus-002 实锤）：LLM 偶尔把 expected/input/
+    # steps 返回成数组/对象而非字符串——下游 _verify_expected_basis 的 2-gram 拼接
+    # 与 test_cases 落库（TEXT 列）都会炸（TypeError/InterfaceError）。dict/list →
+    # JSON 文本（保语义可读），其它非字符串 → str()。
+    for c in cleaned:
+        for k in ("expected", "input", "steps"):
+            v = c.get(k)
+            if v is None or isinstance(v, str):
+                continue
+            c[k] = json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else str(v)
     data["cases"] = cleaned
     return data
 
@@ -1276,11 +1286,19 @@ def _verify_expected_basis(cases: list[dict], requirement: str) -> list[str]:
     from .evaluate import _grams
     req = _grams(requirement or "")
     downgraded: list[str] = []
+
+    def _as_text(v) -> str:
+        # 字段类型防御（2026-11-15 E9 corpus-002 实锤：expected 返回数组→list+str 炸）；
+        # 解析边界已归一，此处兜底其它直呼路径
+        if v is None or isinstance(v, str):
+            return v or ""
+        return json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else str(v)
+
     for c in cases:
         if c.get("template"):
             continue
         if (c.get("expected_basis") or "").strip() == "需求明示":
-            eg = _grams((c.get("expected") or "") + (c.get("input") or ""))
+            eg = _grams(_as_text(c.get("expected")) + _as_text(c.get("input")))
             if req and eg and not (eg & req):
                 c["expected_basis"] = "模型推断"
                 downgraded.append(c.get("name") or "?")

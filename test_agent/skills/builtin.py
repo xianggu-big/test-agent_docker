@@ -150,7 +150,16 @@ def build_skills(runner) -> dict[str, Skill]:
         return "\n".join(parts)
 
     def run_tests(task_id: int, args: dict) -> str:
-        container = runner.client.containers.get(args["container_name"])
+        try:
+            container = runner.client.containers.get(args["container_name"])
+        except Exception as e:      # noqa: BLE001 —— 容器缺失结构化为环境错误（2026-11-15
+            # E9 实锤：worker 被杀/容器回收后重试轮 get() 裸抛 docker 404 NotFound，
+            # error 只有一行英文裸异常，归因链看不到"环境"语义）
+            return json.dumps({"exit": -1, "stdout": "",
+                               "stderr": f"环境错误：考场容器 {args['container_name']} 不可达"
+                                         f"（{type(e).__name__}）——容器已被回收或宿主 Docker "
+                                         f"不可用，本轮测试未执行（诚实降级，需重新 provision）"},
+                              ensure_ascii=False)
         r = runner.exec_in(container, args["cmd"], timeout_s=config.DEFAULT_JOB_TIMEOUT_S)
         # stdout/stderr 分开返回，供宿主侧 Evaluator 归因判读（执行与判定分离）
         return json.dumps({"exit": r.exit_code, "stdout": r.stdout, "stderr": r.stderr},

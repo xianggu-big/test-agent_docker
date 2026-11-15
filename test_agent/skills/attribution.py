@@ -192,6 +192,8 @@ _ENV_FAIL_HINTS = (
     "connection refused", "no route to host", "ConnectionRefusedError",
     "ConnectionResetError", "socket.timeout", "No space left on device",
     "out of memory", "OOMKilled",
+    "C extension not loaded",       # 2026-11-15 E9 wcwidth 实锤：setup 环境构建断言
+    "Microsoft Visual C++ 14", "Unable to find vcvarsall",
 )
 _CASE_FAIL_HINTS = (
     "Cannot find module", "MODULE_NOT_FOUND", "ModuleNotFoundError",

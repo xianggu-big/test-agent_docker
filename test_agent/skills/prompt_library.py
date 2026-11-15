@@ -869,9 +869,29 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
 # —————————————————————————— 上下文预算管理（任务卡-H 步骤 3/4，2026-11-10） ——————————————————————————
 
 def estimate_tokens(text: str) -> int:
-    """粗估 token 数（chars/2.2；717 真机校准：离线估 10364 vs ollama 实报 11341，
-    系数偏保守方向修——宁可少装不溢出）。中文/代码混合提示词实测 1 token≈2.2 字符。"""
-    return max(1, int(len(text or "") / 2.2))
+    """分段粗估 token 数（2026-11-15 wcwidth 实锤修订）：全局 2.2 系数（717 中文混合
+    校准）对**符号密集英文代码**低估 ~25%（代码行 1 token≈1.6-2.0 字符）——local 档
+    按 95% 预算 fit 后实际仍超上下文（400: 8218 > 8192）。分段：CJK≈1 token/字符；
+    代码行（重标点/赋值/调用特征）1.9 字符/token；其余自然语言 2.2（717 校准）。
+    全部保守方向：宁估多少装，不溢出。"""
+    if not text:
+        return 1
+    cjk_n = 0
+    rest_chars: list[str] = []
+    for ch in text:
+        if "\u4e00" <= ch <= "\u9fff":
+            cjk_n += 1
+        else:
+            rest_chars.append(ch)
+    rest = "".join(rest_chars)
+    code_chars = nat_chars = 0
+    for ln in rest.splitlines(keepends=True):
+        s = ln.strip()
+        if len(s) > 8 and re.search(r"[=(){}\[\];<>]|def |return |import |self\.", s):
+            code_chars += len(ln)
+        else:
+            nat_chars += len(ln)
+    return max(1, int(cjk_n + code_chars / 1.9 + nat_chars / 2.2))
 
 
 def _source_rank_key(rel_path: str) -> tuple:

@@ -81,8 +81,9 @@ def test_flag_on_fallback_down_raises_original_budget(monkeypatch):
         chat.invoke([("user", "hi")])
 
 
-def test_fallback_only_on_budget_not_on_other_errors(monkeypatch):
-    """只对余额类降级：限流/致命错误不走备胎（限流重试耗尽→RateLimited）。"""
+def test_fallback_only_on_budget_and_unreachable_not_on_fatal(monkeypatch):
+    """降级覆盖两类"用不了"（2026-11-15 拍板）：402 余额 + 连接/限流重试穷尽；
+    fatal（参数错等）不走备胎。"""
     monkeypatch.setattr(config, "LLM_FALLBACK_ENABLED", True)
 
     class _FatalBoom:
@@ -99,13 +100,15 @@ def test_fallback_only_on_budget_not_on_other_errors(monkeypatch):
         model_name = "deepseek-chat"
 
         def invoke(self, messages, *a, **kw):
-            raise RuntimeError("429 too many requests")  # retry 类
+            raise RuntimeError("429 too many requests")  # retry 类 → 穷尽=用不了
 
     import time as _t
     monkeypatch.setattr(_t, "sleep", lambda s: None)
-    with pytest.raises(RuntimeError, match="连续"):
-        RobustChat(_RateBoom(), retries=1).invoke([("user", "hi")])
-    assert _FakeFallbackLLM.last_kwargs is None
+    # 新契约：连接/限流穷尽也降级（E9 wcwidth 批 21 格 gen 三连挂的修法）
+    resp = RobustChat(_RateBoom(), retries=1).invoke([("user", "hi")])
+    assert resp.content == "fallback json"
+    assert _FakeFallbackLLM.last_kwargs is not None
+    assert resp.additional_kwargs["llm_fallback"]["reason"] == "primary_unreachable"
 
 
 def test_budget_marking_failure_still_returns(monkeypatch):

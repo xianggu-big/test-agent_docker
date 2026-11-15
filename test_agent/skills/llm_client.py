@@ -59,15 +59,21 @@ class RobustChat:
     def __getattr__(self, name):          # 透传 model / model_name / temperature 等
         return getattr(self._inner, name)
 
-    def _try_fallback(self, messages, *a, **kw):
-        """余额耗尽时的本地备胎（MTA_LLM_FALLBACK=1 开启，默认关=旧行为逐字节不变）。
+    def _try_fallback(self, messages, *a, reason: str = "primary_budget_exhausted", **kw):
+        """DeepSeek 用不了时的本地备胎（MTA_LLM_FALLBACK=1 开启，默认关=旧行为逐字节不变）。
+
+        覆盖两种"用不了"（2026-11-15 用户拍板：本地 LLM 仅在 DeepSeek 不可用时兜底）：
+        1. 余额耗尽（402 → BudgetExhausted 分支，reason=primary_budget_exhausted）；
+        2. 连接类错误退避穷尽（APIConnectionError/超时/5xx → RateLimited 分支，
+           reason=primary_unreachable——2026-11-15 实锤：E9 wcwidth 批 21 格 gen 三连挂
+           生成 0 条，备胎只认 402 没接住连接错误）。
 
         诚实纪律三条：
         1. 降级产物必须在 additional_kwargs.llm_fallback 打标（哪个模型救的场），
            台账/调用方可识别——防备胎产物混进 DeepSeek 口径的实验数据；
-        2. 备胎不可达/自身失败 → 返回 None，原 402 的 BudgetExhausted 照常抛，
+        2. 备胎不可达/自身失败 → 返回 None，原错误照常抛，
            绝不把"备胎挂了"变形吞掉；
-        3. 只对 API 侧余额耗尽生效；自家 token 停车线的预算停止是实验预注册边界，
+        3. 只对 API 侧不可用生效；自家 token 停车线的预算停止是实验预注册边界，
            不走这里（若停车线直接 raise BudgetExhausted 也不经过 invoke 的 budget 分支）。
         """
         from .. import config
@@ -102,7 +108,7 @@ class RobustChat:
             try:
                 base = dict(getattr(resp, "additional_kwargs", {}) or {})
                 base["llm_fallback"] = {"model": config.LLM_FALLBACK_MODEL,
-                                        "reason": "primary_budget_exhausted"}
+                                        "reason": reason}
                 resp.additional_kwargs = base
             except Exception:             # noqa: BLE001 —— 标记失败不吞降级结果
                 log.warning("[llm-fallback] 降级结果打标失败（产物照常返回，台账将缺备胎标记）")
@@ -130,6 +136,14 @@ class RobustChat:
                         f"（原始信息：{type(e).__name__}: {e}）") from e
                 if kind == "fatal":
                     raise
+                # 连接类错误兜底（2026-11-15 拍板落地）：重试穷尽=DeepSeek 此刻用不了，
+                # 与 402 同走本地备胎（打标 reason=primary_unreachable）——E9 wcwidth
+                # 批 21 格 gen 三连挂生成 0 条的实锤修法
+                if attempt == self._retries - 1:
+                    fb = self._try_fallback(messages, *a, **kw,
+                                            reason="primary_unreachable")
+                    if fb is not None:
+                        return fb
                 last = e
                 wait = self._base * (2 ** attempt)
                 log.warning("LLM 调用失败（%s%s），%.0fs 后重试 %d/%d：%s",

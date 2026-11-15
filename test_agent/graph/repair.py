@@ -166,6 +166,17 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
                  r"|no Go files in"
                  r"|getsockopt: connection refused", text, re.I):
         return "env"
+    # 环境构建类信号（2026-11-15 E9 wcwidth 批实锤：repo 自带测试 1720 条 setup 因
+    # C 扩展未编译全炸 → 全部误判 product_defect 证人，stop_reason 同一句话×1720）。
+    # 扩展构建/编译器缺失属环境依赖层，非被测代码行为断言；语义两可的裸
+    # "failed on setup" 不入表（可能是用例侧坏 fixture——诚实边界，宁缺勿滥）。
+    if re.search(r"C extension not loaded"
+                 r"|Microsoft Visual C\+\+ 14"
+                 r"|Unable to find vcvarsall"
+                 r"|no acceptable C compiler"
+                 r"|error: command .{0,30}(?:gcc|cc|cl)\.exe? failed",
+                 text, re.I):
+        return "env"
     if "FAILED" in text or "AssertionError" in text:
         return "product_defect"   # 断言合理但行为不符 → 疑似产品缺陷
     return "env"                  # 其余先按环境问题处理（重装依赖重试一次）
