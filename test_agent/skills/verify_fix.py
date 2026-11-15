@@ -65,10 +65,18 @@ def verify_verdict(orig_defects: list[dict], verify_rows: list[dict],
                             "note": "成员不再以同签名失败——转 regressed/new 细分见新签名组"})
     env_members = {n for r in results if r["verdict"] == "env_blocked"
                    for n in r["members"]}
-    new_sigs = sorted(s for s in verify_sigs if s not in orig
-                      and not (env_members & {
-                          r["nodeid"] for r in verify_rows
-                          if r["status"] in ("failed", "error")}))
+    # 新签名过滤（2026-11-15 闲时找bug 修正）：只剔除"失败行全部属于 env_blocked 组"
+    # 的签名（env 噪声换了签名≠新缺陷）。旧写法 not(env_members & 失败行全集) 与被过滤
+    # 签名 s 无关——只要存在任一 env_blocked 组就整体吞掉所有新签名 → regressed 假判
+    # fixed_verified。逐签名判定，部分属 env 则保留（诚实方向）。
+    def _row_sig(r):
+        return sig_of({"message": r.get("message") or "", "nodeid": r["nodeid"]})
+
+    new_sigs = sorted(
+        s for s in verify_sigs if s not in orig
+        and not all(r["nodeid"] in env_members
+                    for r in verify_rows
+                    if r["status"] in ("failed", "error") and _row_sig(r) == s))
     overall = ("not_fixed" if any(r["verdict"] == "not_fixed" for r in results)
                else "regressed" if new_sigs
                else "fixed_verified" if results and

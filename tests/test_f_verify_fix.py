@@ -117,3 +117,40 @@ def test_mixed_fixed_plus_env_blocked():
     out = verify_verdict(orig, rows)
     assert {g["verdict"] for g in out["groups"]} == {"fixed_verified", "env_blocked"}
     assert out["overall"] == "fixed_verified"       # 有真实修复且无 not_fixed/regressed
+
+
+def test_new_signature_survives_when_env_blocked_present():
+    """env_blocked 组存在时新失败签名不得被吞（2026-11-15 闲时找bug 第一轮）。
+
+    旧实现的 new_sigs 过滤条件 `not (env_members & {失败行nodeid})` 与被过滤的 s
+    无关——只要存在任一 env_blocked 组，交集必非空 → 所有新签名被吞 →
+    overall 从应判 regressed 变成假 fixed_verified（新缺陷静默丢失）。"""
+    new_msg = MSG.replace("constant variable", "undefined property 'x'")
+    rows = [
+        # BUG-01 修复后通过
+        {"nodeid": ORIG[0]["nodeid"], "status": "passed", "message": ""},
+        # BUG-02 仍失败但为环境特征错 → env_blocked（合法组）
+        {"nodeid": ORIG[1]["nodeid"], "status": "failed",
+         "message": "Error: 清理失败：connect ECONNREFUSED 127.0.0.1:3306"},
+        # 验证轮全新签名失败（真新缺陷）——必须如实报出
+        {"nodeid": "test_gen_r1.test.js::test_new", "status": "failed",
+         "message": new_msg},
+    ]
+    out = verify_verdict(ORIG, rows)
+    assert out["new_signatures"], "新签名被 env_blocked 组的存在性整体吞掉"
+    assert out["overall"] == "regressed"
+
+
+def test_env_noise_new_signature_still_filtered():
+    """env_blocked 成员换了签名的失败（如断言错变成连接错）不算新缺陷——
+    修复后仍应被过滤（过滤的本意），与上一条构成双向锁定。"""
+    rows = [
+        {"nodeid": ORIG[0]["nodeid"], "status": "passed", "message": ""},
+        # 原 nodeid 以全新签名（环境错）失败：是 env 噪声不是新缺陷
+        {"nodeid": ORIG[1]["nodeid"], "status": "failed",
+         "message": "Error: 清理失败：connect ECONNREFUSED 127.0.0.1:3306"},
+    ]
+    out = verify_verdict(ORIG, rows)
+    # 两 ORIG 消息数字归一后同签名 → 同组整体 env_blocked（组员之一修好了也整组待复验）
+    assert out["new_signatures"] == []
+    assert out["overall"] == "env_blocked"
