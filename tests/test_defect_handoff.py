@@ -157,3 +157,33 @@ def test_auto_export_default_dir_and_silent_empty(db, tmp_path, monkeypatch):
     assert auto_export_handoff(db, 2, notify=notes.append) is None   # 全过任务
     assert notes == []
     assert not (tmp_path / "reports" / "handoff" / "task_2_缺陷报告单.md").exists()
+
+
+def test_render_fix_prompt_clustered_no_crash(db, monkeypatch):
+    """开缺陷聚类时 render_fix_prompt 必须可用（2026-11-15 闲时找bug 第一轮）。
+
+    旧实现从 render_defect_report 复制聚类段时漏改变量名 `lines`（本函数作用域只有
+    head/clusters/body/last_cluster）——DEFECT_CLUSTERING_ENABLED=1 且存在聚类组时
+    首个缺陷即 NameError：/handoff 端点 500、review 节点 auto_export 交付物静默消失。"""
+    from test_agent import config as _config
+    monkeypatch.setattr(_config, "DEFECT_CLUSTERING_ENABLED", True)
+    msg = "Error: TypeError: Assignment to constant variable\n    at evalmachine.<anonymous>:1:9"
+    ds = []
+    for i, (nid, m) in enumerate(
+            [("test_gen_r1.test.js::test_del", msg),
+             ("test_gen_r1.test.js::test_add", msg.replace(":1:9", ":1:33"))], 1):
+        ds.append({"bug_id": f"BUG-{i:02d}", "name": nid.split("::")[-1], "nodeid": nid,
+                   "message": m, "content": f"test('{nid.split('::')[-1]}', () => {{}});",
+                   "priority": "高", "basis": "需求明示", "confidence": "高",
+                   "rounds": [1], "condition": None, "requirement_ref": None,
+                   "method": "边界值分析", "expected": "—", "status": "failed",
+                   "level": "L1"})
+    meta = {"task_id": 1, "project": "demo", "repo_url": "local://demo",
+            "language": "javascript", "image": "mta-test:node20-jest",
+            "requirement": "测试添加删除", "status": "failed", "coverage_line": None,
+            "failure_kind": "product_defect", "stop_reason": None, "analysis": None,
+            "defects_tag": {"failure_kind": "product_defect"}, "conditions": []}
+    text = render_fix_prompt(meta, ds)          # 旧代码在此 NameError
+    assert "缺陷组" in text                       # 聚类组头进入了交付物
+    assert "禁止修改、删除、跳过下列测试用例与断言" in text
+    assert "BUG-01" in text and "BUG-02" in text

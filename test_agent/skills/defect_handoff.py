@@ -354,8 +354,10 @@ def render_fix_prompt(meta: dict, defects: list[dict]) -> str:
             last_cluster = d.get("cluster")
             g = next((g for g in clusters if g["signature"] == last_cluster), None)
             if g:
-                lines += ["", f"### 缺陷组（签名 `{g['signature']}`，同根因 {g['size']} 条："
-                          f"{'、'.join(g['members'])}——组内最高置信 {g['top_confidence']}）", ""]
+                # 2026-11-15 闲时找bug：本段从 render_defect_report 复制时漏改变量名
+                # lines（本函数作用域只有 body）——开聚类即 NameError，交付物静默消失
+                body += ["", f"### 缺陷组（签名 `{g['signature']}`，同根因 {g['size']} 条："
+                         f"{'、'.join(g['members'])}——组内最高置信 {g['top_confidence']}）", ""]
         ana = _analysis_lookup(meta, d["name"])
         ref = f"（需求关键句：{d['requirement_ref']}）" if d.get("requirement_ref") else ""
         body += [
