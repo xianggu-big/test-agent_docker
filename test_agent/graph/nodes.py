@@ -165,6 +165,40 @@ def extract_service_port(ws: Path, lang: str) -> int | None:
     return hits.most_common(1)[0][0] if hits else None
 
 
+def cache_binds_for(image: str) -> dict | None:
+    """组装镜像的构建缓存 bind mount（2026-11-15 卡 4，冷缓存家族总解）：
+    go126 挂 GOMODCACHE/GOCACHE、jdk17-maven 挂本地 .m2——fresh 重建/跨任务共享
+    缓存，二轮构建秒级（1139 gin-master 依赖树 600s 超时×fresh 清零的根治）。
+    宿主目录在 data/build_cache/ 下按用途分子目录，缺目录即建。非目标镜像返回
+    None（python/js/php 无构建缓存需求，零行为变化）。"""
+    pairs = config.BUILD_CACHE_BINDS.get(image)
+    if not pairs:
+        return None
+    binds = {}
+    for cpath, sub in pairs:
+        host = config.BUILD_CACHE_HOST_DIR / sub
+        host.mkdir(parents=True, exist_ok=True)
+        binds[str(host)] = {"bind": cpath, "mode": "rw"}
+    return binds
+
+
+def warm_build_cache(runner, container, lang: str) -> str | None:
+    """provision 预热步（卡 4 第二半）：首轮把依赖树拉进 bind mount 缓存（900s
+    fail-open），后续轮次/任务命中缓存秒级。失败如实留痕不阻断主链路。返回留痕
+    消息（None=非 go/java 不适用）。"""
+    if lang == "go":
+        cmd, label = ["sh", "-c", "cd /work && (go mod download 2>&1 | tail -3) || true"], "go mod download"
+    elif lang == "java":
+        cmd, label = ["sh", "-c", "cd /work && (mvn -q dependency:go-offline 2>&1 | tail -3) || true"], "mvn dependency:go-offline"
+    else:
+        return None
+    r = runner.exec_in(container, cmd, timeout_s=900)
+    if r.exit_code == 0:
+        return f"[provision·cache] 构建缓存预热完成（{label}，依赖已入持久缓存）"
+    return (f"[provision·cache] 预热未完成（{label} exit={r.exit_code}）——"
+            f"{((r.stdout or '') + (r.stderr or ''))[-200:]}（fail-open，不阻断）")
+
+
 _CONNECTION_FAIL_RE = re.compile(
     r"connection refused|ConnectException|ECONNREFUSED"
     r"|asserting that 0 is identical to \d+", re.I)
@@ -767,7 +801,15 @@ def make_nodes(deps: GraphDeps) -> dict:
                     f"[provision] 布考场：按审查结论重写 {n_files} 个生成用例文件（停用用例已摘除）")
         # 上一轮执行超时（exit=-1）说明容器里有 exec 残留，必须重建（A2），否则新旧任务争抢 CPU
         fresh = state.get("last_exit") == -1 and state.get("round_no", 0) > 0
-        container = runner.ensure_container(image, state["container_name"], fresh=fresh)
+        # 构建缓存持久化（2026-11-15 卡 4）：go/java 容器挂宿主缓存目录（跨容器/任务
+        # 共享，fresh 重建不清零）；cache_binds_for 失败（目录建不了等）→ None 走老路径
+        try:
+            binds = cache_binds_for(image)
+        except Exception as e:      # noqa: BLE001 —— 缓存挂载不引入新失败面
+            log.warning("构建缓存 binds 组装失败（%s: %s），跳过挂载", type(e).__name__, e)
+            binds = None
+        container = runner.ensure_container(image, state["container_name"], fresh=fresh,
+                                            binds=binds)
         # 任务B：快照摘要落 agent_messages——跳过了什么/打了多大，界面可查
         # （#281 教训：7.7GB 工作区静默 OOM，用户只看到 MemoryError 不知道为什么）
         # 缺口②修复（2026-11-05）：差分闸开启时 .git 必须随行进考场，否则
@@ -795,6 +837,15 @@ def make_nodes(deps: GraphDeps) -> dict:
             "container_name": state["container_name"],
             "deps_manifest": probe_deps_manifest(state["workspace"],
                                                  state.get("primary_language"))})
+        # 构建缓存预热（2026-11-15 卡 4）：首轮把 go/java 依赖树拉进持久缓存（900s
+        # fail-open）——二轮起 fresh 重建也命中缓存，冷下载 600s 超时家族根治。
+        try:
+            warm_msg = warm_build_cache(runner, container,
+                                        state.get("primary_language", ""))
+            if warm_msg:
+                msg(state["session_id"], "assistant", warm_msg)
+        except Exception as e:      # noqa: BLE001 —— 预热失败不引入新失败面
+            log.warning("构建缓存预热跳过（%s: %s）", type(e).__name__, e)
         # Go 工具链版本闸（2026-11-08 任务 678/679 实锤）：go.mod 要求 go>=1.26 而镜像
         # 只有 1.22 → go test 秒失败零 JSON 事件 → evaluate 0/0 → repair_env 三轮空转熔断。
         # 版本是环境事实（repair 修不动），开考前确定性判定并诚实 stop，不烧修复轮次。

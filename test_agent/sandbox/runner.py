@@ -157,11 +157,13 @@ class SandboxRunner:
     def ensure_container(self, image: str, name: str,
                          cpu_limit: float = config.DEFAULT_CPU_LIMIT,
                          mem_mb: int = config.DEFAULT_MEM_LIMIT_MB,
-                         fresh: bool = False):
+                         fresh: bool = False, binds: dict | None = None):
         """确保常驻容器在跑（幂等：同名容器存在则复用）。
 
         fresh=True 时先销毁同名旧容器再新建——用于超时后重建（A2）与脏容器场景（A3）；
         普通 R-Loop 轮次不传 fresh，保留容器内的依赖缓存。
+        binds（2026-11-15 卡 4）：构建缓存 bind mount（docker-py binds 格式），仅
+        新建路径生效；复用路径沿用旧容器既有挂载（缓存本来就在）。
         """
         try:
             c = self.client.containers.get(name)
@@ -178,15 +180,16 @@ class SandboxRunner:
                     if getattr(c, "status", "running") != "running":
                         log.warning("容器 %s start 后仍为 %s，销毁重建", name, c.status)
                         c.remove(force=True)
-                        return self._run_sandbox(image, name, cpu_limit, mem_mb)
+                        return self._run_sandbox(image, name, cpu_limit, mem_mb, binds=binds)
                 return c
         except NotFound:
             pass
         log.info("启动沙箱容器 %s (image=%s, cpu=%s, mem=%sm)", name, image, cpu_limit, mem_mb)
-        return self._run_sandbox(image, name, cpu_limit, mem_mb)
+        return self._run_sandbox(image, name, cpu_limit, mem_mb, binds=binds)
 
-    def _run_sandbox(self, image: str, name: str, cpu_limit: float, mem_mb: int):
-        """新建沙箱容器（幂等规格集中一处，Loop-2 抽出）。"""
+    def _run_sandbox(self, image: str, name: str, cpu_limit: float, mem_mb: int,
+                     binds: dict | None = None):
+        """新建沙箱容器（幂等规格集中一处，Loop-2 抽出）。binds=构建缓存挂载（卡 4）。"""
         return self.client.containers.run(
             image,
             name=name,
@@ -194,6 +197,7 @@ class SandboxRunner:
             detach=True,
             nano_cpus=int(cpu_limit * 1e9),
             mem_limit=f"{mem_mb}m",
+            binds=binds,
         )
 
     def image_exists(self, image: str) -> bool:

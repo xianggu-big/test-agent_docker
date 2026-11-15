@@ -38,6 +38,19 @@ IMAGE_BUILD_CTX = {
 EXEC_LANGUAGES = {"python": IMAGE_PY, "javascript": IMAGE_JS, "typescript": IMAGE_JS,
                   "java": IMAGE_JAVA, "go": IMAGE_GO, "php": IMAGE_PHP}
 
+# —— 构建缓存持久化（2026-11-15 卡 4，1139/1140/1142/1143-1145 冷缓存家族总解） ——
+# fresh 容器每次重建都清零依赖下载成果：maven/go 依赖树 >>600s 冷下载（1139 gin-master
+# /1143-1145 petclinic 实锤）× repair_env fresh 重建清零 → 同指纹熔断。解=bind mount
+# 宿主缓存目录进容器（跨容器/跨任务共享），+ provision 预热步（首轮冷下载 900s
+# fail-open，二轮起秒级）。路径按镜像实测：go126 以 root 跑（GOMODCACHE=/go/pkg/mod、
+# GOCACHE=/root/.cache/go-build）；jdk17-maven USER tester（localRepository=/home/
+# tester/.m2）。宿主目录在 data/build_cache/ 下按用途分子目录。
+BUILD_CACHE_HOST_DIR = DATA_DIR / "build_cache"
+BUILD_CACHE_BINDS = {   # image → [(容器路径, 宿主子目录名)]
+    IMAGE_GO: [("/go/pkg/mod", "go-mod"), ("/root/.cache/go-build", "go-build")],
+    IMAGE_JAVA: [("/home/tester/.m2", "m2")],
+}
+
 # —— 噪声目录（clone 快照 / 语言统计 / 源码收集共用一份定义） ——
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "vendor", "dist",
               "build", ".idea",   # vendor=php/composer（白包阶段4）
