@@ -163,6 +163,12 @@ def run_idempotency(api_key: str, args: dict, task_id: int, runner) -> str:
     junit = ""
     if "=== JUNIT ===" in (r.stdout or ""):
         junit = r.stdout.split("=== JUNIT ===", 1)[1]
+    # 容器即弃（2026-11-15 闲时找bug）：证据已在 stdout（文本+junit），不回收则每轮
+    # 遗留一个含 chromium 的常驻容器；中途崩溃残留由服务重启清扫兜底（已覆盖 mta-ui-）
+    try:
+        container.remove(force=True)
+    except Exception:  # noqa: BLE001 —— 回收失败不影响结果产出（留待重启清扫）
+        pass
     # 输出统一为 pytest 风格文本：evaluate/attribution 契约（期 A 纪律④，junit 权威）
     ok_lines, fail_lines, rows = [], [], []
     import xml.etree.ElementTree as ET

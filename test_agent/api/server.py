@@ -381,6 +381,11 @@ def api_stop(tid: int, user: dict = Depends(staff)):
         return {"task_id": tid, "stopped": True, "forced": True}
     conn.execute("UPDATE test_tasks SET status='cancelled', updated_at=datetime('now') WHERE id=? AND status='queued'",
                  (tid,))
+    # 排队行同步取消（2026-11-15 闲时找bug）：worker 只看 exec_queue 不复核任务状态，
+    # 且 builder 乐观锁不拦 cancelled——不清队列行=已取消任务被"复活"全链执行
+    conn.execute(
+        "UPDATE exec_queue SET status='cancelled', finished_at=datetime('now'),"
+        " error='用户取消（排队中停止）' WHERE task_id=? AND status='queued'", (tid,))
     conn.commit()
     return {"task_id": tid, "stopped": True}
 
@@ -1384,11 +1389,15 @@ app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 def _sweep_orphan_containers() -> None:
-    """服务重启即视为旧任务已死：回收上次进程死亡残留的 mta-run-* 容器（幂等）。"""
+    """服务重启即视为旧任务已死：回收上次进程死亡残留的 mta-run-* / mta-ui-* 容器（幂等）。
+    mta-ui-*：ui_idempotency 每轮新建的 playwright 常驻容器（含 chromium），旧版清扫
+    不覆盖 → 无限累积（2026-11-15 闲时找bug）。注意不要放宽成 mta-*——会误杀
+    mta-pg 数据库 sidecar。"""
     try:
-        for c in get_runner().client.containers.list(filters={"name": "mta-run-"}):
-            c.remove(force=True)
-            log.warning("已回收疑似孤儿容器 %s", c.name)
+        for prefix in ("mta-run-", "mta-ui-"):
+            for c in get_runner().client.containers.list(filters={"name": prefix}):
+                c.remove(force=True)
+                log.warning("已回收疑似孤儿容器 %s", c.name)
     except Exception as e:  # Docker 未起等场景不阻断服务启动
         log.warning("孤儿容器清扫跳过: %s", e)
 

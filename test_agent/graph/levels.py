@@ -58,7 +58,15 @@ def run_task_levels(task_id: int, levels: tuple[str, ...] = ("L1", "L2")) -> dic
 
         l1_leg = _leg_upsert(conn, task_id, "L1", strategy="full", status="running",
                              started_at=_now())
-        l1_final = run_task(task_id)                     # L1 原样，零改动
+        try:
+            l1_final = run_task(task_id)                 # L1 原样，零改动
+        except Exception as e:
+            # 图异常上抛前把 leg 收口 failed（任务行已由 run_task 置 failed）——
+            # 不收口则四级视图 L1 永远"运行中"（2026-11-15 闲时找bug 第一轮）
+            _leg_update(conn, l1_leg, status="failed", verdict="stop",
+                        stop_reason=f"{type(e).__name__}: {e}"[:300],
+                        finished_at=_now())
+            raise
         l1_ok = bool(l1_final.get("done")) and l1_final.get("verdict") in ("pass", "stop")
         _leg_update(conn, l1_leg, status="done" if l1_ok else "failed",
                     verdict=str(l1_final.get("verdict")),
