@@ -1584,7 +1584,9 @@ function lvRows(l) {
     ["契约违背检出", s.contract_violations ?? "--"], ["需求断言失败", s.requirement_failures ?? "--"]];
   if (l.level === "L3") return [["业务流场景", s.total ?? "--"], ["自动通过", s.auto_pass ?? "--"],
     ["待人工确认", s.pending_confirm ?? "--"]];
-  return [["GWT 场景清单", (s.total ?? "--") + " 条"], ["已确认", s.confirmed ?? s.rejected ?? "--"]];
+  // 2026-11-15 闲时找bug：L4 summary 真实键是 scenarios/rejected（l4.py 落库口径）——
+  // 旧读 s.total 恒 "--"，且 s.confirmed ?? s.rejected 把"静态闸剔除数"当"已确认"显示
+  return [["GWT 场景清单", (s.scenarios ?? "--") + " 条"], ["静态闸剔除", s.rejected ?? "--"]];
 }
 function renderLevelCards(levels) {
   if (!levels || !levels.length) return "";
@@ -1869,7 +1871,9 @@ async function renderExecPanel(tid) {
 // R4/F15：L3 确认/L4 转化动作（最小可用版：prompt 交互；正式弹层列 F 线后续）
 async function confirmScenarioPrompt(tid) {
   const sc = await api(`/tasks/${tid}/scenarios`).catch(() => null);
-  const rows = (sc && sc.scenarios) || [];
+  // 2026-11-15 闲时找bug：该端点返回裸数组（无 scenarios 包裹键），旧读取恒 undefined
+  // → 待确认场景永远弹"无"（L3 半自动确认入口空转）。兼容两种形态。
+  const rows = (Array.isArray(sc) ? sc : (sc && sc.scenarios)) || [];
   const pend = rows.filter(x => x.status === "pending_confirm");
   if (!pend.length) { alert("无待人工确认场景"); return; }
   const idx = prompt("待确认场景（输入序号）：\n" +
