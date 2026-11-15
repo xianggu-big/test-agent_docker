@@ -202,6 +202,11 @@ def run_task(task_id: int) -> dict:
             deps.runner.cleanup(f"mta-run-{task_id}")
         except Exception as e:  # 回收失败不影响主流程，但要留痕
             log.warning("容器回收失败: %s", e)
+        # DB sidecar 回收（卡 6：任务级生命周期，prepare_database 拉起 mta-dbsidecar-<tid>）
+        try:
+            deps.runner.cleanup(f"mta-dbsidecar-{task_id}")
+        except Exception as e:
+            log.warning("sidecar 回收失败: %s", e)
 
 
 # ==================== 两阶段人机协作（docs/两阶段人机协作流程设计-20261031.md） ====================
@@ -399,6 +404,10 @@ def run_task_exec(task_id: int) -> dict:
             deps.runner.cleanup(f"mta-run-{task_id}")
         except Exception as e:
             log.warning("容器回收失败: %s", e)
+        try:
+            deps.runner.cleanup(f"mta-dbsidecar-{task_id}")   # 卡 6：sidecar 任务级回收
+        except Exception as e:
+            log.warning("sidecar 回收失败: %s", e)
 
 
 def log_feedback_message(conn, task_id: int, fb_no: int, feedback_text: str) -> int | None:

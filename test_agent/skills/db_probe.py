@@ -16,6 +16,8 @@ import re
 import sqlite3
 from pathlib import Path
 
+from .. import config
+
 log = logging.getLogger(__name__)
 
 # DB 客户端特征（按 family 分组的 import/连接串正则）
@@ -140,7 +142,75 @@ def prepare_database(runner, container, det: dict, ws: Path, lang: str) -> dict:
                 return {"status": "ok", "note": f"sqlite 容器内建库（{db_file}）：" + note}
             notes.append(note)
     if family in ("mysql", "pg", "mongo"):
+        # 卡 6 接线（2026-11-15）：旗标开且 pg/mariadb → 自动拉 sidecar（testcontainers
+        # 同 pod 语义：sidecar 与被测容器共享网络栈，项目 DSN 的 127.0.0.1:port 直通，
+        # 无需改写 DSN）；mongo 驱动语义复杂 v1 继续如实降级。默认关（MTA_DB_SIDECAR）。
+        if config.DB_SIDECAR_ENABLED and family in ("mysql", "pg"):
+            return _prepare_server_sidecar(runner, container, det, ws, family)
         return {"status": "skip",
-                "note": f"检测到 {family} 服务端依赖：v1 不自动在容器内起数据库服务（roadmap）——"
+                "note": f"检测到 {family} 服务端依赖：未开启自动 sidecar（MTA_DB_SIDECAR=1 可开）——"
                         f"测试用例若真连库会失败，失败明细会如实归因；建议项目提供 docker-compose 或内存库模式"}
     return {"status": "skip", "note": "检测到 DB 依赖但无自动备库路径（" + family + "）：" + "、".join(notes)}
+
+
+_DEFAULT_SIDECAR_SPECS = {
+    "pg": {"engine": "postgres", "port": 5432,
+           "env": {"POSTGRES_USER": "mta", "POSTGRES_PASSWORD": "mta_sidecar",
+                   "POSTGRES_DB": "mta_test"}},
+    "mysql": {"engine": "mariadb", "port": 3306,
+              "env": {"MARIADB_ROOT_PASSWORD": "mta_sidecar", "MARIADB_DATABASE": "mta_test"}},
+}
+
+_DSN_RE = re.compile(
+    r"(?:postgres(?:ql)?|mysql|mariadb)://([^:\s/]+):([^@\s/]+)@[^/\s]+/([A-Za-z0-9_]+)")
+
+
+def _sidecar_spec_for(family: str, evidence_text: str) -> dict:
+    """确定性默认 spec + evidence DSN 凭据尽力提取（1138 实锤：项目 DSN 的密码/库名
+    与默认值不符会 auth fail——源码里的连接串是最可信凭据源，提取不到用默认）。"""
+    spec = json.loads(json.dumps(_DEFAULT_SIDECAR_SPECS[family]))   # 深拷贝
+    m = _DSN_RE.search(evidence_text or "")
+    if m:
+        user, password, database = m.group(1), m.group(2), m.group(3)
+        if family == "pg":
+            spec["env"].update({"POSTGRES_USER": user, "POSTGRES_PASSWORD": password,
+                                "POSTGRES_DB": database})
+        else:
+            spec["env"].update({"MARIADB_USER": user, "MARIADB_PASSWORD": password,
+                                "MARIADB_DATABASE": database,
+                                "MARIADB_ROOT_PASSWORD": password})
+        spec["dsn_source"] = "evidence"
+    else:
+        spec["dsn_source"] = "default"
+    return spec
+
+
+def _prepare_server_sidecar(runner, container, det: dict, ws: Path, family: str) -> dict:
+    """服务端库 sidecar 自动拉起（卡 6，652 postgres:16-alpine 先例的通用化）：
+    同 pod 网络栈（sidecar network_mode=container:<被测容器>）→ 被测容器内
+    127.0.0.1:port 直通；迁移=det.sql_files 宿主读内容→sidecar 内 CLI 导入；
+    fail-open：任何失败如实留痕降级 skip，不炸 provision。生命周期=任务级
+    （mta-dbsidecar-<tid>，builder finally 回收+服务启动清扫兜底）。"""
+    from .db_sidecar import ensure_db_sidecar, run_migrations
+    evidence_text = " ".join(det.get("evidence", []))
+    try:
+        spec = _sidecar_spec_for(family, evidence_text)
+    except Exception as e:      # noqa: BLE001
+        return {"status": "skip", "note": f"sidecar spec 构建失败（{e}）——如实降级"}
+    tid = "".join(ch for ch in container.name if ch.isdigit()) or "x"
+    name = f"mta-dbsidecar-{tid}"
+    try:
+        sidecar = ensure_db_sidecar(runner, name, spec,
+                                    network_mode=f"container:{container.name}")
+    except Exception as e:      # noqa: BLE001
+        return {"status": "skip",
+                "note": f"sidecar 拉起失败（{type(e).__name__}: {str(e)[:150]}）——如实降级，"
+                        f"测试用例若真连库会失败并如实归因"}
+    notes = [f"sidecar={name} engine={spec['engine']} 凭据来源={spec['dsn_source']}"
+             f"（同网络栈，127.0.0.1:{spec['port']} 直通）"]
+    if det.get("sql_files"):
+        mig = [(f, (ws / f).read_text(encoding="utf-8", errors="ignore"))
+               for f in det["sql_files"] if (ws / f).exists()]
+        for line in run_migrations(runner, sidecar, spec, mig):
+            notes.append(line[:80])
+    return {"status": "ok", "note": "；".join(notes)}

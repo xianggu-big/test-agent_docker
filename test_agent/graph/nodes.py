@@ -804,12 +804,12 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 构建缓存持久化（2026-11-15 卡 4）：go/java 容器挂宿主缓存目录（跨容器/任务
         # 共享，fresh 重建不清零）；cache_binds_for 失败（目录建不了等）→ None 走老路径
         try:
-            binds = cache_binds_for(image)
+            volumes = cache_binds_for(image)
         except Exception as e:      # noqa: BLE001 —— 缓存挂载不引入新失败面
-            log.warning("构建缓存 binds 组装失败（%s: %s），跳过挂载", type(e).__name__, e)
-            binds = None
+            log.warning("构建缓存挂载组装失败（%s: %s），跳过", type(e).__name__, e)
+            volumes = None
         container = runner.ensure_container(image, state["container_name"], fresh=fresh,
-                                            binds=binds)
+                                            volumes=volumes)
         # 任务B：快照摘要落 agent_messages——跳过了什么/打了多大，界面可查
         # （#281 教训：7.7GB 工作区静默 OOM，用户只看到 MemoryError 不知道为什么）
         # 缺口②修复（2026-11-05）：差分闸开启时 .git 必须随行进考场，否则

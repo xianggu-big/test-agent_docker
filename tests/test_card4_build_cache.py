@@ -43,8 +43,8 @@ class _FakeContainers:
         raise Exception("NotFound")
 
     def run(self, image, name=None, command=None, detach=False, nano_cpus=None,
-            mem_limit=None, binds=None, **kw):
-        self._store["run_kwargs"] = dict(binds=binds, image=image, name=name)
+            mem_limit=None, volumes=None, **kw):
+        self._store["run_kwargs"] = dict(volumes=volumes, image=image, name=name)
         return object()
 
 
@@ -62,11 +62,11 @@ def test_ensure_container_passes_binds(tmp_path, monkeypatch):
     def _get(name):
         raise _NF("no such container")
     r.client.containers.get = _get
-    binds = {"/h": {"bind": "/c", "mode": "rw"}}
-    r.ensure_container("img:x", "mta-run-1", binds=binds)
-    assert store["run_kwargs"]["binds"] == binds, "binds 必须透传到 containers.run"
+    vols = {"/h": {"bind": "/c", "mode": "rw"}}
+    r.ensure_container("img:x", "mta-run-1", volumes=vols)
+    assert store["run_kwargs"]["volumes"] == vols, "volumes 必须透传到 containers.run"
     r.ensure_container("img:x", "mta-run-2")
-    assert store["run_kwargs"]["binds"] is None, "不传 binds 零行为变化"
+    assert store["run_kwargs"]["volumes"] is None, "不传 volumes 零行为变化"
 
 
 # ---------- ③ 预热步 ----------

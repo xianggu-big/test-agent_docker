@@ -240,6 +240,9 @@ LLM_FALLBACK_MAX_TOKENS = int(os.environ.get("MTA_LLM_FALLBACK_MAX_TOKENS", "300
 
 # —— 环境自适应 recipe（任务F / 2026-11-02，docs/环境自适应调研与设计.md §6） ——
 RECIPE_ENABLED = False              # 默认关：关=EXEC_LANGUAGES 旧路径逐字节不变（可回滚）
+DB_SIDECAR_ENABLED = _flag("MTA_DB_SIDECAR", False)   # 默认关（2026-11-15 卡 6：服务端库
+# 自动拉起 sidecar——检测✓+sidecar✓中间接线✗补齐；开=pg/mysql 家族自动起同网络栈
+# sidecar（testcontainers 同 pod 语义，被测容器 127.0.0.1 直通），E9 大批量跑勿开）
 RECIPE_MAX_BUILD_S = 900            # 单次镜像构建超时（秒）
 RECIPE_MAX_DOCKERFILE_LINES = 40    # Dockerfile 行数预算（>此值拒）
 RECIPE_MAX_IMAGE_MB = 2048          # 镜像大小预算（构建后 inspect 校验）

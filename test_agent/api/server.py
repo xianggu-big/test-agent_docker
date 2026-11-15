@@ -1476,10 +1476,10 @@ app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 def _sweep_orphan_containers() -> None:
     """服务重启即视为旧任务已死：回收上次进程死亡残留的 mta-run-* / mta-ui-* 容器（幂等）。
     mta-ui-*：ui_idempotency 每轮新建的 playwright 常驻容器（含 chromium），旧版清扫
-    不覆盖 → 无限累积（2026-11-15 闲时找bug）。注意不要放宽成 mta-*——会误杀
-    mta-pg 数据库 sidecar。"""
+    不覆盖 → 无限累积（2026-11-15 闲时找bug）。mta-dbsidecar-*：卡 6 任务级 DB sidecar
+    （worker 被杀时残留）。注意不要放宽成 mta-*——会误杀 mta-pg 数据库 sidecar。"""
     try:
-        for prefix in ("mta-run-", "mta-ui-"):
+        for prefix in ("mta-run-", "mta-ui-", "mta-dbsidecar-"):
             for c in get_runner().client.containers.list(filters={"name": prefix}):
                 c.remove(force=True)
                 log.warning("已回收疑似孤儿容器 %s", c.name)

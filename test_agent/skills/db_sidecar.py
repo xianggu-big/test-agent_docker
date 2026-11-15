@@ -63,28 +63,34 @@ def wait_db_ready(runner, container, probe_cmd: list[str], timeout_s: float = 60
     raise TimeoutError(f"DB sidecar 探活超时（{timeout_s}s）：{probe_cmd} 最后一次: {last}")
 
 
-def ensure_db_sidecar(runner, name: str, spec: dict, network_name: str | None = None):
+def ensure_db_sidecar(runner, name: str, spec: dict, network_name: str | None = None,
+                      network_mode: str | None = None):
     """起 DB sidecar 容器并等待就绪；返回 docker 容器对象。
 
     - 环境变量来自 spec.env（MARIADB_ROOT_PASSWORD/POSTGRES_PASSWORD 等由 recipe 声明）；
-    - network_name 给定时加入该网络（被测容器经容器名互通），否则不接网络；
+    - network_name 给定时加入该网络（被测容器经容器名互通）；network_mode 给定时
+      以该模式运行（2026-11-15 卡 6 接线：network_mode="container:<被测容器>"=
+      testcontainers 同 pod 语义——sidecar 与被测容器共享网络栈，被测容器内
+      127.0.0.1:port 直通 sidecar，项目 DSN 的 localhost 无需改写）；
+    - 两者都缺=不接网络；互斥（network_mode 优先，同给时以 network_mode 为准）；
     - 端口不映射宿主（安全默认：黑盒验证不需要宿主连接）。
     """
     import docker as docker_sdk
     parsed = parse_db_services(spec)
     client = runner.client if hasattr(runner, "client") else docker_sdk.from_env()
+    kwargs = dict(image=_ENGINES[parsed["engine"]]["image"], name=name,
+                  environment=parsed["env"], detach=True)
+    if network_mode:
+        kwargs["network_mode"] = network_mode
+    elif network_name:
+        kwargs["network"] = network_name
     existing = None
     try:
         existing = client.containers.get(name)
         if existing.status != "running":
             existing.start()
     except Exception:  # noqa: BLE001 —— 不存在则新建
-        existing = client.containers.run(
-            _ENGINES[parsed["engine"]]["image"], name=name,
-            environment=parsed["env"], detach=True,
-            network=network_name) if network_name else client.containers.run(
-            _ENGINES[parsed["engine"]]["image"], name=name,
-            environment=parsed["env"], detach=True)
+        existing = client.containers.run(**kwargs)
     wait_db_ready(runner, existing, ["sh", "-c", _ENGINES[parsed["engine"]]["probe"]],
                   timeout_s=90, interval_s=2.0)
     existing.reload()      # run()/get() 返回的 attrs.status 是快照（'created'），探活过后重取
@@ -101,17 +107,20 @@ def run_migrations(runner, sidecar, spec: dict, sql_files: list[tuple[str, str]]
         database = parsed["env"].get("POSTGRES_DB")
     out: list[str] = []
     for fname, content in sql_files:
+        # 子路径压平（2026-11-15 卡 6 真机实锤：det.sql_files 常带 migrations/ 前缀，
+        # /tmp/.mig_migrations/ 目录不存在 → cat can't open → 迁移失败）
+        safe = fname.replace("/", "_").replace("\\", "_")
         runner.exec_in(sidecar, ["sh", "-c",
-                                 f"cat > /tmp/.mig_{fname} << 'MIGEOF'\n{content}\nMIGEOF"],
+                                 f"cat > /tmp/.mig_{safe} << 'MIGEOF'\n{content}\nMIGEOF"],
                        timeout_s=15, workdir="/")
         if engine == "mariadb":
             cmd = ["sh", "-c",
                    f"mariadb -h 127.0.0.1 -uroot -p\"$MARIADB_ROOT_PASSWORD\" "
-                   f"{database or ''} < /tmp/.mig_{fname} 2>&1"]
+                   f"{database or ''} < /tmp/.mig_{safe} 2>&1"]
         else:
             cmd = ["sh", "-c",
                    f"psql -h 127.0.0.1 -U \"$POSTGRES_USER\" -d {database} "
-                   f"< /tmp/.mig_{fname} 2>&1"]
+                   f"< /tmp/.mig_{safe} 2>&1"]
         r = runner.exec_in(sidecar, cmd, timeout_s=120, workdir="/")
         out.append(f"{fname} exit={r.exit_code} {(r.stdout or r.stderr)[-300:]}")
     return out

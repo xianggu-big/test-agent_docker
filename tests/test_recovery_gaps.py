@@ -127,7 +127,9 @@ def test_sweep_orphan_containers_covers_ui_prefix(monkeypatch):
         def list(self, filters=None):
             name = filters and filters.get("name")
             seen_filters.append(name)
-            return [_C("mta-run-9")] if name == "mta-run-" else [_C("mta-ui-9")]
+            if name == "mta-run-":
+                return [_C("mta-run-9")]
+            return [_C("mta-ui-9")] if name == "mta-ui-" else []
 
     class _FakeClient:
         containers = _FakeContainers()
@@ -137,5 +139,5 @@ def test_sweep_orphan_containers_covers_ui_prefix(monkeypatch):
 
     monkeypatch.setattr(server, "get_runner", lambda: _FakeRunner())
     server._sweep_orphan_containers()
-    assert set(seen_filters) == {"mta-run-", "mta-ui-"}, "清扫必须同时覆盖两种前缀"
-    assert removed == ["mta-run-9", "mta-ui-9"]
+    assert set(seen_filters) == {"mta-run-", "mta-ui-", "mta-dbsidecar-"},         "清扫必须覆盖三种前缀（run/ui/dbsidecar——卡 6 sidecar 残留兜底）"
+    assert removed == ["mta-run-9", "mta-ui-9"]   # dbsidecar 前缀下无残留容器
