@@ -183,6 +183,10 @@ def extract_service_port(ws: Path, lang: str) -> int | None:
                 continue
             for m in re.finditer(r"(?:127\.0\.0\.1|localhost):(\d{2,5})", t):
                 hits[int(m.group(1))] += 1
+            # 分离参数形态（2026-11-16 全语言实锤 1202）：js 用例 {host:'127.0.0.1',
+            # port: 8080}——host 与 port 不连写
+            for m in re.finditer(r"['\"](?:127\.0\.0\.1|localhost)['\"]\s*,\s*port:\s*(\d{2,5})", t):
+                hits[int(m.group(1))] += 1
     return hits.most_common(1)[0][0] if hits else None
 
 
@@ -860,12 +864,18 @@ def make_nodes(deps: GraphDeps) -> dict:
                      + (f"；跳过超限单文件 {len(snap['skipped_files'])} 个"
                         if snap['skipped_files'] else "")]
         msg(state["session_id"], "assistant", "".join(snap_bits))
-        if state.get("two_stage_rebuild"):
-            from ..skills.gen_tests import collect_gate_files
+        # 收集闸顺延补跑（2026-11-16 全语言实锤 1178/1204/1138）：单阶段主图 generate
+        # 时容器未建（collect_deferred），旧代码只对 two_stage_rebuild 补跑——单阶段
+        # 生成物从未过闸 → go build failed 无人拦截 → 0/0 三轮熔断。无条件补跑
+        # （生成文件不存在时 collect_gate_files 返回空，零开销）。
+        from ..skills.gen_tests import collect_gate_files
+        try:
             dropped = collect_gate_files(runner, container, conn, tid, Path(state["workspace"]))
             if dropped:
                 msg(state["session_id"], "assistant",
-                    "[provision] 阶段一顺延的收集闸：文件级废案 " + "、".join(dropped))
+                    "[provision] 顺延的收集闸：废案 " + "、".join(dropped))
+        except Exception as e:      # noqa: BLE001 —— 闸失败不引入新失败面（run 轮归因兜底）
+            log.warning("顺延收集闸跳过（%s: %s）", type(e).__name__, e)
         dep = registry.invoke(tid, skills["install_deps"], {
             "container_name": state["container_name"],
             "deps_manifest": probe_deps_manifest(state["workspace"],

@@ -119,6 +119,18 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
     if exit_code == 0:
         return "none"
     text = (stdout or "") + "\n" + (stderr or "")
+    # 连接类失败信号先行（2026-11-16 全语言实锤 1205）：node fetch 的 ECONNREFUSED
+    # 包装成 TypeError、jest 堆栈首帧指向用例文件——若放在 TypeError/ImportError
+    # 分支之后会被抢先判 case_defect → repair_gen 空转熔断。连接失败=环境强信号。
+    if re.search(r"dial tcp .{0,80}connect: connection refused"
+                 r"|connection refused"
+                 r"|ECONNREFUSED"
+                 r"|no Go files in"
+                 r"|getsockopt: connection refused", text, re.I):
+        return "env"
+    # php curl code=0（1149/1160 实锤）同样先行于堆栈归因
+    if re.search(r"asserting that 0 is identical to \d+", text, re.I):
+        return "env"
     if re.search(r"No module named (pytest|coverage)", text) or "pip" in stderr.lower():
         return "env"
     if re.search(r"no tests ran", text, re.I):
@@ -156,24 +168,8 @@ def classify_failure(exit_code: int, stdout: str, stderr: str) -> str:
     if "PHP Fatal error" in text or "PHP Parse error" in text:
         if re.search(r"Call to undefined (function|class|method)|Parse error|undefined (function|class|method)", text):
             return "case_defect"
-    # 环境类失败信号（多语言；651 实锤：Go 的 PG 连接拒绝 4 条被误判 product_defect——
-    # 干净快照 GT 评测下全部成为 FP。语义=外部服务/网络不可达，非被测代码行为）：
-    # Python 的 ECONNREFUSED 已由 attribution._ENV_CASE_FAIL_HINTS 覆盖归因提示层，
-    # 这里统一接进入 classify 判词层。
-    if re.search(r"dial tcp .{0,80}connect: connection refused"
-                 r"|connection refused"
-                 r"|ECONNREFUSED"
-                 r"|no Go files in"
-                 r"|getsockopt: connection refused", text, re.I):
-        return "env"
-    # PHP curl 形态的服务未起（2026-11-15 六语言真机实锤，task 1160：15 条全败被误
-    # 收"疑似产品缺陷"——curl 连不上时 CURLINFO_RESPONSE_CODE=0，断言消息形如
-    # "Failed asserting that 0 is identical to 200."，文本里无任何"连接"字样。
-    # actual=0 是 HTTP 语义下请求未发生的指纹（真实缺陷 actual=500/404 等非 0 值）。
-    # 既有形态兼容：junit text 不进统一文本时此特征缺失——parse_junit_xml 已改为
-    # 断言详情行优先（同 commit）。go dial tcp 形态先命中上一分支不受影响。）
-    if re.search(r"asserting that 0 is identical to \d+", text, re.I):
-        return "env"
+    # 连接类（651/1205）与 curl code=0（1149/1160）已上移到连接类先行区
+    # （2026-11-16 重排：ECONNREFUSED 被 TypeError 分支抢先判 case_defect 实锤）。
     # 环境构建类信号（2026-11-15 E9 wcwidth 批实锤：repo 自带测试 1720 条 setup 因
     # C 扩展未编译全炸 → 全部误判 product_defect 证人，stop_reason 同一句话×1720）。
     # 扩展构建/编译器缺失属环境依赖层，非被测代码行为断言；语义两可的裸
