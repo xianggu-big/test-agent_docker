@@ -92,7 +92,10 @@ def test_warm_build_cache_go():
     cmd, timeout_s = r.cmds[0]
     joined = " ".join(cmd)
     assert "go mod download" in joined and timeout_s == 900
-    assert "|| true" in joined, "预热命令必须 fail-open"
+    # 2026-11-17 卡 2（1272-1278 实锤）：旧版 `| tail -3` 管道把退出码变成 tail 的 0，
+    # mvn/go 失败被吞成"预热完成"——命令不得再带管道，fail-open 由宿主侧消息层保证
+    assert "|" not in joined, "预热命令不得用管道掩蔽退出码"
+    assert "|| true" not in joined
 
 
 def test_warm_build_cache_java():
@@ -106,7 +109,21 @@ def test_warm_build_cache_java():
 def test_warm_build_cache_fail_open():
     r = _WarmR(exit_code=1)
     msg = warm_build_cache(r, object(), "go")
-    assert msg and "预热未完成" in msg, "失败如实留痕但不阻断"
+    assert msg and "预热未完成" in msg and "exit=1" in msg, "失败如实留痕但不阻断"
+
+
+def test_warm_build_cache_failure_message_carries_output_tail():
+    """1272 谎报家族回归锁：失败消息必须带输出尾部（MissingProjectException 可见）。"""
+    r = _WarmR(exit_code=1)
+    orig = r.exec_in
+
+    def exec_in(container, cmd, workdir="/work", timeout_s=30):
+        res = orig(container, cmd, workdir, timeout_s)
+        res.stdout = "[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MissingProjectException"
+        return res
+    r.exec_in = exec_in
+    msg = warm_build_cache(r, object(), "java")
+    assert "MissingProjectException" in msg, "失败输出尾部必须进留痕消息"
 
 
 def test_warm_build_cache_none_for_other():

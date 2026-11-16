@@ -271,19 +271,22 @@ def warm_build_cache(runner, container, lang: str) -> str | None:
     fail-open），后续轮次/任务命中缓存秒级。失败如实留痕不阻断主链路。返回留痕
     消息（None=非 go/java 不适用）。"""
     if lang == "go":
-        cmd, label = ["sh", "-c", "cd /work && (go mod download 2>&1 | tail -3) || true"], "go mod download"
+        cmd, label = ["sh", "-c", "cd /work && go mod download 2>&1"], "go mod download"
     elif lang == "java":
-        cmd, label = ["sh", "-c", "cd /work && (mvn -q dependency:go-offline "
-                                    "org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent "
-                                    "2>&1 | tail -3) || true"], \
+        cmd, label = ["sh", "-c", "cd /work && mvn -q dependency:go-offline "
+                                    "org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent 2>&1"], \
             "mvn dependency:go-offline + jacoco plugin 预热"
     else:
         return None
     r = runner.exec_in(container, cmd, timeout_s=900)
+    # 输出截尾在宿主侧做（2026-11-17 multi60 卡 2 实锤 1272-1278：旧版 `| tail -3` 管道
+    # 让 sh 的退出码变成 tail 的 0，mvn/go 失败被吞成"预热完成"——缓存预热谎报，
+    # MissingProjectException 家族的第二层掩护）
+    tail = ((r.stdout or "") + (r.stderr or "")).strip()[-200:]
     if r.exit_code == 0:
         return f"[provision·cache] 构建缓存预热完成（{label}，依赖已入持久缓存）"
-    return (f"[provision·cache] 预热未完成（{label} exit={r.exit_code}）——"
-            f"{((r.stdout or '') + (r.stderr or ''))[-200:]}（fail-open，不阻断）")
+    return (f"[provision·cache] 预热未完成（{label} exit={r.exit_code}）——{tail}"
+            "（fail-open，不阻断）")
 
 
 _CONNECTION_FAIL_RE = re.compile(
@@ -669,6 +672,17 @@ def make_nodes(deps: GraphDeps) -> dict:
                         f"git clone 失败且无可用回退（非 GitHub 仓库或分支不可达）: {r.stderr[:400]}")
             else:
                 how = "git clone --depth 1"
+        # 嵌套项目根上提（2026-11-17 multi60 卡 2，java petclinic/php demo-main/ts nestjs
+        # 三族 12 格实锤：codeload zip/多层打包把项目根藏在一层子目录里，install/run/
+        # collect 全以 /work 为根跑命令 → MissingProjectException/vendor 缺失/ts_loose
+        # 误判 → 0 收集三轮熔断）。歧义布局不猜，如实不上提（见 nested_root 模块头）。
+        from ..skills.nested_root import lift_nested_project_root
+        try:
+            lift_msg = lift_nested_project_root(ws)
+            if lift_msg:
+                msg(state["session_id"], "assistant", lift_msg)
+        except Exception as e:      # noqa: BLE001 —— 上提失败不炸 clone，布局原样继续
+            log.warning("嵌套根上提跳过（%s: %s）", type(e).__name__, e)
         # P1-②：重跑 rmtree 后 imported 用例文件无人重建（DB 指标仍统计）——
         # 以库为准重放 test_imported.py，仅当库里确有 enabled=1 的 imported 用例
         from ..skills.gen_tests import _rebuild_imported_file
