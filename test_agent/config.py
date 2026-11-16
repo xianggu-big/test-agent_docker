@@ -133,6 +133,12 @@ USAGE_EXAMPLES_ENABLED = False       # A源：仓库自带测试的调用形态�
 PITFALL_KB_ENABLED = False           # B源：语言×类型陷阱清单注入错误推测法（curated 清单=文献空白点；
                                      # 发现二前车之鉴：很可能无效，负结果如实写，与发现二互证）
 
+# —— E10 Arm 1：动态陷阱库 v2 注入（2026-11-16；默认关=提示词逐字节不变） ——
+TRAPKB_V2_ENABLED = False            # 开=build_user_prompt 尾部追加历史失败聚类段
+TRAPKB_V2_PATH = os.environ.get(
+    "MTA_TRAPKB_V2_PATH",
+    str(DATA_DIR / "reports" / "e10" / "trapkb_v2.json"))   # 聚类产物（build_trapkb_v2.py 产）
+
 # —— 两阶段人机协作（docs/两阶段人机协作流程设计-20261031.md；任务级 two_stage 开关） ——
 FEEDBACK_MAX_ROUNDS = 5              # 对话增补预算封顶：增补 ≤5 轮（防"再来一次"无限对话）
 PREP_GEN_MAX_ROUNDS = 2              # 阶段一出题 0 条（LLM 偶发不可解析）自动重试上限——

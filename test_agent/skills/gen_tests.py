@@ -147,6 +147,28 @@ def gen_file_naming(lang: str, round_no: int, feedback: bool = False, fb_no: int
     return f"test_gen_r{round_no}{ext}", framework
 
 
+def _load_trapkb_v2() -> str:
+    """动态陷阱库 v2 注入段加载（E10 Arm 1，2026-11-16；默认关=空串提示词逐字节不变）。
+    产物=build_trapkb_v2.py 的历史失败聚类（signature/size/top_messages）——渲染 top
+    簇失败消息作为「历史高频失败模式」警示段。旗标关/文件缺/解析坏 → 空串（fail-open）。"""
+    if not config.TRAPKB_V2_ENABLED:
+        return ""
+    try:
+        data = json.loads(Path(config.TRAPKB_V2_PATH).read_text(encoding="utf-8"))
+        traps = (data.get("traps") or [])[:6]
+        if not traps:
+            return ""
+        lines = ["\n## 历史高频失败模式（动态陷阱库 v2：本项目历史批量运行的真实失败聚类）",
+                 "以下失败模式在历史运行中高频出现，生成用例时优先覆盖这些边界与调用形态："]
+        for t in traps:
+            msg = (t.get("top_messages") or ["（无样本消息）"])[0]
+            lines.append(f"- 【历史 {t['size']} 例】{msg}")
+        return "\n".join(lines) + "\n"
+    except Exception as e:      # noqa: BLE001 —— 陷阱库失败不炸生成主链路
+        log.warning("trapkb_v2 加载失败（%s: %s）——空串降级", type(e).__name__, e)
+        return ""
+
+
 def collect_gate_cmd(lang: str, fname: str) -> list[str]:
     """收集闸命令分流（纯函数，白包阶段1）：py=pytest --collect-only；js=node --check；
     ts=tsc --noEmit 类型闸——node --check 解析不了 TS 类型标注（任务卡 S4 差异点）。
@@ -1696,6 +1718,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   usage_examples=usage_examples,
                                                   feedback_text=feedback or None,
                                                   pitfalls=config.PITFALL_KB_ENABLED,
+                                                  trapkb_extra=_load_trapkb_v2(),
                                                   module_lang=args.get("module_hint", ""),
                                                   target_language=lang,
                                                   existing_cases=(args.get("existing_names") or None)

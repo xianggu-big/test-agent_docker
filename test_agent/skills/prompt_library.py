@@ -472,6 +472,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       usage_examples: str | None = None,
                       feedback_text: str | None = None,
                       pitfalls: bool = False,
+                      trapkb_extra: str = "",
                       module_lang: str = "",
                       target_language: str = "",
                       seed_example: str | None = None,
@@ -568,6 +569,10 @@ docstring 没写的行为，按需求文档推断，禁止猜。
     st_text = STATE_TRANSITION_SECTION if state_transition else ""
     mt_text = METAMORPHIC_SECTION if metamorphic else ""
     pitfall_text = build_pitfall_section(module_lang, requirement) if pitfalls else ""
+    if trapkb_extra:
+        # E10 Arm 1 动态陷阱库 v2（2026-11-16）：历史失败聚类注入——接在 B 源段后
+        # （开=MTA 层 TRAPKB_V2_ENABLED；默认关=本参数空串，提示词逐字节不变）
+        pitfall_text = pitfall_text + trapkb_extra
     cond_text = ""
     if conditions:
         rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
