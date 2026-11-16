@@ -113,7 +113,9 @@ def test_queue_recover_marks_running_interrupted(tmp_db):
     assert row["status"] == "failed" and "重启" in row["error"]
 
 
-def test_queue_snapshot_shape(tmp_db):
+def test_queue_snapshot_shape(tmp_db, monkeypatch):
+    # 全量回归隔离（同 test_state_machine_fixes）：常驻 worker daemon 抢行→断言抖动
+    monkeypatch.setattr(QueueWorker, "_step", lambda self: False)
     conn = get_conn()
     conn.execute("INSERT INTO projects(user_id,repo_url,name) VALUES(1,'D:/q/s','s')")
     tid = conn.execute("INSERT INTO test_tasks(project_id,user_id) VALUES(1,1)").lastrowid

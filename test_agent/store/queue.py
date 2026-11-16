@@ -42,6 +42,11 @@ def _fail_task_if_pending(task_id: int, err: str | None) -> None:
             " WHERE id=? AND status NOT IN ('done','failed','cancelled')",
             (f"队列执行失败：{err or '原因未知（详见队列行与任务日志）'}（重新下发即可重试）"[:500],
              task_id)).rowcount
+        # 容器台账收口（2026-11-16 倒推实锤：异常路径不收口=台账永久滞留 running）
+        if n:
+            conn.execute(
+                "UPDATE container_jobs SET status='failed', finished_at=datetime('now')"
+                " WHERE task_id=? AND status='running'", (task_id,))
         conn.commit()
         if n:
             log.warning("队列失败回写：task=%s → failed（原状态非终态，queue 行已留痕）", task_id)

@@ -1499,6 +1499,10 @@ def _sweep_orphan_active_tasks() -> None:
         conn.execute(
             "UPDATE test_tasks SET status='failed', error='服务重启导致任务中断——请重新确认（会自动重跑对应阶段）', "
             "updated_at=datetime('now') WHERE id=?", (r["id"],))
+        # 容器台账收口（2026-11-16 倒推实锤：重启中断的 provision 行滞留 running）
+        conn.execute(
+            "UPDATE container_jobs SET status='failed', finished_at=datetime('now')"
+            " WHERE task_id=? AND status='running'", (r["id"],))
         n += 1
     conn.commit()
     conn.close()
@@ -1521,6 +1525,12 @@ def _sweep_stale_active_tasks(max_age_s: int = 2 * 3600) -> int:
             f" AND updated_at < datetime('now', ?)",
             ("任务在中间态滞留超时（执行线程已死/宿主休眠）——自动标记失败，请重新下发",
              *ACTIVE, f"-{max_age_s} seconds")).rowcount
+        if n:
+            # 容器台账收口（2026-11-16 倒推实锤）：被清扫任务的 provision 行不滞留
+            conn.execute(
+                "UPDATE container_jobs SET status='failed', finished_at=datetime('now')"
+                " WHERE status='running' AND task_id IN ("
+                f"SELECT id FROM test_tasks WHERE status='failed' AND error LIKE '任务在中间态滞留超时%')")
         conn.commit()
     finally:
         conn.close()

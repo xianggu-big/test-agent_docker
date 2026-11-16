@@ -195,6 +195,7 @@ def run_task(task_id: int) -> dict:
         conn.execute(
             "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
             (init.get("session_id"),))
+        close_container_jobs(conn, task_id, "failed")   # 台账收口（倒推实锤 1001 条滞留）
         conn.commit()
         raise
     finally:
@@ -230,7 +231,20 @@ def _new_session(conn, task_id: int) -> int:
 def _fail_task(conn, task_id: int, reason: str) -> None:
     conn.execute("UPDATE test_tasks SET status='failed', error=?, updated_at=datetime('now') WHERE id=?",
                  (reason[:500], task_id))
+    close_container_jobs(conn, task_id, "failed")
     conn.commit()
+
+
+def close_container_jobs(conn, task_id: int, status: str = "failed") -> int:
+    """容器台账收口（2026-11-16 任务列表倒推实锤）：container_jobs 1001 条滞留
+    running——report 节点只走 happy path，图异常炸掉（E9 402/超时/服务重启）时
+    provision 落的台账行没人收口。所有把任务带离 ACTIVE 的路径都必须调本函数
+    （builder except×2 / queue._fail_task_if_pending / 两个启动 sweep）。
+    返回收口行数（幂等：只动 running 行）。"""
+    n = conn.execute(
+        "UPDATE container_jobs SET status=?, finished_at=datetime('now')"
+        " WHERE task_id=? AND status='running'", (status, task_id)).rowcount
+    return n
 
 
 def _empty_set_message(reason: str | None) -> str:
