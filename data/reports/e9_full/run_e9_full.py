@@ -28,6 +28,12 @@ from pathlib import Path
 ROOT = Path(r"D:\test agent_docker")
 sys.path.insert(0, str(ROOT))
 
+# 模块级导入（2026-11-16 实锤：并行窗口加的 restore_profile_default/
+# sweep_stale_running 等函数引用 get_conn/llm_profile 但函数内没导入——
+# cron 进程秒退 NameError 三连；模块级一次导入全部函数可用）
+from test_agent.skills import llm_profile  # noqa: E402
+from test_agent.store.db import get_conn   # noqa: E402
+
 OUT = ROOT / "data" / "reports" / "e9_full"
 OUT.mkdir(parents=True, exist_ok=True)
 LOCK = ROOT / ".autonomous-loop" / "e9e10_daily" / "wave.lock"
@@ -267,23 +273,26 @@ def run_worker(params_path: str) -> int:
     conn.commit()
 
     # 用户指令（2026-11-11）：402 格不许直接掉地——先降级本地备胎重跑，产物打标分账
+    # 2026-11-16 降级语义重修（停车实锤：旧实现改全局 app_settings 表 default=local
+    # ——4 worker 并发互踩（A 降级 B 的 DeepSeek 格中途变 local）+worker 被杀 finally
+    # 不跑=生产 profile 二次污染）。新语义=**格级进程内覆盖**：monkeypatch 本子进程的
+    # llm_profile.current 返回 local preset（make_chat/effective_key 全走 current()），
+    # 零全局表写、零并发互染、进程退出自动消失。worker=独立子进程（subprocess.run）
+    # 是本方案成立的前提。
     profile_override = params.get("profile")
-    saved_profile_raw = None
+    _orig_current = None
     if profile_override == "local":
-        conn2 = get_conn()
-        row2 = conn2.execute("SELECT value FROM app_settings WHERE key=?",
-                             (llm_profile.PROFILE_KEY,)).fetchone()
-        saved_profile_raw = row2["value"] if row2 else None
-        doc2 = json.loads(saved_profile_raw or "{}")
-        if "local" in (doc2.get("profiles") or {}):
-            doc2["default"] = "local"
-            doc2["routing"] = {}
-            conn2.execute("UPDATE app_settings SET value=?, updated_by=?, "
-                          "updated_at=datetime('now') WHERE key=?",
-                          (json.dumps(doc2, ensure_ascii=False), "e9-fallback",
-                           llm_profile.PROFILE_KEY))
-            conn2.commit()
-        conn2.close()
+        _orig_current = llm_profile.current
+
+        def _local_current(conn=None, _o=_orig_current):
+            doc = _o(conn)
+            loc = llm_profile.PRESETS.get("local")
+            if loc:
+                return {**loc, "updated_by": "e9-local-fallback",
+                        "updated_at": doc.get("updated_at")}
+            return doc
+
+        llm_profile.current = _local_current
 
     overrides = dict(params.get("flags") or {})
     if arm == "A2":  # 全四级接力：L3/L4 门按任务包口径开启
@@ -343,14 +352,8 @@ def run_worker(params_path: str) -> int:
     finally:
         for k, v in saved.items():
             setattr(config, k, v)
-        if saved_profile_raw is not None:
-            conn3 = get_conn()
-            conn3.execute("UPDATE app_settings SET value=?, updated_by=?, "
-                          "updated_at=datetime('now') WHERE key=?",
-                          (saved_profile_raw, "e9-fallback-restore",
-                           llm_profile.PROFILE_KEY))
-            conn3.commit()
-            conn3.close()
+        if _orig_current is not None:
+            llm_profile.current = _orig_current   # 进程内恢复（子进程退出即消失，双保险）
     rec["tokens_spent"] = max(0, tokens_by_task(tid))  # 按 task_id 聚合：并发下 SUM 会互染
     if profile_override:
         rec["profile"] = profile_override               # 打标：聚合分账不混 DeepSeek 口径
@@ -386,6 +389,8 @@ def restore_profile_default() -> None:
     """兜底复位 LLM 档位（2026-11-15 实锤：402 降级 worker 被杀时 finally 不跑，
     app_settings 停在 default=local 污染后续所有任务——配置错位比格失败更贵）。
     E9 语义=仅 DeepSeek 波谷跑：default 非 deepseek 一律复位（profiles 保留）。"""
+    from test_agent.skills import llm_profile
+    from test_agent.store.db import get_conn   # 函数内延迟导入（cron 进程未初始化包路径时同样可用）
     conn = get_conn()
     try:
         row = conn.execute("SELECT value FROM app_settings WHERE key=?",
@@ -411,7 +416,7 @@ def sweep_stale_running(max_age_h: float = 2.0) -> None:
     conn = get_conn()
     try:
         cur = conn.execute(
-            "UPDATE skill_invocations SET status='error',"
+            "UPDATE skill_invocations SET status='failed',"
             " error='worker 异退：调用悬挂无终态（进程被杀），驱动器启动时补记'"
             " WHERE status='running' AND created_at < datetime('now', ?)",
             (f"-{max_age_h} hours",))
