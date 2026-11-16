@@ -60,17 +60,31 @@ def main() -> int:
     tok = s.post(f"{BASE}/api/login", json={"username": "admin", "password": "admin123"},
                  timeout=10).json()["token"]
     h = {"Authorization": f"Bearer {tok}"}
-    # 5 项目 × 2 采样 = 10 格/语言
+    # 轮次优先（2026-11-17 用户拍板：余额不足时每项目至少跑 1 次）：
+    # 轮 1 = 30 项目 × 采样1；轮 2 = 30 项目 × 采样2
     cells = []
-    for lang, path in PROJECTS:
-        for sample in (1, 2):
+    for sample in (1, 2):
+        for lang, path in PROJECTS:
             cells.append((lang, Path(path), sample))
     print(f"总格数: {len(cells)}", flush=True)
 
     results = []
+    done_keys = set()
+    if OUT.exists():
+        try:
+            prev = json.loads(OUT.read_text(encoding="utf-8"))
+            for r in prev:
+                if r.get("status") in ("done", "failed", "cancelled"):
+                    done_keys.add((r["lang"], r["path"], r["sample"]))
+            results = prev          # 断点续跑：历史格保留
+            print(f"断点续跑：跳过已终态 {len(done_keys)} 格", flush=True)
+        except Exception:
+            pass
     t0, last = time.time(), ""
-    done_n = 0
+    done_n = sum(1 for r in results if r.get("status") == "done")
     for i, (lang, path, sample) in enumerate(cells):
+        if (lang, str(path), sample) in done_keys:
+            continue
         req = FALLBACK_REQ
         rm = path / "REQUIREMENT.md"
         if rm.exists():
