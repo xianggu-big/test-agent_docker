@@ -14,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "reports" / "e9_full"
+sys.path.insert(0, str(ROOT))   # 直跑 scripts/*.py 时 test_agent 包不在默认路径（对账真库需要）
 
 # 2026-11-10 口径：总上限 500 跑/总预算 6500 万 token；Arm 目标=11-06 ≈100 格档拍板
 # （A1 前 17 组合×2 语料×3n=102 记 127 实跑；A2 90；A3 54；A5 50；A4 8×3×5=120 列后续）
@@ -35,6 +36,58 @@ def load_cells() -> list[dict]:
 
 def pct(n: int, d: int) -> str:
     return f"{n / d * 100:.1f}%" if d else "-"
+
+
+def ledger_reconcile(cells: list[dict], lines: list[str]) -> None:
+    """两本账对账（2026-11-17 卡 3，487 vs 518 差异从未解释的根治）：
+    驱动器 JSON 账（e9a*.json，格=一次入队执行单元，格清账即落盘）vs 真库任务账
+    （test_tasks，任务=产品口径）。三个已知差异源逐一分类入报告，第三方口径
+    （范围计数混入其他任务家族）从此有据可查：
+    1) abandoned_prev_wave 格无 task_id（中断格从未建任务）→ 库无行=预期差异；
+    2) cell status=done ≠ task status=done（证人 stop/覆盖率未达/budget 停在库内
+       都记 failed）→ cross-tab 给出映射，防误读；
+    3) 库内同 id 段混有其他任务家族 → 以驱动器 tid 清单为成员真源，范围差单列。"""
+    tids = sorted({c["task_id"] for c in cells if c.get("task_id")})
+    abandoned = [c for c in cells if c.get("status") == "abandoned_prev_wave"]
+    no_tid = [c for c in cells if not c.get("task_id")]
+    try:
+        from test_agent.store.db import get_conn
+        conn = get_conn()
+    except Exception as e:  # noqa: BLE001 —— 库不可用时对账降级为驱动器账单列
+        lines += ["## 两本账对账", "",
+                  f"- 驱动器账：{len(cells)} 格（task_id 齐 {len(tids)}，无 tid {len(no_tid)}）"
+                  f"；真库不可达（{type(e).__name__}）——任务账跳过", ""]
+        return
+    try:
+        ph = ",".join("?" * len(tids))
+        rows = conn.execute(
+            f"SELECT id, status FROM test_tasks WHERE id IN ({ph})", tids).fetchall()
+        db_status = {r["id"]: r["status"] for r in rows}
+        lo, hi = min(tids), max(tids)
+        in_range = conn.execute(
+            "SELECT COUNT(*) n FROM test_tasks WHERE id BETWEEN ? AND ?",
+            (lo, hi)).fetchone()["n"]
+        cross = defaultdict(int)
+        for c in cells:
+            if c.get("task_id"):
+                cross[(c.get("status"), db_status.get(c["task_id"], "库中缺失"))] += 1
+        lines += ["## 两本账对账（驱动器 JSON 格账 vs 真库任务账）", "",
+                  f"- 驱动器账：{len(cells)} 格（含 task_id {len(tids)}，"
+                  f"中断无任务 {len(no_tid)}，均已如实留痕）",
+                  f"- 任务账：tid 段 [{lo},{hi}] 共 {in_range} 行，"
+                  f"其中属 E9（驱动器 tid 清单）{len(db_status)} 行——"
+                  "范围计数≠E9 口径，引用成员关系以此清单为准（518 型混入的根治）",
+                  "",
+                  "| cell 状态 | task 状态 | 格数 | 说明 |",
+                  "|---|---|---|---|"]
+        note = {("done", "done"): "全过收官",
+                ("done", "failed"): "证人 stop/覆盖率未达/budget 停——任务口径合法 failed",
+                ("abandoned_prev_wave", "库中缺失"): "中断格未建任务=预期差异"}
+        for (cs, ts), n in sorted(cross.items(), key=lambda kv: -kv[1]):
+            lines.append(f"| {cs} | {ts} | {n} | {note.get((cs, ts), '-')} |")
+        lines.append("")
+    finally:
+        conn.close()
 
 
 def main() -> int:
@@ -67,6 +120,8 @@ def main() -> int:
               f"全包余量 ≈ "
               f"{max(0, TOTAL_TOKEN_BUDGET - total_tokens) / WAVE_THROUGHPUT_TOKENS_PER_H:.1f} 波",
               ""]
+
+    ledger_reconcile(cells, lines)
 
     a1 = by_arm.get("A1", [])
     done_a1 = [c for c in a1 if c.get("status") == "done" and c.get("flags")]
