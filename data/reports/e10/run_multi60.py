@@ -41,7 +41,7 @@ PROJECTS = [
     ("typescript", r"D:\test program\ts\nest-app-boilerplate-main（ts_test3）"),
     ("typescript", TP / "ts" / "ts-slugify"),
     ("typescript", TP / "ts" / "ts-ky"),
-    ("python", TP / "python" / "python-cachetools"),
+    ("python", TP / "python" / "python-thealgorithms"),
     ("python", TP / "python" / "python-schema"),
     ("python", TP / "python" / "python-six"),
     ("python", TP / "python" / "python-slugify"),
