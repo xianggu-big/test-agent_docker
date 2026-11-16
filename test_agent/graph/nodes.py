@@ -371,6 +371,58 @@ def _pkg_declares_jest(ws: Path) -> bool:
     return isinstance(data, dict) and "jest" in data
 
 
+_SCAN_RESTRICT_KEYS_RE = re.compile(r"\b(testMatch|roots)\b")
+_ROOTDIR_RE = re.compile(r"rootDir['\"]?\s*[:=]\s*['\"]([^'\"]+)['\"]")
+
+
+def _jest_config_restricts_scan(ws: Path) -> bool:
+    """项目 jest 配置是否限定扫描范围（2026-11-17 multi60 卡 2 补充取证，1291 nestjs
+    实锤：项目 jest.config 的 testMatch 只扫 src/ → 写在工作区根的生成物永远
+    'No tests found' → 0/0 熔断——嵌套根修复装上依赖后仍会死在这一步）。
+    判定=配置声明了 testMatch/roots（替换默认 **/*.test.[jt]s），或 rootDir 指向
+    子目录。粗粒度文本判定（JS 配置不 parse），宁可误注入内联配置（行为可见有
+    留痕）也不漏盲区；无配置/纯 transform 配置返回 False。"""
+    names = ("jest.config.js", "jest.config.ts", "jest.config.mjs",
+             "jest.config.cjs", "jest.config.json")
+    text = ""
+    for n in names:
+        p = ws / n
+        if p.exists():
+            try:
+                text = p.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                text = ""
+            break
+    if not text and _pkg_declares_jest(ws):
+        try:
+            data = json.loads((ws / "package.json").read_text(encoding="utf-8",
+                                                              errors="ignore"))
+            text = json.dumps(data.get("jest") or {}, ensure_ascii=False)
+        except (json.JSONDecodeError, OSError, ValueError):
+            text = ""
+    if not text:
+        return False
+    if _SCAN_RESTRICT_KEYS_RE.search(text):
+        return True
+    for m in _ROOTDIR_RE.finditer(text):
+        if m.group(1) not in (".", "./", ""):
+            return True
+    return False
+
+
+def _js_needs_inline(ws: Path, lang: str) -> bool:
+    """run 节点 jest 内联配置注入判定（纯函数，单测锁）。
+    三档：①无任何配置 → TS/散装形态注入（853 先例）②有配置但限定扫描范围
+    （testMatch/roots/rootDir 子目录）→ 注入覆盖（1291 nestjs 盲区，2026-11-17
+    并行取证会商修复方向）③有配置且不限定 → 走项目自己的配置（零行为变化）。"""
+    has_cfg = any((ws / n).exists() for n in
+                  ("jest.config.js", "jest.config.ts", "jest.config.mjs",
+                   "jest.config.cjs", "jest.config.json")) or _pkg_declares_jest(ws)
+    if has_cfg:
+        return _jest_config_restricts_scan(ws)
+    return lang == "typescript" or not (ws / "package.json").exists()
+
+
 def _validate_repo_url(src: str) -> None:
     """Loop-6/TODO-13（体检红队四问降级项）：repo_url 白名单校验——git clone 的 src
     以位置参数传入，option 形态注入实测不执行但防御性收敛：只允许 http(s)/git@/ssh URL
@@ -1154,24 +1206,21 @@ def make_nodes(deps: GraphDeps) -> dict:
             if (ws / imported).exists():
                 gen_files.append(imported)                 # 人工/插入用例（按语言命名）
             cmd = build_run_cmd_js(round_no=state.get("round_no", 1), gen_files=gen_files)
-            # 散装前端 JS/TS（853刷题系统实锤：无 package.json/jest.config → 全局 jest 报
-            # "Could not find a config file" 拒跑 → 0/0 循环熔断）：无任何 jest 配置时
-            # 注入最小内联配置（不动项目文件；有配置的项目走自己的）。
-            # TS 加严（白包阶段1）：jest 默认配置无 transform，.test.ts 一律跑不动——
-            # 只要有 package.json 但未声明 jest 配置（无 jest.config.* 且 package.json
-            # 无 "jest" 键）也注入含 ts-jest transform 的内联配置（js-calc 实锤：带
-            # package.json 的裸 jest 对 .js 可跑，对 .ts 不可）。
-            has_jest_cfg = any((ws / n).exists() for n in
-                               ("jest.config.js", "jest.config.ts", "jest.config.mjs",
-                                "jest.config.cjs", "jest.config.json")) \
-                or _pkg_declares_jest(ws)
-            needs_inline = (not has_jest_cfg) and (
-                lang == "typescript" or not (ws / "package.json").exists())
-            if needs_inline:
+            # 内联配置注入判定收口为纯函数 _js_needs_inline（三档：无配置兜底 853 实锤 /
+            # 有配置但限定扫描范围 1291 nestjs 实锤 testMatch 只扫 src/ → 生成物
+            # 'No tests found' 0/0 熔断 / 有配置不限定走项目配置零变化）。
+            if _js_needs_inline(ws, lang):
                 cmd += ["--config", _inline_jest_config(include_ts=(lang == "typescript"))]
-                msg(state["session_id"], "assistant",
-                    f"[run] 项目无 jest 配置{'/package.json' if not (ws / 'package.json').exists() else ''}："
-                    f"注入最小内联配置执行（{'TypeScript（含 ts-jest transform）' if lang == 'typescript' else '散装 JS'} 兜底）")
+                if any((ws / n).exists() for n in
+                       ("jest.config.js", "jest.config.ts", "jest.config.mjs",
+                        "jest.config.cjs", "jest.config.json")) or _pkg_declares_jest(ws):
+                    msg(state["session_id"], "assistant",
+                        "[run] 项目 jest 配置限定扫描范围（testMatch/roots/rootDir 子目录），"
+                        "工作区根生成物不在扫描范围：注入内联配置执行（1291 nestjs 盲区修复）")
+                else:
+                    msg(state["session_id"], "assistant",
+                        f"[run] 项目无 jest 配置{'/package.json' if not (ws / 'package.json').exists() else ''}："
+                        f"注入最小内联配置执行（{'TypeScript（含 ts-jest transform）' if lang == 'typescript' else '散装 JS'} 兜底）")
         elif lang == "java":
             # Java 执行链路（Tier2，白包阶段2）：mvn test → surefire XML/JaCoCo 经 java_adapter
             # 转 pytest 风格文本，下游 evaluate/repair/report 零改动（adapter 统一文本唯一接缝）。
