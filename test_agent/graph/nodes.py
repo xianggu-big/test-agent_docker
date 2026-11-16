@@ -225,6 +225,30 @@ def api_blackbox_stop(blackbox: bool, verdict: str, failed: int, exit_code: int,
             f"覆盖率 {coverage if coverage is not None else 'N/A'} 不作准出判据")
 
 
+def _php84_needed(ws: Path) -> bool:
+    """composer 声明是否要求 PHP>=8.4。候选=ws 根与一层子目录（test program 实测
+    形态：demo-main（php_test1）/demo-main/composer.lock 嵌套一层）；lock 的
+    依赖约束优先，json 兜底。形态 "^8.4"/">=8.4"（多选一约束里出现即算——
+    平台闸按最高要求判定，混约束项目 php83 实测必炸 1148）。"""
+    candidates: list[Path] = []
+    bases = [Path(ws)]
+    if Path(ws).is_dir():
+        bases += [c for c in sorted(Path(ws).iterdir())[:20] if c.is_dir()]
+    for base in bases:
+        for fname in ("composer.lock", "composer.json"):
+            p = base / fname
+            if p.is_file():
+                candidates.append(p)
+    for p in candidates:
+        try:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if re.search(r'"php"\s*:\s*"[^"]*8\.[4-9]', text):
+            return True
+    return False
+
+
 def cache_binds_for(image: str) -> dict | None:
     """组装镜像的构建缓存 bind mount（2026-11-15 卡 4，冷缓存家族总解）：
     go126 挂 GOMODCACHE/GOCACHE、jdk17-maven 挂本地 .m2——fresh 重建/跨任务共享
@@ -851,6 +875,15 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 环境 recipe（任务F）：确定性探测→白名单配方→构建+自检。成功=用更贴合项目
         # 版本的镜像；失败=回退预置镜像（老路径不变，不引入新失败面）。开关默认关。
         image = state["image"]
+        # PHP 版本自选（2026-11-16 test program 验收）：composer 声明 >=8.4 而镜像
+        # php83 缺 8.4 → platform_check 必炸（1148/demo-main 实锤）。php84 基座已建
+        # （ARG PHP_BASE），本地在即换用；不在则保持 php83 走平台闸诚实拦停。
+        if (state.get("primary_language") == "php" and image == config.IMAGE_PHP):
+            swap = _php84_needed(Path(state["workspace"]))
+            if swap and runner.image_exists("mta-test:php84"):
+                image = "mta-test:php84"
+                msg(state["session_id"], "assistant",
+                    "[provision] composer 要求 PHP≥8.4——执行镜像换用 mta-test:php84（版本自选）")
         if config.RECIPE_ENABLED:
             image = _try_recipe_image(state, tid, runner, msg) or image
         # 沙箱自适应（设计文档 §6）：镜像按需供给——任务级判定，缺镜像按模式分流
