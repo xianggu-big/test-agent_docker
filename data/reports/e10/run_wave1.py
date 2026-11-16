@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]   # run_wave1.py → e10 → reports → data → root
 E10 = ROOT / "data" / "reports" / "e10"
 OUT = E10 / "wave1_results.json"
-RESULT_MARK = "__E10_RESULT__"
+RESULT_MARK = "@@RESULT@@"   # E9 worker 的留档标记（run_e9_full.py :363）
 
 
 def pick_failed_cells(n: int = 5) -> list[dict]:
@@ -54,12 +54,17 @@ def run_one_cell(cell: dict, idx: int, trapkb: bool) -> dict:
              "--worker", str(ppath)],
             capture_output=True, text=True, timeout=45 * 60, cwd=str(ROOT))
         out = r.stdout or ""
-        line = next((ln for ln in out.splitlines() if ln.startswith("__E9_RESULT__")), None)
-        rec = json.loads(line[len("__E9_RESULT__"):]) if line else {
+        line = next((ln for ln in out.splitlines() if ln.startswith(RESULT_MARK)), None)
+        rec = json.loads(line[len(RESULT_MARK):]) if line else {
             "status": "error", "error": (r.stderr or "no result mark")[-300:]}
     except subprocess.TimeoutExpired as e:
         rec = {"status": "error", "error": f"timeout: {(e.stdout or b'')[-200:]}"}
+    except Exception as e:   # noqa: BLE001 —— 驱动器自诊断：异常类型入档
+        rec = {"status": "driver_error", "error": f"{type(e).__name__}: {str(e)[:300]}"}
     rec["cell"] = cell["label"]
+    rec["returncode"] = r.returncode if "r" in dir() else None
+    rec["stdout_tail"] = (r.stdout or "")[-200:] if "r" in dir() else ""
+    rec["stderr_tail"] = (r.stderr or "")[-200:] if "r" in dir() else ""
     rec["e9_baseline_tid"] = cell["tid"]
     rec["trapkb"] = trapkb
     rec["elapsed_s"] = int(time.time() - t0)
