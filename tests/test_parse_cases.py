@@ -71,3 +71,58 @@ def test_parse_python_literals_in_slot_form():
 def test_parse_still_honest_on_real_garbage():
     assert _parse_cases("完全不是 JSON 的回复") is None
     assert _parse_cases('{"cases": [{ Broken }]') is None
+
+
+# ---------- 降级提取（2026-11-17 卡 2，task1278 三份留档实证的两形态） ----------
+
+def test_parse_trailing_markdown_appendix_raw_decode():
+    """形态①：JSON 完整但尾部带 ```java 辅助类附录——贪婪匹配抓附录 } 报 Extra data，
+    raw_decode 首对象救回全部用例（1278 留档 005545 同构）。"""
+    body = _CLEAN
+    text = body + "\n```java\n// 辅助类定义（需与用例一同放入）\nstatic class Shape { int x; }\n```"
+    data = _parse_cases(text)
+    assert data is not None and len(data["cases"]) == 1, "附录不得毁掉完整 JSON"
+
+
+def test_parse_double_json_block_first_wins():
+    """形态①变体（1278 留档 005738）：模型先给完整 JSON 又补一个 ```json 块——
+    首对象胜出，不得因第二个块的存在整体作废。"""
+    second = '{"imports": "x", "cases": [{"name": "n", "code": "whatever"}]}'
+    text = f"{_CLEAN}\n```json\n{second}\n```"
+    data = _parse_cases(text)
+    assert data is not None and data["cases"][0]["name"] == "t1_等价类划分"
+
+
+def test_parse_truncated_mid_array_salvage():
+    """形态②（1278 留档 005906）：输出在 cases 数组中部截断——截尾闭合救回完整条目，
+    截断处残缺条目不硬造。"""
+    case = ('{"name": "t{N}_等价类划分", "method": "等价类划分", "code": '
+            '"def test_t{N}():\n    assert add(1, 2) == 3"}')
+    full = '{"imports": "from calc import add", "cases": [' \
+           + ", ".join(case.replace("{N}", str(i)) for i in range(1, 9)) + "]}"
+    truncated = '{"imports": "from calc import add", "cases": [' \
+                + ", ".join(case.replace("{N}", str(i)) for i in range(1, 6)) \
+                + ", " + case.replace("{N}", "6")[:40]     # 第 6 条切在 code 字符串中部
+    data = _parse_cases(truncated)
+    assert data is not None, "截断输出必须截尾救回"
+    names = [c["name"] for c in data["cases"]]
+    assert len(names) == 5, f"应救回 5 条完整用例，实得 {len(names)}"
+    assert all(n.startswith("t") for n in names)
+
+
+def test_parse_truncated_code_string_cut_is_safe():
+    """截尾切点落在字符串字面量内部（code 含 { }）必须解析失败后回退更早边界，
+    不得产出损坏条目。"""
+    tricky = ('{"cases": [{"name": "a", "code": "def test_a():\n'
+              '    d = {1: 2}\n    assert d[1] == 2"}, '
+              '{"name": "b", "code": "def test_b():\n    assert {\'k\'} == {\'k\'}"}')
+    truncated = tricky + ', {"name": "c", "code": "def test_c():\n    x = {1: '
+    data = _parse_cases(truncated)
+    assert data is not None
+    assert [c["name"] for c in data["cases"]] == ["a", "b"], "残缺的 c 不得混入"
+
+
+def test_parse_salvage_honest_on_real_garbage():
+    """降级提取也不造假：无对象边界/截断到一条完整用例都没有 → 仍 None（诚实降级）。"""
+    assert _parse_cases('{"cases": [ {"na') is None
+    assert _parse_cases("完全不是 JSON 的回复 {") is None

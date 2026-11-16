@@ -244,6 +244,10 @@ LLM_FALLBACK_BASE_URL = os.environ.get("MTA_LLM_FALLBACK_URL", "http://localhost
 LLM_FALLBACK_MODEL = os.environ.get("MTA_LLM_FALLBACK_MODEL", "qwen3-4b-inst-test")
 LLM_FALLBACK_TIMEOUT = int(os.environ.get("MTA_LLM_FALLBACK_TIMEOUT", "600") or 600)
 LLM_FALLBACK_MAX_TOKENS = int(os.environ.get("MTA_LLM_FALLBACK_MAX_TOKENS", "3000") or 3000)
+# gen_tests 输出上限（2026-11-17 卡 2，task1278 三份留档实锤：构造时不传 max_tokens →
+# DeepSeek 走默认 ≈4K → Java 冗长用例 25-30KB 处截断 → 0 生成熔断；8192=deepseek-chat
+# 硬上限，冗长 Java 代码（静态夹具类）单轮可到 25KB+）。截断兜底另见 _salvage_json_output。
+LLM_GEN_MAX_TOKENS = int(os.environ.get("MTA_LLM_GEN_MAX_TOKENS", "8192") or 8192)
 
 # —— 环境自适应 recipe（任务F / 2026-11-02，docs/环境自适应调研与设计.md §6） ——
 RECIPE_ENABLED = False              # 默认关：关=EXEC_LANGUAGES 旧路径逐字节不变（可回滚）

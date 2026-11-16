@@ -582,6 +582,47 @@ def _eval_str_expr(m: "re.Match") -> str:
         return m.group(0)
 
 
+def _salvage_json_output(text: str) -> dict | None:
+    """两级降级提取（2026-11-17 multi60 卡 2，task1278 三份留档实证，仅标准路径全败后调用）。
+
+    形态①（留档 005545/005738）：JSON 本体完整但前后带 markdown 附录——辅助类 ```java
+    块或二次 ```json 块。主路径贪婪 \\{.*\\} 抓到附录里的 `}` → Extra data；
+    解法=从首个 `{` 起用 raw_decode 解首个完整对象（解码器自带括号/字符串配平，
+    对象结束即停，附录天然排除）。
+    形态②（留档 005906）：输出在 cases 数组中部截断（DeepSeek 默认 max_tokens≈4K，
+    25-30KB 处 Expecting ',' delimiter）——解法=从尾部向前找对象边界 `}` 截尾 + 补
+    "]}" 闭合，以"能否解析"做安全验证（切在字符串字面量内部必解析失败，天然防误切）。
+    诚实纪律：只提取模型真实输出的完整对象/完整条目，绝不补造缺失字段。"""
+    text = text or ""
+    start = text.find("{")
+    if start < 0:
+        return None
+    s = text[start:]
+    # 形态①：首个完整对象
+    for decoder in (json.JSONDecoder(), json.JSONDecoder(strict=False)):
+        try:
+            obj, _end = decoder.raw_decode(s)
+            if isinstance(obj, dict) and isinstance(obj.get("cases"), list):
+                return obj
+        except (json.JSONDecodeError, ValueError):
+            continue
+    # 形态②：截断截尾闭合——`}` 位置从尾向头逐个试（上限 300 防病态输入），
+    # 候选只补缺失的数组/对象闭合，不追加任何内容
+    positions = [i for i, ch in enumerate(s) if ch == "}"]
+    for i in reversed(positions[-300:]):
+        cand = s[:i + 1] + "]}"
+        try:
+            data = json.loads(cand)
+        except json.JSONDecodeError:
+            try:
+                data = _loads_tolerant(cand)
+            except (json.JSONDecodeError, ValueError):
+                continue
+        if isinstance(data, dict) and isinstance(data.get("cases"), list) and data["cases"]:
+            return data
+    return None
+
+
 def _loads_tolerant(s: str):
     """JSON 宽容解析：DeepSeek 模型更新后偶发在 JSON 里输出 Python 形态（2026-10-30
     D8 实锤 True/False/None 字面量；2026-11-05 批4 实锤字符串重复/拼接表达式）。
@@ -628,7 +669,12 @@ def _parse_cases(text: str, lang: str | None = None) -> dict | None:
         except json.JSONDecodeError:
             data = _loads_tolerant(m.group(0))   # Python 字面量宽容重试（模型 JSON 合规性漂移）
     except (json.JSONDecodeError, ValueError):
-        return None
+        # 标准路径全败的降级提取（2026-11-17 卡 2，1278 三份留档实证）：①JSON 完整但
+        # 带附录（贪婪匹配误伤→raw_decode 首对象）②cases 中部截断（截尾闭合救回完整
+        # 条目）。救不回仍 None（诚实降级，不硬造用例）。
+        data = _salvage_json_output(text)
+        if data is None:
+            return None
     cases = data.get("cases")
     if not isinstance(cases, list):
         return None
@@ -1679,7 +1725,10 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     api_docs = _extract_api_docs(ws, lang=lang) if config.DOCSTRING_GROUNDING_ENABLED else None
     usage_examples = _extract_usage_examples(ws) if config.USAGE_EXAMPLES_ENABLED else None
 
-    llm = make_chat(phase="gen_tests", api_key=api_key, temperature=0.2, timeout=90, max_retries=2)
+    # max_tokens 显式给满（2026-11-17 卡 2，task1278 实锤：不传 → DeepSeek 默认 ≈4K →
+    # Java 冗长用例 25-30KB 截断 → 0 生成；8192=deepseek-chat 硬上限）
+    llm = make_chat(phase="gen_tests", api_key=api_key, temperature=0.2, timeout=90,
+                    max_retries=2, max_tokens=config.LLM_GEN_MAX_TOKENS)
     seed_code = None
     if (config.SEED_BOOTSTRAP_ENABLED and not feedback and lang == "python"
             and runner is not None and args.get("container_name")):
