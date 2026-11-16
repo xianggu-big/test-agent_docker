@@ -126,3 +126,16 @@ def test_parse_salvage_honest_on_real_garbage():
     """降级提取也不造假：无对象边界/截断到一条完整用例都没有 → 仍 None（诚实降级）。"""
     assert _parse_cases('{"cases": [ {"na') is None
     assert _parse_cases("完全不是 JSON 的回复 {") is None
+
+
+# ---------- tsc 闸编译目标（2026-11-17 卡 2，1295 ts-ky 实锤） ----------
+
+def test_tsc_gate_modern_lib():
+    """文件模式忽略项目 tsconfig（TS 语义）→ 旧 es2020 默认 lib 对现代库源码
+    （Object.hasOwn=ES2022）恒 TS2550 连坐生成物。target/lib 升 es2022 后
+    现代库不再被冤枉，生成代码类型错仍全抓（拦截力不变）。"""
+    from test_agent.skills.gen_tests import collect_gate_cmd
+    cmd = collect_gate_cmd("typescript", "test_gen_r1.test.ts")
+    assert cmd[cmd.index("--target") + 1] == "es2022"
+    assert cmd[cmd.index("--lib") + 1] == "es2022,dom"
+    assert "--skipLibCheck" in cmd and "--noEmit" in cmd

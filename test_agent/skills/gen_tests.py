@@ -174,10 +174,15 @@ def collect_gate_cmd(lang: str, fname: str) -> list[str]:
     ts=tsc --noEmit 类型闸——node --check 解析不了 TS 类型标注（任务卡 S4 差异点）。
     CLI 文件模式不带 --strict（宽容口径）；--types jest + 全局 typeRoots（容器预检实锤：
     文件模式不会自动加载 /usr/local/lib/node_modules 下的 @types/jest，缺它 test/expect
-    全部 TS2304 未定义）。被 SUT 自身类型错误连坐属已知边界，如实废案不误报成功。"""
+    全部 TS2304 未定义）。被 SUT 自身类型错误连坐属已知边界，如实废案不误报成功。
+    2026-11-17 multi60 卡 2（1295 ts-ky 实锤）：文件模式忽略项目 tsconfig（TS 语义）
+    → 旧 --target es2020 默认 lib 对现代库源码（Object.hasOwn=ES2022）恒 TS2550 →
+    生成物被 SUT 源码连坐三轮废案熔断。升 target es2022 + 显式 lib es2022,dom——
+    类型闸拦截力不变（生成代码类型错仍全抓），只是不再用落后于时代的标准库冤枉健康项目。"""
     if lang == "typescript":
         return ["tsc", "--noEmit", "--skipLibCheck", "--esModuleInterop", "--module",
-                "commonjs", "--target", "es2020", "--moduleResolution", "node",
+                "commonjs", "--target", "es2022", "--lib", "es2022,dom",
+                "--moduleResolution", "node",
                 "--types", "jest", "--typeRoots", "/usr/local/lib/node_modules/@types",
                 fname]
     if lang == "javascript":
