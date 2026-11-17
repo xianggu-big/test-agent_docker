@@ -431,6 +431,12 @@ def _validate_repo_url(src: str) -> None:
         return
     if src.startswith("-") or re.search(r"[\s\"';&|`$<>]", src):
         raise RuntimeError(f"repo_url 非法（含空白/引号/shell 元字符或 Option 前缀）：{src[:80]}")
+    # 形似本地路径但目录不存在（2026-11-17 用户实锤 18 例：路径少打一段被误报
+    # "格式非法"，误导排查方向）——单独报"路径不存在"并给出最近似目录提示
+    if re.match(r"^[A-Za-z]:[\\/]|^/", src):
+        parent = os.path.dirname(src.rstrip("\\/"))
+        hint = f"（上级目录存在：{parent}——请检查是否少打了子目录）" if os.path.isdir(parent) else ""
+        raise RuntimeError(f"本地路径不存在：{src[:120]}{hint}")
     if not re.match(r"^https?://|^git@|^ssh://", src):
         raise RuntimeError(f"repo_url 非法（仅支持 http(s)/git@/ssh URL 或本地路径）：{src[:80]}")
     if re.match(r"^https?://[^/@]+:[^/@]*@", src):
