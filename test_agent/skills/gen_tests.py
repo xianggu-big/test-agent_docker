@@ -415,10 +415,13 @@ def _split_top_level(text: str) -> list[tuple[str, str]]:
     return chunks
 
 
-def _collect_sources_detailed(ws: Path, lang: str = "python") -> tuple[list[tuple[str, str]], list[str]]:
+def _collect_sources_detailed(ws: Path, lang: str = "python",
+                              scope_paths: list[str] | None = None) -> tuple[list[tuple[str, str]], list[str]]:
     """被测源码收集（带跳过台账）：小文件整收、大文件按顶层符号切片、预算截断如实记录。
 
-    JS/TS 无 Python AST：不切片、按预算顺序整收，超出的文件截断尾部并留台账（诚实呈现）。"""
+    JS/TS 无 Python AST：不切片、按预算顺序整收，超出的文件截断尾部并留台账（诚实呈现）。
+    scope_paths（2026-11-18 索引路由）：非空时只收命中模块的文件（根级清单文件照留）——
+    索引路由锁定的源码范围（设计方案-项目知识索引-20261117）。"""
     sources: list[tuple[str, str]] = []
     skipped: list[str] = []
     used = 0
@@ -428,6 +431,14 @@ def _collect_sources_detailed(ws: Path, lang: str = "python") -> tuple[list[tupl
     is_php = lang == "php"   # 白包阶段4：php 无 Python AST，与 JS/java 同走整收分支
     for p, text in _iter_source_files(ws, lang):
         rel = p.relative_to(ws).as_posix()
+        if scope_paths:
+            # 索引路由锁定范围（2026-11-18）：rel 命中任一 scope 前缀才收录；
+            # 根级清单文件（package.json/go.mod/requirements.txt/pom.xml/composer.lock）始终保留
+            keep_root = rel in ("package.json", "go.mod", "requirements.txt",
+                                "pom.xml", "composer.lock", "composer.json")
+            if not keep_root and not any(rel.startswith(sp.rstrip("/")) for sp in scope_paths):
+                skipped.append(f"{rel}（索引路由范围外）")
+                continue
         if is_java or is_js or is_go or is_php:
             # JS：无 AST 切片。语法可粗检（花括号平衡）不拦——语法闸在容器内 node --check。
             budget_left = MAX_SOURCE_CHARS - used

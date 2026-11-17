@@ -914,6 +914,26 @@ def make_nodes(deps: GraphDeps) -> dict:
                 msg(state["session_id"], "assistant",
                     f"[analyze·modules] 画像失败（{type(e).__name__}: {str(e)[:120]}），"
                     "主链路继续（如实留痕）")
+        # 项目知识索引+需求路由（2026-11-18 设计方案落地）：零 LLM 打标签+别名路由
+        try:
+            from ..skills.project_index import ensure_index, match_requirement
+            idx_doc = ensure_index(tid, Path(state["workspace"]),
+                                   [state.get("primary_language", "")] or ["python"])
+            hit = match_requirement(idx_doc, state.get("requirement", ""))
+            if hit["kind"] == "module":
+                state["index_scope_paths"] = [f"{hit['module']}/"]
+                msg(state["session_id"], "assistant",
+                    f"[analyze·index] 需求命中模块 {hit['module']}（置信 {hit['confidence']}）——"
+                    f"源码范围已锁定 {len(hit['paths'])} 文件")
+            elif hit["kind"] == "endpoints":
+                state["index_endpoints"] = hit["endpoints"]
+                msg(state["session_id"], "assistant",
+                    f"[analyze·index] 需求命中接口清单——共 {hit['count']} 端点已注册（逐端点对账）")
+            else:
+                msg(state["session_id"], "assistant",
+                    "[analyze·index] 需求未命中索引——回退全库扫描（细细找）")
+        except Exception as e:  # noqa: BLE001 —— 索引失败不炸 analyze
+            log.warning("索引路由失败（%s: %s）——回退全库", type(e).__name__, e)
         if strategy != "full":
             # 多测试路线编排（期 A，MTA_ROUTER 默认关）：static_only 项目不再是死胡同——
             # 确定性路由器按项目特征找可用路线（如纯 HTML 的 UI 交互幂等），落 route_plan

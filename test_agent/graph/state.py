@@ -45,6 +45,8 @@ class TaskState(TypedDict, total=False):
     per_file: list[dict]     # 逐文件覆盖明细（B2：缺口回灌与趋势图数据源）
     # 判定
     verdict: str             # pass / repair_env / repair_gen / stop
+    index_scope_paths: list[str]   # 索引路由锁定的模块路径（空=全库）
+    index_endpoints: list[dict]    # 索引命中的接口清单（L1 对账用）
     stop_reason: str
     static_only: bool        # 分级（Tier3）：主语言无容器执行链路 → plan 后进 static_draft 而非 provision
     two_stage_rebuild: bool  # 阶段二布考场：provision 按 DB 审查结论重写生成用例文件（408 实锤：未声明
