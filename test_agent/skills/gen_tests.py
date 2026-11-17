@@ -180,8 +180,12 @@ def collect_gate_cmd(lang: str, fname: str) -> list[str]:
     生成物被 SUT 源码连坐三轮废案熔断。升 target es2022 + 显式 lib es2022,dom——
     类型闸拦截力不变（生成代码类型错仍全抓），只是不再用落后于时代的标准库冤枉健康项目。"""
     if lang == "typescript":
+        # 2026-11-17 multi60 实锤（1352 nestjs）：被测项目源码用装饰器（@Injectable）
+        # 而闸命令未开 experimentalDecorators → TS1206 被测源码连坐整案废案。
+        # 补装饰器两选项（nestjs/类框架项目的编译前提）。
         return ["tsc", "--noEmit", "--skipLibCheck", "--esModuleInterop", "--module",
                 "commonjs", "--target", "es2022", "--lib", "es2022,dom",
+                "--experimentalDecorators", "--emitDecoratorMetadata",
                 "--moduleResolution", "node",
                 "--types", "jest", "--typeRoots", "/usr/local/lib/node_modules/@types",
                 fname]
