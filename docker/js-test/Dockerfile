@@ -41,6 +41,15 @@ RUN apt-get update \
 # 变异轨（任务卡-F 阶段 1 #7，2026-11-12）：StrykerJS 钉版本（§6 坑预判 1 防漂移）
 RUN npm install -g --no-audit --no-fund jest@29 ts-jest@29 typescript@5 @types/jest@29 \
  && npm install -g --no-audit --no-fund @stryker-mutator/core@8.6.0 @stryker-mutator/jest-runner@8.6.0 \
+# ts-jest 嵌套依赖提升（2026-11-18 multi60 1660/1655 实锤：全局 ts-jest require('jest-util')
+# 解析不到——jest-util/jest-config 嵌套在 jest 包的 node_modules 里，Node 从 ts-jest 目录
+# 向上找顶层 node_modules 找不到。符号链接到顶层即根治（保留单一真源不复制）。
+ && ln -s /usr/local/lib/node_modules/jest/node_modules/jest-util /usr/local/lib/node_modules/jest-util \
+ && ln -s /usr/local/lib/node_modules/jest/node_modules/jest-config /usr/local/lib/node_modules/jest-config \
+ && ln -s /usr/local/lib/node_modules/jest/node_modules/jest-diff /usr/local/lib/node_modules/jest-diff \
+ && ln -s /usr/local/lib/node_modules/jest/node_modules/jest-message-util /usr/local/lib/node_modules/jest-message-util \
+ && ln -s /usr/local/lib/node_modules/jest/node_modules/jest-mock /usr/local/lib/node_modules/jest-mock \
+ && ln -s /usr/local/lib/node_modules/jest/node_modules/pretty-format /usr/local/lib/node_modules/pretty-format \
  && npm cache clean --force
 
 WORKDIR /work
