@@ -97,6 +97,8 @@
 
 - **✅ 索引路由设计定稿·主备双层（2026-11-18 凌晨，用户拍板"主方法不变，借鉴作辅助/急救"）**：主方法（索引+别名路由七步）不变；辅助三层全部踩在已有设施上——L1 依赖闭包扩展（路由命中自动加调用图 1-2 跳，借 diff-cover，callgraph.py 现成）/L2 覆盖率闭环兜底（急救：需求条件在锁定模块零覆盖→自动扩圈重跑，再不覆盖回退全库；借 CODAMOSA，per_file 台账现成）/L3 失败语料自学习（词表从失败聚类长出来，trapkb_v2 现成）。明确不引入 embedding 语义检索（不可审计）。L1 默认开/L2 每格自动校验/L3 人工审后进表；三层全落盘留痕；主方法失败预注册=扩圈后仍零覆盖→回退全库。设计文档 §5 已追加（影响七步清单：第 1 步加 callgraph 邻接/第 4 步带闭包/新增 L2 钩子约 40 行）。
 ## 当前状态
+- **📋 L1L2L3 设计+测试方案落盘（2026-11-18 10:4x，用户令"设计你写执行另有人选+测试用例验证"）**：**文档=docs/设计方案-L1L2L3辅助急救层-20261118.md**——L1 依赖闭包（dependency_closure ~60 行规格+closure 并入 scope+callgraph 邻接+8 单测：出边/入边/2 跳/None 降级/top5 防爆/_root 排除/AST 锁/集成）；L2 覆盖率兜底（coverage_check ~50 行+evaluate 钩子 ~35 行+INDEX_L2_RESCUE 旗标+7 单测：ok/zero_coverage/not_routed/防死循环/旗标关不变/成本护栏）；L3 自学习（suggest_aliases 脚本+人工审进表+别名快照锁+金样 10 条回归）；E2E 三格端到端（接口对账/闭包台账/L2 急救诚实出口，预注册判据）。**三层失败诚实出口全部走通=达标**。主方法已落地（7d1eb97，7 单测绿）。
+## 当前状态
 - **⏰ 修复验证批定时 18:01（2026-11-18 10:3x，用户拍板"失败任务重跑验证加进波谷队列"）**：**run_bugverify.py 已建+commit**（六族各 1 格：ts-jest diagnostics/ts lib/gson JPMS/microservices jacoco/laravel 新形态/nestjs 双修）——18:01 低价窗自动点火（后台 exec 已挂），判定口径=18 格标准，产出修复实证表。**结果落 data/reports/e10/bugverify_results.json**。注意：现在 10:3x 高峰段，定时器在后台 sleep 等到 18:01 才发首个请求（硬规则合规）。
 ## 当前状态
 - **📊 1665 nestjs 第四层定性（2026-11-18 10:2x）**：ts-jest diagnostics=False 后 3 轮**真实执行**（不再 config-set 崩溃/不再 TS2304）——失败点=被测项目自身依赖链（src/app.controller.ts:1 require 链抛错，nest 项目 node_modules 依赖完整性问题=被测项目边界非平台故障）。**修复链四层全通验证**：嵌套根上提✓→装饰器 tsc 选项✓→类型不匹配降级✓→ts-jest diagnostics=False✓，每层有真机证据。nestjs 项目定级=「依赖完整性边界」（install_deps 已跑 npm ci 但依赖链运行时仍断——可能 lock 与 registry 版本漂移）。**汇总**：multi60+验证轮全部 69 格=done 11/真检出 20+/口径类 15/已修根因 20+；唯一待修=族 7（gson JPMS/go 多包布局，方案已记 d1717be）。**push 积压 12**（Clash）。回归 1230 绿/守卫 138。
