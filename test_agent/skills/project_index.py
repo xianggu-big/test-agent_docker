@@ -39,6 +39,9 @@ _ALIAS_GROUPS: dict[str, list[str]] = {
 
 _HTTP_RE = re.compile(r"curl_init|fetch\(|axios|supertest|http://|https://|rest|端点|接口")
 
+# 接口意图词组（只进 3) endpoints 对账，不参与 2) 模块别名匹配）
+_ENDPOINT_INTENT_GROUPS = {"api"}
+
 
 def _word_hit(word: str, blob: str) -> bool:
     """别名词→模块 blob 匹配：ASCII 词按词边界（金样 L3-4 实锤：子串语义让
@@ -301,18 +304,35 @@ def build_index(ws: Path, langs: list[str]) -> dict:
 
 def match_requirement(index: dict, requirement: str) -> dict:
     """需求→索引路由（三层置信）：模块名直接命中=high；别名组命中=medium；
-    接口词=kind endpoints；未命中=none（回退全库，绝不因路由缩小视野）。"""
+    接口词=kind endpoints；未命中=none（回退全库，绝不因路由缩小视野）。
+
+    无范围可锁的模块不参与路由（文件数=全库总文件数的模块，如单目录仓的顶层
+    目录名——锁它=锁全库=白锁还污染接口意图；E2E-1 预演实锤：go-rest-api-master
+    单模块把"测所有 REST 接口"的 rest 别名吞进模块路由，接口对账从此失效）。"""
     req = (requirement or "").lower()
+    mods = index.get("modules") or {}
+    total_files = sum(len(rec.get("files", [])) for rec in mods.values())
+
+    def _routable(mod: str, rec: dict) -> bool:
+        return (mod != "_root" and mods and
+                len(rec.get("files", [])) < total_files)
+
     # 1) 模块名直接命中（路径段或模块名出现在需求里）
-    for mod, rec in (index.get("modules") or {}).items():
-        if mod != "_root" and mod.lower() in req:
+    for mod, rec in mods.items():
+        if _routable(mod, rec) and mod.lower() in req:
             return {"kind": "module", "module": mod, "confidence": "high",
                     "paths": rec["files"]}
     # 2) 别名组 → 模块（找模块名含别名或模块符号含别名）
     for group, words in _ALIAS_GROUPS.items():
+        if group in _ENDPOINT_INTENT_GROUPS:
+            continue   # api 组=接口意图词非领域别名（E2E-1 预演实锤：internal 模块
+                       # blob 里一个 "rest" 词把"测所有 REST 接口"吞进模块路由；
+                       # 接口意图统一走 3) endpoints 对账；模块名直中仍走 1)）
         if not any(w in req for w in words):
             continue
-        for mod, rec in (index.get("modules") or {}).items():
+        for mod, rec in mods.items():
+            if not _routable(mod, rec):
+                continue
             blob = (mod + " " + " ".join(rec.get("symbols", [])) + " " +
                     " ".join(rec.get("files", []))).lower()
             if any(_word_hit(w, blob) for w in words):

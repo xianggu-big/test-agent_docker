@@ -60,6 +60,33 @@ def test_match_requirement_none_falls_back(ws):
     assert hit["kind"] == "none", "未命中必须回退全库（不错路由）"
 
 
+def test_match_endpoints_not_swallowed_by_whole_repo_module(tmp_path):
+    """单模块仓（文件数=全库）不参与模块路由——"测所有 REST 接口" 必须走接口对账
+    （E2E-1 预演实锤：go-rest-api-master 单模块把 rest 别名吞进模块路由）。"""
+    (tmp_path / "go-rest-api-master").mkdir()
+    (tmp_path / "go-rest-api-master" / "main.go").write_text(
+        "package main\n\nfunc main() {}\n", encoding="utf-8")
+    idx = build_index(tmp_path, ["go"])
+    idx["endpoints"] = [{"method": "GET", "path": "/albums"}]
+    hit = match_requirement(idx, "测所有 REST 接口")
+    assert hit["kind"] == "endpoints" and hit["count"] == 1, f"单模块不得吞接口路由: {hit}"
+
+
+def test_match_endpoints_intent_beats_transport_word_in_blob(tmp_path):
+    """api 组=接口意图词，不参与模块别名匹配（多模块仓 blob 混入 rest 词也不吞）。"""
+    (tmp_path / "internal" / "handlers").mkdir(parents=True)
+    (tmp_path / "internal" / "handlers" / "albums.go").write_text(
+        "package handlers\n\nfunc GetAlbums() {}\n", encoding="utf-8")
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "store.go").write_text(
+        "package store\n\nfunc Save() {}\n", encoding="utf-8")
+    idx = build_index(tmp_path, ["go"])
+    idx["endpoints"] = [{"method": "GET", "path": "/albums"},
+                        {"method": "POST", "path": "/albums"}]
+    hit = match_requirement(idx, "测所有 REST 接口")
+    assert hit["kind"] == "endpoints" and hit["count"] == 2, f"意图词不得被 blob 吞: {hit}"
+
+
 def test_ensure_index_fingerprint_reuse(tmp_path, ws, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     idx1 = ensure_index(7, ws, ["python", "javascript"])
