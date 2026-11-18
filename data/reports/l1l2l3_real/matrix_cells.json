@@ -1,0 +1,32 @@
+[
+  {
+    "lang": "python",
+    "path": "D:\\test agent_docker\\data\\demo\\L2场景-coupon-api",
+    "requirement": "优惠券 API 需求（L2 冒烟演示）\n1. 创建优惠券：code 长度 2~8、percent 1~100（整数），成功返回 201 与完整字段\n2. 按 id 查询优惠券：存在返回 200，不存在返回 404\n3. 下单使用优惠券：金额满 min_total 才可用，折扣（字段 discount）=amount*percent/100 向下取整，应付（字段 total）=amount-折扣\n4. 同一优惠券重复下单 → 400"
+  },
+  {
+    "lang": "javascript",
+    "path": "D:\\test agent_docker\\data\\demo\\js-calc",
+    "requirement": "验证 src/calc.js 的三个函数：\n1. add(a, b)：两数相加；任一参数非数字时抛 TypeError。\n2. div(a, b)：a 除以 b；b 为 0 时抛 RangeError。\n3. clamp(x, lo, hi)：把 x 限制在闭区间 [lo, hi]——x 小于 lo 返回 lo，x 大于 hi 返回 hi，x 等于 hi 时必须返回 hi 本身。"
+  },
+  {
+    "lang": "typescript",
+    "path": "D:\\test agent_docker\\data\\demo\\ts-calc",
+    "requirement": "# 验收需求（ts-calc，TypeScript 执行链路·白包阶段1）\n\n被测模块 src/calc.ts，三组行为：\n\n1. add(a, b)：返回两数之和（等价类：正数/负数/零组合）\n2. clamp(v, lo, hi)：把 v 钳制到闭区间 [lo, hi]——v < lo 返回 lo；v > hi 返回 hi；\n   区间内（含 v==lo 与 v==hi 两端点）原样返回 v（边界值分析重点）\n3. isValidCode(code)：2~8 位字母数字串返回 true，否则 false"
+  },
+  {
+    "lang": "java",
+    "path": "D:\\test agent_docker\\data\\demo\\java-api-book",
+    "requirement": "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。"
+  },
+  {
+    "lang": "go",
+    "path": "D:\\test agent_docker\\data\\demo\\go-api-book",
+    "requirement": "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。"
+  },
+  {
+    "lang": "php",
+    "path": "D:\\test agent_docker\\data\\demo\\php-api-book",
+    "requirement": "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。"
+  }
+]

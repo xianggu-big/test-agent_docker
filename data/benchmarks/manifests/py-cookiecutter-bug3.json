@@ -1,0 +1,13 @@
+{
+  "id": "py-cookiecutter-bug3",
+  "language": "python",
+  "track": "A",
+  "repo": "https://github.com/cookiecutter/cookiecutter",
+  "version_anchor": "bugsinpy:projects/cookiecutter/bugs/3",
+  "buggy_ref": "5c282f020a8db7e5e7c4e7b51b010556ca31fb7f",
+  "fixed_ref": "7129d474206761a6156925db78eee4b62a0e3944",
+  "official_test_cmd": "python -m pytest -q",
+  "setup_cmd": "python -m pip install . --quiet",
+  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/cookiecutter/bugs/3：bug.info 双 commit+run_test.sh 官方失败用例",
+  "status": "planned"
+}

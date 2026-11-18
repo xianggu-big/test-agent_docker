@@ -1,0 +1,13 @@
+{
+  "id": "py-sanic-bug2",
+  "language": "python",
+  "track": "A",
+  "repo": "https://github.com/sanic-org/sanic",
+  "version_anchor": "bugsinpy:projects/sanic/bugs/2",
+  "buggy_ref": "ba9b432993019b0af0c4827a5ed42aaa091bd17d",
+  "fixed_ref": "801595e24acdf8050b8d3ffa512d424147848d32",
+  "official_test_cmd": "pytest tests/test_app.py::test_asyncio_server_start_serving",
+  "setup_cmd": "python -m pip install . --quiet",
+  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/sanic/bugs/2：bug.info 双 commit+run_test.sh 官方失败用例",
+  "status": "planned"
+}

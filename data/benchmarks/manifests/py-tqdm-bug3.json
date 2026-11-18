@@ -1,0 +1,13 @@
+{
+  "id": "py-tqdm-bug3",
+  "language": "python",
+  "track": "A",
+  "repo": "https://github.com/tqdm/tqdm",
+  "version_anchor": "bugsinpy:projects/tqdm/bugs/3",
+  "buggy_ref": "c2599e3cd6087429f48bae34347ec5d2473c8392",
+  "fixed_ref": "73962a47026dd980ac0758820efc9c41cbf938e0",
+  "official_test_cmd": "python -m pytest -q",
+  "setup_cmd": "python -m pip install . --quiet",
+  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/tqdm/bugs/3：bug.info 双 commit+run_test.sh 官方失败用例",
+  "status": "planned"
+}

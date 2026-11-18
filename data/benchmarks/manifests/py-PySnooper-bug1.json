@@ -1,0 +1,13 @@
+{
+  "id": "py-PySnooper-bug1",
+  "language": "python",
+  "track": "A",
+  "repo": "https://github.com/cool-RR/PySnooper",
+  "version_anchor": "bugsinpy:projects/PySnooper/bugs/1",
+  "buggy_ref": "e21a31162f4c54be693d8ca8260e42393b39abd3",
+  "fixed_ref": "56f22f8ffe1c6b2be4d2cf3ad1987fdb66113da2",
+  "official_test_cmd": "pytest -q -s tests/test_chinese.py::test_chinese",
+  "setup_cmd": "python -m pip install . --quiet",
+  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/PySnooper/bugs/1：bug.info 双 commit+run_test.sh 官方失败用例",
+  "status": "planned"
+}

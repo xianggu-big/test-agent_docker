@@ -1,0 +1,13 @@
+{
+  "id": "py-httpie-bug1",
+  "language": "python",
+  "track": "A",
+  "repo": "https://github.com/httpie/httpie",
+  "version_anchor": "bugsinpy:projects/httpie/bugs/1",
+  "buggy_ref": "001bda19450ad85c91345eea3cfa3991e1d492ba",
+  "fixed_ref": "5300b0b490b8db48fac30b5e32164be93dc574b7",
+  "official_test_cmd": "pytest tests/test_downloads.py::TestDownloadUtils::test_unique_filename",
+  "setup_cmd": "python -m pip install . --quiet",
+  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/httpie/bugs/1：bug.info 双 commit+run_test.sh 官方失败用例",
+  "status": "planned"
+}
