@@ -346,13 +346,18 @@ def _tier_strategy(primary: str) -> str:
 def _inline_jest_config(include_ts: bool) -> str:
     """散装项目内联 jest 配置（无 jest.config/package.json 时的兜底，853 实锤先例）。
     include_ts=True（白包阶段1）：testMatch 加 .test.ts + ts-jest transform——
-    全局镜像已备 ts-jest（NODE_PATH 可达），散装 TS 不需要项目级配置即可执行。"""
+    全局镜像已备 ts-jest（NODE_PATH 可达），散装 TS 不需要项目级配置即可执行。
+    2026-11-18 multi60 1664 实锤：生成 TS 用例报 TS2304 'expect' not defined——
+    ts-jest 默认做类型检查而 @types/jest 的全局 expect 声明在 --config 内联模式
+    下不生效 → 关 diagnostics（只转译不查类型，运行时全局 expect 由 jest 提供）。"""
     cfg: dict = {"testMatch": ["**/*.test.js"], "testEnvironment": "node",
                  "moduleFileExtensions": ["js", "json"]}
     if include_ts:
         cfg["testMatch"] = ["**/*.test.ts", "**/*.test.js"]
         cfg["moduleFileExtensions"] = ["ts", "js", "json"]
-        cfg["transform"] = {"\\.[jt]sx?$": ["ts-jest", {"tsconfig": {"esModuleInterop": True}}]}
+        cfg["transform"] = {"\\.[jt]sx?$": ["ts-jest", {
+            "tsconfig": {"esModuleInterop": True},
+            "diagnostics": False}]}
     return json.dumps(cfg)
 
 
