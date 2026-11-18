@@ -1,0 +1,154 @@
+{
+  "generated_at": "2026-11-18 23:56:23",
+  "token_total": {
+    "baseline": 104633,
+    "new": 96002,
+    "delta_pct": -8.2
+  },
+  "cells": [
+    {
+      "lang": "python",
+      "tid": 1976,
+      "baseline_tid": 1155,
+      "status": "done",
+      "baseline": {
+        "tokens": 14416,
+        "coverage": 0.99,
+        "verdict": "pass",
+        "cases": 22,
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      },
+      "new": {
+        "tokens": 14834,
+        "coverage": 1.0,
+        "verdict": "pass",
+        "cases": 16,
+        "route_hit": true,
+        "route_msg": "[analyze·index] 需求命中接口清单——共 4 端点已注册（逐端点对账）",
+        "l2_msgs": [],
+        "failure_kind": "none",
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      }
+    },
+    {
+      "lang": "javascript",
+      "tid": 1977,
+      "baseline_tid": 1156,
+      "status": "failed",
+      "baseline": {
+        "tokens": 16079,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "cases": 16,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      },
+      "new": {
+        "tokens": 10328,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "cases": 14,
+        "route_hit": false,
+        "route_msg": "[analyze·index] 需求未命中索引——回退全库扫描（细细找）",
+        "l2_msgs": [],
+        "failure_kind": "product_defect",
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "typescript",
+      "tid": 1978,
+      "baseline_tid": 1157,
+      "status": "failed",
+      "baseline": {
+        "tokens": 16613,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "cases": 12,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      },
+      "new": {
+        "tokens": 12367,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "cases": 12,
+        "route_hit": false,
+        "route_msg": "[analyze·index] 需求未命中索引——回退全库扫描（细细找）",
+        "l2_msgs": [],
+        "failure_kind": "product_defect",
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "java",
+      "tid": 1979,
+      "baseline_tid": 1158,
+      "status": "done",
+      "baseline": {
+        "tokens": 29280,
+        "coverage": null,
+        "verdict": "stop",
+        "cases": 51,
+        "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转"
+      },
+      "new": {
+        "tokens": 18636,
+        "coverage": 0.83,
+        "verdict": "pass",
+        "cases": 26,
+        "route_hit": false,
+        "route_msg": "[analyze·index] 需求未命中索引——回退全库扫描（细细找）",
+        "l2_msgs": [],
+        "failure_kind": "none",
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      }
+    },
+    {
+      "lang": "go",
+      "tid": 1980,
+      "baseline_tid": 1159,
+      "status": "failed",
+      "baseline": {
+        "tokens": 14640,
+        "coverage": 0.79,
+        "verdict": "stop",
+        "cases": 12,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      },
+      "new": {
+        "tokens": 16886,
+        "coverage": 0.79,
+        "verdict": "stop",
+        "cases": 19,
+        "route_hit": true,
+        "route_msg": "[analyze·index] 需求命中接口清单——共 4 端点已注册（逐端点对账）",
+        "l2_msgs": [],
+        "failure_kind": "product_defect",
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "php",
+      "tid": 1981,
+      "baseline_tid": 1160,
+      "status": "failed",
+      "baseline": {
+        "tokens": 13605,
+        "coverage": 0.02,
+        "verdict": "stop",
+        "cases": 15,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      },
+      "new": {
+        "tokens": 22951,
+        "coverage": 0.0,
+        "verdict": "stop",
+        "cases": 23,
+        "route_hit": false,
+        "route_msg": "[analyze·index] 需求未命中索引——回退全库扫描（细细找）",
+        "l2_msgs": [],
+        "failure_kind": "none",
+        "stop_reason": "API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——用例 23 过 0 败，接口级通过数为准（存疑 35② 拍板口径）；覆盖率 0.0 "
+      }
+    }
+  ]
+}
