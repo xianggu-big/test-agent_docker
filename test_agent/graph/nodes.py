@@ -1540,13 +1540,15 @@ def make_nodes(deps: GraphDeps) -> dict:
                         state["index_l2_rescued"] = True
                         verdict = "repair_gen"
                         if closure2:
+                            old_closure = state.get("index_closure") or [origin]
+                            added = len(closure2) - len(old_closure)
                             state["index_closure"] = closure2
                             state["index_scope_paths"] = [f"{m}/" for m in closure2]
                             reason = (f"L2 急救：锁定模块零覆盖——扩圈 2 跳重跑"
-                                      f"（闭包 {len(closure2) - 1} 邻居模块）")
+                                      f"（新增 {added} 邻居模块，闭包 {len(closure2)} 模块）")
                             msg(state["session_id"], "assistant",
                                 f"[index·L2] 锁定模块零覆盖——扩圈重跑一次"
-                                f"（{len(closure2) - 1} 邻居模块并入 scope）")
+                                f"（新增 {added} 邻居模块并入 scope，闭包共 {len(closure2)} 模块）")
                         else:
                             state["index_scope_paths"] = []
                             reason = "L2 急救：零覆盖且扩圈无新增——回退全库重跑"

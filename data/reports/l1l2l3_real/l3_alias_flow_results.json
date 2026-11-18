@@ -1,0 +1,33 @@
+{
+  "case": "L3 人工审核闭环（首例走通）",
+  "verdict": "PASS",
+  "flow_steps": [
+    {
+      "step": "1 输入",
+      "detail": "mini 簇 d1sc0untca1c（size=12，corpus-002 折扣失败语料的模块化重放，如实标注合成输入）+mini 库指向构造项目 l3-discount-demo"
+    },
+    {
+      "step": "2 真脚本挖掘",
+      "detail": "python -I scripts/suggest_aliases.py --trapkb/--db/--index-dir 全参数真跑 → 候选 {alias: final_price, module: discount, evidence: 3, basis: symbol_in_module}"
+    },
+    {
+      "step": "3 人工审核（AI 代行，可复核回滚）",
+      "detail": "accept 提炼：符号 final_price 对应业务域词「折扣」族 → 进表 _ALIAS_GROUPS['discount']=折扣/discount/优惠/特价/打折；reject：函数名本身不进词表（需求词不含符号名）——审核的提炼价值所在"
+    },
+    {
+      "step": "4 快照重录",
+      "detail": "tests/alias_groups_snapshot.json 15 组 78 词 → 16 组 83 词（快照锁 L3-3 流程正向演练）"
+    },
+    {
+      "step": "5 金样回归",
+      "detail": "金样续补 1 条（11 条，设计文档允许续补）→ 命中率锁 11/11；金样合成索引同步加 discount 模块"
+    },
+    {
+      "step": "6 真机触发",
+      "detail": "真任务 #1975（两阶段）confirm→阶段一→ready_for_review 停等 → [analyze·index] 需求命中模块 discount（置信 medium）——改表前同需求路由 none（预演留痕）=路由行为真实改变的直接证据"
+    }
+  ],
+  "cost_tokens": 4873,
+  "negative_finding": "现网 28 条候选全部无路由价值（E9 失败语料全是平铺单文件项目，候选=函数名 module=None）——L3 的价值依赖多模块真实项目的失败语料，负结果如实入档（论文素材：L3 生效前提）",
+  "generated_at": "2026-11-18 23:21:15"
+}

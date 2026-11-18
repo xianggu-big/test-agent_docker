@@ -1,0 +1,12 @@
+{
+  "case": "L3-R 真机路由行为改变",
+  "tid": 1975,
+  "status": "ready_for_review",
+  "analyze_msgs": [
+    "[analyze·index] 需求命中模块 discount（置信 medium）+依赖闭包 0 模块（L1）——源码范围已锁定 2 文件"
+  ],
+  "before": "改表前同需求路由 none（零 LLM 预演留痕：金样前 hit=none）",
+  "generated_at": "2026-11-18 23:20:52",
+  "verdict": "PASS",
+  "evidence": "改表前 none → 改表后真机命中 discount：[analyze·index] 需求命中模块 discount（置信 medium）+依赖闭包 0 模块（L1）——源码范围已锁定 2 文件"
+}

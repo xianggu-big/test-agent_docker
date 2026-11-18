@@ -1,0 +1,46 @@
+{
+  "case": "L2-R 真机急救触发",
+  "steps": [
+    {
+      "step": "analyze 真路由",
+      "closure": [
+        "payment",
+        "service"
+      ],
+      "scope": [
+        "payment/",
+        "service/"
+      ],
+      "msg": "[analyze·index] 需求命中模块 payment（置信 high）+依赖闭包 1 模块（L1）——源码范围已锁定 3 文件"
+    },
+    {
+      "step": "run 真容器",
+      "exit": 1,
+      "stdout_tail": "L                    16     15     6%\n\n2 files skipped due to complete coverage.\n=========================== short test summary info ============================\nERROR test_gen_r1.py\n1 error in 0.05s"
+    },
+    {
+      "step": "evaluate R1 急救",
+      "verdict": "repair_gen",
+      "rescued": true,
+      "scope_after": [
+        "payment/",
+        "service/",
+        "billing/"
+      ],
+      "l2_msgs": [
+        "[index·L2] 锁定模块零覆盖——扩圈重跑一次（新增 1 邻居模块并入 scope，闭包共 3 模块）"
+      ]
+    },
+    {
+      "step": "evaluate R2 回退",
+      "verdict": "repair_gen",
+      "scope_after": [],
+      "fallback_msgs": [
+        "[index·L2] 扩圈后仍零覆盖——放弃路由回退全库（急救失败诚实出口）"
+      ]
+    }
+  ],
+  "verdict": "PASS",
+  "mechanism": "真机急救链走通：路由锁定→真容器零覆盖→扩圈→仍零覆盖→回退全库",
+  "generated_at": "2026-11-18 23:17:51"
+}

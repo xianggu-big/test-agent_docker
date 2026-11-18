@@ -34,6 +34,13 @@
     "dao",
     "model"
   ],
+  "discount": [
+    "折扣",
+    "discount",
+    "优惠",
+    "特价",
+    "打折"
+  ],
   "export": [
     "导出",
     "export",

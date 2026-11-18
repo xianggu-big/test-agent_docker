@@ -122,6 +122,7 @@ _GOLDEN_INDEX_MODULES = {
     "file":      ["save_upload"],
     "search":    ["dedup"],
     "export":    ["to_csv"],
+    "discount":  ["final_price"],   # L3 首例进表后金样索引同步（2026-11-18）
 }
 
 

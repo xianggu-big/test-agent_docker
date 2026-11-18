@@ -35,6 +35,12 @@ _ALIAS_GROUPS: dict[str, list[str]] = {
     "search":     ["搜索", "search", "query", "查询"],
     "file":       ["文件", "file", "upload", "下载", "download"],
     "export":     ["导出", "export", "report", "报表"],
+    # L3 人工审核进表（2026-11-18 晚，首例闭环）：依据=data/reports/l1l2l3_real/tmp_l3/
+    # suggestions.json 簇 d1sc0untca1c（size=12，discount 模块 final_price 符号 3 例证据，
+    # 原型=corpus-002 折扣失败语料的模块化重放）。审核提炼：符号 final_price 对应业务域
+    # 词「折扣」族；拒绝将函数名本身进表（需求词不含符号名）。AI 代行审核，用户可复核
+    # ——回滚=删本组+重录快照（快照锁 L3-3 流程正向演练）。
+    "discount":   ["折扣", "discount", "优惠", "特价", "打折"],
 }
 
 _HTTP_RE = re.compile(r"curl_init|fetch\(|axios|supertest|http://|https://|rest|端点|接口")

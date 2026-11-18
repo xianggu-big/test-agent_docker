@@ -8,5 +8,6 @@
   {"req": "文件上传的大小限制", "expect_module_contains": ["file", "upload"]},
   {"req": "搜索的去重逻辑", "expect_module_contains": ["search"]},
   {"req": "导出报表的空数据", "expect_module_contains": ["export", "report"]},
+  {"req": "测试折扣计算的边界", "expect_module_contains": ["discount"]},
   {"req": "随便测测", "expect_kind": "none"}
 ]
