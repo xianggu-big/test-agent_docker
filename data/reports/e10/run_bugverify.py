@@ -53,19 +53,22 @@ def wait_offpeak() -> None:
 def main() -> int:
     wait_offpeak()
     s = requests.Session()
-    h = {"Authorization": "Bearer " + s.post(f"{BASE}/api/login",
-         json={"username": "admin", "password": "admin123"}, timeout=10).json()["token"]}
+    # 驱动器 v2（2026-11-19 遗憾清偿件 5）：点火前自检+响应码校验——两次实锤事故的修复
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from driver_kit import create_and_run, ensure_docker, ensure_server
+    token = ensure_server(BASE)
+    ensure_docker()
+    h = {"Authorization": "Bearer " + token}
     results = []
     for i, cell in enumerate(CELLS):
-        tid = s.post(f"{BASE}/api/tasks", headers=h, timeout=10,
-                     json={"repo_url": cell["path"], "requirement": cell["requirement"],
-                           "two_stage": False, "ai_reviewer": "off"}).json()["task_id"]
-        s.post(f"{BASE}/api/tasks/{tid}/confirm", headers=h, timeout=10)
-        r = s.post(f"{BASE}/api/tasks/{tid}/run", headers=h, timeout=15)
+        out = create_and_run(s, h, BASE, {"path": cell["path"],
+                                          "requirement": cell["requirement"]})
+        tid = out["tid"]
         rec = {"family": cell["family"], "path": cell["path"], "tid": tid,
-               "run_http": r.status_code, "status": "queued", "error": ""}
+               "steps": out["steps"], "status": "queued", "error": ""}
         results.append(rec)
-        print(f"[{i+1}/{len(CELLS)}] {cell['family'][:22]} → #{tid} 入队", flush=True)
+        print(f"[{i+1}/{len(CELLS)}] {cell['family'][:22]} → #{tid} 入队（"
+              + "、".join(f"{x['step']}={x['http']}" for x in out["steps"]) + "）", flush=True)
     # 串行等全批终态
     t0, last = time.time(), ""
     while time.time() - t0 < 6 * 3600:
