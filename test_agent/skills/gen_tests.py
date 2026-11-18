@@ -432,11 +432,14 @@ def _collect_sources_detailed(ws: Path, lang: str = "python",
     for p, text in _iter_source_files(ws, lang):
         rel = p.relative_to(ws).as_posix()
         if scope_paths:
-            # 索引路由锁定范围（2026-11-18）：rel 命中任一 scope 前缀才收录；
+            # 索引路由锁定范围（2026-11-18）：rel 命中任一 scope 模块目录才收录
+            # （按目录段匹配——rstrip("/") 后要求 "/ 边界"，防 "user" 误吞 "users"）；
             # 根级清单文件（package.json/go.mod/requirements.txt/pom.xml/composer.lock）始终保留
             keep_root = rel in ("package.json", "go.mod", "requirements.txt",
                                 "pom.xml", "composer.lock", "composer.json")
-            if not keep_root and not any(rel.startswith(sp.rstrip("/")) for sp in scope_paths):
+            sp_dirs = [sp.replace("\\", "/").rstrip("/") for sp in scope_paths]
+            if not keep_root and not any(
+                    rel == sp or rel.startswith(sp + "/") for sp in sp_dirs):
                 skipped.append(f"{rel}（索引路由范围外）")
                 continue
         if is_java or is_js or is_go or is_php:
@@ -1719,7 +1722,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     is_java = lang == "java"                       # 白包阶段2：JUnit5 形态生成；闸=mvn test-compile
     is_go = lang == "go"                           # 白包阶段3：go test 形态生成；闸=go build+go test -c
     is_php = lang == "php"                       # 白包阶段4：PHPUnit 形态生成；闸=php -l
-    sources, source_skipped = _collect_sources_detailed(ws, lang)
+    sources, source_skipped = _collect_sources_detailed(
+        ws, lang, scope_paths=args.get("index_scope_paths") or None)
     if source_skipped:
         # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
         log.warning("gen_tests task=%s 源码预算截断 %d 段: %s",

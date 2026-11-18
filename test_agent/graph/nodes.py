@@ -919,19 +919,31 @@ def make_nodes(deps: GraphDeps) -> dict:
                 msg(state["session_id"], "assistant",
                     f"[analyze·modules] 画像失败（{type(e).__name__}: {str(e)[:120]}），"
                     "主链路继续（如实留痕）")
-        # 项目知识索引+需求路由（2026-11-18 设计方案落地）：零 LLM 打标签+别名路由
+        # 项目知识索引+需求路由（2026-11-18 设计方案落地）：零 LLM 打标签+别名路由；
+        # L1 依赖闭包（辅助层默认开）：命中模块自动加调用图 1 跳邻居（防"bug 在被
+        # 调用函数里"漏测）；图建不出（非 Python/JS/Go）自动降级=只锁命中模块
         try:
-            from ..skills.project_index import ensure_index, match_requirement
+            from ..skills.project_index import (dependency_closure, ensure_index,
+                                                match_requirement)
             idx_doc = ensure_index(tid, Path(state["workspace"]),
                                    [state.get("primary_language", "")] or ["python"])
             hit = match_requirement(idx_doc, state.get("requirement", ""))
             if hit["kind"] == "module":
-                state["index_scope_paths"] = [f"{hit['module']}/"]
+                closure = dependency_closure(idx_doc, hit["module"], hops=1,
+                                             callgraph=idx_doc.get("callgraph"))
+                state["index_scope_paths"] = [f"{m}/" for m in closure]
+                state["index_closure"] = closure
+                # 366 教训：直接改 state 不放进返回值=跨节点被 schema 丢弃——必须同时进 out
+                out["index_scope_paths"] = state["index_scope_paths"]
+                out["index_closure"] = closure
+                locked = sum(len((idx_doc.get("modules") or {}).get(m, {}).get("files", []))
+                             for m in closure)
                 msg(state["session_id"], "assistant",
-                    f"[analyze·index] 需求命中模块 {hit['module']}（置信 {hit['confidence']}）——"
-                    f"源码范围已锁定 {len(hit['paths'])} 文件")
+                    f"[analyze·index] 需求命中模块 {hit['module']}（置信 {hit['confidence']}）"
+                    f"+依赖闭包 {len(closure) - 1} 模块（L1）——源码范围已锁定 {locked} 文件")
             elif hit["kind"] == "endpoints":
                 state["index_endpoints"] = hit["endpoints"]
+                out["index_endpoints"] = hit["endpoints"]
                 msg(state["session_id"], "assistant",
                     f"[analyze·index] 需求命中接口清单——共 {hit['count']} 端点已注册（逐端点对账）")
             else:
@@ -1172,6 +1184,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             "module_hint": state.get("primary_language", ""),
             "container_name": state["container_name"],
             "module_id": state.get("module_id"),
+            "index_scope_paths": state.get("index_scope_paths") or [],
             "coverage_gaps": (state.get("per_file") or [])
                              if config.COVERAGE_FEEDBACK_ENABLED else [],  # ①缺口回灌（V4 开关）
             "coverage_target": state.get("coverage_target"),

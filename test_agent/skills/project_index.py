@@ -10,6 +10,7 @@ endpoint_extract；别名命中落盘留痕（可审计）；未命中保守回�
 """
 import json
 import os
+import posixpath
 import re
 import time
 from collections import defaultdict
@@ -60,6 +61,144 @@ def _module_name(rel: Path) -> str:
 
 
 import os  # noqa: E402
+
+
+def _build_callgraph(ws: Path, files: list[Path]) -> dict | None:
+    """调用图邻接（L1 前置，文件级边，确定性零 LLM）：{"edges": [[caller, callee], ...]}。
+
+    Python 走 AST（callgraph.build_call_edges 现有产物经 collect_functions 映射回文件）；
+    JS/TS 走 import/require 相对路径正则；Go 走 go.mod 本模块前缀的 import→目录映射。
+    一条边都建不出（语言不支持/图空）返回 None——索引不输出 callgraph 键，L1 自动降级。
+    """
+    edges: set[tuple[str, str]] = set()
+    known = {f.relative_to(ws).as_posix() for f in files}
+
+    # Python：AST 函数级边 → 文件级（复用 L2 白盒轨现有解析器，不新造轮子）
+    if any(f.suffix == ".py" for f in files):
+        try:
+            from .callgraph import build_call_edges, collect_functions
+            locs = collect_functions(ws)
+            for caller, callees in build_call_edges(ws).items():
+                cf = (locs.get(caller) or {}).get("file")
+                if not cf:
+                    continue
+                for callee in callees:
+                    tf = (locs.get(callee) or {}).get("file")
+                    if tf and tf != cf:
+                        edges.add((cf, tf))
+        except Exception:                  # noqa: BLE001 —— 建图失败=L1 降级，不炸索引
+            pass
+
+    # JS/TS：import … from './x' / require('./x') / import('./x') → 同仓相对文件
+    js_re = re.compile(
+        r"""(?:import\s+[^'"()]*?from\s*|require\(\s*|import\(\s*)['"](\.[^'"]+)['"]""")
+    js_exts = (".js", ".ts", ".jsx", ".tsx")
+    for f in files:
+        if f.suffix.lower() not in (".js", ".ts"):
+            continue
+        rel = f.relative_to(ws).as_posix()
+        try:
+            text = f.read_text(encoding="utf-8", errors="ignore")[:100000]
+        except OSError:
+            continue
+        for m in js_re.finditer(text):
+            spec = m.group(1)
+            base = posixpath.normpath(posixpath.join(posixpath.dirname(rel), spec))
+            cands = (base, *(base + e for e in js_exts),
+                     *(f"{base}/index{e}" for e in js_exts))
+            for cand in cands:
+                if cand in known and cand != rel:
+                    edges.add((rel, cand))
+                    break
+
+    # Go：go.mod 模块前缀的本地 import → 包目录首个已知 .go 文件
+    go_files = [f for f in files if f.suffix == ".go"]
+    if go_files:
+        try:
+            gomod = (ws / "go.mod").read_text(encoding="utf-8", errors="ignore")
+            mm = re.search(r"^module\s+(\S+)", gomod, re.M)
+            mprefix = mm.group(1) if mm else ""
+        except OSError:
+            mprefix = ""
+        if mprefix:
+            go_known = sorted(f.relative_to(ws).as_posix() for f in go_files)
+            str_re = re.compile(r'"([^"]+)"')
+            for f in go_files:
+                rel = f.relative_to(ws).as_posix()
+                try:
+                    text = f.read_text(encoding="utf-8", errors="ignore")[:100000]
+                except OSError:
+                    continue
+                iblock = re.search(r"import\s*\(([^)]*)\)", text, re.S)
+                specs = str_re.findall(iblock.group(1)) if iblock else \
+                    re.findall(r'^import\s+"([^"]+)"', text, re.M)
+                for spec in specs:
+                    if not spec.startswith(mprefix + "/"):
+                        continue
+                    sub = spec[len(mprefix) + 1:]
+                    tgt = next((g for g in go_known
+                                if g.startswith(sub + "/") or g == sub), None)
+                    if tgt and tgt != rel:
+                        edges.add((rel, tgt))
+
+    if not edges:
+        return None
+    lst = [[a, b] for a, b in sorted(edges)]
+    out = {"edges": lst}
+    if len(lst) >= 20000:                  # 超大仓封顶（索引体积护栏，截断如实标注）
+        out["truncated"] = True
+        out["edges"] = lst[:20000]
+    return out
+
+
+def dependency_closure(index: dict, module: str, hops: int = 1,
+                       callgraph: dict | None = None,
+                       detail: dict | None = None) -> list[str]:
+    """命中模块的依赖闭包（L1 辅助层，2026-11-18 设计方案 §1.2 改动 1）：
+    返回应并入 scope 的模块名列表（[module] + 邻居，去重）。
+
+    出边（module 调用的）与入边（调用 module 的）对端文件所属模块都是邻居；
+    hops=2 在邻居集合上再迭代一轮（A→B→C 链上 C 只在 hops=2 出现）。
+    防爆三护栏：_root（根级散文件）永不进闭包；邻居 >5 按 LOC 降序取 top5，
+    其余记入 detail["skipped"]（留痕不静默）；callgraph 为 None（语言不支持/图空）
+    → 只返回 [module]（降级=主方法行为，逐字节不变）。
+    """
+    mods = index.get("modules") or {}
+    if module not in mods or not callgraph:
+        if detail is not None:
+            detail["skipped"] = []
+            detail["degraded"] = module not in mods or not callgraph
+        return [module]
+    file2mod: dict[str, str] = {}
+    for m, rec in mods.items():
+        for fp in rec.get("files", []):
+            file2mod[fp] = m
+    all_edges = callgraph.get("edges") or []
+
+    def _neighbors_of(mods_: set[str]) -> set[str]:
+        out: set[str] = set()
+        for cf, tf in all_edges:
+            cm, tm = file2mod.get(cf), file2mod.get(tf)
+            for src, dst in ((cm, tm), (tm, cm)):
+                if src in mods_ and dst and dst != "_root" and \
+                        not (src == module and dst == module):
+                    out.add(dst)
+        return out
+
+    neighbors = {n for n in _neighbors_of({module}) if n != module}
+    frontier = set(neighbors)
+    for _ in range(max(0, int(hops) - 1)):
+        newly = {n for n in _neighbors_of(frontier)
+                 if n != module and n not in neighbors}
+        neighbors |= newly
+        frontier = newly
+    ranked = sorted(neighbors,
+                    key=lambda m: mods.get(m, {}).get("loc", 0), reverse=True)
+    kept, skipped = ranked[:5], ranked[5:]
+    if detail is not None:
+        detail["skipped"] = skipped
+        detail["hops"] = hops
+    return [module] + kept
 
 
 def build_index(ws: Path, langs: list[str]) -> dict:
@@ -139,10 +278,15 @@ def build_index(ws: Path, langs: list[str]) -> dict:
         rec["symbols_n"] = len(rec["symbols"])
 
     fingerprint = f"{len(files)}:{sum(f.stat().st_size for f in files)}:{int(time.time())}"
-    return {"modules": {k: v for k, v in modules.items()},
-            "endpoints": endpoints,
-            "fingerprint_src": fingerprint,
-            "built_at": time.strftime("%F %T")}
+    out = {"modules": {k: v for k, v in modules.items()},
+           "endpoints": endpoints,
+           "fingerprint_src": fingerprint,
+           "built_at": time.strftime("%F %T")}
+    # L1 前置：调用图邻接（建不出图=无 callgraph 键，dependency_closure 自动降级）
+    cg = _build_callgraph(ws, files)
+    if cg:
+        out["callgraph"] = cg
+    return out
 
 
 def match_requirement(index: dict, requirement: str) -> dict:
