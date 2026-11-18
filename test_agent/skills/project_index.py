@@ -40,6 +40,16 @@ _ALIAS_GROUPS: dict[str, list[str]] = {
 _HTTP_RE = re.compile(r"curl_init|fetch\(|axios|supertest|http://|https://|rest|端点|接口")
 
 
+def _word_hit(word: str, blob: str) -> bool:
+    """别名词→模块 blob 匹配：ASCII 词按词边界（金样 L3-4 实锤：子串语义让
+    logger 组的 "log" ⊂ user 模块符号 "login"——"看下日志模块" 误路由到 user）；
+    非 ASCII（中文）词保持子串语义（无边界可言且歧义低）。"""
+    if word.isascii():
+        return re.search(rf"(?<![a-z0-9_]){re.escape(word)}(?![a-z0-9_])",
+                         blob) is not None
+    return word in blob
+
+
 def _walk_src(ws: Path, langs: list[str]) -> list[Path]:
     exts = {".py", ".js", ".ts", ".go", ".java", ".php"}
     out: list[Path] = []
@@ -305,7 +315,7 @@ def match_requirement(index: dict, requirement: str) -> dict:
         for mod, rec in (index.get("modules") or {}).items():
             blob = (mod + " " + " ".join(rec.get("symbols", [])) + " " +
                     " ".join(rec.get("files", []))).lower()
-            if any(w in blob for w in words):
+            if any(_word_hit(w, blob) for w in words):
                 return {"kind": "module", "module": mod, "confidence": "medium",
                         "paths": rec["files"], "alias_group": group}
     # 3) 接口词 → endpoints 全量

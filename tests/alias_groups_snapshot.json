@@ -1,0 +1,110 @@
+{
+  "api": [
+    "接口",
+    "api",
+    "endpoint",
+    "rest",
+    "路由",
+    "route"
+  ],
+  "auth": [
+    "认证",
+    "鉴权",
+    "auth",
+    "jwt",
+    "token",
+    "登录",
+    "login",
+    "oauth"
+  ],
+  "cart": [
+    "购物车",
+    "cart"
+  ],
+  "config": [
+    "配置",
+    "config",
+    "setting"
+  ],
+  "db": [
+    "数据库",
+    "database",
+    "db",
+    "repository",
+    "dao",
+    "model"
+  ],
+  "export": [
+    "导出",
+    "export",
+    "report",
+    "报表"
+  ],
+  "file": [
+    "文件",
+    "file",
+    "upload",
+    "下载",
+    "download"
+  ],
+  "inventory": [
+    "库存",
+    "inventory",
+    "stock"
+  ],
+  "logger": [
+    "日志",
+    "logger",
+    "logging",
+    "log"
+  ],
+  "notification": [
+    "通知",
+    "notification",
+    "notify",
+    "消息推送",
+    "邮件",
+    "邮件通知",
+    "mail"
+  ],
+  "order": [
+    "订单",
+    "order",
+    "booking",
+    "预约",
+    "预订",
+    "reservation"
+  ],
+  "pay": [
+    "支付",
+    "pay",
+    "payment",
+    "checkout",
+    "结算",
+    "billing"
+  ],
+  "product": [
+    "商品",
+    "产品",
+    "product",
+    "item",
+    "goods"
+  ],
+  "search": [
+    "搜索",
+    "search",
+    "query",
+    "查询"
+  ],
+  "user": [
+    "用户",
+    "user",
+    "账号",
+    "account",
+    "注册",
+    "登录",
+    "login",
+    "auth",
+    "认证"
+  ]
+}

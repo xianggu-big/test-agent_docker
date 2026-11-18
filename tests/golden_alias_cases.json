@@ -1,0 +1,12 @@
+[
+  {"req": "测试登录功能", "expect_module_contains": ["user", "auth"]},
+  {"req": "测试所有接口", "expect_kind": "endpoints"},
+  {"req": "测订单边界", "expect_module_contains": ["order", "booking"]},
+  {"req": "支付模块的非法输入", "expect_module_contains": ["pay"]},
+  {"req": "库存扣减的并发", "expect_module_contains": ["inventory", "stock"]},
+  {"req": "看下日志模块", "expect_module_contains": ["logger", "log"]},
+  {"req": "文件上传的大小限制", "expect_module_contains": ["file", "upload"]},
+  {"req": "搜索的去重逻辑", "expect_module_contains": ["search"]},
+  {"req": "导出报表的空数据", "expect_module_contains": ["export", "report"]},
+  {"req": "随便测测", "expect_kind": "none"}
+]
