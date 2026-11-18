@@ -1,0 +1,31 @@
+{
+  "case": "件 1：L4 确认引导包——确认流转+D6 转化真机走通",
+  "verdict": "PASS",
+  "task": 151,
+  "project": "coupon-api",
+  "guide": "l4_confirm_guide_151.md（AI 代行审核，19 条建议：11 confirm_pass/8 保留 pending[依赖前置数据]/0 reject）",
+  "confirm": {
+    "ai_confirmed": 11,
+    "result": "confirmed_pass",
+    "note": "标注 AI 代行可复核；confirmed_by 落库"
+  },
+  "historical_states": "发现 #151 早期实验已有 3 条确认态（auto_pass 1/confirmed_defect 1/confirmed_pass 1）——转化并入",
+  "d6_convert": {
+    "api": "POST /api/tasks/151/l4/convert",
+    "converted": 13,
+    "artifact": "data/workspaces/task_151/test_acceptance.py（6257B）",
+    "compile": "OK",
+    "pytest_funcs": 13,
+    "db": "test_scripts framework='acceptance' 版本 [{'framework': 'acceptance', 'version': 1, 'n': 1856}, {'framework': 'acceptance', 'version': 1, 'n': 1856}, {'framework': 'acceptance', 'version': 2, 'n': 6257}]"
+  },
+  "state_dist": {
+    "auto_pass": 1,
+    "confirmed_defect": 1,
+    "confirmed_pass": 12,
+    "pending": 8,
+    "pending_confirm": 4
+  },
+  "chain": "生成→静态闸（剔 7 虚构）→落库 pending→审核建议单→确认流转→D6 确定性转化→compile 闸→回归资产落库——全链真机走通",
+  "honest_note": "转化产物含 8 条下单域历史场景（依赖 coupon_id=100 前置）——回归跑时需前置数据，建议单已标注；本轮仅确认自包含 11 条（转化安全）",
+  "generated_at": "2026-11-19 01:29:02"
+}

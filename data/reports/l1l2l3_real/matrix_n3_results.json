@@ -1,0 +1,460 @@
+{
+  "generated_at": "2026-11-19 01:57:57",
+  "n_samples": 3,
+  "protocol": "预注册 docs/遗憾清偿设计-20261119.md 件 3（聚合段补跑：驱动器聚合行笔误已修复数据）",
+  "token_total": 310034,
+  "aggregate": {
+    "python": {
+      "tids": [
+        1982,
+        1983,
+        1984
+      ],
+      "status": [
+        "done",
+        "done",
+        "done"
+      ],
+      "tokens_mean_std": [
+        16149,
+        2939
+      ],
+      "coverage_list": [
+        0.98,
+        0.99,
+        1.0
+      ],
+      "cases_list": [
+        7,
+        23,
+        18
+      ],
+      "verdicts": [
+        "pass/none",
+        "pass/none",
+        "pass/none"
+      ],
+      "stop_reasons": [
+        "达标（通过且覆盖率满足准出标准）",
+        "达标（通过且覆盖率满足准出标准）",
+        "达标（通过且覆盖率满足准出标准）"
+      ]
+    },
+    "javascript": {
+      "tids": [
+        1985,
+        1986,
+        1987
+      ],
+      "status": [
+        "failed",
+        "failed",
+        "failed"
+      ],
+      "tokens_mean_std": [
+        12974,
+        1322
+      ],
+      "coverage_list": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cases_list": [
+        14,
+        16,
+        15
+      ],
+      "verdicts": [
+        "stop/product_defect",
+        "stop/product_defect",
+        "stop/product_defect"
+      ],
+      "stop_reasons": [
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      ]
+    },
+    "typescript": {
+      "tids": [
+        1988,
+        1989,
+        1990
+      ],
+      "status": [
+        "failed",
+        "failed",
+        "failed"
+      ],
+      "tokens_mean_std": [
+        12864,
+        481
+      ],
+      "coverage_list": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cases_list": [
+        14,
+        12,
+        12
+      ],
+      "verdicts": [
+        "stop/product_defect",
+        "stop/product_defect",
+        "stop/product_defect"
+      ],
+      "stop_reasons": [
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      ]
+    },
+    "java": {
+      "tids": [
+        1991,
+        1992,
+        1993
+      ],
+      "status": [
+        "done",
+        "done",
+        "done"
+      ],
+      "tokens_mean_std": [
+        20611,
+        1679
+      ],
+      "coverage_list": [
+        0.83,
+        0.83,
+        0.83
+      ],
+      "cases_list": [
+        34,
+        33,
+        26
+      ],
+      "verdicts": [
+        "pass/none",
+        "pass/none",
+        "pass/none"
+      ],
+      "stop_reasons": [
+        "达标（通过且覆盖率满足准出标准）",
+        "达标（通过且覆盖率满足准出标准）",
+        "达标（通过且覆盖率满足准出标准）"
+      ]
+    },
+    "go": {
+      "tids": [
+        1994,
+        1995,
+        1996
+      ],
+      "status": [
+        "failed",
+        "failed",
+        "failed"
+      ],
+      "tokens_mean_std": [
+        16793,
+        2902
+      ],
+      "coverage_list": [
+        0.79,
+        0.79,
+        0.79
+      ],
+      "cases_list": [
+        21,
+        17,
+        11
+      ],
+      "verdicts": [
+        "stop/product_defect",
+        "stop/product_defect",
+        "stop/product_defect"
+      ],
+      "stop_reasons": [
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+        "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      ]
+    },
+    "php": {
+      "tids": [
+        1997,
+        1998,
+        1999
+      ],
+      "status": [
+        "failed",
+        "failed",
+        "failed"
+      ],
+      "tokens_mean_std": [
+        23954,
+        930
+      ],
+      "coverage_list": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "cases_list": [
+        30,
+        29,
+        27
+      ],
+      "verdicts": [
+        "stop/none",
+        "stop/none",
+        "stop/none"
+      ],
+      "stop_reasons": [
+        "API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——用例 30 过 0 败，",
+        "API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——用例 29 过 0 败，",
+        "API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——用例 27 过 0 败，"
+      ]
+    }
+  },
+  "cells": [
+    {
+      "lang": "python",
+      "tid": 1982,
+      "status": "done",
+      "metrics": {
+        "tokens": 13256,
+        "coverage": 0.98,
+        "verdict": "pass",
+        "kind": "none",
+        "cases": 7,
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      }
+    },
+    {
+      "lang": "python",
+      "tid": 1983,
+      "status": "done",
+      "metrics": {
+        "tokens": 15011,
+        "coverage": 0.99,
+        "verdict": "pass",
+        "kind": "none",
+        "cases": 23,
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      }
+    },
+    {
+      "lang": "python",
+      "tid": 1984,
+      "status": "done",
+      "metrics": {
+        "tokens": 20181,
+        "coverage": 1.0,
+        "verdict": "pass",
+        "kind": "none",
+        "cases": 18,
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      }
+    },
+    {
+      "lang": "javascript",
+      "tid": 1985,
+      "status": "failed",
+      "metrics": {
+        "tokens": 11195,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 14,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "javascript",
+      "tid": 1986,
+      "status": "failed",
+      "metrics": {
+        "tokens": 14361,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 16,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "javascript",
+      "tid": 1987,
+      "status": "failed",
+      "metrics": {
+        "tokens": 13365,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 15,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "typescript",
+      "tid": 1988,
+      "status": "failed",
+      "metrics": {
+        "tokens": 12189,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 14,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "typescript",
+      "tid": 1989,
+      "status": "failed",
+      "metrics": {
+        "tokens": 13128,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 12,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "typescript",
+      "tid": 1990,
+      "status": "failed",
+      "metrics": {
+        "tokens": 13276,
+        "coverage": 1.0,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 12,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "java",
+      "tid": 1991,
+      "status": "done",
+      "metrics": {
+        "tokens": 21885,
+        "coverage": 0.83,
+        "verdict": "pass",
+        "kind": "none",
+        "cases": 34,
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      }
+    },
+    {
+      "lang": "java",
+      "tid": 1992,
+      "status": "done",
+      "metrics": {
+        "tokens": 21708,
+        "coverage": 0.83,
+        "verdict": "pass",
+        "kind": "none",
+        "cases": 33,
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      }
+    },
+    {
+      "lang": "java",
+      "tid": 1993,
+      "status": "done",
+      "metrics": {
+        "tokens": 18239,
+        "coverage": 0.83,
+        "verdict": "pass",
+        "kind": "none",
+        "cases": 26,
+        "stop_reason": "达标（通过且覆盖率满足准出标准）"
+      }
+    },
+    {
+      "lang": "go",
+      "tid": 1994,
+      "status": "failed",
+      "metrics": {
+        "tokens": 20876,
+        "coverage": 0.79,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 21,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "go",
+      "tid": 1995,
+      "status": "failed",
+      "metrics": {
+        "tokens": 14394,
+        "coverage": 0.79,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 17,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "go",
+      "tid": 1996,
+      "status": "failed",
+      "metrics": {
+        "tokens": 15108,
+        "coverage": 0.79,
+        "verdict": "stop",
+        "kind": "product_defect",
+        "cases": 11,
+        "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+      }
+    },
+    {
+      "lang": "php",
+      "tid": 1997,
+      "status": "failed",
+      "metrics": {
+        "tokens": 24153,
+        "coverage": 0.0,
+        "verdict": "stop",
+        "kind": "none",
+        "cases": 30,
+        "stop_reason": "API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——用例 30 过 0 败，"
+      }
+    },
+    {
+      "lang": "php",
+      "tid": 1998,
+      "status": "failed",
+      "metrics": {
+        "tokens": 24980,
+        "coverage": 0.0,
+        "verdict": "stop",
+        "kind": "none",
+        "cases": 29,
+        "stop_reason": "API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——用例 29 过 0 败，"
+      }
+    },
+    {
+      "lang": "php",
+      "tid": 1999,
+      "status": "failed",
+      "metrics": {
+        "tokens": 22729,
+        "coverage": 0.0,
+        "verdict": "stop",
+        "kind": "none",
+        "cases": 27,
+        "stop_reason": "API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——用例 27 过 0 败，"
+      }
+    }
+  ]
+}
