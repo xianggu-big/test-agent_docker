@@ -1503,6 +1503,58 @@ def make_nodes(deps: GraphDeps) -> dict:
                 reason += (f"；flaky 连跑 {config.FLAKY_RERUNS} 次结果不一致"
                            f"（{sum(outcomes)} 过/{len(outcomes) - sum(outcomes)} 败）"
                            "→ 证据强度降级，建议人工复跑定性")
+        # —— L2 覆盖率闭环兜底（2026-11-18 设计方案 §2；急救层，仅路由格触发） ——
+        # 跑后校验"锁定范围有没有真覆盖"：零覆盖=路由标签漏了→扩圈重跑一次；仍零
+        # 覆盖=放弃路由回退全库（急救失败的诚实出口，CODAMOSA 思想）。只在 repair_gen
+        # 分支触发——指纹熔断/轮次预算给出的 stop 绝不覆盖（急救不得击穿熔断，
+        # 设计方案 §2.3 L2-7 成本护栏：至多扩圈一次+回退一次，轮数不超 MAX_REPAIR_ROUNDS）。
+        per_file_rows = _parse_per_file_coverage(stdout)
+        if (config.INDEX_L2_RESCUE_ENABLED and verdict == "repair_gen"
+                and state.get("index_scope_paths")):
+            try:
+                from ..skills.project_index import coverage_check
+                chk = coverage_check(state, per_file_rows, coverage_line=coverage)
+                if chk["verdict"] == "zero_coverage":
+                    if state.get("index_l2_rescued"):
+                        state["index_scope_paths"] = []
+                        verdict = "repair_gen"
+                        reason = "L2 急救失败：扩圈后仍零覆盖——放弃路由回退全库重跑"
+                        msg(state["session_id"], "assistant",
+                            "[index·L2] 扩圈后仍零覆盖——放弃路由回退全库（急救失败诚实出口）")
+                    else:
+                        closure2 = None
+                        origin = (state.get("index_closure") or [""])[0]
+                        if origin:
+                            try:
+                                from ..skills.project_index import (dependency_closure,
+                                                                    ensure_index)
+                                idx2 = ensure_index(tid, Path(state["workspace"]),
+                                                    [state.get("primary_language", "")
+                                                     or "python"])
+                                cand = dependency_closure(idx2, origin, hops=2,
+                                                          callgraph=idx2.get("callgraph"))
+                                if len(cand) > len(state["index_closure"]):
+                                    closure2 = cand
+                            except Exception:  # noqa: BLE001 —— 扩圈失败=直接回退全库
+                                closure2 = None
+                        state["index_l2_rescued"] = True
+                        verdict = "repair_gen"
+                        if closure2:
+                            state["index_closure"] = closure2
+                            state["index_scope_paths"] = [f"{m}/" for m in closure2]
+                            reason = (f"L2 急救：锁定模块零覆盖——扩圈 2 跳重跑"
+                                      f"（闭包 {len(closure2) - 1} 邻居模块）")
+                            msg(state["session_id"], "assistant",
+                                f"[index·L2] 锁定模块零覆盖——扩圈重跑一次"
+                                f"（{len(closure2) - 1} 邻居模块并入 scope）")
+                        else:
+                            state["index_scope_paths"] = []
+                            reason = "L2 急救：零覆盖且扩圈无新增——回退全库重跑"
+                            msg(state["session_id"], "assistant",
+                                "[index·L2] 锁定模块零覆盖且扩圈无新增——回退全库重跑（急救）")
+            except Exception as e:  # noqa: BLE001 —— 急救校验失败不阻断评估主链路
+                msg(state["session_id"], "assistant",
+                    f"[index·L2] 覆盖率急救校验失败（{type(e).__name__}: {str(e)[:80]}），主链路继续")
         round_no = state.get("round_no", 0)
         # P1-③：每轮评估结构化落库（evaluation_rounds，轨迹唯一真源）——此前只写
         # 叙述消息，collect_metrics 靠正则解析散文取轨迹，措辞一变即静默清空。
@@ -1539,10 +1591,14 @@ def make_nodes(deps: GraphDeps) -> dict:
                 f"[evaluate·failed] FAILED {nid} - "
                 f"{repair.failure_summary_of(stdout, nid) or repair.error_class_of(stdout, nid) or 'Error'}")
         return {"passed": passed, "failed": failed, "skipped": skipped,
-                "coverage_line": coverage, "per_file": _parse_per_file_coverage(stdout),
+                "coverage_line": coverage, "per_file": per_file_rows,
                 "fingerprint": fp, "failure_kind": kind,
                 "verdict": verdict, "stop_reason": reason,
                 "witness_nodeids": witness,
+                # L2 急救改过的路由键必须走返回值跨节点（366 教训：只改 state 不返回=丢弃）
+                "index_scope_paths": state.get("index_scope_paths") or [],
+                "index_closure": state.get("index_closure") or [],
+                "index_l2_rescued": bool(state.get("index_l2_rescued")),
                 "last_stdout": stdout,   # 408 实锤：验证轮 env_blocked 分类需要诊断段，不回传即证据蒸发
                 "fingerprints": state.get("fingerprints", []) + [fp]}
 

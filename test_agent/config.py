@@ -189,6 +189,12 @@ SNAPSHOT_DIR = Path(os.environ.get("MTA_SNAPSHOT_DIR", "data/snapshots"))
 # module_profiles（第 34 表）+报告页建议卡
 MODULE_PLAN_ENABLED = _flag("MTA_MODULE_PLAN", False)
 
+# —— 项目知识索引·L2 覆盖率闭环兜底（2026-11-18 设计方案-L1L2L3辅助急救层 §2；默认开） ——
+# 跑后校验"锁定范围有没有真覆盖"：零覆盖=路由标签漏了→扩圈重跑一次；仍零覆盖=放弃
+# 路由回退全库（急救失败的诚实出口）。校验本身零成本，重跑才有 LLM 成本且被 repair_gen
+# 轮次预算天然约束（一轮急救=一次 repair_gen 轮）。关=整段跳过（主方法行为逐字节不变）。
+INDEX_L2_RESCUE_ENABLED = _flag("MTA_INDEX_L2_RESCUE", True)
+
 # 任务卡-F2 阶段 1 #2/#4（2026-11-11）：Go 静态分析层——gocyclo 热点（radon 同尺
 # rank，进 plan 提示词）+ go vet 结构化发现。默认关=analyze 对 go 项目零容器操作
 # （旧行为逐字节不变）

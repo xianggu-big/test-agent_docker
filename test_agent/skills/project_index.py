@@ -316,6 +316,45 @@ def match_requirement(index: dict, requirement: str) -> dict:
     return {"kind": "none"}
 
 
+def coverage_check(state: dict, per_file: list[dict],
+                   coverage_line: float | None = None) -> dict:
+    """L2 覆盖率闭环兜底（跑后钩子，2026-11-18 设计方案 §2.2 改动 1）：路由锁定的
+    范围有没有真覆盖。per_file=evaluate 产出的逐文件覆盖行（term-missing 表）。
+
+    表语义（关键前提）：--cov-report=term-missing:skip-covered 会**省略全覆盖文件**，
+    0% 文件必在表内——据此把"范围内文件缺席缺口表"与 TOTAL 联合判读：
+    - state 无 index_scope_paths → not_routed（非路由格，跳过）；
+    - 范围内行存在且任一 cover>0 → ok（标签正确，结束）；
+    - 范围内行全 0 → zero_coverage（文件被执行但零覆盖=标签漏了）；
+    - 范围内文件缺席 + TOTAL>0 → ok（skip-covered 省略=已覆盖）；
+    - 范围内文件缺席 + TOTAL=0 → zero_coverage（什么都没测到）；
+    - 范围内文件缺席 + TOTAL 缺失 → no_data（测不了就不猜，急救不触发——诚实出口）。
+    """
+    scope = state.get("index_scope_paths") or []
+    if not scope:
+        return {"verdict": "not_routed"}
+    prefixes = [s.replace("\\", "/").rstrip("/") for s in scope if s]
+
+    def _in_scope(fp: str) -> bool:
+        f = (fp or "").replace("\\", "/")
+        return any(f == p or f.startswith(p + "/") for p in prefixes)
+
+    rows = [r for r in (per_file or []) if _in_scope(str(r.get("file", "")))]
+    if rows:
+        if any(int(r.get("cover") or 0) > 0 for r in rows):
+            return {"verdict": "ok", "scope_rows": len(rows)}
+        return {"verdict": "zero_coverage", "scope_rows": len(rows),
+                "detail": "范围内文件全部 0 覆盖"}
+    if coverage_line is None:
+        return {"verdict": "no_data",
+                "detail": "覆盖数据缺失（无覆盖机制或 TOTAL 解析失败）——不猜，急救不触发"}
+    if coverage_line > 0:
+        return {"verdict": "ok",
+                "detail": "范围内文件不在缺口表且 TOTAL>0（skip-covered 省略全覆盖）=已覆盖"}
+    return {"verdict": "zero_coverage",
+            "detail": "范围内文件缺席缺口表且 TOTAL=0——什么都没测到"}
+
+
 def ensure_index(pid: int, ws: Path, langs: list[str], force: bool = False) -> dict:
     """构建/复用索引：指纹不变跳过重建（一劳永逸语义）。落盘 data/index/project_<pid>.json。"""
     out = _index_dir() / f"project_{pid}.json"
