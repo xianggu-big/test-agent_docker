@@ -64,18 +64,27 @@ def _walk_src(ws: Path, langs: list[str]) -> list[Path]:
     out: list[Path] = []
     skip = {".git", "__pycache__", ".venv", "venv", "node_modules", "vendor", "dist",
             "build", "target", ".idea", ".pytest_cache", ".next", ".nuxt", "coverage",
-            ".mypy_cache", ".gradle", "htmlcov"}
+            ".mypy_cache", ".gradle", "htmlcov", "test", "tests", "spec", "__tests__", "e2e"}
     for dirpath, dirnames, filenames in os.walk(ws):
         dirnames[:] = [d for d in dirnames if d not in skip and not d.startswith(".")]
         for f in filenames:
+            # 测试文件不进标签（1980 脏标实证：TestGenR1_test.go/nestjs *.spec.ts
+            # 被当源码标入=标签含生成物与测试符号——标签应只描述被测产品）
+            stem = Path(f).stem
+            if (f.startswith(("test_", "TestGen", "test_")) or stem.endswith("_test")
+                    or stem.endswith(".spec") or stem.endswith(".test")):
+                continue
             if Path(f).suffix.lower() in exts:
                 out.append(Path(dirpath) / f)
     return sorted(out)
 
 
 def _module_name(rel: Path) -> str:
-    """路径→模块名：取首个有意义的目录段（user/auth/order…），根级文件归 _root。"""
-    parts = [p for p in rel.parts[:-1] if p.lower() not in ("src", "lib", "app", "main", "api")]
+    """路径→模块名：取首个有意义的目录段（user/auth/order…），根级文件归 _root。
+    排除表含 maven/gradle 布局段（1979 审计实证：src/main/java 的 'java' 被当模块名）。"""
+    parts = [p for p in rel.parts[:-1]
+             if p.lower() not in ("src", "lib", "app", "main", "api", "java",
+                                  "target", "com", "org", "net")]
     return parts[0].lower() if parts else "_root"
 
 

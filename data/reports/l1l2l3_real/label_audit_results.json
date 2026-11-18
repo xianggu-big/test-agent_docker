@@ -1,0 +1,697 @@
+{
+  "generated_at": "2026-11-19 00:07:35",
+  "tasks_audited": 16,
+  "file_coverage_avg_pct": 100.0,
+  "symbol_precision_avg_pct": 100.0,
+  "rows": [
+    {
+      "tid": 1966,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 59,
+        "labeled_n": 59,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 8,
+        "real": 8,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [
+          "auth",
+          "config",
+          "database",
+          "logger",
+          "post",
+          "sendgrid",
+          "shared",
+          "user"
+        ],
+        "real_dirs": [
+          ".github",
+          ".husky",
+          "auth",
+          "base",
+          "config",
+          "database",
+          "decorator",
+          "docs",
+          "dto",
+          "enum",
+          "guard",
+          "interface",
+          "issue_template",
+          "k8s"
+        ],
+        "match_pct": 100.0
+      }
+    },
+    {
+      "tid": 1967,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 1,
+        "labeled_n": 1,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 3,
+        "real": 3,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [],
+        "real_dirs": [],
+        "match_pct": null
+      }
+    },
+    {
+      "tid": 1968,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 27,
+        "labeled_n": 27,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 2,
+        "real": 2,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [
+          "apps",
+          "packages"
+        ],
+        "real_dirs": [
+          ".github",
+          "api-e2e",
+          "application",
+          "apps",
+          "assets",
+          "check-database-health",
+          "config",
+          "domain",
+          "entities",
+          "health",
+          "health-check",
+          "http",
+          "indicators",
+          "infrastructure"
+        ],
+        "match_pct": 100.0
+      }
+    },
+    {
+      "tid": 1969,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 1,
+        "labeled_n": 1,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 2,
+        "real": 2,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [],
+        "real_dirs": [],
+        "match_pct": null
+      }
+    },
+    {
+      "tid": 1970,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 73,
+        "labeled_n": 73,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 28,
+        "real": 28,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [
+          "spring-petclinic-admin-server",
+          "spring-petclinic-api-gateway",
+          "spring-petclinic-config-server",
+          "spring-petclinic-customers-service",
+          "spring-petclinic-discovery-server",
+          "spring-petclinic-genai-service",
+          "spring-petclinic-vets-service",
+          "spring-petclinic-visits-service"
+        ],
+        "real_dirs": [
+          ".devcontainer",
+          ".github",
+          ".mvn",
+          "admin",
+          "application",
+          "boundary",
+          "chaos",
+          "components",
+          "config",
+          "css",
+          "customers",
+          "dashboards",
+          "datasources",
+          "db"
+        ],
+        "match_pct": 100.0
+      }
+    },
+    {
+      "tid": 1971,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 123,
+        "labeled_n": 123,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 33,
+        "real": 33,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [
+          "auth",
+          "bootstrap",
+          "commands",
+          "config",
+          "database",
+          "http",
+          "implementations",
+          "providers",
+          "public",
+          "queries",
+          "routes",
+          "shared"
+        ],
+        "real_dirs": [
+          "article",
+          "auth",
+          "bootstrap",
+          "cache",
+          "commands",
+          "comment",
+          "config",
+          "controllers",
+          "data",
+          "database",
+          "dev",
+          "docker",
+          "docs",
+          "favorite"
+        ],
+        "match_pct": 100.0
+      }
+    },
+    {
+      "tid": 1972,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 18,
+        "labeled_n": 18,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 14,
+        "real": 14,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 6,
+        "src_paths": [
+          "/albums",
+          "/albums/<id>",
+          "/login"
+        ],
+        "src_n": 3,
+        "covered": 3,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [
+          "cmd",
+          "internal",
+          "pkg"
+        ],
+        "real_dirs": [
+          ".github",
+          "accesslog",
+          "album",
+          "auth",
+          "cmd",
+          "config",
+          "dbcontext",
+          "entity",
+          "errors",
+          "healthcheck",
+          "internal",
+          "issue_template",
+          "log",
+          "migrations"
+        ],
+        "match_pct": 100.0
+      }
+    },
+    {
+      "tid": 1973,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 59,
+        "labeled_n": 59,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 8,
+        "real": 8,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [
+          "auth",
+          "config",
+          "database",
+          "logger",
+          "post",
+          "sendgrid",
+          "shared",
+          "user"
+        ],
+        "real_dirs": [
+          ".github",
+          ".husky",
+          "auth",
+          "base",
+          "config",
+          "database",
+          "decorator",
+          "docs",
+          "dto",
+          "enum",
+          "guard",
+          "interface",
+          "issue_template",
+          "k8s"
+        ],
+        "match_pct": 100.0
+      }
+    },
+    {
+      "tid": 1974,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 1,
+        "labeled_n": 1,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 3,
+        "real": 3,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [],
+        "real_dirs": [],
+        "match_pct": null
+      }
+    },
+    {
+      "tid": 1975,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 5,
+        "labeled_n": 5,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 3,
+        "real": 3,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [
+          "cart",
+          "discount"
+        ],
+        "real_dirs": [
+          "cart",
+          "discount"
+        ],
+        "match_pct": 100.0
+      }
+    },
+    {
+      "tid": 1976,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 1,
+        "labeled_n": 1,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 5,
+        "real": 5,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 4,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": [
+          "/coupons",
+          "/coupons/{cid}",
+          "/orders",
+          "/orders/{oid}"
+        ]
+      },
+      "modules": {
+        "indexed": [],
+        "real_dirs": [],
+        "match_pct": null
+      }
+    },
+    {
+      "tid": 1977,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 1,
+        "labeled_n": 1,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 3,
+        "real": 3,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [],
+        "real_dirs": [],
+        "match_pct": null
+      }
+    },
+    {
+      "tid": 1978,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 1,
+        "labeled_n": 1,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 3,
+        "real": 3,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [],
+        "real_dirs": [],
+        "match_pct": null
+      }
+    },
+    {
+      "tid": 1979,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 1,
+        "labeled_n": 1,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 1,
+        "real": 1,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [
+          "demo"
+        ],
+        "real_dirs": [
+          "demo",
+          "test"
+        ],
+        "match_pct": 100.0
+      }
+    },
+    {
+      "tid": 1980,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 1,
+        "labeled_n": 1,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 2,
+        "real": 2,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 4,
+        "src_paths": [
+          "/books",
+          "/books/{id}",
+          "/ping"
+        ],
+        "src_n": 3,
+        "covered": 3,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [],
+        "real_dirs": [],
+        "match_pct": null
+      }
+    },
+    {
+      "tid": 1981,
+      "index_exists": true,
+      "ws_exists": true,
+      "files": {
+        "real_n": 2,
+        "labeled_n": 2,
+        "coverage_pct": 100.0,
+        "unlabeled": [],
+        "unlabeled_n": 0,
+        "dirty_over": [],
+        "dirty_n": 0
+      },
+      "symbols": {
+        "checked": 3,
+        "real": 3,
+        "precision_pct": 100.0,
+        "bad": []
+      },
+      "endpoints": {
+        "indexed_n": 0,
+        "src_paths": [],
+        "src_n": 0,
+        "covered": 0,
+        "missed": [],
+        "hallucinated": []
+      },
+      "modules": {
+        "indexed": [],
+        "real_dirs": [],
+        "match_pct": null
+      }
+    }
+  ]
+}
