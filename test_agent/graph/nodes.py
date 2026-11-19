@@ -924,14 +924,16 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 调用函数里"漏测）；图建不出（非 Python/JS/Go）自动降级=只锁命中模块
         try:
             from ..skills.project_index import (dependency_closure, ensure_index,
-                                                match_requirement)
+                                                match_requirement, scope_prefixes_for)
             idx_doc = ensure_index(tid, Path(state["workspace"]),
                                    [state.get("primary_language", "")] or ["python"])
             hit = match_requirement(idx_doc, state.get("requirement", ""))
             if hit["kind"] == "module":
                 closure = dependency_closure(idx_doc, hit["module"], hops=1,
                                              callgraph=idx_doc.get("callgraph"))
-                state["index_scope_paths"] = [f"{m}/" for m in closure]
+                # A3（2026-11-20）：scope 前缀只从索引真实文件路径推导——修复前用模块
+                # 名拼目录（src/user 布局模块名 user → scope=user/ 永远锁空）
+                state["index_scope_paths"] = scope_prefixes_for(idx_doc, closure)
                 state["index_closure"] = closure
                 # 366 教训：直接改 state 不放进返回值=跨节点被 schema 丢弃——必须同时进 out
                 out["index_scope_paths"] = state["index_scope_paths"]
@@ -1209,6 +1211,14 @@ def make_nodes(deps: GraphDeps) -> dict:
                 msg(state["session_id"], "assistant",
                     f"[generate·需求-能力对齐警告] {_mm} 本次生成可能未覆盖你真正想测的功能，"
                     f"请核对需求与产品实际能力。")
+            # A3（2026-11-20）：gen_tests 零收录回退全库 → 清空路由锁定——scope 前缀
+            # 失配时锁定名存实亡，不清空会让 L2 兜底把"范围内缺席+TOTAL>0"误判 ok
+            if _gsum.get("scope_fallback"):
+                msg(state["session_id"], "assistant",
+                    "[index·scope] 锁定范围产品源码 0 收录（scope 前缀与真实路径失配）"
+                    "——本轮已回退全库生成，路由锁定解除（L2 兜底不再介入）")
+                return {"round_no": next_round, "gen_reason": gen_reason,
+                        "index_scope_paths": [], "index_closure": []}
         except (ValueError, AttributeError):
             pass
         msg(state["session_id"], "assistant", f"[generate 第{next_round}轮] {res.output[:400]}")
@@ -1527,7 +1537,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                         if origin:
                             try:
                                 from ..skills.project_index import (dependency_closure,
-                                                                    ensure_index)
+                                                                    ensure_index,
+                                                                    scope_prefixes_for)
                                 idx2 = ensure_index(tid, Path(state["workspace"]),
                                                     [state.get("primary_language", "")
                                                      or "python"])
@@ -1543,7 +1554,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                             old_closure = state.get("index_closure") or [origin]
                             added = len(closure2) - len(old_closure)
                             state["index_closure"] = closure2
-                            state["index_scope_paths"] = [f"{m}/" for m in closure2]
+                            # A3（2026-11-20）：扩圈 scope 同样用索引真实路径（修复前拼模块名）
+                            state["index_scope_paths"] = scope_prefixes_for(idx2, closure2)
                             reason = (f"L2 急救：锁定模块零覆盖——扩圈 2 跳重跑"
                                       f"（新增 {added} 邻居模块，闭包 {len(closure2)} 模块）")
                             msg(state["session_id"], "assistant",

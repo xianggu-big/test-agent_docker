@@ -79,6 +79,41 @@ def _walk_src(ws: Path, langs: list[str]) -> list[Path]:
     return sorted(out)
 
 
+_SPEC_SKIP = {"node_modules", "vendor", ".git", "dist", "build", "target",
+              ".venv", "venv", "__pycache__", "coverage", ".idea", ".gradle"}
+
+
+def _walk_spec_files(ws: Path) -> list[Path]:
+    """OpenAPI spec 枚举（A3/B1 2026-11-20）：只收 JSON 形态的 openapi/swagger
+    （parse_openapi 吃 dict；yaml 解析不了就不谎收）。spec 是描述文件不进模块标签。"""
+    out: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(ws):
+        dirnames[:] = [d for d in dirnames if d not in _SPEC_SKIP and not d.startswith(".")]
+        for f in filenames:
+            low = f.lower()
+            if low in ("openapi.json", "swagger.json") or (
+                    low.startswith("openapi") and low.endswith(".json")):
+                out.append(Path(dirpath) / f)
+    return sorted(out)
+
+
+def scope_prefixes_for(index: dict, modules: list[str]) -> list[str]:
+    """闭包模块 → 真实目录前缀集合（A3 2026-11-20）：索引 files 保存真实相对路径，
+    模块名只是标签——`src/user/` 布局的模块名是 user，拼 `user/` 永远锁空（Qoder
+    体检论断 3：修复前 nodes.py 用模块名拼路径，弃用了 match_requirement 返回的
+    hit["paths"] 真实路径）。_root 文件（根级散文件）无目录语义，跳过；空集=调用方
+    回退全库。生成侧过滤（gen_tests）与覆盖兜底（coverage_check._in_scope）共用
+    本函数产物 = 两处口径同源，杜绝漂移。"""
+    mods = index.get("modules") or {}
+    prefixes = set()
+    for m in modules or []:
+        for f in (mods.get(m) or {}).get("files", []):
+            parent = Path(f).parent.as_posix()
+            if parent and parent != ".":
+                prefixes.add(parent)
+    return sorted(prefixes)
+
+
 def _module_name(rel: Path) -> str:
     """路径→模块名：取首个有意义的目录段（user/auth/order…），根级文件归 _root。
     排除表含 maven/gradle 布局段（1979 审计实证：src/main/java 的 'java' 被当模块名）。"""
@@ -238,22 +273,27 @@ def build_index(ws: Path, langs: list[str]) -> dict:
     endpoints: list[dict] = []
 
     # 接口解析：复用 endpoint_extract（openapi/go 路由）+ 轻量正则兜底
+    # A3/B1（2026-11-20）：OpenAPI spec 单独枚举——_walk_src 只收代码扩展名（标签
+    # 语义：spec 是描述文件不进模块标签），修复前 openapi.json 解析分支因 files
+    # 无 .json 永不可达（死代码，Qoder 体检索引缺口 a）
     try:
         from .endpoint_extract import parse_openapi, parse_go_routes
-        for f in files:
-            name = f.name.lower()
+        for f in _walk_spec_files(ws):
             try:
-                text = f.read_text(encoding="utf-8", errors="ignore")[:200000]
-            except OSError:
+                spec = json.loads(f.read_text(encoding="utf-8", errors="ignore")[:200000])
+            except Exception:
                 continue
-            if name in ("openapi.json", "swagger.json") or name.startswith("openapi"):
+            try:
+                for ep in parse_openapi(spec):
+                    endpoints.append({**ep, "source": f.name})
+            except Exception:
+                pass
+        for f in files:
+            if f.suffix == ".go":
                 try:
-                    spec = json.loads(text)
-                    for ep in parse_openapi(spec):
-                        endpoints.append({**ep, "source": f.name})
-                except Exception:
-                    pass
-            elif f.suffix == ".go":
+                    text = f.read_text(encoding="utf-8", errors="ignore")[:200000]
+                except OSError:
+                    continue
                 for ep in parse_go_routes(text):
                     endpoints.append({**ep, "source": f.name})
     except Exception:
@@ -332,9 +372,11 @@ def match_requirement(index: dict, requirement: str) -> dict:
         return (mod != "_root" and mods and
                 len(rec.get("files", [])) < total_files)
 
-    # 1) 模块名直接命中（路径段或模块名出现在需求里）
+    # 1) 模块名直接命中（词边界——A3/B2 2026-11-20：修复前裸子串 `mod in req` 让
+    # 需求含 "login" 命中 log 模块；金样 L3-4 同族缺陷在需求侧的残留——
+    # _word_hit 词边界修复当时只做到了 3) 别名侧）
     for mod, rec in mods.items():
-        if _routable(mod, rec) and mod.lower() in req:
+        if _routable(mod, rec) and _word_hit(mod.lower(), req):
             return {"kind": "module", "module": mod, "confidence": "high",
                     "paths": rec["files"]}
     # 2) 别名组 → 模块（找模块名含别名或模块符号含别名）
@@ -394,21 +436,54 @@ def coverage_check(state: dict, per_file: list[dict],
         return {"verdict": "no_data",
                 "detail": "覆盖数据缺失（无覆盖机制或 TOTAL 解析失败）——不猜，急救不触发"}
     if coverage_line > 0:
+        # A3（2026-11-20）防御分支：生成侧锁定零收录（index_scope_count==0）时，
+        # "范围内行缺席+TOTAL>0" 不构成已覆盖证据——缺席可能恰是 scope 前缀失配所致
+        # （Qoder 体检论断 3b：修复前该形态误判 ok 漏掉急救）。主防线=gen_tests 零
+        # 收录回退全库后 nodes 清空 index_scope_paths（not_routed，本分支不可达）。
+        if state.get("index_scope_count") == 0:
+            return {"verdict": "scope_empty",
+                    "detail": "生成侧锁定范围零收录（scope 前缀失配）——缺席+TOTAL>0 "
+                              "不构成已覆盖证据，不判 ok（A3）"}
         return {"verdict": "ok",
                 "detail": "范围内文件不在缺口表且 TOTAL>0（skip-covered 省略全覆盖）=已覆盖"}
     return {"verdict": "zero_coverage",
             "detail": "范围内文件缺席缺口表且 TOTAL=0——什么都没测到"}
 
 
+INDEX_ALGO = 2   # A3/B3（2026-11-20）：索引算法版本——升版或结构变更时 +1 触发全量重建
+
+
+def _src_fingerprint(ws: Path) -> str:
+    """源码清单指纹（rel:size:mtime_ns 排序后 sha1 前 16 位）：ensure_index 复用
+    校验依据。旧实现只查文件存在、docstring 声称的"指纹不变跳过重建"从未存在
+    （Qoder 体检索引缺口 c：新增源码后仍读旧索引）。"""
+    import hashlib
+    parts = []
+    for f in _walk_src(ws, []):
+        try:
+            st = f.stat()
+            parts.append(f"{f.relative_to(ws).as_posix()}:{st.st_size}:{st.st_mtime_ns}")
+        except OSError:
+            continue
+    return hashlib.sha1("\n".join(sorted(parts)).encode("utf-8")).hexdigest()[:16]
+
+
 def ensure_index(pid: int, ws: Path, langs: list[str], force: bool = False) -> dict:
-    """构建/复用索引：指纹不变跳过重建（一劳永逸语义）。落盘 data/index/project_<pid>.json。"""
+    """构建/复用索引：源码指纹一致才复用（A3/B3 2026-11-20 实现真校验）；算法版本
+    不符或指纹漂移即重建（旧格式文档无 index_algo 键=自动升级重建）。指纹/版本作
+    顶层键混入索引 dict——消费者（modules/endpoints/callgraph）零改动。"""
     out = _index_dir() / f"project_{pid}.json"
     if out.exists() and not force:
         try:
-            return json.loads(out.read_text(encoding="utf-8"))
+            doc = json.loads(out.read_text(encoding="utf-8"))
+            if (doc.get("index_algo") == INDEX_ALGO
+                    and doc.get("src_fingerprint") == _src_fingerprint(Path(ws))):
+                return doc
         except Exception:
             pass
     idx = build_index(ws, langs)
+    idx["index_algo"] = INDEX_ALGO
+    idx["src_fingerprint"] = _src_fingerprint(Path(ws))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(idx, ensure_ascii=False, indent=2), encoding="utf-8")
     return idx

@@ -415,6 +415,16 @@ def _split_top_level(text: str) -> list[tuple[str, str]]:
     return chunks
 
 
+_ROOT_MANIFESTS = ("package.json", "go.mod", "requirements.txt",
+                   "pom.xml", "composer.lock", "composer.json")
+
+
+def _count_product_sources(sources: list[tuple[str, str]]) -> int:
+    """非根级清单的收录数（产品源码）——A3 零收录回退的判定依据：只剩清单文件
+    =锁定范围内产品源码 0 收录（scope 前缀与真实路径失配）。"""
+    return sum(1 for rel, _ in sources if rel not in _ROOT_MANIFESTS)
+
+
 def _collect_sources_detailed(ws: Path, lang: str = "python",
                               scope_paths: list[str] | None = None) -> tuple[list[tuple[str, str]], list[str]]:
     """被测源码收集（带跳过台账）：小文件整收、大文件按顶层符号切片、预算截断如实记录。
@@ -434,9 +444,8 @@ def _collect_sources_detailed(ws: Path, lang: str = "python",
         if scope_paths:
             # 索引路由锁定范围（2026-11-18）：rel 命中任一 scope 模块目录才收录
             # （按目录段匹配——rstrip("/") 后要求 "/ 边界"，防 "user" 误吞 "users"）；
-            # 根级清单文件（package.json/go.mod/requirements.txt/pom.xml/composer.lock）始终保留
-            keep_root = rel in ("package.json", "go.mod", "requirements.txt",
-                                "pom.xml", "composer.lock", "composer.json")
+            # 根级清单文件（package.json/go.mod/…）始终保留
+            keep_root = rel in _ROOT_MANIFESTS
             sp_dirs = [sp.replace("\\", "/").rstrip("/") for sp in scope_paths]
             if not keep_root and not any(
                     rel == sp or rel.startswith(sp + "/") for sp in sp_dirs):
@@ -476,6 +485,15 @@ def _collect_sources_detailed(ws: Path, lang: str = "python",
             continue
         sources.append((rel, text))
         used += len(text)
+    # A3（2026-11-20）：scope 锁定后产品源码零收录（只剩根级清单）= scope 前缀与
+    # 真实路径失配——显式回退全库重收（不静默空转；Qoder 体检论断 3 的复现形态：
+    # src/user 布局锁定 user/ → 0 收录 → "未发现可测源码"）。台账注记供
+    # generate_tests 检测打 scope_fallback 标（nodes.generate 清空路由锁定）。
+    if scope_paths and _count_product_sources(sources) == 0:
+        note = ("[index-scope] 锁定范围产品源码 0 收录——已回退全库重收"
+                f"（scope={list(scope_paths)}，前缀失配，A3 留痕）")
+        sources, skipped = _collect_sources_detailed(ws, lang, scope_paths=None)
+        return sources, [note] + skipped
     return sources, skipped
 
 
@@ -1724,6 +1742,12 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     is_php = lang == "php"                       # 白包阶段4：PHPUnit 形态生成；闸=php -l
     sources, source_skipped = _collect_sources_detailed(
         ws, lang, scope_paths=args.get("index_scope_paths") or None)
+    # A3（2026-11-20）：零收录回退在 _collect_sources_detailed 内完成（回退台账带
+    # [index-scope] 注记）——此处只检测注记打标，summary 供 nodes.generate 清空路由锁定
+    scope_fallback = any(s.startswith("[index-scope]") for s in source_skipped)
+    if scope_fallback:
+        log.warning("gen_tests task=%s scope 零收录回退全库: scope=%s",
+                    task_id, args.get("index_scope_paths"))
     if source_skipped:
         # 诚实呈现能力边界：哪些代码没进 LLM 视野（旧版静默丢弃是 H1 假缺陷根因之一）
         log.warning("gen_tests task=%s 源码预算截断 %d 段: %s",
@@ -2084,6 +2108,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                "cross_review": cross_info, "source_skipped": source_skipped,
                "basis_downgraded": basis_downgraded, "phase": phase,
                "collect_deferred": collect_deferred,
+               "scope_fallback": scope_fallback,
                "conditions_truncated": conditions_truncated}
     log.info("gen_tests task=%s → %s", task_id, summary)
     return json.dumps(summary, ensure_ascii=False)
