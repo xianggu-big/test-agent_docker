@@ -58,4 +58,6 @@ class TaskState(TypedDict, total=False):
     gen_reason: str | None   # 最近一轮 gen_tests 的 reason 透传（出题 0 条归因如实——2026-11-09）
     ui_routes: list[str]     # MTA_ROUTER=1 时通过前置条件的可用路线（analyze 产出——
                              # 必须声明：LangGraph 会过滤未声明键，rebuild 静默死代码教训）
+    verify_mode: int         # A2 验证任务冻结（2026-11-20）：1=执行图禁生成/剪除/重写/回炉
+                             # （必须声明：未声明键被 LangGraph schema 过滤=366 教训）
     done: bool

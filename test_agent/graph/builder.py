@@ -113,11 +113,34 @@ def build_prep_graph(deps: GraphDeps):
     return g.compile()
 
 
+def _after_evaluate(s: TaskState) -> str:
+    """evaluate 条件边（A2 2026-11-20 抽出为模块函数便于单测）：
+    pass/stop → report；verify 冻结任务其余 verdict 一律 → report（不补题不重跑——
+    同卷比较前提，Qoder 体检论断 2：修复前 repair_gen/repair_env 会重新生成/剪除
+    用例）；普通任务 repair_env → provision 回炉、其余 → generate（R-Loop 保留）。"""
+    if s["verdict"] in ("pass", "stop"):
+        return "report"
+    if s.get("verify_mode") == 1:
+        return "report"
+    return "provision" if s["verdict"] == "repair_env" else "generate"
+
+
+def _after_review(s: TaskState) -> str:
+    """review 条件边：verify 冻结任务不回炉（repair_gen 也 END——报告已落库如实呈现）；
+    普通任务 repair_gen → generate（R-Loop 保留）。"""
+    if s.get("verify_mode") == 1:
+        return "__end__"
+    return "generate" if s.get("verdict") == "repair_gen" else "__end__"
+
+
 def build_exec_graph(deps: GraphDeps):
     """执行图（两阶段·阶段二）：布考场→开考→判卷→报告→复审，吃阶段一审查通过的用例集。
 
     首轮不进 generate（用例集已在阶段一出题并经人工/AI 审查）；generate 仅由
-    repair_env/repair_gen/审查回炉再入——R-Loop 完整保留在阶段二（无人值守能力保住）。"""
+    repair_env/repair_gen/审查回炉再入——R-Loop 完整保留在阶段二（无人值守能力保住）。
+    A2（2026-11-20）：verify_mode=1 的修复验证任务全图禁写用例——evaluate 非 pass/stop
+    直接 report、review 一律 END（所有用例写入口：generate 主生成/fbN 增补/剪除/
+    重写/delete-first 全部不可达）。"""
     nodes = make_nodes(deps)
     g = StateGraph(TaskState)
     for name in ("provision", "generate", "run", "evaluate", "report", "review"):
@@ -129,14 +152,11 @@ def build_exec_graph(deps: GraphDeps):
     g.add_conditional_edges("run",
                             lambda s: "report" if s.get("done") else "evaluate",
                             {"report": "report", "evaluate": "evaluate"})
-    g.add_conditional_edges("evaluate",
-                            lambda s: "report" if s["verdict"] in ("pass", "stop")
-                            else ("provision" if s["verdict"] == "repair_env" else "generate"),
+    g.add_conditional_edges("evaluate", _after_evaluate,
                             {"report": "report", "provision": "provision", "generate": "generate"})
     g.add_edge("generate", "run")
     g.add_edge("report", "review")
-    g.add_conditional_edges("review",
-                            lambda s: "generate" if s.get("verdict") == "repair_gen" else END,
+    g.add_conditional_edges("review", _after_review,
                             {"generate": "generate", "__end__": END})
     return g.compile()
 
@@ -416,11 +436,36 @@ def run_task_exec(task_id: int) -> dict:
         "auto_prepare": bool(task["auto_prepare"]) if "auto_prepare" in task.keys() else False,
         "two_stage_rebuild": True,
     }
+    # A2 验证冻结（2026-11-20）：verify_mode 贯穿任务行 → TaskState → 图路由；
+    # 用例集指纹执行前后留痕 agent_messages = 审计证据（写入拦截靠图路由，不靠指纹）
+    is_verify = bool(task["verify_mode"])
+    fp_base = None
+    if is_verify:
+        from ..skills.verify_fix import case_set_fingerprint
+        fp_base = case_set_fingerprint(conn, task_id)
+        init["verify_mode"] = 1
+        _reviewer_msg(conn, task_id,
+                      f"[verify-freeze] 冻结基线：用例集指纹 {fp_base}"
+                      "（生成/剪除/重写/回炉已被图级拦截，A2）")
     graph = build_exec_graph(deps)
     try:
         final = graph.invoke(init, {"recursion_limit": 60})
+        if is_verify:
+            fp_final = case_set_fingerprint(conn, task_id)
+            _reviewer_msg(conn, task_id,
+                          f"[verify-freeze] 终态指纹 {fp_final} —— "
+                          + ("一致：用例集全程未被改动" if fp_final == fp_base
+                             else "不一致：用例集被改动（A2 审计告警，须人工核查）"))
         return final
     except Exception as e:
+        if is_verify:
+            try:
+                fp_final = case_set_fingerprint(conn, task_id)
+                _reviewer_msg(conn, task_id,
+                              f"[verify-freeze] 异常路径指纹 {fp_final} —— "
+                              + ("一致" if fp_final == fp_base else "不一致（审计告警）"))
+            except Exception:  # noqa: BLE001 —— 审计留痕失败不掩盖原异常
+                pass
         _fail_task(conn, task_id, f"{type(e).__name__}: {e}")
         conn.execute(
             "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",

@@ -116,7 +116,8 @@ _MIGRATIONS = {
     "test_tasks": {"coverage_target": "REAL",    # A1：准出标准在分析阶段冻结进任务
                    "auto_prepare": "INTEGER NOT NULL DEFAULT 0",  # 沙箱自适应：任务级「自动准备环境」开关
                    "two_stage": "INTEGER NOT NULL DEFAULT 0",     # 两阶段人机协作：确认=启动阶段一，停在 ready_for_review
-                   "ai_reviewer": "TEXT NOT NULL DEFAULT 'off'"},  # AI 代审三模式 off/hybrid/auto
+                   "ai_reviewer": "TEXT NOT NULL DEFAULT 'off'",  # AI 代审三模式 off/hybrid/auto
+                   "verify_mode": "INTEGER NOT NULL DEFAULT 0"},  # A2 验证任务冻结：用例集全程只读（图级拦截生成/剪除/重写）
     "test_reports": {"per_file": "TEXT",         # B2：逐文件覆盖明细（缺口回灌+趋势图数据源）
                      "narrative": "TEXT",        # gen_report 叙述正文（E5 审查对象）
                      "review": "TEXT",           # 报告二次审查结论 JSON（§3.4 双闸）
@@ -198,6 +199,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
             if have and col not in have:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
     _backfill_project_names(conn)   # 幂等：路径形态项目名→末段（用户反馈 2026-11-03）——必须在 commit 前
+    _backfill_verify_mode(conn)     # A2（2026-11-20）：历史验证任务（requirement 软链前缀）回填冻结标记
     conn.commit()
 
 
@@ -253,6 +255,14 @@ def _backfill_project_names(conn) -> None:
         new_name = seg[-1] if seg else name
         if new_name and new_name != name:
             conn.execute("UPDATE projects SET name=? WHERE id=?", (new_name, r["id"]))
+
+
+def _backfill_verify_mode(conn) -> None:
+    """A2（2026-11-20）：历史验证任务回填冻结标记——create_verify_task 以 requirement
+    软链前缀「[回归验证 of task N]」为唯一标识（列迁移前的历史任务 verify_mode=0），
+    执行图冻结拦截依赖该列。只补 0 值行（幂等）；普通任务零命中零改动。"""
+    conn.execute("UPDATE test_tasks SET verify_mode=1 "
+                 "WHERE verify_mode=0 AND requirement_text LIKE '[回归验证 of task %'")
 
 
 @contextmanager

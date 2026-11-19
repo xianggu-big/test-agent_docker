@@ -1,8 +1,11 @@
 """F（任务卡-369 缺陷修复-20261105）回归验证闭环：缺陷修复后的 fail-to-pass 判定。
 
-通道：阶段二执行图（run_task_exec 吃已批准用例集、不跑 gen 节点）= 现成「执行-only」
-载体——验证任务复制原任务最终用例集，gen 不跑=用例天然冻结（修复验证不可能被迁就
-用例洗白）。**不用同任务重跑**（A4 重跑 delete-first 会冲掉原始缺陷证据轮次）。
+通道：阶段二执行图（run_task_exec 吃已批准用例集）= 现成「执行-only」载体——验证
+任务复制原任务最终用例集。**A2（2026-11-20）修正历史假设**：本文件旧注声称"gen 不跑
+=用例天然冻结"——Qoder 体检论断 2 实锤为假（exec 图 evaluate 非 pass/stop → generate
+会重新生成/剪除用例）；现在冻结由 verify_mode 列 + 图级路由拦截真实保证（不再靠
+"应该不会跑到"的假设），用例集指纹前后留痕 agent_messages = 审计证据。
+**不用同任务重跑**（A4 重跑 delete-first 会冲掉原始缺陷证据轮次）。
 
 三态判定（fail-to-pass 口径复用归因三闸 Track A 的 SWT-bench 语义）：
 - fixed_verified：原缺陷组签名的成员 nodeid 修复后全部 passed
@@ -14,9 +17,27 @@
 """
 from __future__ import annotations
 
+import hashlib
+import json
+
 from . import attribution
 from .. import config
 from .defect_handoff import defect_signature
+
+
+def case_set_fingerprint(conn, task_id: int) -> str:
+    """验证任务用例集指纹（A2 冻结审计）：filename+脚本内容+用例名+enabled+用例内容
+    的 sha1 前 16 位。对内容与启用集双向敏感——任何一项被改（生成/剪除/重写/启停）
+    指纹必变。只读，不代替写入拦截。"""
+    rows = conn.execute(
+        """SELECT sc.filename, sc.content, c.name, c.enabled, c.content AS case_content
+           FROM test_cases c JOIN test_scripts sc ON sc.id=c.script_id
+           WHERE sc.task_id=? ORDER BY sc.filename, c.name""", (task_id,)).fetchall()
+    blob = json.dumps(
+        [[r["filename"], r["content"], r["name"], r["enabled"], r["case_content"]]
+         for r in rows],
+        ensure_ascii=False, sort_keys=True)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:16]
 
 
 def verify_verdict(orig_defects: list[dict], verify_rows: list[dict],
@@ -122,6 +143,9 @@ def create_verify_task(conn, tid: int) -> int:
     if "two_stage" in have:
         cols.append("two_stage")
         vals.append(1)                              # 验证任务走阶段二执行图
+    if "verify_mode" in have:
+        cols.append("verify_mode")
+        vals.append(1)                              # A2：冻结标记（执行图禁写用例）
     cur = conn.execute(
         f"INSERT INTO test_tasks({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
         vals)

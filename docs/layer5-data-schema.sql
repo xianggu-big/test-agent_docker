@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS test_tasks (
   confirmed        INTEGER NOT NULL DEFAULT 0,        -- 确认门：0 = 禁止下发；两阶段任务确认=授权启动阶段一
   auto_prepare     INTEGER NOT NULL DEFAULT 0,        -- 沙箱自适应：1 = 开局自动拉取/构建执行镜像（模式③）
   two_stage        INTEGER NOT NULL DEFAULT 0,        -- 两阶段人机协作：1 = 确认后先跑准备阶段（克隆/摸底/考纲/出题），停在 ready_for_review 等审查
+  verify_mode      INTEGER NOT NULL DEFAULT 0,        -- A2 验证任务冻结（2026-11-20）：1 = 修复验证任务，用例集全程只读——执行图禁生成/剪除/重写/回炉（同卷比较前提）
   ai_reviewer      TEXT NOT NULL DEFAULT 'off'
                    CHECK (ai_reviewer IN ('off','hybrid','auto')),  -- AI 代审三模式（docs/AI代审设计-20261031.md）
   confirmed_by     TEXT,                              -- 满足确认门的主体：用户 id 或 agent:reviewer-<session>（AI 代审，问责链）
