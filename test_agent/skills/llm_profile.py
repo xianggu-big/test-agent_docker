@@ -226,14 +226,38 @@ def effective_key(explicit: str | None = None) -> str | None:
         return None
 
 
-def test_connection(p: dict, timeout_s: int = 60) -> dict:
+def known_base_urls(conn) -> set[str]:
+    """D1（2026-11-20 设计方案）：可信 base_url 白名单=已登记 profile（admin 经
+    POST /api/llm-profile 登记——apply 为 admin 专属）+ 全部预设端点。连通性测试
+    （staff 即可调用）的临时 profile 只允许向白名单地址发请求——修复前 developer
+    可提交任意 base_url+key_env，后端读宿主环境变量值发给该地址=凭据外传通路。"""
+    urls: set[str] = {preset["base_url"] for preset in PRESETS.values()}
+    try:
+        doc = load_doc(conn)
+        for p in (doc.get("profiles") or {}).values():
+            if p.get("base_url"):
+                urls.add(str(p["base_url"]).rstrip("/"))
+    except Exception:  # noqa: BLE001 —— 白名单退化到预设集（fail-closed 方向）
+        pass
+    return urls
+
+
+def test_connection(p: dict, timeout_s: int = 60,
+                    allowed_base_urls: set[str] | None = None) -> dict:
     """连通性测试：60s 超时发一条最小 JSON 指令，返回 {ok, latency_ms, reply|error}。
     接受临时 profile（不落库——POST /test 的 body 直接传本函数）。local 无 ollama
-    时给可行动文案"请先启动 ollama serve"。"""
+    时给可行动文案"请先启动 ollama serve"。
+    D1（2026-11-20）：allowed_base_urls 给定时（API 路径必给），custom base_url
+    不在白名单 → 直接拒绝且不解析 key/不发起任何请求（凭据外传通路关闭）。"""
     norm = _normalize(p)
     if norm is None:
         return {"ok": False, "latency_ms": None,
                 "error": "非法 profile：provider/base_url/model/key_env 校验未通过"}
+    if allowed_base_urls is not None:
+        if str(norm.get("base_url", "")).rstrip("/") not in {u.rstrip("/") for u in allowed_base_urls}:
+            return {"ok": False, "latency_ms": None,
+                    "error": "base_url 不在可信白名单（已登记 profile + 预设端点）——"
+                             "临时连通性测试禁止向未登记地址发送凭据（D1 安全边界）"}
     t0 = time.monotonic()
     try:
         chat = make_test_chat(norm, timeout_s)
@@ -251,13 +275,16 @@ def test_connection(p: dict, timeout_s: int = 60) -> dict:
 
 
 def make_test_chat(p: dict, timeout_s: int = 60):
-    """测试连通性专用的最小客户端（不经 make_chat 的退避/备胎——测试要快速如实失败）。"""
+    """测试连通性专用的最小客户端（不经 make_chat 的退避/备胎——测试要快速如实失败）。
+    D1（2026-11-20）：follow_redirects=False 显式锁死（httpx 默认虽为 False，显式
+    声明防升级漂移——重定向会把 POST 凭据带到 3xx 目标地址）。"""
     from langchain_openai import ChatOpenAI
     import httpx
     return ChatOpenAI(
         model=p["model"], api_key=resolve_key(p) or "ollama",
         base_url=p["base_url"], temperature=0, timeout=timeout_s, max_retries=1,
-        max_tokens=64, http_client=httpx.Client(default_encoding="utf-8"))
+        max_tokens=64,
+        http_client=httpx.Client(default_encoding="utf-8", follow_redirects=False))
 
 
 # —————————————————————————— 每节点 LLM 可替换（2026-11-10，任务卡 2 期） ——————————————————————————

@@ -51,6 +51,10 @@ BUILD_CACHE_BINDS = {   # image → [(容器路径, 宿主子目录名)]
     IMAGE_GO: [("/go/pkg/mod", "go-mod"), ("/root/.cache/go-build", "go-build")],
     IMAGE_JAVA: [("/home/tester/.m2", "m2")],
 }
+# D2（2026-11-20 设计方案）：构建缓存可信模式——True=跨任务共享（当前语料全部自选
+# 可信开源仓库，行为与历史一致）；接入不可信仓库时置 False=写缓存按任务隔离
+# （data/build_cache/<sub>/task_<id>/，缓存投毒免疫）。
+BUILD_CACHE_TRUSTED = True
 
 # —— 噪声目录（clone 快照 / 语言统计 / 源码收集共用一份定义） ——
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "vendor", "dist",

@@ -249,18 +249,25 @@ def _php84_needed(ws: Path) -> bool:
     return False
 
 
-def cache_binds_for(image: str) -> dict | None:
+def cache_binds_for(image: str, task_id: int | None = None,
+                    trusted: bool = True) -> dict | None:
     """组装镜像的构建缓存 bind mount（2026-11-15 卡 4，冷缓存家族总解）：
     go126 挂 GOMODCACHE/GOCACHE、jdk17-maven 挂本地 .m2——fresh 重建/跨任务共享
     缓存，二轮构建秒级（1139 gin-master 依赖树 600s 超时×fresh 清零的根治）。
     宿主目录在 data/build_cache/ 下按用途分子目录，缺目录即建。非目标镜像返回
-    None（python/js/php 无构建缓存需求，零行为变化）。"""
+    None（python/js/php 无构建缓存需求，零行为变化）。
+    D2（2026-11-20 设计方案）：trusted=False（不可信仓库模式）时写缓存按任务
+    隔离——data/build_cache/<sub>/task_<id>/（回炉复用同任务，跨任务零共享=
+    缓存投毒免疫）。当前语料全部自选可信开源仓库（默认 trusted=True 行为与历史
+    逐字节一致）；接入不可信仓库时按项目标记传 trusted=False。"""
     pairs = config.BUILD_CACHE_BINDS.get(image)
     if not pairs:
         return None
     binds = {}
     for cpath, sub in pairs:
         host = config.BUILD_CACHE_HOST_DIR / sub
+        if not trusted and task_id is not None:
+            host = host / f"task_{task_id}"
         host.mkdir(parents=True, exist_ok=True)
         binds[str(host)] = {"bind": cpath, "mode": "rw"}
     return binds
@@ -1020,7 +1027,8 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 构建缓存持久化（2026-11-15 卡 4）：go/java 容器挂宿主缓存目录（跨容器/任务
         # 共享，fresh 重建不清零）；cache_binds_for 失败（目录建不了等）→ None 走老路径
         try:
-            volumes = cache_binds_for(image)
+            volumes = cache_binds_for(image, task_id=tid,
+                                      trusted=config.BUILD_CACHE_TRUSTED)
         except Exception as e:      # noqa: BLE001 —— 缓存挂载不引入新失败面
             log.warning("构建缓存挂载组装失败（%s: %s），跳过", type(e).__name__, e)
             volumes = None

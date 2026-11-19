@@ -17,10 +17,17 @@ _CASE_INSENSITIVE_HOSTS = {"github.com", "www.github.com", "gitlab.com", "bitbuc
 
 
 def normalize_repo_key(src: str) -> str:
-    """把 repo_url / 本地路径归一成稳定项目键（同源不同写法 → 同一个 key）。"""
+    """把 repo_url / 本地路径归一成稳定项目键（同源不同写法 → 同一个 key）。
+    D3（2026-11-20 设计方案）：纯语法分类先行——UNC（\\\\server\\share 或 //server/share）
+    与设备路径在触碰文件系统之前拒绝（Windows UNC 的 isdir/resolve 会发起网络认证
+    访问=确认前即可触发宿主网络路径；设备路径 \\\\.\\ 直接拒）。"""
     s = (src or "").strip()
     if not s:
         return "local:"
+    if s.startswith(("\\\\", "//")):
+        raise ValueError(
+            "UNC 网络路径不受支持（D3 本地安全边界：路径解析会触发网络访问）——"
+            "请使用本地目录或 http(s) 仓库 URL")
     looks_path = (
         os.path.isdir(s) or s.startswith(("/", "\\")) or s.startswith("~")
         or re.match(r"^[A-Za-z]:[\\/]", s) or s.startswith(".\\") or s.startswith("../")

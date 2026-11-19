@@ -232,12 +232,16 @@ def api_create_task(body: dict, user: dict = Depends(current_user)):  # 调用�
     # 280 任务散在几十个单任务组里——列表分组失去意义）；
     # 写连接用 write_conn（安全审计实锤：连接不 close 时 500 悬挂持锁雪崩）
     from ..store.projects import ensure_project
-    with write_conn() as conn:
-        pid, name, _created = ensure_project(conn, user["user_id"], repo_url)
-        tid = conn.execute(
-            """INSERT INTO test_tasks(project_id, user_id, requirement_text, auto_prepare,
-                                      two_stage, ai_reviewer) VALUES (?,?,?,?,?,?)""",
-            (pid, user["user_id"], requirement, auto_prepare, two_stage, ai_reviewer)).lastrowid
+    try:
+        with write_conn() as conn:
+            pid, name, _created = ensure_project(conn, user["user_id"], repo_url)
+            tid = conn.execute(
+                """INSERT INTO test_tasks(project_id, user_id, requirement_text, auto_prepare,
+                                          two_stage, ai_reviewer) VALUES (?,?,?,?,?,?)""",
+                (pid, user["user_id"], requirement, auto_prepare, two_stage, ai_reviewer)).lastrowid
+    except ValueError as e:
+        # D3（2026-11-20）：UNC/设备路径等语法拒绝转 400（原样 500 不友好且语义错）
+        raise HTTPException(400, str(e))
     return {"task_id": tid, "project_name": name}
 
 
@@ -1274,9 +1278,16 @@ def api_set_llm_profile(body: dict, user: dict = Depends(admin)):
 
 @app.post("/api/llm-profile/test")
 def api_test_llm_profile(body: dict, user: dict = Depends(staff)):
-    """连通性测试：body 可带临时 profile（不落库）。返回 {ok, latency_ms, reply|error}。"""
-    from ..skills.llm_profile import test_connection
-    return test_connection(body or {})
+    """连通性测试：body 可带临时 profile（不落库）。返回 {ok, latency_ms, reply|error}。
+    D1（2026-11-20）：base_url 白名单=已登记 profile（admin 登记）+ 预设端点——
+    staff 可测试但不可登记，临时 profile 禁止向未登记地址发送凭据。"""
+    from ..skills.llm_profile import known_base_urls, test_connection
+    conn = get_conn()
+    try:
+        allowed = known_base_urls(conn)
+    finally:
+        conn.close()
+    return test_connection(body or {}, allowed_base_urls=allowed)
 
 
 # ---------- 每节点 LLM 可替换（2026-11-10 任务卡 2 期：phase 组 → profile 路由） ----------
