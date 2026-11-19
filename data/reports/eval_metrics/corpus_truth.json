@@ -1,0 +1,49 @@
+{
+  "_说明": "语料真值 manifest（初版 2026-11-15，随语料补充）。languages=项目名→真值主语言；clean=无埋缺陷干净语料（误报率分母）；gt_defects=已知埋缺陷数（检出率 GT 分母）。【C3 口径注（2026-11-20，Qoder 体检实验-a）】clean=「无人为埋缺陷」≠「确认无缺陷」；\n误报率分母=clean 语料上终态任务数（本轮 2/17，4 项目，分母<30 只报计数勿引比率）；\n快照版本未逐项登记（GT 扩建时补：每语料 commit/快照 id+逐项裁决依据）。",
+  "languages": {
+    "L2场景-coupon-api": "python",
+    "coupon-api": "python",
+    "js-calc": "javascript",
+    "js-api-book": "javascript",
+    "ts-calc": "typescript",
+    "java-api-book": "java",
+    "java-shop": "java",
+    "php-api-book": "php",
+    "php-shop": "php",
+    "go-api-book": "go",
+    "go-shop": "go",
+    "db-shop": "python",
+    "gin-master": "go",
+    "ginS-master": "go",
+    "pocketbase": "go",
+    "go-rest-api-master": "go",
+    "petclinic": "java",
+    "demo-main": "php",
+    "wordpress-develop-trunk": "php",
+    "wcwidth": "python",
+    "tenacity": "python",
+    "corpus-002": "python",
+    "corpus-003": "python",
+    "questionforge": "javascript",
+    "php": "php",
+    "php f2_stage0": "php"
+  },
+  "clean": [
+    "L2场景-coupon-api",
+    "php-api-book",
+    "java-api-book",
+    "db-shop",
+    "multi-module-demo"
+  ],
+  "gt_defects": {
+    "js-calc": 1,
+    "ts-calc": 1,
+    "go-api-book": 1,
+    "corpus-003": 5,
+    "go-rest-api-master": 5,
+    "py-tqdm-bug9": 1,
+    "go-shop": 1,
+    "php-shop": 1
+  },
+  "_复核说明": "2026-11-16 人工定性：18 格疑似缺陷 8 格=7 真检出（源码埋缺陷注释实锤）+1 误报（multi-module-demo max_items 需求极薄用例猜预期）——精确率 87.5%"
+}

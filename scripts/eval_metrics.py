@@ -131,6 +131,11 @@ def aggregate(rows: list[dict]) -> dict:
         hit = sum(1 for r in marked if r[key] == 1 or r[key] is True)
         return round(hit / len(marked), 4) if marked else None
     env_rows = rows            # 全部终态任务作分母（未进入执行=环境失败的同义）
+    # C3（2026-11-20 设计方案）：误报率输出计数形态——分子/分母明示，分母 <30 禁用
+    # 纯比率（Qoder 体检实验-a：overall 0.1176 实为 2/17 仅 4 项目，比率掩盖分母过小；
+    # 且 detected=疑似产品缺陷标签 ≠ 缺陷级真阳性，口径注随行输出）
+    _fp_num = sum(1 for r in rows if r.get("clean_fp"))
+    _fp_den = sum(1 for r in rows if "clean_fp" in r)
     return {
         "n_tasks": len(rows),
         "识别准确率": frac("id_hit") if any("id_hit" in r for r in rows) else None,
@@ -140,8 +145,10 @@ def aggregate(rows: list[dict]) -> dict:
                                 for r in rows]),
         "检出率_GT": (sum(1 for r in rows if r.get("gt_hit")) /
                      sum(1 for r in rows if "gt_hit" in r)) if any("gt_hit" in r for r in rows) else None,
-        "误报率_干净语料": (sum(1 for r in rows if r.get("clean_fp")) /
-                          sum(1 for r in rows if "clean_fp" in r)) if any("clean_fp" in r for r in rows) else None,
+        "误报率_干净语料": (round(_fp_num / _fp_den, 4) if _fp_den else None),
+        "误报率_计数": (f"{_fp_num}/{_fp_den}"
+                       + ("（分母<30：只报计数勿引比率；detected=疑似产品缺陷标签≠缺陷级真阳性）"
+                          if 0 < _fp_den < 30 else "")) if _fp_den else None,
         "平均覆盖率": _avg([r["coverage"] for r in rows]),
         "平均耗时分钟": _avg([r.get("minutes") for r in rows]),
         "总Token": sum(r["tokens"] for r in rows),
@@ -152,7 +159,7 @@ def render_md(overall: dict, by_lang: dict, rows: list[dict]) -> str:
     lines = ["# 八指标评测聚合（自动生成 scripts/eval_metrics.py）", "",
              f"- 任务集：{overall['n_tasks']} 个终态任务；口径注释见脚本 docstring", ""]
     langs = ["识别准确率", "环境构建成功率", "生成成功率", "AI用例执行覆盖", "检出率_GT",
-             "误报率_干净语料", "平均覆盖率", "平均耗时分钟", "总Token"]
+             "误报率_干净语料", "误报率_计数", "平均覆盖率", "平均耗时分钟", "总Token"]
     lines.append("| 语言 | n | " + " | ".join(langs) + " |")
     lines.append("|---|---|" + "---|" * len(langs))
     def _v(x):
