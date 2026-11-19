@@ -193,8 +193,24 @@ class QueueWorker:
             ).fetchone()
             if not row:
                 return False
-            conn.execute("UPDATE exec_queue SET status='running', started_at=datetime('now')"
-                         " WHERE id=?", (row["id"],))
+            # A4 取消竞态收敛（2026-11-20 设计方案，Qoder 体检论断 5）：认领与取消
+            # 在同一套事务规则下判定谁先成功——三道闸。
+            # ①队列行条件更新：stop 先取消（行已 cancelled）则认领失败，不执行。
+            # 修复前无条件 UPDATE 会把 stop 刚取消的行改回 running。
+            cur = conn.execute("UPDATE exec_queue SET status='running', started_at=datetime('now')"
+                               " WHERE id=? AND status='queued'", (row["id"],))
+            if cur.rowcount == 0:
+                conn.commit()
+                return True   # 该行已被取消，下一轮取后续行
+            # ②任务状态守卫：任务已 cancelled 则队列行如实回写 cancelled 跳过执行
+            # （修复前窗口：队列行 running 而任务 queued，stop 清不到队列行，worker 照跑）
+            ts = conn.execute("SELECT status FROM test_tasks WHERE id=?",
+                              (row["task_id"],)).fetchone()
+            if ts and ts["status"] == "cancelled":
+                conn.execute("UPDATE exec_queue SET status='cancelled', finished_at=datetime('now'),"
+                             " error='任务已取消（认领守卫拦截）' WHERE id=?", (row["id"],))
+                conn.commit()
+                return True
             conn.commit()
         finally:
             conn.close()

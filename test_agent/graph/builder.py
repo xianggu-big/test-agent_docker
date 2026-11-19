@@ -142,23 +142,33 @@ def build_exec_graph(deps: GraphDeps):
 
 
 def run_task(task_id: int) -> dict:
-    """端到端入口：确认门 → 组图 → 执行 → 返回终态。容器无论成败一律回收。"""
-    deps = make_deps()
-    conn = deps.conn
-    task = conn.execute(
-        """SELECT t.requirement_text, t.confirmed, t.auto_prepare, p.repo_url
+    """端到端入口：确认门 → 组图 → 执行 → 返回终态。容器无论成败一律回收。
+    守卫走临时短连接（A4 2026-11-20：拒绝路径零 Docker/注册表开销，与 prep/exec 同款）。"""
+    guard = get_conn()
+    task = guard.execute(
+        """SELECT t.requirement_text, t.confirmed, t.status, t.auto_prepare, p.repo_url
            FROM test_tasks t JOIN projects p ON p.id = t.project_id
            WHERE t.id = ?""", (task_id,)).fetchone()
     if not task:
+        guard.close()
         raise ValueError(f"任务 {task_id} 不存在")
     if task["confirmed"] != 1:
+        guard.close()
         raise RuntimeError("任务未确认（confirmed=0），禁止下发执行 —— fail-closed 确认门")
+    if task["status"] == "cancelled":
+        guard.close()
+        raise RuntimeError("任务已取消，禁止执行（A4 取消竞态守卫）——如需重跑请重新下发")
+    guard.close()
+
+    deps = make_deps()
+    conn = deps.conn
 
     # A4：抢占式置位乐观锁——任务已在执行链路中时拒绝并发下发
+    # （A4 2026-11-20：排除表补 cancelled——修复前已取消任务可被锁放行=取消后复活）
     lock = conn.execute(
         """UPDATE test_tasks SET status='cloning', updated_at=datetime('now')
            WHERE id=? AND status NOT IN ('cloning','analyzing','provisioning',
-                                         'generating','running','reporting')""",
+                                         'generating','running','reporting','cancelled')""",
         (task_id,))
     conn.commit()
     if lock.rowcount == 0:
@@ -283,11 +293,15 @@ def run_task_prep(task_id: int) -> dict:
     if task["confirmed"] != 1:
         guard.close()
         raise RuntimeError("任务未确认（confirmed=0），禁止启动阶段一 —— fail-closed 确认门")
-    # A4 同款乐观锁：执行链路中拒绝并发；准备阶段可从 queued/failed/cancelled/ready_for_review 重启
+    if task["status"] == "cancelled":
+        guard.close()
+        raise RuntimeError("任务已取消，禁止执行（A4 取消竞态守卫）——如需重跑请重新下发")
+    # A4 同款乐观锁：执行链路中拒绝并发；准备阶段可从 queued/failed/ready_for_review 重启
+    # （A4 2026-11-20：排除表补 cancelled——修复前已取消任务可被锁放行=取消后复活）
     lock = guard.execute(
         """UPDATE test_tasks SET status='cloning', updated_at=datetime('now')
            WHERE id=? AND status NOT IN ('cloning','analyzing','provisioning',
-                                         'generating','running','reporting')""", (task_id,))
+                                         'generating','running','reporting','cancelled')""", (task_id,))
     guard.commit()
     if lock.rowcount == 0:
         guard.close()
