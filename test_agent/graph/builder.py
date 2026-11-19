@@ -538,9 +538,12 @@ def post_prep_review_hook(task_id: int) -> None:
         deps_conn = get_conn()   # 2026-11-08 锁循环实锤：D2 循环连接必须显式 close
         try:                     # （原实现丢弃引用=悬挂连接带事务锁全进程）
             deps = SimpleNamespace(conn=deps_conn, runner=SandboxRunner())
-            _auto_review_loop(deps, task_id)
-            if conn.execute("SELECT status FROM test_tasks WHERE id=?",
-                            (task_id,)).fetchone()["status"] == "ready_for_review":
+            # A1 放行门：只凭循环返回的 outcome 放行——fail-closed 分支终态同为
+            # ready_for_review，任务状态区分不了"收敛"与"交人工"（2026-11-20 体检论断 1）
+            loop_result = _auto_review_loop(deps, task_id)
+            if (loop_result.get("outcome") == "converged"
+                    and conn.execute("SELECT status FROM test_tasks WHERE id=?",
+                                     (task_id,)).fetchone()["status"] == "ready_for_review"):
                 from ..store.queue import QueueWorker   # 函数内延迟 import 防循环
                 QueueWorker.enqueue(task_id, "exec")
                 _reviewer_msg(conn, task_id, "[ai-review] D2 收敛，已自动入队阶段二")
@@ -561,17 +564,21 @@ def _reviewer_msg(conn, task_id: int, content: str) -> None:
     conn.commit()
 
 
-def _auto_review_loop(deps: GraphDeps, task_id: int) -> None:
+def _auto_review_loop(deps: GraphDeps, task_id: int) -> dict:
     """auto 模式 D2 代审循环：审查 →（有 regenerate/insert 决策）→ 增补 → 再审 →
     收敛或预算（AI_REVIEWER_MAX_ROUNDS 轮 / token 停车线）耗尽。
-    fail-closed：任何失败/不可解析/超线分支都停在 ready_for_review 交人工，绝不自动放行。"""
+    fail-closed：任何失败/不可解析/超线分支都停在 ready_for_review 交人工。
+
+    返回 {"outcome": "converged"|"fail_closed", "reason": str}（A1 放行门，2026-11-20
+    Qoder 体检论断 1：fail-closed 终态与收敛终态同为 ready_for_review，状态不可区分——
+    调用方必须凭本返回值决定是否放行，不得再拿任务状态猜审查结论）。"""
     from ..skills.ai_reviewer import reviewer_llm, run_review_once, token_budget_exceeded
     conn = deps.conn
     llm = reviewer_llm()
     for round_no in range(1, config.AI_REVIEWER_MAX_ROUNDS + 1):
         if token_budget_exceeded(conn, task_id):
             _reviewer_msg(conn, task_id, "[ai-review] token 停车线触顶，停在待审查交人工（fail-closed）")
-            return
+            return {"outcome": "fail_closed", "reason": "token 停车线触顶"}
         try:
             summary = run_review_once(llm, conn, task_id, round_no=round_no)
         except Exception as e:  # noqa: BLE001 —— 代审自身失败绝不炸链路，交人工
@@ -582,30 +589,31 @@ def _auto_review_loop(deps: GraphDeps, task_id: int) -> None:
                 pass
             _reviewer_msg(conn, task_id,
                           f"[ai-review] 代审调用失败（{type(e).__name__}），停在待审查交人工")
-            return
+            return {"outcome": "fail_closed", "reason": f"代审调用失败（{type(e).__name__}）"}
         if summary is None:
             _reviewer_msg(conn, task_id, "[ai-review] 代审输出不可解析，停在待审查交人工（fail-closed）")
-            return
+            return {"outcome": "fail_closed", "reason": "代审输出不可解析"}
         fbs = [t for t in (summary.get("feedback_texts") or []) if t]
         if not fbs:
             _reviewer_msg(conn, task_id,
                           f"[ai-review] 第{round_no}轮代审收敛：通过{summary.get('approved', 0)}"
                           f" 删除{summary.get('deleted', 0)} 增补{summary.get('inserted', 0)}，放行阶段二")
-            return
+            return {"outcome": "converged", "reason": f"第{round_no}轮代审收敛"}
         text = "；".join(fbs)[:1500]
         try:
             fb = run_feedback_round(task_id, text, runner=deps.runner)
         except Exception as e:  # noqa: BLE001 —— 增补失败不自动放行
             _reviewer_msg(conn, task_id,
                           f"[ai-review] 增补失败（{type(e).__name__}: {e}），停在待审查交人工")
-            return
+            return {"outcome": "fail_closed", "reason": f"增补失败（{type(e).__name__}）"}
         _reviewer_msg(conn, task_id,
                       f"[ai-review] 第{round_no}轮按决策增补 {fb.get('generated', 0)} 条"
                       f"（反馈：{text[:120]}）")
         if not fb.get("generated"):
             _reviewer_msg(conn, task_id, "[ai-review] 增补 0 条（闸门剔除或不可解析），停在待审查交人工")
-            return
+            return {"outcome": "fail_closed", "reason": "增补 0 条（闸门剔除或不可解析）"}
     _reviewer_msg(conn, task_id, "[ai-review] 代审轮次预算耗尽，停在待审查交人工（fail-closed）")
+    return {"outcome": "fail_closed", "reason": "代审轮次预算耗尽"}
 
 
 def run_task_auto(task_id: int) -> dict:
@@ -653,7 +661,10 @@ def run_task_auto(task_id: int) -> dict:
             (session_id,))
         conn.commit()
         run_task_prep(task_id)
-    _auto_review_loop(deps, task_id)
+    # A1 放行门：只凭 outcome 放行（状态检查保留为双保险）
+    loop_result = _auto_review_loop(deps, task_id)
+    if loop_result.get("outcome") != "converged":
+        return {"task_id": task_id, "stage": "D2", "stopped": "fail_closed"}
     row = conn.execute("SELECT status FROM test_tasks WHERE id=?", (task_id,)).fetchone()
     if row["status"] != "ready_for_review":
         return {"task_id": task_id, "stage": "D2", "stopped": "fail_closed"}

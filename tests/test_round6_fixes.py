@@ -180,12 +180,19 @@ def test_d1_approve_closes_session(tmp_path, monkeypatch):
                     (pid, uid)).lastrowid
     c.commit()
     from test_agent.graph import builder
+    # 零 Docker 纪律（2026-11-20）：run_task_auto :624 make_deps 构造 SandboxRunner
+    # 会探活 daemon——Docker 未启动时此测试环境性失败，patch 掉
+    monkeypatch.setattr(builder, "make_deps",
+                        lambda: types.SimpleNamespace(conn=db.get_conn(),
+                                                      runner=_FakeRunner()))
     # reviewer_llm/run_d1_review 是 run_task_auto 内的局部 import——补丁源模块
     monkeypatch.setattr("test_agent.skills.ai_reviewer.reviewer_llm", lambda: object())
     monkeypatch.setattr("test_agent.skills.ai_reviewer.run_d1_review",
                         lambda llm, conn, t, req, repo: {"decision": "approve", "reason": "ok"})
     monkeypatch.setattr(builder, "run_task_prep", lambda t: {})
-    monkeypatch.setattr(builder, "_auto_review_loop", lambda deps, t: None)
+    # A1 放行门契约：循环返回 outcome dict（None 会判 fail_closed 提前 return）
+    monkeypatch.setattr(builder, "_auto_review_loop",
+                        lambda deps, t: {"outcome": "converged", "reason": ""})
     builder.run_task_auto(tid)
     row = c.execute(
         "SELECT COUNT(*) AS n FROM agent_sessions WHERE task_id=? AND ended_at IS NULL",
