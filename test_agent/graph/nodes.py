@@ -1046,7 +1046,7 @@ def make_nodes(deps: GraphDeps) -> dict:
                                       language=primary, conn=conn, task_id=tid,
                                       flags={"l2": config.L2_BLACKBOX_ENABLED,
                                              "l3": config.LEVELS_L3_ENABLED,
-                                             "l4": config.LEVELS_L3_ENABLED})
+                                             "l4": config.LEVELS_L4_ENABLED})
                 sel = plan_map["selected_ids"]
                 msg(state["session_id"], "assistant",
                     f"[router] 路线编排（期 A）：候选 {len(plan_map['routes'])} 条，"
@@ -1286,6 +1286,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             "module_id": state.get("module_id"),
             "index_scope_paths": state.get("index_scope_paths") or [],
             "endpoint_gaps": state.get("index_endpoint_gaps") or [],
+            "agent_diagnosis": state.get("agent_diagnosis"),
             "coverage_gaps": (state.get("per_file") or [])
                              if config.COVERAGE_FEEDBACK_ENABLED else [],  # ①缺口回灌（V4 开关）
             "coverage_target": state.get("coverage_target"),
@@ -1822,7 +1823,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                            ("user", build_plan_prompt(requirement,
                                                       hotspots=state.get("complexity_hotspots"),
                                                       source_modules=src_outline,
-                                                      understanding=understanding))])
+                                                      understanding=understanding,
+                                                      agent_strategy=state.get("agent_strategy")))])
         log_llm_call(tid, "plan", resp,
                      ctx_budget=getattr(llm, "_ctx_budget", None),
                      base_url=getattr(llm, "_base_url", ""))

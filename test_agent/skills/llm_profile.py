@@ -308,6 +308,10 @@ PHASE_GROUPS: dict[str, list[str]] = {
     "l2": ["L2.gen_requirement"],
     "l3": ["l3_gen_scenarios"],
     "l4": ["l4_gen_scenarios"],
+    # Agent Loop（2026-11-20 设计稿包 3；V5 坑预防——新 phase 不显式落组会静默走
+    # default 档：map_requirements :247 同族第三起的风险。routing 默认空=三 phase
+    # 走 default 档行为不变，llm-routing 页可独立调档）
+    "agent_loop": ["agent_loop", "agent_strategy", "agent_diagnose"],
 }
 _RAW_TO_GROUP: dict[str, str] = {raw: g for g, raws in PHASE_GROUPS.items() for raw in raws}
 

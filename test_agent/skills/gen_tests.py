@@ -1825,6 +1825,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   sut_functions=sut_manifest,
                                                   sut_mismatch=sut_mismatch,
                                                   endpoint_gaps=(args.get("endpoint_gaps") or None),
+                                                  agent_diagnosis=(args.get("agent_diagnosis") or None),
                                                   ctx_budget=getattr(llm, "_ctx_budget", None)))])
     log_llm_call(task_id, phase, resp,
                  ctx_budget=getattr(llm, "_ctx_budget", None),

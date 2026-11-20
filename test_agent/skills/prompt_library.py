@@ -136,7 +136,8 @@ def build_regen_prompt(sources: list[tuple[str, str]], requirement: str,
 
 def build_plan_prompt(requirement: str, hotspots: list[dict] | None = None,
                       source_modules: list[str] | None = None,
-                      understanding: dict | None = None) -> str:
+                      understanding: dict | None = None,
+                      agent_strategy: dict | None = None) -> str:
     """hotspots: W4 圈复杂度热点（radon 实测）——控制流密集函数提示设计方法倾斜。
     source_modules: 被测源码结构清单（BREADTH 广度采样，config.BREADTH_SAMPLING_ENABLED）；
     understanding: 需求理解层产物（UNDERSTAND_ENABLED，任意形态输入的提炼产物）——
@@ -166,7 +167,7 @@ def build_plan_prompt(requirement: str, hotspots: list[dict] | None = None,
         und_text = render_understanding(understanding)
     return f"""## 用户需求
 {requirement}
-{hot_text}{src_text}{und_text}
+{hot_text}{src_text}{und_text}{_agent_strategy_section(agent_strategy)}
 ## 任务
 把需求拆解为可验证的测试条件：每条是单一行为陈述、可通过测试证伪；标注优先级（高/中/低）
 与建议的用例设计方法（等价类划分/边界值分析/判定表/语句分支覆盖/错误推测法）。
@@ -469,6 +470,93 @@ def _endpoint_gap_section(endpoint_gaps: list[str] | None) -> str:
             "禁止虚构清单外端点）")
 
 
+# ==================== Agent Loop 提示词（2026-11-20 设计稿 §3.7；实施附录件 3 v0） ====================
+
+AGENT_DECIDE_SYSTEM = """你是测试 Agent 的决策器。你只能输出一个 JSON 对象，两种形态之一。
+
+## 形态一：调用一个能力
+{"action": "call", "capability": "<菜单中的 id>", "args": {…},
+ "reason": "一句话：为什么现在调用它"}
+
+## 形态二：结束循环
+{"action": "finish", "summary": "≤200 字总结已获得的证据与剩余缺口"
+ {mode_extra_key}}
+
+## 硬约束
+1. capability 必须来自菜单，args 必须符合该能力的参数说明（未知键会被拒绝）。
+2. 同一个动作（能力+参数完全相同）重复出现会被平台停止。
+3. 连续被拒绝说明你越出了权限，换目标而不是换姿势重试。
+4. 你的结论必须引用证据（近期证据列表），没有证据支撑的判断不要下。
+5. 你不能修改被测产品代码、不能写任务终态、不能放宽断言——这些平台会硬拒绝。"""
+
+AGENT_STRATEGY_FINISH_KEY = (
+    '，并附 "strategy": {"priorities": [{"order": 1, "capability_id": "...", '
+    '"why": "一句话理由", "args_hint": {}}], "evidence_plan": ["每个优先项期望的证据"], '
+    '"fallback": "预算耗尽时的降级路线（一句话）"}')
+
+AGENT_DIAGNOSE_FINISH_KEY = (
+    '，并附 "diagnosis": {"kind": "scaffold_error|env_error|product_defect|'
+    'expectation_dispute", "confidence": "high|medium|low", "evidence_refs": [序号], '
+    '"reason": "一句话归因", "suggested_action": "generate|scaffold_fix|env_fix|'
+    'report_human 之一"}')
+
+# 分类定义与证据纪律（diagnose 系统段——对齐 arXiv:2611.13395 失败复现分类学措辞）
+AGENT_DIAGNOSE_DISCIPLINE = """
+## 分类定义（与证据严格对应，不许凭感觉）
+- scaffold_error：导入路径/脚手架/文件布局错（如 Cannot find module、收集失败）
+- env_error：依赖缺失/服务未起/连接拒绝（如 ECONNREFUSED、ModuleNotFoundError 第三方包）
+- product_defect：被测代码行为与需求预期不符，且用例有真实依据（expected_basis）
+- expectation_dispute：用例预期本身存疑（迁就/自证/依据不足）
+
+## 纪律
+1. 每个结论必须引用至少一条证据（引用近期证据的 step 序号）。
+2. 证据不足时 confidence 用 "low"，宁可不确定也不硬猜。
+3. 你不能修改任何文件，不能重跑测试，只能读证据。
+若诊断为疑似产品缺陷，后续生成将被要求"照常如实断言预期，不得迁就当前行为"。"""
+
+
+def build_agent_decide_system(mode: str) -> str:
+    """DECIDE 系统提示词：strategy/diagnose 两模式在 finish 形态附不同产物键。"""
+    extra = (AGENT_STRATEGY_FINISH_KEY if mode == "strategy"
+             else AGENT_DIAGNOSE_FINISH_KEY)
+    text = AGENT_DECIDE_SYSTEM.replace("{mode_extra_key}", extra)
+    if mode == "diagnose":
+        text += AGENT_DIAGNOSE_DISCIPLINE
+    return text
+
+
+def _agent_strategy_section(strategy: dict | None) -> str:
+    """strategy 产物注入 plan 提示词（设计稿 §3.7）。无策略=空串，输出逐字节不变
+    （_endpoint_gap_section 同款纪律）。信息提供而非行为指令——测试条件仍锚真值清单。"""
+    if not strategy:
+        return ""
+    lines = ["\n\n## 测试策略建议（Agent 策略节点产出，供参考——测试条件仍必须锚真值清单）"]
+    for p in (strategy.get("priorities") or [])[:5]:
+        lines.append(f"- {p.get('order')}. {p.get('capability_id')}：{p.get('why')}")
+    fb = strategy.get("fallback")
+    if fb:
+        lines.append(f"- 降级路线：{fb}")
+    return "\n".join(lines)
+
+
+def _agent_diagnosis_section(diagnosis: dict | None) -> str:
+    """diagnose 产物注入 generate 提示词（"## 上一轮失败诊断"）。空=空串。
+    信息提供而非行为指令（防御矩阵第一原则）——product_defect 分支显式写
+    "不得迁就"，防诊断反而诱导迁就。"""
+    if not diagnosis:
+        return ""
+    kind_map = {"scaffold_error": "脚手架/布局问题", "env_error": "环境问题",
+                "product_defect": "疑似产品缺陷（证人纪律照常）",
+                "expectation_dispute": "用例预期存疑"}
+    kind = kind_map.get(diagnosis.get("kind"), str(diagnosis.get("kind")))
+    return (f"\n\n## 上一轮失败诊断（Agent 诊断节点产出，供参考）\n"
+            f"上一轮失败最可能原因：{kind}（置信 {diagnosis.get('confidence')}，"
+            f"依据：{str(diagnosis.get('reason'))[:200]}）。\n"
+            f"建议动作：{diagnosis.get('suggested_action')}。\n"
+            "若诊断为疑似产品缺陷：本轮用例照常如实断言预期，**不得迁就当前行为**；"
+            "若诊断为脚手架/环境问题：修正对应形态，不要改断言预期。")
+
+
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
                       coverage_target: float | None = None,
@@ -493,6 +581,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       sut_functions: list[str] | None = None,
                       sut_mismatch: str | None = None,
                       endpoint_gaps: list[str] | None = None,
+                      agent_diagnosis: dict | None = None,
                       layer_aware: bool = False,
                       ctx_budget: int | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
@@ -846,7 +935,7 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "expected": "预期输出/状态变化",
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
     "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
-        return lean + _endpoint_gap_section(endpoint_gaps)
+        return lean + _endpoint_gap_section(endpoint_gaps)             + _agent_diagnosis_section(agent_diagnosis)
 
     final_prompt = f"""## 被测源码
 {src_text}
@@ -876,7 +965,7 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
 
     if endpoint_gaps:
-        final_prompt += _endpoint_gap_section(endpoint_gaps)
+        final_prompt += _endpoint_gap_section(endpoint_gaps)             + _agent_diagnosis_section(agent_diagnosis)
     _markers = [("## 用例设计方法", "## 输出格式"),
                 ("## 上一轮覆盖缺口", "## 用例设计方法"),
                 ("## 端点缺口补测", "## 输出格式"),

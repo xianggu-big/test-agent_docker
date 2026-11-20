@@ -204,6 +204,20 @@ INDEX_L2_RESCUE_ENABLED = _flag("MTA_INDEX_L2_RESCUE", True)
 # （旧行为逐字节不变）
 GO_STATIC_ENABLED = _flag("MTA_GO_STATIC", False)
 
+# —— Agent Loop 决策循环（2026-11-20 设计稿 docs/设计方案-AgentLoop文件级实施设计-20261120.md
+#    包 1；默认关=图/提示词/库行为逐字节不变——关态有 compile 期节点集合断言锁） ——
+# 定位=固定图拓扑内的节点内有界决策循环（开题口径"LLM 规划作为节点产物而非流程控制"：
+# 模型永不决定节点间流转，只决定节点内调哪个能力）。D3 拍板预算默认值 8 步/30k tok/600s。
+AGENT_LOOP_ENABLED = _flag("MTA_AGENT_LOOP", False)
+AGENT_LOOP_MAX_STEPS = int(os.environ.get("MTA_AGENT_LOOP_STEPS", "8") or 8)
+AGENT_LOOP_MAX_TOKENS = int(os.environ.get("MTA_AGENT_LOOP_TOKENS", "30000") or 30000)
+AGENT_LOOP_MAX_SECONDS = int(os.environ.get("MTA_AGENT_LOOP_SECONDS", "600") or 600)
+AGENT_LOOP_DIAG_STEPS = int(os.environ.get("MTA_AGENT_LOOP_DIAG_STEPS", "3") or 3)
+AGENT_LOOP_DIAG_MAX_ROUNDS = int(os.environ.get("MTA_AGENT_LOOP_DIAG_ROUNDS", "2") or 2)
+# V4（宏观稿附录 B 对码实锤 nodes.py:1049 l4 误用 L3 开关）：独立 L4 开关，
+# 默认 False=现状逐字节不变（此前 l4 路线随 LEVELS_L3_ENABLED 联动）
+LEVELS_L4_ENABLED = _flag("MTA_LEVELS_L4", False)
+
 # 连接探针（2026-11-08 655/656 锁循环诊断：未提交事务悬挂持锁的运行时定位器，
 # 后台线程周期点名 in_transaction 连接的创建栈；默认关=零行为变化）
 CONN_PROBE_ENABLED = _flag("MTA_CONN_PROBE", False)

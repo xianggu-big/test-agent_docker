@@ -799,7 +799,32 @@ def api_verify_fix(tid: int, user: dict = Depends(staff)):
                     "执行完成后按缺陷组签名出 fail-to-pass 三态判定"}
 
 
-@app.post("/api/tasks/{tid}/verify-restore")
+@app.get("/api/tasks/{tid}/agent-loop")
+def api_agent_loop(tid: int, user: dict = Depends(current_user)):
+    """Agent 决策轨迹（2026-11-20 设计稿包 3）：strategy/diagnose 循环的步数/
+    证据/拒绝留痕——数据源=agent_evidence（state 落库副本的消费靠任务行回读
+    agent_messages 轨迹）+ skill_invocations（capabilities 经 registry.invoke 审计）+
+    llm_calls（agent_* phase）。旗标关/无轨迹=诚实空态。"""
+    conn = get_conn()
+    _task_or_404(conn, tid)
+    invocations = [dict(r) for r in conn.execute(
+        """SELECT si.id, si.skill_id, s.name AS skill, si.args_json, si.status,
+                  si.duration_ms, si.error, si.created_at
+           FROM skill_invocations si JOIN skills s ON s.id=si.skill_id
+           WHERE si.task_id=? AND s.name LIKE 'test.%' ORDER BY si.id""", (tid,))]
+    llm_rows = [dict(r) for r in conn.execute(
+        """SELECT phase, model, prompt_tokens, completion_tokens, created_at
+           FROM llm_calls WHERE task_id=? AND phase LIKE 'agent%' ORDER BY id""", (tid,))]
+    trace_lines = [dict(r) for r in conn.execute(
+        """SELECT m.content FROM agent_messages m
+           JOIN agent_sessions s ON s.id=m.session_id
+           WHERE s.task_id=? AND (m.content LIKE '[strategy]%' OR m.content LIKE '[diagnose]%')
+           ORDER BY m.id""", (tid,))]
+    enabled = bool(getattr(config, "AGENT_LOOP_ENABLED", False))
+    return {"agent_loop_enabled": enabled,
+            "invocations": invocations, "llm_calls": llm_rows,
+            "trace": trace_lines,
+            "note": "步数/证据细节见 agent_messages 的 [strategy]/[diagnose] 与 artifacts 目录"}
 def api_verify_restore(tid: int, user: dict = Depends(staff)):
     """0-A 恢复端点（2026-11-20 设计稿 §2.1）：从冻结快照逐字节恢复工作区用例文件。
     人工触发（恢复是治理动作不是 Agent 动作）；不自动改库——DB 漂移由整体指纹

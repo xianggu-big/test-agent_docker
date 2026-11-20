@@ -61,4 +61,18 @@ class TaskState(TypedDict, total=False):
                              # 必须声明：LangGraph 会过滤未声明键，rebuild 静默死代码教训）
     verify_mode: int         # A2 验证任务冻结（2026-11-20）：1=执行图禁生成/剪除/重写/回炉
                              # （必须声明：未声明键被 LangGraph schema 过滤=366 教训）
+    # —— Agent Loop 九字段（2026-11-20 设计稿 §3.7；MTA_AGENT_LOOP 默认关。
+    #    必须声明：未声明键被 LangGraph schema 过滤=366/two_stage_rebuild 双重实锤） ——
+    agent_loop_enabled: bool         # builder init 注入（旗标开且非 static 才进 strategy 节点）
+    agent_strategy: dict             # strategy 节点产物（priorities/capability_plan/fallback）
+                                     # ——"节点产物而非流程控制"的实体：plan 只读作上下文
+    agent_steps: int                 # 已用决策步数（strategy+diagnose 合计，预算共享）
+    agent_budget: dict               # {max_steps,max_tokens,max_seconds,used_tokens,used_seconds}
+    agent_evidence: list[dict]       # 证据引用（kind/path/sha256/summary）——不存原始大文本
+    agent_diagnosis: dict            # diagnose 产物（kind/evidence_refs/suggested_action/
+                                     # confidence）——只注入提示词，永不写 verdict
+    agent_capability_grants: list[str]  # 本任务获批能力 id 清单（MVP=菜单全集；包 2 起接目录 grant）
+    agent_plugin_requests: list[dict]   # 能力缺口申请（阶段 2 写入方；先声明防 schema 二次改动）
+    agent_loop_stop: str             # goal_met/budget/no_new_evidence/repeated_action/
+                                     # policy_deadlock/hard_error
     done: bool

@@ -32,15 +32,32 @@ log = logging.getLogger(__name__)
 
 def build_graph(deps: GraphDeps):
     nodes = make_nodes(deps)
+    if config.AGENT_LOOP_ENABLED:
+        # Agent Loop（2026-11-20 设计稿包 1；默认关=节点不注册+边不接=图形态逐字节不变）
+        from .agent_nodes import make_agent_nodes
+        nodes.update(make_agent_nodes(deps))
     g = StateGraph(TaskState)
     for name in ("clone", "analyze", "plan", "provision", "generate", "run",
                  "evaluate", "report", "review", "static_draft"):
         g.add_node(name, nodes[name])
+    if config.AGENT_LOOP_ENABLED:
+        g.add_node("strategy", nodes["strategy"])
+        g.add_node("diagnose", nodes["diagnose"])
     g.set_entry_point("clone")
     g.add_edge("clone", "analyze")
-    g.add_conditional_edges("analyze",
-                            lambda s: "report" if s.get("done") else "plan",
-                            {"report": "report", "plan": "plan"})
+    if config.AGENT_LOOP_ENABLED:
+        # analyze→strategy→plan（strategy 节点产物供 plan 参考；static_only 不进策略，
+        # 保持 Tier3 现状——设计稿 §3.5 触发前置）
+        g.add_conditional_edges(
+            "analyze",
+            lambda s: ("report" if s.get("done")
+                       else ("plan" if s.get("static_only") else "strategy")),
+            {"report": "report", "plan": "plan", "strategy": "strategy"})
+        g.add_edge("strategy", "plan")
+    else:
+        g.add_conditional_edges("analyze",
+                                lambda s: "report" if s.get("done") else "plan",
+                                {"report": "report", "plan": "plan"})
     # 静态模式（Tier3 分级，2026-11-01）：无容器执行链路的项目 plan 后进扫描+设计草稿，直达报告
     g.add_conditional_edges("plan",
                             lambda s: "static_draft" if s.get("static_only") else "provision",
@@ -55,10 +72,16 @@ def build_graph(deps: GraphDeps):
     g.add_conditional_edges("run",
                             lambda s: "report" if s.get("done") else "evaluate",
                             {"report": "report", "evaluate": "evaluate"})
-    g.add_conditional_edges("evaluate",
-                            lambda s: "report" if s["verdict"] in ("pass", "stop")
-                            else ("provision" if s["verdict"] == "repair_env" else "generate"),
-                            {"report": "report", "provision": "provision", "generate": "generate"})
+    if config.AGENT_LOOP_ENABLED:
+        g.add_conditional_edges("evaluate", _after_evaluate_agent,
+                                {"report": "report", "provision": "provision",
+                                 "diagnose": "diagnose", "generate": "generate"})
+        g.add_edge("diagnose", "generate")
+    else:
+        g.add_conditional_edges("evaluate",
+                                lambda s: "report" if s["verdict"] in ("pass", "stop")
+                                else ("provision" if s["verdict"] == "repair_env" else "generate"),
+                                {"report": "report", "provision": "provision", "generate": "generate"})
     g.add_edge("report", "review")
     g.add_conditional_edges("review",
                             lambda s: "generate" if s.get("verdict") == "repair_gen" else END,
@@ -113,6 +136,22 @@ def build_prep_graph(deps: GraphDeps):
     return g.compile()
 
 
+def _after_evaluate_agent(s: TaskState) -> str:
+    """Agent Loop 版 evaluate 条件边（主图/执行图共用，旗标开时编译进图）：
+    pass/stop→report；verify 冻结语义保留（_after_evaluate 同款）；repair_env→
+    provision；repair_gen 且轮次≤AGENT_LOOP_DIAG_MAX_ROUNDS→diagnose（只读诊断
+    后回 generate——诊断不写 verdict），超限直接 generate（后期轮次预算留给补测）。"""
+    if s["verdict"] in ("pass", "stop"):
+        return "report"
+    if s.get("verify_mode") == 1:
+        return "report"
+    if s["verdict"] == "repair_env":
+        return "provision"
+    if s.get("round_no", 0) <= config.AGENT_LOOP_DIAG_MAX_ROUNDS:
+        return "diagnose"
+    return "generate"
+
+
 def _after_evaluate(s: TaskState) -> str:
     """evaluate 条件边（A2 2026-11-20 抽出为模块函数便于单测）：
     pass/stop → report；verify 冻结任务其余 verdict 一律 → report（不补题不重跑——
@@ -140,8 +179,13 @@ def build_exec_graph(deps: GraphDeps):
     repair_env/repair_gen/审查回炉再入——R-Loop 完整保留在阶段二（无人值守能力保住）。
     A2（2026-11-20）：verify_mode=1 的修复验证任务全图禁写用例——evaluate 非 pass/stop
     直接 report、review 一律 END（所有用例写入口：generate 主生成/fbN 增补/剪除/
-    重写/delete-first 全部不可达）。"""
+    重写/delete-first 全部不可达）。
+    Agent Loop（2026-11-20 包 1）：旗标开时 repair_gen 分支前接只读 diagnose 节点
+    （不写 verdict；verify 冻结任务不会到达——_after_evaluate_agent 语义保留）。"""
     nodes = make_nodes(deps)
+    if config.AGENT_LOOP_ENABLED:
+        from .agent_nodes import make_agent_nodes
+        nodes.update(make_agent_nodes(deps))
     g = StateGraph(TaskState)
     for name in ("provision", "generate", "run", "evaluate", "report", "review"):
         g.add_node(name, nodes[name])
@@ -152,8 +196,15 @@ def build_exec_graph(deps: GraphDeps):
     g.add_conditional_edges("run",
                             lambda s: "report" if s.get("done") else "evaluate",
                             {"report": "report", "evaluate": "evaluate"})
-    g.add_conditional_edges("evaluate", _after_evaluate,
-                            {"report": "report", "provision": "provision", "generate": "generate"})
+    if config.AGENT_LOOP_ENABLED:
+        g.add_node("diagnose", nodes["diagnose"])
+        g.add_conditional_edges("evaluate", _after_evaluate_agent,
+                                {"report": "report", "provision": "provision",
+                                 "diagnose": "diagnose", "generate": "generate"})
+        g.add_edge("diagnose", "generate")
+    else:
+        g.add_conditional_edges("evaluate", _after_evaluate,
+                                {"report": "report", "provision": "provision", "generate": "generate"})
     g.add_edge("generate", "run")
     g.add_edge("report", "review")
     g.add_conditional_edges("review", _after_review,
@@ -213,6 +264,9 @@ def run_task(task_id: int) -> dict:
         "coverage_target": config.COVERAGE_TARGET,
         "fingerprints": [],
         "auto_prepare": bool(task["auto_prepare"]) if "auto_prepare" in task.keys() else False,
+        "agent_loop_enabled": bool(config.AGENT_LOOP_ENABLED),   # 包 1：strategy 产物实体化
+        "agent_evidence": [], "agent_budget": {}, "agent_steps": 0,
+        "agent_capability_grants": [],
     }
     graph = build_graph(deps)
     try:
@@ -435,6 +489,9 @@ def run_task_exec(task_id: int) -> dict:
         "module_id": module_row["id"] if module_row else None,
         "auto_prepare": bool(task["auto_prepare"]) if "auto_prepare" in task.keys() else False,
         "two_stage_rebuild": True,
+        "agent_loop_enabled": bool(config.AGENT_LOOP_ENABLED),   # 包 1：diagnose 产物实体化
+        "agent_evidence": [], "agent_budget": {}, "agent_steps": 0,
+        "agent_capability_grants": [],
     }
     # A2 验证冻结（2026-11-20）：verify_mode 贯穿任务行 → TaskState → 图路由；
     # 用例集指纹执行前后留痕 agent_messages = 审计证据（写入拦截靠图路由，不靠指纹）
