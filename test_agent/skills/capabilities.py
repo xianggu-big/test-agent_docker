@@ -465,8 +465,23 @@ def _build_capabilities(ctx: TaskCtx) -> list[Capability]:
     return caps
 
 
+def _schema_hint(schema: dict) -> str:
+    """菜单参数提示（渐进披露的"简述"层——设计稿 §3.1 菜单含 inputs 简述；
+    冒烟实锤：不给参数提示模型盲猜 args 会被 schema 闸拒）。"""
+    if not isinstance(schema, dict) or not schema:
+        return "无参数"
+    props = schema.get("properties") or {}
+    req = set(schema.get("required") or [])
+    parts = []
+    for k, spec in props.items():
+        t = spec.get("type") or ("|".join(str(x) for x in spec["enum"])
+                                 if "enum" in spec else "any")
+        parts.append(f"{k}{'*' if k in req else ''}:{t}")
+    return " ".join(parts) or "无参数"
+
+
 def capability_menu(ctx: TaskCtx) -> list[dict]:
-    """能力菜单（渐进披露：菜单只给摘要，完整 schema 由 authorize/executor 持有）。
+    """能力菜单（渐进披露：菜单给摘要+参数简述，完整 schema 由 authorize 持有）。
     过滤：语言兼容（"*" 恒过）+ diagnose 模式收窄 R0（诊断只读——设计稿 §3.5）
     + 旗标联动已在 _build_capabilities 处理。"""
     menu = []
@@ -475,7 +490,8 @@ def capability_menu(ctx: TaskCtx) -> list[dict]:
             continue
         if ctx.agent_mode == "diagnose" and c.risk != "R0":
             continue
-        menu.append({"id": c.id, "description": c.description, "risk": c.risk})
+        menu.append({"id": c.id, "description": c.description, "risk": c.risk,
+                     "args_hint": _schema_hint(c.inputs_schema)})
     return menu
 
 

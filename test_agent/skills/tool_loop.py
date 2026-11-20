@@ -104,7 +104,8 @@ def build_observation(ctx: TaskCtx, goal: str, mode: str, menu: list[dict],
     for e in recent_evidence:
         ev_lines.append(f"- step{e.get('step')} {e.get('capability')}={e.get('status')}: "
                         f"{(e.get('summary') or '')[:120]}")
-    menu_lines = "\n".join(f"- {m['id']} ({m['risk']}) {m['description']}" for m in menu)
+    menu_lines = "\n".join(f"- {m['id']} ({m['risk']}) {m['description']}\n"
+                           f"  参数: {m.get('args_hint')}" for m in menu)
     obs = (
         f"## 目标\n{goal[:600]}\n\n"
         f"## 任务上下文\n语言={ctx.primary_language} 工作区={ctx.workspace.name} "
@@ -116,6 +117,8 @@ def build_observation(ctx: TaskCtx, goal: str, mode: str, menu: list[dict],
         f"token {used.get('tokens', 0)}/{budget.get('max_tokens')} "
         f"秒 {used.get('seconds', 0)}/{budget.get('max_seconds')}\n\n"
         "## 输出\n只输出一个 JSON 对象（call 或 finish 形态，见系统指令）。"
+        + (f"\n注意：这是第 {used.get('steps', 0)} 步（共 {budget.get('max_steps')} 步）"
+           "——信息足够时立即 finish，不要继续观察。")
     )
     return obs[:12000]          # 观察包硬封顶（防菜单/证据膨胀吃满上下文）
 
