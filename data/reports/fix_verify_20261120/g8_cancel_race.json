@@ -1,0 +1,24 @@
+{
+  "gid": "G8",
+  "steps": [
+    {
+      "name": "阶段一完成",
+      "pass": true,
+      "detail": "status=ready_for_review"
+    },
+    {
+      "name": "stop 后零执行",
+      "pass": false,
+      "detail": "stopped=None 任务=running 队列=['done', 'running']"
+    },
+    {
+      "name": "对照格全链健康",
+      "pass": true,
+      "detail": "终态=failed（done=全绿 / failed+疑似产品缺陷=真检出均健康）error=疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）"
+    }
+  ],
+  "pass": false,
+  "tid_blocker": 2247,
+  "tid_race": 2248,
+  "tid_control": 2249
+}

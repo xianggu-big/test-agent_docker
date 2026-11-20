@@ -1,0 +1,42 @@
+{
+  "gid": "G9",
+  "steps": [
+    {
+      "name": "验证任务创建+冻结标记",
+      "pass": true,
+      "detail": "vid=2250 verify_mode=1 status=ready_for_review"
+    },
+    {
+      "name": "用例集复制原样",
+      "pass": true,
+      "detail": "原 35 例 fp=3394060b10fe1fc3 / 复制 35 例 fp=3394060b10fe1fc3"
+    },
+    {
+      "name": "验证轮终态合法",
+      "pass": true,
+      "detail": "status=failed（done=修复实证 / failed=not_fixed 或真检出，均为合法终态）"
+    },
+    {
+      "name": "冻结指纹留痕两条",
+      "pass": true,
+      "detail": "条数=2"
+    },
+    {
+      "name": "指纹前后一致",
+      "pass": true,
+      "detail": "终态行=[verify-freeze] 终态指纹 3394060b10fe1fc3 —— 一致：用例集全程未被改动"
+    },
+    {
+      "name": "用例集执行后未变",
+      "pass": true,
+      "detail": "执行后 fp=3394060b10fe1fc3 vs 原 3394060b10fe1fc3"
+    },
+    {
+      "name": "工作区零新生成",
+      "pass": false,
+      "detail": "test_gen_* 文件 0→1"
+    }
+  ],
+  "pass": false,
+  "vid": 2250
+}

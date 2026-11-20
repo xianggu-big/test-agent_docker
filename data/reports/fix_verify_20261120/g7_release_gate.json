@@ -1,0 +1,27 @@
+{
+  "gid": "G7",
+  "steps": [
+    {
+      "name": "阶段一真机完成",
+      "pass": true,
+      "detail": "status=ready_for_review"
+    },
+    {
+      "name": "fail-closed 零入队",
+      "pass": true,
+      "detail": "exec_queue 行数=0 status=ready_for_review"
+    },
+    {
+      "name": "停车线留痕",
+      "pass": true,
+      "detail": "最近消息尾=[ai-review] token 停车线触顶，停在待审查交人工（fail-closed）"
+    },
+    {
+      "name": "收敛对照入队一次",
+      "pass": false,
+      "detail": "对照后 exec 行 0→0（真 review 一轮，收敛/增补路径如实）"
+    }
+  ],
+  "pass": false,
+  "tid": 2241
+}
