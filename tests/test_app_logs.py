@@ -263,7 +263,7 @@ def test_store_app_logs_rerun_from_round1_clears_history(tmp_path):
 # ---------- 表契约（28 表，含 app_logs） ----------
 
 def test_app_logs_table_in_schema(tmp_path):
-    assert db.init_db(tmp_path / "t.db") == 34
+    assert db.init_db(tmp_path / "t.db") == 37   # 40-42 三表（包 2）
     conn = db.get_conn(tmp_path / "t.db")
     n = conn.execute("SELECT COUNT(*) c FROM sqlite_master WHERE name='app_logs'").fetchone()["c"]
     assert n == 1

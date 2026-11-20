@@ -483,9 +483,17 @@ def _schema_hint(schema: dict) -> str:
 def capability_menu(ctx: TaskCtx) -> list[dict]:
     """能力菜单（渐进披露：菜单给摘要+参数简述，完整 schema 由 authorize 持有）。
     过滤：语言兼容（"*" 恒过）+ diagnose 模式收窄 R0（诊断只读——设计稿 §3.5）
-    + 旗标联动已在 _build_capabilities 处理。"""
+    + 旗标联动已在 _build_capabilities 处理；目录插件动态注册（verified/active
+    才可见——包 2，能力菜单不是写死的）。"""
+    all_caps = list(_build_capabilities(ctx))
+    if ctx.agent_mode != "diagnose":     # 插件=R2，diagnose 只读模式不进菜单
+        try:
+            from .plugin_runtime import catalog_capabilities
+            all_caps.extend(catalog_capabilities(ctx))
+        except Exception as e:           # noqa: BLE001 —— 目录异常=仅内置能力
+            log.warning("目录插件加载失败（%s: %s）", type(e).__name__, e)
     menu = []
-    for c in _build_capabilities(ctx):
+    for c in all_caps:
         if not ("*" in c.languages or (ctx.primary_language or "").lower() in c.languages):
             continue
         if ctx.agent_mode == "diagnose" and c.risk != "R0":
@@ -493,6 +501,20 @@ def capability_menu(ctx: TaskCtx) -> list[dict]:
         menu.append({"id": c.id, "description": c.description, "risk": c.risk,
                      "args_hint": _schema_hint(c.inputs_schema)})
     return menu
+
+
+def find_capability_extended(ctx: TaskCtx, cap_id: str) -> Capability | None:
+    """find_capability 的插件扩展版（含目录条目——executor 用）。"""
+    if cap_id.startswith("plugin."):
+        try:
+            from .plugin_runtime import catalog_capabilities
+            for c in catalog_capabilities(ctx):
+                if c.id == cap_id:
+                    return c
+        except Exception:            # noqa: BLE001
+            return None
+        return None
+    return find_capability(ctx, cap_id)
 
 
 def find_capability(ctx: TaskCtx, cap_id: str) -> Capability | None:

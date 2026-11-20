@@ -577,3 +577,46 @@ CREATE TABLE IF NOT EXISTS module_profiles (
   UNIQUE (project_id, path)
 );
 CREATE INDEX IF NOT EXISTS idx_module_profiles_project ON module_profiles(project_id);
+
+-- ============================================================
+-- 第 40-42 表（Agent Loop 包 2，2026-11-20 设计稿 §4.3；D2 拍板=目录内固定版本
+-- 任务内自动安装——内容与 docs/设计方案-AgentLoop文件级实施设计-20261120.md 件 2 一致）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tool_catalog (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  catalog_id       TEXT NOT NULL UNIQUE,
+  version          TEXT NOT NULL,
+  digest           TEXT NOT NULL DEFAULT '',
+  source_type      TEXT NOT NULL,
+  source_url       TEXT,
+  license          TEXT,
+  entrypoint       TEXT,
+  permissions_json TEXT NOT NULL,
+  fixtures_json    TEXT,
+  status           TEXT NOT NULL DEFAULT 'candidate'
+                   CHECK (status IN ('candidate','verified','active','deprecated','revoked')),
+  updated_at       TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tool_installations (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id      INTEGER NOT NULL,
+  catalog_id   TEXT NOT NULL,
+  version      TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'installed'
+               CHECK (status IN ('installed','verified','failed','rolled_back')),
+  installed_at TEXT,
+  verify_report TEXT
+);
+
+CREATE TABLE IF NOT EXISTS plugin_proposals (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id          INTEGER NOT NULL,
+  capability_needed TEXT NOT NULL,
+  evidence         TEXT,
+  status           TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending','approved','rejected')),
+  decided_by       TEXT,
+  decided_at       TEXT
+);

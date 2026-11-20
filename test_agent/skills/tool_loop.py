@@ -23,7 +23,7 @@ import time
 from .. import config
 from . import tool_policy
 from .capabilities import (CapResult, TaskCtx, action_fingerprint, capability_menu,
-                           find_capability, normalize_result)
+                           find_capability_extended, normalize_result)
 from .llm_client import make_chat          # 模块级：测试 monkeypatch 锚点
 from .llm_usage import log_llm_call
 from .prompt_library import AGENT_DECIDE_SYSTEM, estimate_tokens
@@ -196,7 +196,7 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
         denied_streak = 0
         afp = action_fingerprint(action["capability"], action["args"])
         seen_action_fps[afp] = seen_action_fps.get(afp, 0) + 1
-        cap = find_capability(ctx, action["capability"])
+        cap = find_capability_extended(ctx, action["capability"])
         try:
             result = _execute_capability(deps, ctx, cap, action.get("args") or {})
         except Exception as e:  # noqa: BLE001 —— handler 异常降级为 failed 结果

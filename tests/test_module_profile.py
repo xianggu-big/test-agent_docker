@@ -233,7 +233,7 @@ def test_analyze_规则未命中_接线走兜底(tmp_path, monkeypatch):
 def test_落库_幂等重写(tmp_path):
     from test_agent.store.db import init_db
     db = tmp_path / "t.db"
-    assert init_db(db) == 34                       # 第 34 表契约
+    assert init_db(db) == 37                       # 37 表契约（40-42 三表，包 2）
     conn = sqlite3.connect(db)
     conn.execute("INSERT INTO users(username, password_hash) VALUES ('u', 'x')")
     conn.execute("INSERT INTO projects(user_id, repo_url, name) VALUES (1, 'r', 'n')")

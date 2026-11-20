@@ -54,8 +54,9 @@ def authorize(action: dict, ctx: TaskCtx, *, menu: list[dict] | None = None,
     if not cap_id or not isinstance(args, dict):
         return Decision(False, reason="call 缺 capability 或 args（协议违规）")
 
-    # 2) 存在闸：能力在菜单内（未注册/语言不兼容/旗标关=不可见即不可用）
-    cap = caps_mod.find_capability(ctx, cap_id)
+    # 2) 存在闸：能力在菜单内（未注册/语言不兼容/旗标关=不可见即不可用；
+    #    目录插件经 find_capability_extended——verified/active+digest 封存才可见）
+    cap = caps_mod.find_capability_extended(ctx, cap_id)
     if cap is None or not any(m["id"] == cap_id for m in menu):
         return Decision(False, reason=f"能力不在菜单：{cap_id}")
 
@@ -78,8 +79,12 @@ def authorize(action: dict, ctx: TaskCtx, *, menu: list[dict] | None = None,
         return Decision(False, reason=f"验证冻结任务仅允许 R0（{cap_id}={cap.risk}）")
     if mode == "static" and _RISK_ORDER.get(cap.risk, 9) > _RISK_ORDER["R0"]:
         return Decision(False, reason=f"静态模式仅允许 R0（{cap_id}={cap.risk}）")
-    if _RISK_ORDER.get(cap.risk, 9) >= _RISK_ORDER["R2"]:
-        return Decision(False, reason=f"{cap.risk} 不在 MVP 自动范围（R3/R4 需人工，R2 归包 2）")
+    # R2（D2 拍板 2026-11-20）：目录内固定版本（verified+digest 封存——存在闸保证）
+    # =normal 模式任务内自动；verify/static 拒绝；R3/R4 永不自动
+    if _RISK_ORDER.get(cap.risk, 9) >= _RISK_ORDER["R3"]:
+        return Decision(False, reason=f"{cap.risk} 需人工批准（Agent 永不能自批）")
+    if cap.risk == "R2" and mode != "normal":
+        return Decision(False, reason=f"R2 目录插件仅 normal 模式（{mode} 拒绝）")
 
     # 6) 预算闸：任一触顶=stop（不是单次拒绝——是循环停止条件）；
     #    上限缺省（<=0）=不启用该维度（authorize 无 budget_used 调用形态=纯闸单测）

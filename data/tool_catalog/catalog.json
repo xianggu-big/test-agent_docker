@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "note": "Agent Loop 批准目录（2026-11-20 设计稿 §4.2；D2 拍板=目录内固定版本任务内自动安装）。digest='' =未封存（首次 fetch 后 seal，人工确认写回）；status=candidate 的条目不入菜单（verify 三 fixture 全过才 verified）。第一批五条全部真实痛点驱动。",
+  "tools": [
+    {
+      "id": "tool.parse.jacoco-multimodule",
+      "version": "1.0.0",
+      "kind": "plugin",
+      "source": {
+        "type": "local-script",
+        "path": "scripts/plugins/jacoco_multimodule.py"
+      },
+      "digest": "81b0f3af675aa306b88d93f07a60a28f0a8e50e452357ac316ef143d9f86ab01",
+      "license": "MIT",
+      "languages": [
+        "java"
+      ],
+      "entrypoint": "scripts/plugins/jacoco_multimodule.py",
+      "permissions": {
+        "fs": [
+          "test_artifacts_write"
+        ],
+        "network": "none",
+        "secrets": []
+      },
+      "fixtures": [
+        {
+          "name": "happy_path",
+          "cmd": [
+            "python",
+            "{entrypoint}",
+            "--demo",
+            "happy"
+          ],
+          "expect_exit": 0,
+          "expect_contains": "total"
+        },
+        {
+          "name": "known_bad",
+          "cmd": [
+            "python",
+            "{entrypoint}",
+            "--demo",
+            "missing"
+          ],
+          "expect_exit": 2,
+          "expect_contains": "E_MISSING_REPORT"
+        },
+        {
+          "name": "edge_empty",
+          "cmd": [
+            "python",
+            "{entrypoint}",
+            "--demo",
+            "empty"
+          ],
+          "expect_exit": 0,
+          "expect_contains": "no_coverage"
+        }
+      ],
+      "status": "active",
+      "pain_point": "microservices 格多模块 jacoco 无单一 TOTAL 行→覆盖率解析失败熔断（存疑 35 姊妹首案）",
+      "updated_at": "2026-11-20T16:57:56Z"
+    },
+    {
+      "id": "tool.spec.swag",
+      "version": "1.16.3",
+      "kind": "plugin",
+      "source": {
+        "type": "go-install",
+        "pkg": "github.com/swaggo/swag/cmd/swag",
+        "url": "https://github.com/swaggo/swag"
+      },
+      "digest": "",
+      "license": "MIT",
+      "languages": [
+        "go"
+      ],
+      "entrypoint": "swag init --parseInternal -o docs",
+      "permissions": {
+        "fs": [
+          "workspace_read",
+          "test_artifacts_write"
+        ],
+        "network": "task",
+        "secrets": []
+      },
+      "fixtures": [],
+      "status": "candidate",
+      "pain_point": "Go 契约轨 spec 提取缺口（黑盒缺口清单①：gin 无自带 OpenAPI）"
+    },
+    {
+      "id": "tool.coverage.pcov",
+      "version": "1.0.2",
+      "kind": "plugin",
+      "source": {
+        "type": "php-ext",
+        "pkg": "pcov",
+        "url": "https://pecl.php.net/package/pcov"
+      },
+      "digest": "",
+      "license": "PHP-3.01",
+      "languages": [
+        "php"
+      ],
+      "entrypoint": "docker-php-ext-enable pcov",
+      "permissions": {
+        "fs": [
+          "test_artifacts_write"
+        ],
+        "network": "none",
+        "secrets": []
+      },
+      "fixtures": [],
+      "status": "candidate",
+      "pain_point": "php xdebug 覆盖开销大（pcov 注入挂账——吸收进包 2 的落地形态）"
+    },
+    {
+      "id": "tool.mutate.gremlins",
+      "version": "0.5.0",
+      "kind": "plugin",
+      "source": {
+        "type": "go-install",
+        "pkg": "github.com/go-gremlins/gremlins/cmd/gremlins",
+        "url": "https://github.com/go-gremlins/gremlins"
+      },
+      "digest": "",
+      "license": "Apache-2.0",
+      "languages": [
+        "go"
+      ],
+      "entrypoint": "gremlins unleash",
+      "permissions": {
+        "fs": [
+          "workspace_read",
+          "test_artifacts_write"
+        ],
+        "network": "task",
+        "secrets": []
+      },
+      "fixtures": [],
+      "status": "candidate",
+      "pain_point": "Go 变异白盒缺（W5）"
+    },
+    {
+      "id": "tool.mutate.infection",
+      "version": "0.27.11",
+      "kind": "plugin",
+      "source": {
+        "type": "pypi-like",
+        "pkg": "infection",
+        "url": "https://github.com/infection/infection"
+      },
+      "digest": "",
+      "license": "BSD-3-Clause",
+      "languages": [
+        "php"
+      ],
+      "entrypoint": "infection --threads=2",
+      "permissions": {
+        "fs": [
+          "workspace_read",
+          "test_artifacts_write"
+        ],
+        "network": "task",
+        "secrets": []
+      },
+      "fixtures": [],
+      "status": "candidate",
+      "pain_point": "PHP 变异白盒缺（W5）"
+    }
+  ]
+}
