@@ -1269,6 +1269,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             "container_name": state["container_name"],
             "module_id": state.get("module_id"),
             "index_scope_paths": state.get("index_scope_paths") or [],
+            "endpoint_gaps": state.get("index_endpoint_gaps") or [],
             "coverage_gaps": (state.get("per_file") or [])
                              if config.COVERAGE_FEEDBACK_ENABLED else [],  # ①缺口回灌（V4 开关）
             "coverage_target": state.get("coverage_target"),
@@ -1561,12 +1562,13 @@ def make_nodes(deps: GraphDeps) -> dict:
             verdict, kind, reason = bb
         elif (bb_blackbox and bb_endpoint_cov and bb_endpoint_cov.get("missed")
               and failed == 0 and exit_code == 0):
+            state["index_endpoint_gaps"] = list(bb_endpoint_cov["missed"])
             msg(state["session_id"], "assistant",
                 "[api-blackbox] 端点对账 "
                 f"{bb_endpoint_cov['covered']}/{bb_endpoint_cov['total']} 已测，"
                 f"缺口 {bb_endpoint_cov['missed'][:4]}"
                 f"{'…' if len(bb_endpoint_cov['missed']) > 4 else ''}——"
-                "本轮补测聚焦缺口（轮次预算兜底）")
+                "缺口注入补测提示词（轮次预算兜底）")
         # —— 归因三闸·差分闸（11.4 恢复计划 §3；LIBRO buggy/fixed 口径，默认关）——
         # 疑似产品缺陷先在对照 ref 复跑失败子集：对照也失败 → 排除产品缺陷（用例/环境错），
         # 对照通过 → 高置信缺陷暴露。不可用（no_git/no_ref）→ 维持原归因，不硬猜。
@@ -1716,6 +1718,7 @@ def make_nodes(deps: GraphDeps) -> dict:
                 "index_scope_paths": state.get("index_scope_paths") or [],
                 "index_closure": state.get("index_closure") or [],
                 "index_l2_rescued": bool(state.get("index_l2_rescued")),
+                "index_endpoint_gaps": state.get("index_endpoint_gaps") or [],
                 "last_stdout": stdout,   # 408 实锤：验证轮 env_blocked 分类需要诊断段，不回传即证据蒸发
                 "fingerprints": state.get("fingerprints", []) + [fp]}
 

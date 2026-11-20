@@ -456,6 +456,19 @@ def build_pitfall_section(lang: str, requirement: str) -> str:
 禁止一律标「常识」——依据可溯是审查与归因的前提。"""
 
 
+def _endpoint_gap_section(endpoint_gaps: list[str] | None) -> str:
+    """端点缺口补测段（2026-11-19 复盘方案 A 收尾）：黑盒出口对账发现的未覆盖端点
+    直接注入生成提示词——补测从"盲重跑"变"定向补齐"。两条提示词路径共用
+    （ctx_budget 有/无），无缺口=空串（输出逐字节不变）。"""
+    if not endpoint_gaps:
+        return ""
+    items = "\n".join(f"- {g}" for g in endpoint_gaps[:8])
+    return (f"\n\n## 端点缺口补测（上一轮接口对账：以下已注册端点未被任何用例覆盖）\n"
+            f"{items}\n"
+            "本轮**优先**为上述端点各补至少一条用例（方法与路径严格按清单，"
+            "禁止虚构清单外端点）")
+
+
 def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       coverage_gaps: list[dict] | None = None,
                       coverage_target: float | None = None,
@@ -479,6 +492,7 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       defense_v2: bool = False,
                       sut_functions: list[str] | None = None,
                       sut_mismatch: str | None = None,
+                      endpoint_gaps: list[str] | None = None,
                       layer_aware: bool = False,
                       ctx_budget: int | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
@@ -806,7 +820,7 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
     # 任务卡-H 步骤 4：源码降采样后仍超预算 → 对整串做段落裁剪（骨架→缺口→模板段，
     # 卡定义顺序；固定段「输出格式/语言规则/截断声明」是契约不裁）。裁多少留痕。
     if not ctx_budget:
-        return f"""## 被测源码
+        lean = f"""## 被测源码
 {src_text}
 
 ## 用户需求
@@ -832,6 +846,7 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "expected": "预期输出/状态变化",
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
     "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
+        return lean + _endpoint_gap_section(endpoint_gaps)
 
     final_prompt = f"""## 被测源码
 {src_text}
@@ -860,8 +875,11 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
     "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
 
+    if endpoint_gaps:
+        final_prompt += _endpoint_gap_section(endpoint_gaps)
     _markers = [("## 用例设计方法", "## 输出格式"),
                 ("## 上一轮覆盖缺口", "## 用例设计方法"),
+                ("## 端点缺口补测", "## 输出格式"),
                 ("## 槽位模板通道", "## 用例设计方法"),
                 ("## 正误对照", "## 输出格式")]
     final_prompt, fit_trail = fit_prompt_sections(final_prompt, ctx_budget, _markers)

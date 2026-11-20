@@ -48,6 +48,7 @@ class TaskState(TypedDict, total=False):
     index_scope_paths: list[str]   # 索引路由锁定的模块路径（空=全库）
     index_closure: list[str]       # L1 依赖闭包模块清单（[命中模块]+邻居；空=未启用）
     index_l2_rescued: bool         # L2 覆盖率急救已扩圈过一次（防死循环护栏）
+    index_endpoint_gaps: list[str]  # 黑盒出口端点对账缺口（evaluate→generate 定向补测；366 教训）
     index_endpoints: list[dict]    # 索引命中的接口清单（L1 对账用）
     stop_reason: str
     static_only: bool        # 分级（Tier3）：主语言无容器执行链路 → plan 后进 static_draft 而非 provision

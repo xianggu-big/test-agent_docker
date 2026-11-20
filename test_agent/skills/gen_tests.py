@@ -1824,6 +1824,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   layer_aware=config.LAYER_AWARE_ENABLED,
                                                   sut_functions=sut_manifest,
                                                   sut_mismatch=sut_mismatch,
+                                                  endpoint_gaps=(args.get("endpoint_gaps") or None),
                                                   ctx_budget=getattr(llm, "_ctx_budget", None)))])
     log_llm_call(task_id, phase, resp,
                  ctx_budget=getattr(llm, "_ctx_budget", None),
