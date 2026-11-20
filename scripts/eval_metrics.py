@@ -107,6 +107,22 @@ def task_metrics(conn, t: dict, truth: dict) -> dict:
         "SELECT coverage_line FROM evaluation_rounds WHERE task_id=?"
         " AND coverage_line IS NOT NULL", (tid,)).fetchall()]
     m["coverage"] = _avg(covs)
+    # ⑥b 覆盖率分桶（2026-11-19 复盘方案 E）：API 黑盒用例（真 HTTP）插桩结构性
+    # 不可达（存疑 35②），覆盖 0/N/A 是测量边界而非测试质量——与进程内用例的
+    # 1.0 混在同一个均值里语义不同质（php 0.0 稀释 js 1.0）。
+    #   blackbox=detect_api_blackbox(ws,lang) 真（口径同源：直接复用 evaluate 同款识别）
+    #   inproc=非黑盒且有覆盖值；unknown=工作区已清理（无证据，不入桶）
+    m["cov_bucket"] = "unknown"
+    ws = ROOT / "data" / "workspaces" / f"task_{tid}"
+    if ws.is_dir():
+        try:
+            if str(ROOT) not in sys.path:
+                sys.path.insert(0, str(ROOT))   # 脚本独立运行时补路径（否则导入恒失败）
+            from test_agent.graph.nodes import detect_api_blackbox
+            m["cov_bucket"] = ("blackbox" if detect_api_blackbox(ws, t["primary_language"])
+                               else "inproc")
+        except Exception:                     # noqa: BLE001 —— 导入失败=诚实 unknown
+            m["cov_bucket"] = "unknown"
     # ⑦ 耗时（分钟）
     if t["created_at"] and t["updated_at"]:
         import datetime as _dt
@@ -150,6 +166,17 @@ def aggregate(rows: list[dict]) -> dict:
                        + ("（分母<30：只报计数勿引比率；detected=疑似产品缺陷标签≠缺陷级真阳性）"
                           if 0 < _fp_den < 30 else "")) if _fp_den else None,
         "平均覆盖率": _avg([r["coverage"] for r in rows]),
+        # 方案 E 分桶（2026-11-19 复盘）：黑盒 0/N/A 是测量边界，进程内才是真实覆盖——
+        # 两桶分开报，混桶均值只保留作历史兼容
+        "平均覆盖率_进程内": _avg([r["coverage"] for r in rows
+                                    if r.get("cov_bucket") == "inproc"]),
+        "平均覆盖率_API黑盒": _avg([r["coverage"] for r in rows
+                                     if r.get("cov_bucket") == "blackbox"]),
+        "覆盖率分桶计数": {
+            "inproc": sum(1 for r in rows if r.get("cov_bucket") == "inproc" and r["coverage"] is not None),
+            "blackbox": sum(1 for r in rows if r.get("cov_bucket") == "blackbox" and r["coverage"] is not None),
+            "unknown": sum(1 for r in rows if r.get("cov_bucket") == "unknown" and r["coverage"] is not None),
+        },
         "平均耗时分钟": _avg([r.get("minutes") for r in rows]),
         "总Token": sum(r["tokens"] for r in rows),
     }
@@ -159,7 +186,8 @@ def render_md(overall: dict, by_lang: dict, rows: list[dict]) -> str:
     lines = ["# 八指标评测聚合（自动生成 scripts/eval_metrics.py）", "",
              f"- 任务集：{overall['n_tasks']} 个终态任务；口径注释见脚本 docstring", ""]
     langs = ["识别准确率", "环境构建成功率", "生成成功率", "AI用例执行覆盖", "检出率_GT",
-             "误报率_干净语料", "误报率_计数", "平均覆盖率", "平均耗时分钟", "总Token"]
+             "误报率_干净语料", "误报率_计数", "平均覆盖率_进程内", "平均覆盖率_API黑盒",
+             "平均覆盖率", "平均耗时分钟", "总Token"]
     lines.append("| 语言 | n | " + " | ".join(langs) + " |")
     lines.append("|---|---|" + "---|" * len(langs))
     def _v(x):
