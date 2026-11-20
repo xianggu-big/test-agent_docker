@@ -197,31 +197,105 @@ def detect_api_blackbox(ws: Path, lang: str) -> bool:
     """API 型黑盒识别（存疑 35② 拍板口径）：生成用例走真 HTTP 客户端
     （curl_init/fetch/axios/supertest/URL 直写）→ 被测服务在另一进程，
     插桩（istanbul/clover）结构性测不到。仅 js/ts/php 适用（python 的
-    TestClient 进程内形态不受此限）。"""
+    TestClient 进程内形态不受此限）。读全文件——HTTP 特征在文件尾部不漏检
+    （2026-11-19 复盘边界洞：旧版只读前 8000 字符）。"""
     if lang not in ("javascript", "typescript", "php"):
         return False
     for pat in ("test_gen_r*.js", "test_gen_fb*.js", "TestGen*.php",
                 "test_imported.test.js", "test_imported.php"):
         for gf in Path(ws).glob(pat):
             try:
-                head = gf.read_text(encoding="utf-8", errors="ignore")[:8000]
+                text = gf.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
-            if _HTTP_CLIENT_RE.search(head):
+            if _HTTP_CLIENT_RE.search(text):
                 return True
     return False
 
 
+def _norm_ep_path(path: str) -> str:
+    """端点路径归一化（对账两侧同规则）：去尾斜杠；模板段（<id>/{x}）与纯数字段
+    归一为 {p}。已知 v1 边界：非数字非模板段（如 /books/abc 的非法 id 测试）不计入
+    已测——只多一轮 repair_gen 且轮次预算兜底，不产生错误 stop（2026-11-19 复盘）。"""
+    segs = []
+    for s in (path or "").strip().strip("/").split("/"):
+        if not s:
+            continue
+        if (s.startswith("<") and s.endswith(">")) or (s.startswith("{") and s.endswith("}")) \
+                or s.isdigit():
+            segs.append("{p}")
+        else:
+            segs.append(s.lower())
+    return "/" + "/".join(segs)
+
+
+def _url_to_path(url: str) -> str:
+    """curl_init('http://127.0.0.1:8080/books?x=1') → 归一化 '/books'。"""
+    rest = (url or "").partition("://")[2]
+    parts = rest.split("/", 1)
+    path = "/" + parts[1] if len(parts) > 1 else "/"
+    return _norm_ep_path(path.split("?")[0])
+
+
+def _endpoint_calls_in_tests(ws: Path, lang: str) -> set:
+    """从生成用例提取实际调用的 {"METHOD /path"}（黑盒出口对账用，确定性正则）。
+
+    形态取证（task_1981 真机实证）：php=curl_init('http://127.0.0.1:8080/books')+
+    CURLOPT_CUSTOMREQUEST => 'POST'（相邻配对：两 init 之间无 CUSTOMREQUEST 默认
+    GET）；js/ts=supertest/fetch 的 .get('http://…/path')。返回归一化集合。"""
+    pats = ("test_gen_r*.php", "test_gen_fb*.php", "test_imported.php",
+            "test_gen_r*.js", "test_gen_fb*.js", "test_imported.test.js") \
+        if lang == "php" else \
+        ("test_gen_r*.js", "test_gen_fb*.js", "test_gen_r*.ts", "test_gen_fb*.ts",
+         "test_imported.test.js", "test_imported.test.ts")
+    calls = set()
+    for pat in pats:
+        for gf in Path(ws).glob(pat):
+            try:
+                text = gf.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if lang == "php":
+                inits = [(m.start(), _url_to_path(m.group(1)))
+                         for m in re.finditer(r"""curl_init\(\s*['"](http://[^'"]+)['"]""", text)]
+                methods = [(m.start(), m.group(1).upper())
+                           for m in re.finditer(r"""CURLOPT_CUSTOMREQUEST\s*=>\s*'([A-Z]+)'""", text)]
+                for i, (pos, path) in enumerate(inits):
+                    nxt = inits[i + 1][0] if i + 1 < len(inits) else len(text)
+                    meth = next((m for p2, m in methods if pos < p2 < nxt), "GET")
+                    calls.add(f"{meth} {path or '/'}")
+            else:
+                for m in re.finditer(
+                        r"""\.(get|post|put|delete|patch)\(\s*['"]http://[^'"]*?(/[^'"]*)?['"]""",
+                        text, re.I):
+                    path = _norm_ep_path((m.group(2) or "/").split("?")[0])
+                    calls.add(f"{m.group(1).upper()} {path}")
+    return calls
+
+
 def api_blackbox_stop(blackbox: bool, verdict: str, failed: int, exit_code: int,
-                      passed: int, coverage: float | None
+                      passed: int, coverage: float | None,
+                      endpoint_cov: dict | None = None
                       ) -> tuple[str, str, str] | None:
     """黑盒全过且 decide 因覆盖率卡住给 repair_gen → 覆盖为诚实 stop 声明。
-    有失败用例（failed>0）不适用——正常归因分诊优先；非黑盒/非 repair_gen 返回 None。"""
+    有失败用例（failed>0）不适用——正常归因分诊优先；非黑盒/非 repair_gen 返回 None。
+
+    2026-11-19 复盘升级（"接口级为准"从宣称变核实）：endpoint_cov={"covered",
+    "total","missed"} 由调用方算好——
+    - 端点全覆盖（missed 空）→ stop，消息带 "端点 C/T 全覆盖"（对账数字可审计）；
+    - 有缺口 → 返回 None（维持 repair_gen 补测一轮，缺口清单由调用方消息留痕），
+      轮次预算天然兜底；endpoint_cov=None（无注册端点清单）→ 旧行为逐字节不变。"""
     if not blackbox or verdict != "repair_gen" or failed != 0 or exit_code != 0:
         return None
+    cov_note = ""
+    if endpoint_cov and endpoint_cov.get("total"):
+        covered, total = endpoint_cov["covered"], endpoint_cov["total"]
+        if endpoint_cov.get("missed"):
+            return None            # 端点没测全——不值得 stop，补测一轮（缺口消息由调用方留痕）
+        cov_note = f"；端点 {covered}/{total} 全覆盖"
     return ("stop", "none",
             f"API 型黑盒覆盖率不可达（用例真 HTTP，被测服务进程不在插桩范围）——"
-            f"用例 {passed} 过 0 败，接口级通过数为准（存疑 35② 拍板口径）；"
+            f"用例 {passed} 过 0 败，接口级通过数为准（存疑 35② 拍板口径{cov_note}）；"
             f"覆盖率 {coverage if coverage is not None else 'N/A'} 不作准出判据")
 
 
@@ -1466,12 +1540,33 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 补不出来 → 三轮同指纹熔断收尾更差。识别=生成用例含 HTTP 客户端特征；
         # 全过（0 败）且 decide 给 repair_gen（覆盖率卡住）→ 诚实 stop 声明
         # （接口通过数为准）。有失败用例时不适用（正常归因分诊）。
+        bb_blackbox = detect_api_blackbox(Path(state.get("workspace", "")),
+                                          state.get("primary_language", ""))
+        bb_endpoint_cov = None
+        if bb_blackbox and verdict == "repair_gen" and failed == 0 and exit_code == 0:
+            # 端点对账（2026-11-19 复盘：出口宣称"接口级为准"必须核实）——
+            # 注册端点取 interface_endpoints（L2 路由提取），空=无从对账按旧行为
+            reg_rows = conn.execute(
+                "SELECT method, path FROM interface_endpoints WHERE task_id=?", (tid,)).fetchall()
+            if reg_rows:
+                reg_set = {f"{r['method'].upper()} {_norm_ep_path(r['path'])}" for r in reg_rows}
+                called = _endpoint_calls_in_tests(Path(state.get("workspace", "")),
+                                                  state.get("primary_language", ""))
+                missed = sorted(reg_set - called)
+                bb_endpoint_cov = {"covered": len(reg_set) - len(missed),
+                                   "total": len(reg_set), "missed": missed}
         bb = api_blackbox_stop(
-            detect_api_blackbox(Path(state.get("workspace", "")),
-                                state.get("primary_language", "")),
-            verdict, failed, exit_code, passed, coverage)
+            bb_blackbox, verdict, failed, exit_code, passed, coverage, bb_endpoint_cov)
         if bb:
             verdict, kind, reason = bb
+        elif (bb_blackbox and bb_endpoint_cov and bb_endpoint_cov.get("missed")
+              and failed == 0 and exit_code == 0):
+            msg(state["session_id"], "assistant",
+                "[api-blackbox] 端点对账 "
+                f"{bb_endpoint_cov['covered']}/{bb_endpoint_cov['total']} 已测，"
+                f"缺口 {bb_endpoint_cov['missed'][:4]}"
+                f"{'…' if len(bb_endpoint_cov['missed']) > 4 else ''}——"
+                "本轮补测聚焦缺口（轮次预算兜底）")
         # —— 归因三闸·差分闸（11.4 恢复计划 §3；LIBRO buggy/fixed 口径，默认关）——
         # 疑似产品缺陷先在对照 ref 复跑失败子集：对照也失败 → 排除产品缺陷（用例/环境错），
         # 对照通过 → 高置信缺陷暴露。不可用（no_git/no_ref）→ 维持原归因，不硬猜。
