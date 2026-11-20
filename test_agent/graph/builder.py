@@ -456,6 +456,25 @@ def run_task_exec(task_id: int) -> dict:
                           f"[verify-freeze] 终态指纹 {fp_final} —— "
                           + ("一致：用例集全程未被改动" if fp_final == fp_base
                              else "不一致：用例集被改动（A2 审计告警，须人工核查）"))
+            # 0-A：分文件对账（快照 vs 工作区，漂移定位到文件级；style=AST 等价豁免）
+            try:
+                from ..skills.verify_fix import reconcile_snapshot
+                rec = reconcile_snapshot(conn, task_id, ws)
+                if rec["status"] == "match":
+                    _reviewer_msg(conn, task_id,
+                                  "[verify-freeze] 分文件对账：全部用例文件与冻结快照逐字节一致（0-A）")
+                elif rec["status"] == "missing_snapshot":
+                    _reviewer_msg(conn, task_id,
+                                  "[verify-freeze] 分文件对账：冻结快照缺失（老任务/物化失败）"
+                                  "——文件级审计不可用，整体指纹审计仍有效（0-A）")
+                else:
+                    det = "；".join(f"{x['file']}({x['kind']})" for x in rec["drift"][:4])
+                    _reviewer_msg(conn, task_id,
+                                  f"[verify-freeze] 分文件对账 {rec['status']}："
+                                  f"{len(rec['drift'])} 漂移——{det}"
+                                  + ("…" if len(rec["drift"]) > 4 else ""))
+            except Exception as e:     # noqa: BLE001 —— 对账失败不掩盖主流程结果
+                log.warning("verify 分文件对账失败 task=%s: %s", task_id, e)
         return final
     except Exception as e:
         if is_verify:
@@ -464,6 +483,13 @@ def run_task_exec(task_id: int) -> dict:
                 _reviewer_msg(conn, task_id,
                               f"[verify-freeze] 异常路径指纹 {fp_final} —— "
                               + ("一致" if fp_final == fp_base else "不一致（审计告警）"))
+                # 0-A：异常路径同样分文件对账（best-effort，不掩盖原异常）
+                from ..skills.verify_fix import reconcile_snapshot
+                rec = reconcile_snapshot(conn, task_id, ws)
+                if rec["status"] != "match":
+                    det = "；".join(f"{x['file']}({x['kind']})" for x in rec["drift"][:4])
+                    _reviewer_msg(conn, task_id,
+                                  f"[verify-freeze] 异常路径分文件对账 {rec['status']}：{det}")
             except Exception:  # noqa: BLE001 —— 审计留痕失败不掩盖原异常
                 pass
         _fail_task(conn, task_id, f"{type(e).__name__}: {e}")

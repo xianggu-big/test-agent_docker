@@ -168,8 +168,11 @@ def test_run_task_exec_freeze_audit_trail(tmp_path, monkeypatch):
         "SELECT m.content FROM agent_messages m JOIN agent_sessions s ON s.id=m.session_id "
         "WHERE s.task_id=? ORDER BY m.id", (tid,))]
     freeze = [m for m in msgs if m.startswith("[verify-freeze]")]
-    assert len(freeze) == 2, f"基线+终态两条指纹留痕，实得 {len(freeze)}"
+    # 0-A（2026-11-20）扩约：基线指纹 + 终态指纹 + 分文件对账 三条留痕
+    # （本测试任务行直插、未经 create_verify_task → 无快照 → 对账如实报 missing_snapshot）
+    assert len(freeze) == 3, f"基线+终态指纹+分文件对账三条留痕，实得 {len(freeze)}"
     assert "一致：用例集全程未被改动" in freeze[1], "mock 图未改用例 → 终态指纹必须一致"
+    assert "冻结快照缺失" in freeze[2], "无快照任务的对账必须如实上报而非伪装一致"
 
 
 def test_run_task_exec_normal_task_no_freeze_noise(tmp_path, monkeypatch):

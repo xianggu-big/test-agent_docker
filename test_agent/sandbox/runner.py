@@ -146,6 +146,12 @@ class ExecResult:
         return self.exit_code == 0
 
 
+def wrap_timeout(cmd: list[str], timeout_s: int) -> list[str]:
+    """0-C/D7（2026-11-20 设计稿 §2.3）：coreutils timeout 前缀——进程级真终止。
+    -k 5=TERM 后 5s 强杀（KILL→exit 137，与 124 同映射）。"""
+    return ["timeout", "-k", "5", str(int(timeout_s)), *cmd]
+
+
 class SandboxRunner:
     """一个 Runner 管理若干常驻容器；容器名 = mta-run-<task_id>。"""
 
@@ -303,10 +309,18 @@ class SandboxRunner:
     def exec_in(self, container, cmd: list[str],
                 workdir: str = "/work",
                 timeout_s: int = config.DEFAULT_JOB_TIMEOUT_S) -> ExecResult:
-        """容器内执行命令；镜像 USER 已是 tester，无需再降权。"""
-        future = _pool.submit(container.exec_run, cmd, workdir=workdir, demux=True)
+        """容器内执行命令；镜像 USER 已是 tester，无需再降权。
+        0-C/D7（2026-11-20 设计稿 §2.3，用户拍板=全链路）：命令包 coreutils timeout
+        前缀=进程级真终止——修"超时假结果"（旧 future.result(timeout) 只停止等待，
+        容器内进程继续跑）。124/137（TERM/KILL）映射回既有 -1 超时语义与措辞
+        （stdout 置空=与旧假超时逐字节一致，防部分输出被 evaluate 正则误计）；
+        timeout 本体缺失（127+特征 stderr）诚实降级裸命令重试一次；外层
+        future.result(timeout_s+15) 保留作兜底（给真终止的 TERM→KILL 留余量）。
+        四镜像探针 exit=124 实测通过（py312/node20-jest/jdk17-maven/php83）。"""
+        future = _pool.submit(container.exec_run, wrap_timeout(cmd, timeout_s),
+                              workdir=workdir, demux=True)
         try:
-            code, (out, err) = future.result(timeout=timeout_s)
+            code, (out, err) = future.result(timeout=timeout_s + 15)
         except FutureTimeout:
             log.warning("执行超时(%ss): %s", timeout_s, cmd)
             return ExecResult(exit_code=-1, stdout="", stderr=f"timeout after {timeout_s}s: {' '.join(cmd)}")
@@ -318,6 +332,29 @@ class SandboxRunner:
             return ExecResult(exit_code=-1, stdout="",
                               stderr=f"环境错误：容器执行不可达（{type(e).__name__}）"
                                      f"——容器已停止或被回收，本轮命令未执行: {' '.join(cmd[:2])}")
+        if code in (124, 137):
+            log.warning("执行超时（timeout 真终止 exit=%s）(%ss): %s", code, timeout_s, cmd)
+            return ExecResult(exit_code=-1, stdout="",
+                              stderr=f"timeout after {timeout_s}s: {' '.join(cmd)}")
+        err_text = (err or b"").decode("utf-8", errors="replace")
+        if (code in (126, 127) and "timeout" in err_text
+                and ("not found" in err_text or "No such file" in err_text)):
+            # 镜像缺 coreutils timeout：诚实降级裸命令重试（四镜像探针已全过=兜底罕见路径）
+            log.warning("镜像缺 coreutils timeout（exit=%s stderr=%s），裸命令重试: %s",
+                        code, err_text[:80], cmd[:2])
+            future = _pool.submit(container.exec_run, cmd, workdir=workdir, demux=True)
+            try:
+                code, (out, err) = future.result(timeout=timeout_s + 15)
+            except FutureTimeout:
+                log.warning("执行超时(%ss): %s", timeout_s, cmd)
+                return ExecResult(exit_code=-1, stdout="",
+                                  stderr=f"timeout after {timeout_s}s: {' '.join(cmd)}")
+            except docker.errors.APIError as e2:
+                log.warning("容器执行不可达: %s: %s（cmd=%s）",
+                            type(e2).__name__, str(e2)[:120], cmd[:2])
+                return ExecResult(exit_code=-1, stdout="",
+                                  stderr=f"环境错误：容器执行不可达（{type(e2).__name__}）"
+                                         f"——容器已停止或被回收，本轮命令未执行: {' '.join(cmd[:2])}")
         return ExecResult(
             exit_code=code,
             stdout=(out or b"").decode("utf-8", errors="replace"),

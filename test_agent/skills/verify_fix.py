@@ -17,12 +17,18 @@
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import logging
+from datetime import datetime, timezone
+from pathlib import Path
 
 from . import attribution
 from .. import config
 from .defect_handoff import defect_signature
+
+log = logging.getLogger(__name__)
 
 
 def case_set_fingerprint(conn, task_id: int) -> str:
@@ -112,6 +118,159 @@ def verify_verdict(orig_defects: list[dict], verify_rows: list[dict],
                                  "不并入旧组）") if new_sigs else ""}
 
 
+# ==================== 0-A 验证资产物化快照（2026-11-20 设计稿 §2.1） ====================
+# G9 实锤口径缺口：布考场从 DB 重写用例文件存在 repr 风格差（语义零改但字节不同），
+# 整体指纹只能"发现被改"，不能定位文件、不能恢复原样。物化快照三件套：
+# 创建时逐文件字节复制 + manifest.json（sha256/行数/AST 用例名单）→ 布考场优先按快照
+# 逐字节重写 → 终态分文件对账（style_drift=AST 等价豁免 / substantive_drift=实质改动）。
+
+def snapshot_dir_for(vid: int) -> Path:
+    return Path(config.DATA_DIR) / "verify_freeze" / f"task_{vid}"
+
+
+def _count_lines(data: bytes) -> int:
+    """行数口径（materialize 与 reconcile 共用同一函数保证一致）：
+    以 \n 计数，末尾无换行的尾行补 1。"""
+    return data.count(b"\n") + (1 if data and not data.endswith(b"\n") else 0)
+
+
+def _py_test_names(text: str) -> list[str] | None:
+    """py 脚本的 test_ 函数名单（AST 提取）；语法炸= None（不猜）。"""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    return sorted(n.name for n in tree.body
+                  if isinstance(n, ast.FunctionDef) and n.name.startswith("test_"))
+
+
+def materialize_verify_snapshot(conn, vid: int) -> dict:
+    """创建验证任务时把冻结用例集物化到 data/verify_freeze/task_{vid}/（0-A）。
+
+    每脚本按 DB content 的 utf-8 字节原样落盘 + manifest.json 逐文件 sha256/行数/
+    用例名单（py 走 AST）/framework。幂等：manifest 已存在直接返回不重写。
+    失败诚实降级：返回 {"ok": False, "reason": ...}（布考场将走 db_fallback 并留痕，
+    不炸任务创建主链路）。"""
+    d = snapshot_dir_for(vid)
+    mf = d / "manifest.json"
+    if mf.exists():
+        try:
+            return {"ok": True, "manifest": json.loads(mf.read_text(encoding="utf-8"))}
+        except Exception:      # noqa: BLE001 —— manifest 损坏=重建（下方正常路径覆盖）
+            pass
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        files = []
+        for row in conn.execute(
+                "SELECT filename, content, framework FROM test_scripts "
+                "WHERE task_id=? ORDER BY id", (vid,)):
+            fname = row["filename"]
+            if not fname:
+                continue
+            data = (row["content"] or "").encode("utf-8")
+            (d / fname).parent.mkdir(parents=True, exist_ok=True)
+            (d / fname).write_bytes(data)
+            entry = {"filename": fname, "framework": row["framework"],
+                     "sha256": hashlib.sha256(data).hexdigest(),
+                     "lines": _count_lines(data), "cases": []}
+            if fname.endswith(".py"):
+                names = _py_test_names(row["content"] or "")
+                if names is not None:
+                    entry["cases"] = names
+            files.append(entry)
+        manifest = {"verify_task_id": vid,
+                    "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "files": files}
+        mf.write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
+        return {"ok": True, "manifest": manifest}
+    except Exception as e:     # noqa: BLE001 —— 物化失败不炸创建，布考场诚实回退
+        return {"ok": False, "reason": f"{type(e).__name__}: {e}"}
+
+
+def restore_from_snapshot(conn, vid: int, ws: Path) -> dict:
+    """布考场恢复（0-A）：verify_mode=1 时优先从冻结快照逐字节重写用例文件。
+
+    返回 {"mode": "snapshot"|"db_fallback", "n_files": int}。快照缺失/manifest 损坏/
+    任一文件缺失 → db_fallback（调用方留 [verify-freeze] snapshot_missing 痕）——
+    不做半新半旧的部分恢复（冻结语义下混合来源比纯 DB 更难审计）。"""
+    mf = snapshot_dir_for(vid) / "manifest.json"
+    if not mf.exists():
+        return {"mode": "db_fallback", "n_files": 0}
+    try:
+        manifest = json.loads(mf.read_text(encoding="utf-8"))
+    except Exception:          # noqa: BLE001
+        return {"mode": "db_fallback", "n_files": 0}
+    files = manifest.get("files") or []
+    srcs = [(snapshot_dir_for(vid) / f["filename"], f["filename"]) for f in files]
+    if not files or any(not p.exists() for p, _ in srcs):
+        return {"mode": "db_fallback", "n_files": 0}
+    n = 0
+    for p, fname in srcs:
+        dst = Path(ws) / fname
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(p.read_bytes())
+        n += 1
+    return {"mode": "snapshot", "n_files": n}
+
+
+def _ast_dump_of(content: bytes) -> str | None:
+    try:
+        return ast.dump(ast.parse(content.decode("utf-8", errors="replace")))
+    except SyntaxError:
+        return None
+
+
+def _style_drift(got: bytes, expected_path: Path, entry: dict) -> bool:
+    """物化风格差判据（G9 形态白名单，0-A）：AST 语义等价（py：ast.dump 相同——
+    注释/引号/空白等源码文本差不进 AST）；非 py 退化为行数一致（诚实边界：
+    JS 无零依赖语义等价器，行数一致+无 AST 才豁免，宁严勿宽下缺 AST 证据即实质）。"""
+    if entry.get("filename", "").endswith(".py"):
+        a, b = _ast_dump_of(got), _ast_dump_of(expected_path.read_bytes())
+        return a is not None and a == b
+    return entry.get("lines") == _count_lines(got)
+
+
+def reconcile_snapshot(conn, vid: int, ws: Path) -> dict:
+    """终态分文件对账（0-A）：workspace 用例文件 vs 冻结快照 manifest 逐文件 sha256。
+
+    漂移三态：style_drift（AST 等价=G9 物化风格差，豁免）/ substantive_drift
+    （实质改动：报文件名+行差）/ missing_in_workspace / unexpected_new_file
+    （冻结下冒出的 manifest 外新文件）。快照缺失 → missing_snapshot。
+    status：match / style_drift（全部漂移均可豁免）/ substantive_drift（含任一实质）。"""
+    mf = snapshot_dir_for(vid) / "manifest.json"
+    if not mf.exists():
+        return {"status": "missing_snapshot", "drift": []}
+    try:
+        manifest = json.loads(mf.read_text(encoding="utf-8"))
+    except Exception:          # noqa: BLE001
+        return {"status": "missing_snapshot", "drift": []}
+    drift = []
+    known = set()
+    for entry in manifest.get("files") or []:
+        fname = entry["filename"]
+        known.add(fname)
+        wf = Path(ws) / fname
+        if not wf.exists():
+            drift.append({"file": fname, "kind": "missing_in_workspace"})
+            continue
+        got = wf.read_bytes()
+        if hashlib.sha256(got).hexdigest() == entry.get("sha256"):
+            continue
+        if _style_drift(got, snapshot_dir_for(vid) / fname, entry):
+            drift.append({"file": fname, "kind": "style_drift"})
+            continue
+        drift.append({"file": fname, "kind": "substantive_drift",
+                      "expected_lines": entry.get("lines"),
+                      "actual_lines": _count_lines(got)})
+    for p in sorted(Path(ws).glob("test_gen*")):
+        if p.name not in known:
+            drift.append({"file": p.name, "kind": "unexpected_new_file"})
+    status = ("match" if not drift
+              else "style_drift" if all(x["kind"] == "style_drift" for x in drift)
+              else "substantive_drift")
+    return {"status": status, "drift": drift}
+
+
 def create_verify_task(conn, tid: int) -> int:
     """创建验证任务：同 project、requirement 软链前缀、复制原任务最终用例集
     （test_scripts/test_cases 原样 enabled）、状态直置 ready_for_review+confirmed=1
@@ -168,6 +327,10 @@ def create_verify_task(conn, tid: int) -> int:
                  crow["content"], crow["enabled"], crow["priority"], crow["input"],
                  crow["steps"], crow["expected"], crow["expected_basis"]))
     conn.commit()
+    # 0-A：创建即物化冻结快照（幂等；失败诚实降级——布考场走 db_fallback 并留痕）
+    mat = materialize_verify_snapshot(conn, vid)
+    if not mat.get("ok"):
+        log.warning("verify snapshot 物化失败 vid=%s: %s", vid, mat.get("reason"))
     return vid
 
 

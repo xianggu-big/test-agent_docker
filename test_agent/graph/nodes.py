@@ -1092,10 +1092,26 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 重写生成用例文件（评审页勾掉/增补的用例以库为准），再补跑阶段一顺延的收集闸
         if state.get("two_stage_rebuild"):
             from ..skills.gen_tests import collect_gate_files, rebuild_gen_files_from_db
-            n_files = rebuild_gen_files_from_db(conn, tid, Path(state["workspace"]))
-            if n_files:
-                msg(state["session_id"], "assistant",
-                    f"[provision] 布考场：按审查结论重写 {n_files} 个生成用例文件（停用用例已摘除）")
+            if state.get("verify_mode") == 1:
+                # 0-A（2026-11-20 设计稿 §2.1）：验证任务布考场优先按冻结快照逐字节重写
+                # ——G9 实锤 DB 重写有 repr 风格差（语义零改字节不同）；快照缺失诚实回退
+                # DB 重写并留痕（物化风格差由终态分文件对账豁免判读）
+                from ..skills.verify_fix import restore_from_snapshot
+                rr = restore_from_snapshot(conn, tid, Path(state["workspace"]))
+                if rr["mode"] == "snapshot":
+                    msg(state["session_id"], "assistant",
+                        f"[verify-freeze] 布考场按冻结快照逐字节重写 "
+                        f"{rr['n_files']} 个用例文件（0-A 物化快照）")
+                else:
+                    n_files = rebuild_gen_files_from_db(conn, tid, Path(state["workspace"]))
+                    msg(state["session_id"], "assistant",
+                        f"[verify-freeze] snapshot_missing——回退 DB 重写 {n_files} 个"
+                        "用例文件（0-A 审计：风格差由终态对账豁免判读）")
+            else:
+                n_files = rebuild_gen_files_from_db(conn, tid, Path(state["workspace"]))
+                if n_files:
+                    msg(state["session_id"], "assistant",
+                        f"[provision] 布考场：按审查结论重写 {n_files} 个生成用例文件（停用用例已摘除）")
         # 上一轮执行超时（exit=-1）说明容器里有 exec 残留，必须重建（A2），否则新旧任务争抢 CPU
         fresh = state.get("last_exit") == -1 and state.get("round_no", 0) > 0
         # 构建缓存持久化（2026-11-15 卡 4）：go/java 容器挂宿主缓存目录（跨容器/任务

@@ -799,6 +799,34 @@ def api_verify_fix(tid: int, user: dict = Depends(staff)):
                     "执行完成后按缺陷组签名出 fail-to-pass 三态判定"}
 
 
+@app.post("/api/tasks/{tid}/verify-restore")
+def api_verify_restore(tid: int, user: dict = Depends(staff)):
+    """0-A 恢复端点（2026-11-20 设计稿 §2.1）：从冻结快照逐字节恢复工作区用例文件。
+    人工触发（恢复是治理动作不是 Agent 动作）；不自动改库——DB 漂移由整体指纹
+    审计告警，文件漂移由本端点恢复。仅 verify_mode=1 任务可用。"""
+    conn = get_conn()
+    row = conn.execute("SELECT verify_mode, status FROM test_tasks WHERE id=?",
+                       (tid,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"任务 {tid} 不存在")
+    if not row["verify_mode"]:
+        raise HTTPException(status_code=400,
+                            detail="该任务不是验证任务（verify_mode=0），无冻结快照可恢复")
+    ws = config.DATA_DIR / "workspaces" / f"task_{tid}"
+    if not ws.exists():
+        raise HTTPException(status_code=409,
+                            detail="工作区不存在（阶段一未完成或已被清理），无从恢复")
+    from ..skills.verify_fix import reconcile_snapshot, restore_from_snapshot
+    r = restore_from_snapshot(conn, tid, ws)
+    if r["mode"] != "snapshot":
+        raise HTTPException(status_code=409,
+                            detail="冻结快照缺失或损坏，无法恢复（重跑 verify-fix 可重建快照）")
+    rec = reconcile_snapshot(conn, tid, ws)
+    return {"restored_files": r["n_files"], "reconcile_status": rec["status"],
+            "drift": rec["drift"],
+            "note": "已按冻结快照逐字节恢复工作区用例文件（未改库）"}
+
+
 @app.get("/api/tasks/{tid}/rtm")
 def api_rtm(tid: int, user: dict = Depends(current_user)):
     """需求追踪矩阵（RTM）：测试条件 ↔ 用例映射与覆盖状态 + 用例六要素。"""
