@@ -25,7 +25,9 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -150,54 +152,88 @@ def _run_wave() -> int:
     done_n = sum(1 for r in results if r.get("status") == "done")
     first_cell_ok = False   # C1：首格停波——首个实跑格非终态即停（先核验再放量）
     t0, stop_reason = time.time(), None
-    for i, spec in enumerate(specs):
-        if stop_reason:
-            break
-        if spec["key"] in settled:
-            continue
-        # 高峰门（用户硬规则 2026-11-11）：窗口关闭即停波；00:00–00:30 空隙等开窗
-        if not gate.in_offpeak_window():
-            m = time.localtime().tm_hour * 60 + time.localtime().tm_min
-            if m < 30:  # 窗前空隙：等到 00:31 续跑（晚窗连次日晨窗的中缝）
-                wait = (30 - m) * 60 + 60
-                print(f"[gate] 00:00–00:30 空隙，等待 {wait // 60} min 后续跑",
-                      flush=True)
-                time.sleep(wait)
-            else:
-                stop_reason = "offpeak_window_closed"
-                print(f"[stop] {stop_reason}（已留档 {len(results)} 格，"
-                      f"余量下个低价窗续跑）", flush=True)
-                break
-        left = gate.minutes_to_window_close()
-        if left < 10:  # 窗口尾不留长格（单格 ~3 min，10 min 安全余量）
-            stop_reason = f"window_left_{left:.0f}min_lt_10min"
-            print(f"[stop] {stop_reason}（已留档 {len(results)} 格）", flush=True)
-            break
-        # 口径闸：每格前兜底复位档位，防其他会话中途切档污染口径
-        gate.restore_profile_default()
-        rec = run_cell(spec)
-        results.append(rec)
-        if rec.get("status") == "done":
-            done_n += 1
-            first_cell_ok = True
-        # 每格即落盘（断点可查）
-        OUT.write_text(json.dumps(results, ensure_ascii=False, indent=2),
-                       encoding="utf-8")
-        print(f"[cell] {i+1}/{len(specs)} {spec['key']} {spec['lang']}/{spec['ctype']} "
+    CONCURRENCY = int(os.environ.get("WAVE2_CONCURRENCY", "4"))
+    # 并发池形态（2026-11-21 用户拍板开启）：复用 E9 worker 子进程形态——每格独立
+    # 子进程独立连接独立 config 空间（进程退出自动消失），B1 时代串行化的四条理由
+    # 逐一对照：SQLite 锁=子进程结构性免疫+C 实验 5 并发零 locked+E9 487 格实证；
+    # 钩子=驱动器直连路径不经 server 队列；本地 LLM=口径闸每格前复位全 DeepSeek；
+    # config 互染=E9 形态专门防御（进程内覆盖）。
+    pending = [s for s in specs if s["key"] not in settled]
+    out_lock = threading.Lock()
+
+    def _persist(rec: dict) -> None:
+        with out_lock:                     # 落盘串行化（results 只在主线程动）
+            results.append(rec)
+            OUT.write_text(json.dumps(results, ensure_ascii=False, indent=2),
+                           encoding="utf-8")
+        print(f"[cell] {rec.get('key')} {rec.get('lang')}/{rec.get('ctype')} "
               f"status={rec.get('status')} spent={rec.get('tokens_spent')} "
               f"elapsed={int(time.time() - t0)}s", flush=True)
-        # C1 首格停波：首个实跑格非终态即停——先跑 1 格核验再放量
-        if (not first_cell_ok
-                and rec.get("status") in ("error", "timeout", "driver_error")):
+
+    # —— 阶段 1（C1 语义保留）：首格串行核验，done 才放量 ——
+    if pending:
+        gate.restore_profile_default()     # 口径闸：每格前兜底复位档位
+        rec = run_cell(pending[0])
+        _persist(rec)
+        if rec.get("status") == "done":
+            first_cell_ok = True
+            pending = pending[1:]
+        elif rec.get("status") == "budget_exhausted":
+            stop_reason = "budget_exhausted(402)"
+            print(f"[stop] {stop_reason}（首格即 402——余额不足，留档续跑）", flush=True)
+            pending = []
+        else:
             stop_reason = f"first_cell_{rec.get('status')}"
             print(f"[stop] {stop_reason}——首格核验失败即停波（C1：先核验再放量，"
                   f"留档 {len(results)} 格；对账后清行可续跑）", flush=True)
-            break
-        if rec.get("status") == "budget_exhausted":
-            stop_reason = "budget_exhausted(402)"
-            print(f"[stop] {stop_reason}（402 熔断停波留档，余额恢复后续跑）",
-                  flush=True)
-            break
+            pending = []
+
+    # —— 阶段 2：并发池（E9 形态：一次性提交+as_completed 收割+熔断即时停） ——
+    if first_cell_ok and pending and stop_reason is None:
+        fail_window: list[str] = []        # 滑动失败率护栏（E9 同款：20 格窗）
+        with ThreadPoolExecutor(max_workers=CONCURRENCY) as pool:
+            futures = {pool.submit(run_cell, s): s for s in pending}
+            for fut in as_completed(futures):
+                spec = futures[fut]
+                try:
+                    rec = fut.result()
+                except Exception as e:     # noqa: BLE001 —— worker 异常降级留痕
+                    rec = {"key": spec["key"], "lang": spec.get("lang"),
+                           "ctype": spec.get("ctype"), "status": "driver_error",
+                           "error": f"scheduler: {type(e).__name__}: {str(e)[:160]}",
+                           "tokens_spent": 0}
+                _persist(rec)
+                if rec.get("status") == "done":
+                    done_n += 1
+                fail_window.append(rec.get("status") or "error")
+                del fail_window[:-20]      # 滑动窗 20 格
+                # 402 熔断（任一格即停提交；在途格自然完成——402 拒绝不扣费，
+                # 在途多撞几格成本 ≈0）：
+                if rec.get("status") == "budget_exhausted":
+                    stop_reason = "budget_exhausted(402)"
+                    print(f"[stop] {stop_reason}（402 熔断——取消未启动格，"
+                          f"在途跑完留档，余额恢复后续跑）", flush=True)
+                    for f2 in futures:
+                        f2.cancel()
+                    break
+                # 失败率护栏（E9 同款滑动窗）：>50% 停车（402 拒绝不计入失败率）
+                if len(fail_window) >= 20:
+                    n_fail = sum(1 for x in fail_window if x not in ("done", "budget_exhausted"))
+                    if n_fail / len(fail_window) > 0.5:
+                        stop_reason = f"failure_rate_{n_fail}/{len(fail_window)}"
+                        print(f"[stop] {stop_reason}（失败率护栏：滑动 20 格 >50% 停车——"
+                              f"E9 同款，防批量废案烧钱）", flush=True)
+                        for f2 in futures:
+                            f2.cancel()
+                        break
+                # 窗口尾门（周末全天波谷下 minutes_to_window_close 很大，基本不触发）
+                if gate.minutes_to_window_close() < 10:
+                    stop_reason = "window_tail_lt_10min"
+                    print(f"[stop] {stop_reason}（窗口尾不留长格，在途跑完留档）",
+                          flush=True)
+                    for f2 in futures:
+                        f2.cancel()
+                    break
     if stop_reason is None:
         stop_reason = "plan_exhausted"
     print(f"\n收官: done {done_n}/{len(results)}，stop={stop_reason}，"
