@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>demo</groupId>
+  <artifactId>java-multimodule-slow</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+
+  <!-- G8 竞态占位项目（2026-11-21 设计稿 docs/G8长链占位格设计-20261121.md）：
+       三模块聚合 + 慢点=测试内 Thread.sleep（设计偏差入档：原 antrun 插件需
+       Maven Central 下载，离线任务容器首跑抖动会污染竞态窗口测量——改测试内
+       sleep 零插件依赖，离线可复现）。用途=占住单 worker（≥1 分钟）给
+       "放行→worker 认领"竞态窗口 + 健康格对照（链路本身全通）。 -->
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <modules>
+    <module>app-api</module>
+    <module>app-core</module>
+    <module>app-web</module>
+  </modules>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.10.2</version>
+        <scope>test</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>

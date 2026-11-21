@@ -172,3 +172,12 @@ def test_set_status_and_rollback(env):
     assert n == 1
     assert conn.execute("SELECT status FROM tool_installations WHERE task_id=9"
                         ).fetchone()["status"] == "rolled_back"
+
+def test_fetch_unsupported_channel_rejected(env):
+    """php-ext/go-install 通道未实现 → 显式拒绝（防 pip 错装同名包——pypi 的
+    'pcov' 与 pecl 的 pcov 毫无关系）。"""
+    conn, tmp = env
+    entry = dict(pm.find_entry("tool.demo.py"),
+                 source={"type": "php-ext", "pkg": "pcov"})
+    r = pm.fetch_artifact(entry)
+    assert not r["ok"] and "未实现" in r["detail"]

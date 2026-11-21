@@ -111,9 +111,45 @@
         "network": "none",
         "secrets": []
       },
-      "fixtures": [],
+      "fixtures": [
+        {
+          "name": "happy_path",
+          "cmd": [
+            "php",
+            "-m"
+          ],
+          "expect_exit": 0,
+          "expect_contains": "pcov",
+          "note": "pcov 启用后 php -m 必须列出扩展（模块加载层）"
+        },
+        {
+          "name": "known_bad",
+          "cmd": [
+            "php",
+            "-d",
+            "pcov.enabled=0",
+            "-r",
+            "echo ini_get('pcov.enabled');"
+          ],
+          "expect_exit": 0,
+          "expect_contains": "0",
+          "note": "known_bad=配置覆盖路径可探测（-d pcov.enabled=0 时 ini 必须读出 0）——防'扩展装了但配置层失控'的坏例"
+        },
+        {
+          "name": "timeout",
+          "cmd": [
+            "php",
+            "-r",
+            "while (true) { }"
+          ],
+          "expect_exit": -1,
+          "expect_contains": "timeout",
+          "note": "超时防护：verify_entry 60s timeout_s 下死循环被 0-C coreutils timeout 真终止，exec_in 映射 exit=-1（三 fixture 里验证取消层）"
+        }
+      ],
       "status": "candidate",
-      "pain_point": "php xdebug 覆盖开销大（pcov 注入挂账——吸收进包 2 的落地形态）"
+      "pain_point": "php xdebug 覆盖开销大（pcov 注入挂账——吸收进包 2 的落地形态）",
+      "note": "fixtures 三类已声明（happy/known_bad/timeout）——真验证需先实现php-ext 通道（pecl 容器内安装，fetch 已显式拒）+含 pcov 的 php84 镜像变体；实施=充值后队列④"
     },
     {
       "id": "tool.mutate.gremlins",

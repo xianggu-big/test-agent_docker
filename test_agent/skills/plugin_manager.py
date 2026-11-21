@@ -109,6 +109,13 @@ def fetch_artifact(entry: dict, timeout_s: int = 300) -> dict:
         return {"ok": True, "files": [str(src_path)], "digest": digest,
                 "sealed": bool(declared),
                 "detail": "seal 新摘要" if not declared else "digest 比对一致"}
+    stype = src.get("type") or ""
+    if stype in ("php-ext", "go-install"):
+        # 非 pip 通道显式拒绝（防错装：pypi 上的同名包与 pecl/go 包毫无关系——
+        # pcov/go-install 的实现=容器内 pecl/go install，充值后实施；现在宁可
+        # 诚实 unsupported 也不静默错装）
+        return {"ok": False, "files": [], "digest": "", "sealed": False,
+                "detail": f"{stype} 通道未实现（pecl/go install 容器内安装待实施）——拒绝"}
     pkg = src.get("pkg") or ""
     if not pkg:
         return {"ok": False, "files": [], "digest": "", "sealed": False,
