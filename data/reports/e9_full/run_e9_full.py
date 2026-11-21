@@ -70,11 +70,24 @@ def _now_min(now=None) -> float:
 _OFFPEAK_BATCH_SLOTS = [(30, 9 * 60), (12 * 60, 14 * 60), (18 * 60, 24 * 60 + 30)]
 
 
+def _is_weekend(now=None) -> bool:
+    """周六/周日判定（tm_wday: 0=周一 … 5=周六 6=周日）。
+    用户规则更新（2026-11-21 明令）：**周六周日全天波谷**——DeepSeek 周末价
+    本就等于波谷价，原工作日高峰段划分（09-12/14-18 禁跑）对周末不适用。"""
+    import time as _t
+    t = _t.localtime() if now is None else (
+        now if hasattr(now, "tm_hour") else _t.localtime(now))
+    return t.tm_wday >= 5
+
+
 def in_offpeak_window(now=None) -> bool:
-    """低价批量时段判断（用户硬规则 2026-11-11）：高峰段 09:00–12:00 与
-    14:00–18:00 禁止大批量下发（价格贵一倍）；低价段=其余全部。
+    """低价批量时段判断（用户硬规则 2026-11-11；2026-11-21 更新：周六周日全天
+    波谷——周末不受工作日高峰段限制）：高峰段 09:00–12:00 与 14:00–18:00
+    （仅工作日）禁止大批量下发（价格贵一倍）；低价段=其余全部+周末全天。
     E9_IGNORE_PEAK_GATE=1 = 用户单次点火授权：仅放宽段起点（00:30→00:00），
-    **高峰段仍硬禁**——覆盖不能授权闯高峰（14:00 起自动停新格，在途跑完）。"""
+    **工作日高峰段仍硬禁**——覆盖不能授权闯高峰（14:00 起自动停新格，在途跑完）。"""
+    if _is_weekend(now):
+        return True                            # 周六/周日：全天波谷（2026-11-21 用户明令）
     m = _now_min(now)
     if 9 * 60 <= m < 12 * 60 or 14 * 60 <= m < 18 * 60:
         return False                           # 高峰段：覆盖也不豁免
@@ -90,9 +103,17 @@ def minutes_to_window_close(now=None) -> float:
     旧实现只算 00:30–08:30 段——12:00–14:00 与 18:00 后的剩余恒 0，长格门把
     所有格静默延后=整波秒退 plan_exhausted（本日 12:2x 手动点火实锤）。
     语义=距下一个高峰起点：午窗收 14:00；晚窗 18:00 连到次日 09:00（低价段
-    18:00–次日 00:30 与 00:30–09:00 相接）；凌晨窗收 09:00。"""
+    18:00–次日 00:30 与 00:30–09:00 相接）；凌晨窗收 09:00。
+    2026-11-21：周末全天波谷——周六收窗=周一 09:00（跨整个周日）。"""
     if os.environ.get("E9_IGNORE_PEAK_GATE", "0") == "1":
         return 9999.0                    # 覆盖模式下长格门同步常开
+    if _is_weekend(now):
+        import time as _t
+        t = _t.localtime() if now is None else (
+            now if hasattr(now, "tm_hour") else _t.localtime(now))
+        # 周六=还有 2 天到周一 09:00；周日=1 天
+        days = 2 if t.tm_wday == 5 else 1
+        return days * 24 * 60 - (t.tm_hour * 60 + t.tm_min) + 9 * 60
     m = _now_min(now)
     if 9 * 60 <= m < 12 * 60 or 14 * 60 <= m < 18 * 60:
         return 0.0                       # 高峰段：无可下发窗口（launch 会延后）
