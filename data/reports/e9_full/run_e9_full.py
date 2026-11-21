@@ -251,16 +251,23 @@ def run_worker(params_path: str) -> int:
         requirement = f"{params['requirement']}\n（验收判据：{params['criteria']}）"
     else:
         corpus = params["corpus"]
-        repo_dir = ROOT / "data" / "corpus" / corpus / "project"
-        requirement = (repo_dir / "REQUIREMENT.md").read_text(encoding="utf-8")
+        if corpus.startswith("demo/"):
+            # Wave2 v2 六语言分支（2026-11-21）：demo 项目直接作被测物
+            repo_dir = ROOT / "data" / "demo" / corpus[len("demo/"):]
+        else:
+            repo_dir = ROOT / "data" / "corpus" / corpus / "project"
+        # v2：需求显式随格下发（demo 项目无 REQUIREMENT.md 依赖）；缺省回退原行为
+        requirement = params.get("requirement") or \
+            (repo_dir / "REQUIREMENT.md").read_text(encoding="utf-8")
     init_db()
     conn = get_conn()
     uid = conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()["id"]
-    label = (f"e9a1-c{params['combo_idx']:02d}-{corpus}-n{params['n']}" if arm == "A1"
-             else f"e9a2-{params['ai_reviewer']}-{corpus}-n{params['n']}" if arm == "A2"
-             else f"e9a3-{corpus}-k{params['k']:02d}" if arm == "A3"
-             else f"e9a4-{params['project']}-{params['role']}-n{params['n']}" if arm == "A4"
-             else f"e9a5-{corpus}-r{params['round']:03d}")
+    label = params.get("label") or (
+        f"e9a1-c{params['combo_idx']:02d}-{corpus}-n{params['n']}" if arm == "A1"
+        else f"e9a2-{params['ai_reviewer']}-{corpus}-n{params['n']}" if arm == "A2"
+        else f"e9a3-{corpus}-k{params['k']:02d}" if arm == "A3"
+        else f"e9a4-{params['project']}-{params['role']}-n{params['n']}" if arm == "A4"
+        else f"e9a5-{corpus}-r{params['round']:03d}")
     ai_mode = params.get("ai_reviewer", "off")
     two_stage = 1 if ai_mode in ("hybrid", "auto") else 0
     pid = conn.execute(
@@ -306,6 +313,8 @@ def run_worker(params_path: str) -> int:
     print(f"[worker] {label} task={tid} overrides={overrides}", flush=True)
     rec = {"arm": arm, "corpus": corpus, "n": params.get("n"), "task_id": tid,
            "label": label, "at": time.strftime("%F %T")}
+    if params.get("audit"):
+        rec.update(params["audit"])   # Wave2 v2：格型/语言/基线等审计字段透传进留档
     if arm == "A1":
         rec["combo_idx"] = params["combo_idx"]
         rec["flags"] = params["flags"]
