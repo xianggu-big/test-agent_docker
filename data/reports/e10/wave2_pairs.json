@@ -1,0 +1,1751 @@
+{
+ "kb_rows": [
+  {
+   "lang": "go",
+   "baseline": "1126",
+   "anchor": "go-l3l4-demo",
+   "rounds": {
+    "1": {
+     "det": "budget_exhausted",
+     "passed": null,
+     "failed": null,
+     "tokens": 0
+    },
+    "2": "missing",
+    "3": "missing"
+   },
+   "trajectory": "budget_exhausted → ? → ?",
+   "layer1_qual": "一致(budget_exhausted)",
+   "layer2_quant": {
+    "passed": "0",
+    "failed": "0",
+    "tokens": "0"
+   }
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1156",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 5,
+     "tokens": 14096
+    },
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 5,
+     "tokens": 12912
+    },
+    "3": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 4,
+     "tokens": 14525
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "10.0±0.0",
+    "failed": "4.7±0.6",
+    "tokens": "13844.3±835.4"
+   },
+   "delta_pass_r3_r1": 0,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "持平"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1167",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 4,
+     "tokens": 13069
+    },
+    "2": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 5,
+     "tokens": 16531
+    },
+    "3": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 5,
+     "tokens": 14361
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "9.7±1.2",
+    "failed": "4.7±0.6",
+    "tokens": "14653.7±1749.5"
+   },
+   "delta_pass_r3_r1": 2,
+   "delta_fail_r3_r1": 1,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1169",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 5,
+     "tokens": 13325
+    },
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 6,
+     "tokens": 11828
+    },
+    "3": {
+     "det": "detected",
+     "passed": 12,
+     "failed": 4,
+     "tokens": 11651
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.0±1.0",
+    "failed": "5.0±1.0",
+    "tokens": "12268.0±919.7"
+   },
+   "delta_pass_r3_r1": 1,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1283",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "error",
+     "passed": null,
+     "failed": null,
+     "tokens": null
+    },
+    "2": "missing",
+    "3": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 4,
+     "tokens": 13835
+    }
+   },
+   "trajectory": "error → ? → detected",
+   "layer1_qual": "分歧(2种)",
+   "layer2_quant": {
+    "passed": "5.0±7.1",
+    "failed": "2.0±2.8",
+    "tokens": "6917.5±9782.8"
+   },
+   "delta_pass_r3_r1": 10,
+   "delta_fail_r3_r1": 4,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1310",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 4,
+     "tokens": 14343
+    },
+    "2": {
+     "det": "detected",
+     "passed": 7,
+     "failed": 7,
+     "tokens": 16165
+    },
+    "3": "missing"
+   },
+   "trajectory": "detected → detected → ?",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "8.5±2.1",
+    "failed": "5.5±2.1",
+    "tokens": "15254.0±1288.3"
+   }
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1657",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 4,
+     "tokens": 14919
+    },
+    "2": {
+     "det": "detected",
+     "passed": 15,
+     "failed": 4,
+     "tokens": 12664
+    },
+    "3": {
+     "det": "pass",
+     "passed": 10,
+     "failed": 0,
+     "tokens": 11249
+    }
+   },
+   "trajectory": "detected → detected → pass",
+   "layer1_qual": "分歧(2种)",
+   "layer2_quant": {
+    "passed": "13.0±2.6",
+    "failed": "2.7±2.3",
+    "tokens": "12944.0±1851.0"
+   },
+   "delta_pass_r3_r1": -4,
+   "delta_fail_r3_r1": -4,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1663",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 2,
+     "tokens": 12645
+    },
+    "2": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 2,
+     "tokens": 10240
+    },
+    "3": {
+     "det": "detected",
+     "passed": 16,
+     "failed": 5,
+     "tokens": 15102
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.3±4.2",
+    "failed": "3.0±1.7",
+    "tokens": "12662.3±2431.0"
+   },
+   "delta_pass_r3_r1": 6,
+   "delta_fail_r3_r1": 3,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1977",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 5,
+     "tokens": 13389
+    },
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 5,
+     "tokens": 10130
+    },
+    "3": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 8,
+     "tokens": 12707
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "9.0±1.0",
+    "failed": "6.0±1.7",
+    "tokens": "12075.3±1718.9"
+   },
+   "delta_pass_r3_r1": -1,
+   "delta_fail_r3_r1": 3,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1985",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 4,
+     "tokens": 12328
+    },
+    "2": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 5,
+     "tokens": 14555
+    },
+    "3": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 5,
+     "tokens": 10985
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "10.0±1.0",
+    "failed": "4.7±0.6",
+    "tokens": "12622.7±1803.1"
+   },
+   "delta_pass_r3_r1": 1,
+   "delta_fail_r3_r1": 1,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1986",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 16,
+     "failed": 5,
+     "tokens": 15879
+    },
+    "2": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 5,
+     "tokens": 13725
+    },
+    "3": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 5,
+     "tokens": 10997
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "12.0±3.6",
+    "failed": "5.0±0.0",
+    "tokens": "13533.7±2446.6"
+   },
+   "delta_pass_r3_r1": -7,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "1987",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 5,
+     "tokens": 11288
+    },
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 5,
+     "tokens": 14449
+    },
+    "3": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 4,
+     "tokens": 10708
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "10.0±0.0",
+    "failed": "4.7±0.6",
+    "tokens": "12148.3±2013.4"
+   },
+   "delta_pass_r3_r1": 0,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "持平"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "2247",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 1,
+     "tokens": 10963
+    },
+    "2": {
+     "det": "detected",
+     "passed": 21,
+     "failed": 3,
+     "tokens": 16554
+    },
+    "3": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 1,
+     "tokens": 11538
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "12.7±7.2",
+    "failed": "1.7±1.2",
+    "tokens": "13018.3±3075.4"
+   },
+   "delta_pass_r3_r1": 1,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "javascript",
+   "baseline": "280",
+   "anchor": "js-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 12,
+     "failed": 5,
+     "tokens": 12188
+    },
+    "2": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 5,
+     "tokens": 16677
+    },
+    "3": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 5,
+     "tokens": 12212
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "10.3±1.5",
+    "failed": "5.0±0.0",
+    "tokens": "13692.3±2584.8"
+   },
+   "delta_pass_r3_r1": -2,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "154",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 30,
+     "failed": 8,
+     "tokens": 27222
+    },
+    "2": {
+     "det": "detected",
+     "passed": 17,
+     "failed": 6,
+     "tokens": 29218
+    },
+    "3": {
+     "det": "detected",
+     "passed": 36,
+     "failed": 9,
+     "tokens": 34184
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "27.7±9.7",
+    "failed": "7.7±1.5",
+    "tokens": "30208.0±3585.0"
+   },
+   "delta_pass_r3_r1": 6,
+   "delta_fail_r3_r1": 1,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "python",
+   "baseline": "166",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 22,
+     "failed": 8,
+     "tokens": 25623
+    },
+    "2": {
+     "det": "detected",
+     "passed": 33,
+     "failed": 9,
+     "tokens": 29254
+    },
+    "3": {
+     "det": "detected",
+     "passed": 29,
+     "failed": 6,
+     "tokens": 36273
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "28.0±5.6",
+    "failed": "7.7±1.5",
+    "tokens": "30383.3±5414.1"
+   },
+   "delta_pass_r3_r1": 7,
+   "delta_fail_r3_r1": -2,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "python",
+   "baseline": "168",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 23,
+     "failed": 8,
+     "tokens": 29256
+    },
+    "2": {
+     "det": "detected",
+     "passed": 12,
+     "failed": 7,
+     "tokens": 32101
+    },
+    "3": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 9,
+     "tokens": 25196
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "16.3±5.9",
+    "failed": "8.0±1.0",
+    "tokens": "28851.0±3470.3"
+   },
+   "delta_pass_r3_r1": -9,
+   "delta_fail_r3_r1": 1,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "178",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 36,
+     "failed": 9,
+     "tokens": 17417
+    },
+    "2": {
+     "det": "detected",
+     "passed": 18,
+     "failed": 9,
+     "tokens": 19496
+    },
+    "3": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 8,
+     "tokens": 18732
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "22.7±11.7",
+    "failed": "8.7±0.6",
+    "tokens": "18548.3±1051.6"
+   },
+   "delta_pass_r3_r1": -22,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "179",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 31,
+     "failed": 7,
+     "tokens": 16714
+    },
+    "2": {
+     "det": "detected",
+     "passed": 25,
+     "failed": 8,
+     "tokens": 17442
+    },
+    "3": {
+     "det": "detected",
+     "passed": 28,
+     "failed": 9,
+     "tokens": 19149
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "28.0±3.0",
+    "failed": "8.0±1.0",
+    "tokens": "17768.3±1249.9"
+   },
+   "delta_pass_r3_r1": -3,
+   "delta_fail_r3_r1": 2,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "180",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 15,
+     "failed": 7,
+     "tokens": 15594
+    },
+    "2": {
+     "det": "detected",
+     "passed": 34,
+     "failed": 8,
+     "tokens": 17054
+    },
+    "3": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 7,
+     "tokens": 16770
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "21.0±11.3",
+    "failed": "7.3±0.6",
+    "tokens": "16472.7±774.1"
+   },
+   "delta_pass_r3_r1": -1,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "181",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 34,
+     "failed": 10,
+     "tokens": 36467
+    },
+    "2": {
+     "det": "detected",
+     "passed": 20,
+     "failed": 3,
+     "tokens": 26997
+    },
+    "3": {
+     "det": "detected",
+     "passed": 25,
+     "failed": 8,
+     "tokens": 34365
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "26.3±7.1",
+    "failed": "7.0±3.6",
+    "tokens": "32609.7±4973.0"
+   },
+   "delta_pass_r3_r1": -9,
+   "delta_fail_r3_r1": -2,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "182",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 12,
+     "tokens": 32645
+    },
+    "2": {
+     "det": "detected",
+     "passed": 28,
+     "failed": 8,
+     "tokens": 27245
+    },
+    "3": {
+     "det": "detected",
+     "passed": 15,
+     "failed": 9,
+     "tokens": 26661
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "19.0±7.8",
+    "failed": "9.7±2.1",
+    "tokens": "28850.3±3299.2"
+   },
+   "delta_pass_r3_r1": 1,
+   "delta_fail_r3_r1": -3,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "python",
+   "baseline": "183",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 13,
+     "tokens": 20828
+    },
+    "2": {
+     "det": "detected",
+     "passed": 29,
+     "failed": 8,
+     "tokens": 28906
+    },
+    "3": {
+     "det": "detected",
+     "passed": 12,
+     "failed": 10,
+     "tokens": 29123
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "17.3±10.1",
+    "failed": "10.3±2.5",
+    "tokens": "26285.7±4727.7"
+   },
+   "delta_pass_r3_r1": 1,
+   "delta_fail_r3_r1": -3,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "python",
+   "baseline": "353",
+   "anchor": "grid-L2E2-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 40,
+     "failed": 10,
+     "tokens": 33376
+    },
+    "2": {
+     "det": "detected",
+     "passed": 26,
+     "failed": 8,
+     "tokens": 33931
+    },
+    "3": {
+     "det": "detected",
+     "passed": 26,
+     "failed": 7,
+     "tokens": 33731
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "30.7±8.1",
+    "failed": "8.3±1.5",
+    "tokens": "33679.3±281.1"
+   },
+   "delta_pass_r3_r1": -14,
+   "delta_fail_r3_r1": -3,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "354",
+   "anchor": "grid-L2E3-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 27,
+     "failed": 9,
+     "tokens": 27905
+    },
+    "2": {
+     "det": "detected",
+     "passed": 19,
+     "failed": 8,
+     "tokens": 33300
+    },
+    "3": {
+     "det": "detected",
+     "passed": 33,
+     "failed": 8,
+     "tokens": 34304
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "26.3±7.0",
+    "failed": "8.3±0.6",
+    "tokens": "31836.3±3441.4"
+   },
+   "delta_pass_r3_r1": 6,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "python",
+   "baseline": "355",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 35,
+     "failed": 9,
+     "tokens": 34581
+    },
+    "2": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 7,
+     "tokens": 25076
+    },
+    "3": {
+     "det": "detected",
+     "passed": 16,
+     "failed": 7,
+     "tokens": 25498
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "21.7±11.6",
+    "failed": "7.7±1.2",
+    "tokens": "28385.0±5370.0"
+   },
+   "delta_pass_r3_r1": -19,
+   "delta_fail_r3_r1": -2,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "356",
+   "anchor": "grid-L2E1-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 20,
+     "failed": 9,
+     "tokens": 26060
+    },
+    "2": {
+     "det": "detected",
+     "passed": 13,
+     "failed": 7,
+     "tokens": 38085
+    },
+    "3": {
+     "det": "budget_exhausted",
+     "passed": null,
+     "failed": null,
+     "tokens": 0
+    }
+   },
+   "trajectory": "detected → detected → budget_exhausted",
+   "layer1_qual": "分歧(2种)",
+   "layer2_quant": {
+    "passed": "11.0±10.1",
+    "failed": "5.3±4.7",
+    "tokens": "21381.7±19468.7"
+   },
+   "delta_pass_r3_r1": -20,
+   "delta_fail_r3_r1": -9,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "python",
+   "baseline": "357",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": "missing",
+    "2": {
+     "det": "detected",
+     "passed": 32,
+     "failed": 8,
+     "tokens": 34891
+    },
+    "3": {
+     "det": "detected",
+     "passed": 33,
+     "failed": 8,
+     "tokens": 33351
+    }
+   },
+   "trajectory": "? → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "32.5±0.7",
+    "failed": "8.0±0.0",
+    "tokens": "34121.0±1088.9"
+   }
+  },
+  {
+   "lang": "python",
+   "baseline": "358",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 12,
+     "failed": 8,
+     "tokens": 22010
+    },
+    "2": {
+     "det": "detected",
+     "passed": 31,
+     "failed": 8,
+     "tokens": 34368
+    },
+    "3": {
+     "det": "detected",
+     "passed": 30,
+     "failed": 8,
+     "tokens": 32467
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "24.3±10.7",
+    "failed": "8.0±0.0",
+    "tokens": "29615.0±6654.4"
+   },
+   "delta_pass_r3_r1": 18,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "python",
+   "baseline": "362",
+   "anchor": "e7-corpus-003",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 34,
+     "failed": 7,
+     "tokens": 26048
+    },
+    "2": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 10,
+     "tokens": 35201
+    },
+    "3": {
+     "det": "detected",
+     "passed": 15,
+     "failed": 7,
+     "tokens": 24986
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "20.0±12.3",
+    "failed": "8.0±1.7",
+    "tokens": "28745.0±5616.2"
+   },
+   "delta_pass_r3_r1": -19,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1157",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 2,
+     "tokens": 13552
+    },
+    "2": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 1,
+     "tokens": 15652
+    },
+    "3": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 1,
+     "tokens": 12703
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "9.0±1.0",
+    "failed": "1.3±0.6",
+    "tokens": "13969.0±1518.1"
+   },
+   "delta_pass_r3_r1": -2,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1170",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 7,
+     "failed": 2,
+     "tokens": 16508
+    },
+    "2": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 3,
+     "tokens": 11507
+    },
+    "3": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 2,
+     "tokens": 16369
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "8.0±1.0",
+    "failed": "2.3±0.6",
+    "tokens": "14794.7±2848.1"
+   },
+   "delta_pass_r3_r1": 2,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1171",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 1,
+     "tokens": 11464
+    },
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 2,
+     "tokens": 15068
+    },
+    "3": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 2,
+     "tokens": 16374
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "9.3±1.2",
+    "failed": "1.7±0.6",
+    "tokens": "14302.0±2543.0"
+   },
+   "delta_pass_r3_r1": 2,
+   "delta_fail_r3_r1": 1,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1656",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 6,
+     "failed": 4,
+     "tokens": 11740
+    },
+    "2": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 3,
+     "tokens": 11912
+    },
+    "3": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 2,
+     "tokens": 11606
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "9.3±4.2",
+    "failed": "3.0±1.0",
+    "tokens": "11752.7±153.4"
+   },
+   "delta_pass_r3_r1": 8,
+   "delta_fail_r3_r1": -2,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1662",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 15,
+     "failed": 2,
+     "tokens": 11402
+    },
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 4,
+     "tokens": 11919
+    },
+    "3": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 1,
+     "tokens": 13026
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.3±3.2",
+    "failed": "2.3±1.5",
+    "tokens": "12115.7±829.7"
+   },
+   "delta_pass_r3_r1": -6,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1967",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 12,
+     "failed": 4,
+     "tokens": 12179
+    },
+    "2": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 2,
+     "tokens": 14732
+    },
+    "3": {
+     "det": "detected",
+     "passed": 7,
+     "failed": 3,
+     "tokens": 9006
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.0±3.6",
+    "failed": "3.0±1.0",
+    "tokens": "11972.3±2868.6"
+   },
+   "delta_pass_r3_r1": -5,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1978",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 14,
+     "failed": 4,
+     "tokens": 15724
+    },
+    "2": {
+     "det": "detected",
+     "passed": 13,
+     "failed": 3,
+     "tokens": 18798
+    },
+    "3": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 1,
+     "tokens": 12243
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.7±3.2",
+    "failed": "2.7±1.5",
+    "tokens": "15588.3±3279.6"
+   },
+   "delta_pass_r3_r1": -6,
+   "delta_fail_r3_r1": -3,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1988",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 3,
+     "tokens": 13710
+    },
+    "2": {
+     "det": "detected",
+     "passed": 12,
+     "failed": 2,
+     "tokens": 13929
+    },
+    "3": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 2,
+     "tokens": 16860
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "10.0±2.0",
+    "failed": "2.3±0.6",
+    "tokens": "14833.0±1758.8"
+   },
+   "delta_pass_r3_r1": -2,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1989",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 2,
+     "tokens": 17898
+    },
+    "2": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 2,
+     "tokens": 12014
+    },
+    "3": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 2,
+     "tokens": 17457
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "10.3±1.2",
+    "failed": "2.0±0.0",
+    "tokens": "15789.7±3277.2"
+   },
+   "delta_pass_r3_r1": 0,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "持平"
+  },
+  {
+   "lang": "typescript",
+   "baseline": "1990",
+   "anchor": "ts-calc",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 13,
+     "failed": 3,
+     "tokens": 13768
+    },
+    "2": "missing",
+    "3": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 3,
+     "tokens": 16387
+    }
+   },
+   "trajectory": "detected → ? → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.5±2.1",
+    "failed": "3.0±0.0",
+    "tokens": "15077.5±1851.9"
+   },
+   "delta_pass_r3_r1": -3,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "下降"
+  }
+ ],
+ "trend": {
+  "1": {
+   "detected": 37,
+   "n": 39,
+   "passed": [
+    0,
+    10,
+    9,
+    11,
+    0,
+    10,
+    14,
+    10,
+    9,
+    10,
+    16,
+    10,
+    8,
+    12,
+    30,
+    22,
+    23,
+    36,
+    31,
+    15,
+    34,
+    14,
+    11,
+    40,
+    27,
+    35,
+    20,
+    12,
+    34,
+    10,
+    7,
+    8,
+    6,
+    15,
+    12,
+    14,
+    10,
+    11,
+    13
+   ],
+   "tokens": [
+    0,
+    14096,
+    13069,
+    13325,
+    0,
+    14343,
+    14919,
+    12645,
+    13389,
+    12328,
+    15879,
+    11288,
+    10963,
+    12188,
+    27222,
+    25623,
+    29256,
+    17417,
+    16714,
+    15594,
+    36467,
+    32645,
+    20828,
+    33376,
+    27905,
+    34581,
+    26060,
+    22010,
+    26048,
+    13552,
+    16508,
+    11464,
+    11740,
+    11402,
+    12179,
+    15724,
+    13710,
+    17898,
+    13768
+   ]
+  },
+  "2": {
+   "detected": 37,
+   "n": 37,
+   "passed": [
+    10,
+    9,
+    10,
+    7,
+    15,
+    8,
+    10,
+    9,
+    11,
+    10,
+    21,
+    9,
+    17,
+    33,
+    12,
+    18,
+    25,
+    34,
+    20,
+    28,
+    29,
+    26,
+    19,
+    14,
+    13,
+    32,
+    31,
+    11,
+    9,
+    8,
+    10,
+    8,
+    10,
+    14,
+    13,
+    12,
+    9
+   ],
+   "tokens": [
+    12912,
+    16531,
+    11828,
+    16165,
+    12664,
+    10240,
+    10130,
+    14555,
+    13725,
+    14449,
+    16554,
+    16677,
+    29218,
+    29254,
+    32101,
+    19496,
+    17442,
+    17054,
+    26997,
+    27245,
+    28906,
+    33931,
+    33300,
+    25076,
+    38085,
+    34891,
+    34368,
+    35201,
+    15652,
+    11507,
+    15068,
+    11912,
+    11919,
+    14732,
+    18798,
+    13929,
+    12014
+   ]
+  },
+  "3": {
+   "detected": 36,
+   "n": 38,
+   "passed": [
+    10,
+    11,
+    12,
+    10,
+    10,
+    16,
+    8,
+    11,
+    9,
+    10,
+    9,
+    10,
+    36,
+    29,
+    14,
+    14,
+    28,
+    14,
+    25,
+    15,
+    12,
+    26,
+    33,
+    16,
+    0,
+    33,
+    30,
+    15,
+    8,
+    9,
+    10,
+    14,
+    9,
+    7,
+    8,
+    8,
+    11,
+    10
+   ],
+   "tokens": [
+    14525,
+    14361,
+    11651,
+    13835,
+    11249,
+    15102,
+    12707,
+    10985,
+    10997,
+    10708,
+    11538,
+    12212,
+    34184,
+    36273,
+    25196,
+    18732,
+    19149,
+    16770,
+    34365,
+    26661,
+    29123,
+    33731,
+    34304,
+    25498,
+    0,
+    33351,
+    32467,
+    24986,
+    12703,
+    16369,
+    16374,
+    11606,
+    13026,
+    9006,
+    12243,
+    16860,
+    17457,
+    16387
+   ]
+  }
+ },
+ "pairs": [
+  {
+   "lang": "javascript",
+   "corpus": "demo/js-calc",
+   "requirement": "验证 src/calc.js 的三��函数：\n1. add(a, b)：两数相加；任一参数非数字时抛 TypeError",
+   "k_round": 3,
+   "k_base": 280,
+   "d_n": 11,
+   "d_bases": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "k_det": "detected",
+   "d_det": "detected",
+   "d_det_rate": "11/11",
+   "k_passed": 10,
+   "d_passed": 9.5,
+   "k_tokens": 12212,
+   "d_tokens": 12342.0
+  },
+  {
+   "lang": "python",
+   "corpus": "corpus-003",
+   "requirement": "# 会议室预约 API 需求（corpus-003）\n\n1. 创建会议室 `POST /rooms`：`name` 长度",
+   "k_round": 3,
+   "k_base": 154,
+   "d_n": 2,
+   "d_bases": [
+    null,
+    null
+   ],
+   "k_det": "detected",
+   "d_det": "not_detected",
+   "d_det_rate": "1/2",
+   "k_passed": 36,
+   "d_passed": 17,
+   "k_tokens": 34184,
+   "d_tokens": 25959
+  },
+  {
+   "lang": "typescript",
+   "corpus": "demo/ts-calc",
+   "requirement": "# 验收需求（ts-calc，TypeScript 执行链路·白包阶段1）\n\n被测模块 src/calc.ts，三组行为",
+   "k_round": 3,
+   "k_base": 1157,
+   "d_n": 18,
+   "d_bases": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "k_det": "detected",
+   "d_det": "detected",
+   "d_det_rate": "18/18",
+   "k_passed": 8,
+   "d_passed": 10.7,
+   "k_tokens": 12703,
+   "d_tokens": 13414.0
+  }
+ ],
+ "unpaired_k": [
+  [
+   "go",
+   "demo/go-api-book",
+   "# 图书管理 REST 服务（Go/gin）\n\n提供图书的查询、创建与删除接口：\n- GET /ping：健康探针，返回 {\"message\": \"pong\"}\n- GET /books：列出全部图书（JSON 数组）\n- POST /books：创建图书（JSON body），创建成功返回 201 与图书对象\n- DELETE /books/{id}：按 id 删除图书\n\n验收关注：创建后列表可见；删除语义的正确性（含重复删除行为）；\n响应均为 JSON；非法 id 的处理。"
+  ],
+  [
+   "javascript",
+   "demo/js-calc",
+   "测试计算器除法功能（验收格 G8 占位格：堵住单 worker 让竞态格停在 queued）"
+  ],
+  [
+   "javascript",
+   "demo/js-calc",
+   "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。"
+  ],
+  [
+   "javascript",
+   "demo/js-calc",
+   "验证 src/calc.js 的三个函数：\n1. add(a, b)：两数相加；任一参数非数字时抛 TypeError。\n2. div(a, b)：a 除以 b；b 为 0 时抛 RangeError。\n3. clamp(x, lo, hi)：把 x 限制在闭区间 [lo, hi]——x 小于 lo 返回 lo，x 大于 hi 返回 hi，x 等于 hi 时必须返回 hi 本身。"
+  ],
+  [
+   "python",
+   "corpus-003",
+   "对被测项目做功能测试：接口契约与业务流程（添加/查询/取消，边界与非法输入），顺序场景约束（创建→按 id 读回）；行覆盖率目标 70%。"
+  ],
+  [
+   "typescript",
+   "demo/ts-calc",
+   "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。"
+  ]
+ ],
+ "unpaired_d": [],
+ "pairing_key": "lang+corpus+requirement",
+ "sign_tests": {
+  "det": [
+   1.0,
+   1
+  ],
+  "pass": [
+   1.0,
+   3
+  ],
+  "tokens": [
+   1.0,
+   3
+  ]
+ }
+}

@@ -239,6 +239,17 @@ def _run_wave() -> int:
     print(f"\n收官: done {done_n}/{len(results)}，stop={stop_reason}，"
           f"本波耗时 {int((time.time()-t0)/60)} 分钟", flush=True)
     print(f"落盘: {OUT}", flush=True)
+    # 任务4 常态化：收官自动跑配对聚合（幂等全量重算零成本——先例 bench3 --run 完
+    # 自动写终账；聚合器独立进程，失败不判波失败只留痕）
+    try:
+        import subprocess as _sp
+        r = _sp.run([sys.executable, "-X", "utf8", "-I",
+                     str(Path(__file__).resolve().parent / "aggregate_wave2_pairs.py")],
+                    capture_output=True, text=True, timeout=120)
+        print(f"[aggregate] rc={r.returncode} → wave2_pairs.md（三表+三层判定）"
+              + ("" if r.returncode == 0 else f" stderr={r.stderr[-200:]}"), flush=True)
+    except Exception as e:   # 聚合失败不影响波次留档
+        print(f"[aggregate] 跳过（{e}）", flush=True)
     return 0
 
 
