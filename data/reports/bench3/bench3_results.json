@@ -1,0 +1,5037 @@
+[
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tqdm-bug9",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 2,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='LED test_gen_r1.py::test_format_meter_速率数量级SI前缀_等价类划分 - Assert...\\nFAILED test_gen_r1.py::test_format_meter_分支覆盖_ascii与ncols_语句分支覆盖\\n2 failed, 11 passed in 0.15s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 2,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 62.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_0",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='............                                                             [100%]\\n12 passed in 0.06s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 26.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_1",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.08s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_2",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='n_r1.py::test_truncate_number_错误推测_负数 - assert not 0.5 < 1\\nFAILED test_gen_r1.py::test_truncate_number_错误推测_零 - assert not 0.0 < 1\\n2 failed, 11 passed in 0.13s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 0,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 24.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_3",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.07s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 28.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_4",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='===== short test summary info ============================\\nFAILED test_gen_r1.py::test_mad_极大值_错误推测法 - assert inf == 0.0 ± 1.0e-12\\n1 failed, 10 passed in 0.09s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_5",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='........                                                                 [100%]\\n8 passed in 0.06s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.7
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_6",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.06s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.4
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_7",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.06s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_8",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.................                                                        [100%]\\n17 passed in 0.07s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_19",
+  "task_id": 1,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.09s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_9",
+  "task_id": 905957441,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='====== short test summary info ============================\\nFAILED test_gen_r1.py::test_rolling_max_字符串输入_错误推测法 - Failed: DID N...\\n1 failed, 18 passed in 0.12s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_11",
+  "task_id": 960856874,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.06s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 27.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_12",
+  "task_id": 974353475,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='========= short test summary info ============================\\nFAILED test_gen_r1.py::test_longest_判定表_唯一最长与并列组合 - AssertionErro...\\n1 failed, 8 passed in 0.08s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 27.0
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_13",
+  "task_id": 964532651,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='=========\\nFAILED test_gen_r1.py::test_gcd_两个负整数_等价类划分 - assert -6 == 6\\nFAILED test_gen_r1.py::test_gcd_一正一负_等价类划分 - assert -6 == 6\\n2 failed, 10 passed in 0.10s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 2,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_16",
+  "task_id": 902121965,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='== short test summary info ============================\\nFAILED test_gen_r1.py::test_count_distinct_characters_错误推测法_None - Attri...\\n1 failed, 8 passed in 0.18s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 31.1
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_14",
+  "task_id": 926820252,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='........                                                                 [100%]\\n8 passed in 0.09s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.5
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_17",
+  "task_id": 905397755,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 16,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='parse_music_错误推测法_攻击用例[None \\\\u8f93\\\\u5165]\\nFAILED test_gen_r1.py::test_parse_music_错误推测法_攻击用例[\\\\u975e\\\\u5b57\\\\u7b26\\\\u4e32\\\\u7c7b\\\\u578b]\\n10 failed, 6 passed in 0.32s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 10,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.9
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_15",
+  "task_id": 976051326,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 14,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.................                                                        [100%]\\n17 passed in 0.18s\\n'",
+   "fail_to_pass": 13,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.5
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_18",
+  "task_id": 949473303,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='===== short test summary info ============================\\nFAILED test_gen_r1.py::test_how_many_times_空子串_错误推测法 - AssertionError...\\n1 failed, 9 passed in 0.12s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 36.1
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_20",
+  "task_id": 947450619,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 18,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='en_r1.py::test_find_closest_elements_返回顺序_等价类划分 - asser...\\nFAILED test_gen_r1.py::test_find_closest_elements_浮点精度_错误推测法 - asser...\\n10 failed, 8 passed in 0.24s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 10,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 41.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_23",
+  "task_id": 984020709,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.08s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 24.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_24",
+  "task_id": 947452230,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.08s\\n'",
+   "fail_to_pass": 12,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 28.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_21",
+  "task_id": 913340264,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.10s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.9
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_25",
+  "task_id": 988122343,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='n_r1.py::test_factorize_零输入_错误推测法 - Failed: DID NOT RAI...\\nFAILED test_gen_r1.py::test_factorize_负数输入_错误推测法 - ValueError: math ...\\n3 failed, 10 passed in 0.22s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 2,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 30.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_22",
+  "task_id": 996696756,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='======= short test summary info ============================\\nFAILED test_gen_r1.py::test_filter_integers_布尔值被过滤_错误推测法 - assert ...\\n1 failed, 10 passed in 0.13s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_26",
+  "task_id": 998314782,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.11s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 29.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_27",
+  "task_id": 920424309,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='............                                                             [100%]\\n12 passed in 0.07s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.0
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_28",
+  "task_id": 959109296,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.........                                                                [100%]\\n9 passed in 0.09s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 29.7
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_29",
+  "task_id": 950894310,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.09s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 28.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "bucketsort",
+  "task_id": 929180876,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.12s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 28.8
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "breadth_first_search",
+  "task_id": 974236216,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.10s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "depth_first_search",
+  "task_id": 972503142,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 1,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.07s\\n'",
+   "fail_to_pass": 1,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "flatten",
+  "task_id": 919882049,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.07s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 27.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "find_in_sorted",
+  "task_id": 907311764,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 3,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...................                                                      [100%]\\n19 passed in 0.09s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "detect_cycle",
+  "task_id": 901985841,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过",
+  "task_error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='1.py::test_detect_cycle_None输入_错误推测法 - Failed: DID NO...\\nFAILED test_gen_r2.py::test_detect_cycle_None输入_错误推测法 - Failed: DID NO...\\n2 failed, 38 passed in 0.21s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 48.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "gcd",
+  "task_id": 939593972,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='======== short test summary info ============================\\nFAILED test_gen_r1.py::test_gcd_等价类划分_无效输入类型 - Failed: DID NOT RAI...\\n1 failed, 9 passed in 0.12s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "get_factors",
+  "task_id": 918002532,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 14,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='r1.py::test_get_factors_错误推测_零输入 - Failed: DID NOT RAI...\\nFAILED test_gen_r1.py::test_get_factors_错误推测_负数输入 - TypeError: int() ...\\n2 failed, 17 passed in 0.20s\\n'",
+   "fail_to_pass": 12,
+   "fail_to_fail": 2,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 29.8
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "hanoi",
+  "task_id": 950739647,
+  "status": "done",
+  "verdict": "pass",
+  "stop_reason": "达标（通过且覆盖率满足准出标准）",
+  "task_error": "",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..                                                                       [100%]\\n2 passed in 0.05s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 28.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "is_valid_parenthesization",
+  "task_id": 901886502,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.................                                                        [100%]\\n17 passed in 0.09s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "kheapsort",
+  "task_id": 991199449,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.09s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "knapsack",
+  "task_id": 961085769,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.09s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.3
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "kth",
+  "task_id": 949861068,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.08s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "lcs_length",
+  "task_id": 914060721,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.08s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 30.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "lis",
+  "task_id": 916813881,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.09s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 30.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "levenshtein",
+  "task_id": 995989122,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='......................                                                   [100%]\\n22 passed in 0.09s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "max_sublist_sum",
+  "task_id": 910929668,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.08s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 28.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "longest_common_subsequence",
+  "task_id": 959131574,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 3,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py"
+  ],
+  "replay": {
+   "n_files": 2,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........................                                               [100%]\\n26 passed in 0.16s\\n'",
+   "fail_to_pass": 2,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 41.8
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "minimum_spanning_tree",
+  "task_id": 935500022,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.......                                                                  [100%]\\n7 passed in 0.09s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 29.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "mergesort",
+  "task_id": 939211067,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 14,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.09s\\n'",
+   "fail_to_pass": 14,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "next_permutation",
+  "task_id": 950748918,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='================= short test summary info ============================\\nFAILED test_gen_r1.py::test_单元素列表_边界值分析 - assert None == [5]\\n1 failed, 9 passed in 0.10s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 29.3
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "next_palindrome",
+  "task_id": 908984701,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='==== short test summary info ============================\\nFAILED test_gen_r1.py::test_next_palindrome_错误推测法_空列表 - assert [1, 1]...\\n1 failed, 24 passed in 0.16s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 36.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "possible_change",
+  "task_id": 948265364,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='=== short test summary info ============================\\nFAILED test_gen_r1.py::test_possible_change_错误推测法_None输入 - Failed: DID...\\n1 failed, 12 passed in 0.15s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 29.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "pascal",
+  "task_id": 927994998,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.........                                                                [100%]\\n9 passed in 0.08s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 30.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "powerset",
+  "task_id": 918750888,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='=== short test summary info ============================\\nFAILED test_gen_r1.py::test_powerset_None输入_错误推测法 - Failed: DID NOT RA...\\n1 failed, 19 passed in 0.12s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "quicksort",
+  "task_id": 994200839,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.09s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "rpn_eval",
+  "task_id": 908604595,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...................                                                      [100%]\\n19 passed in 0.08s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_path_lengths",
+  "task_id": 906533866,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='............                                                             [100%]\\n12 passed in 0.08s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "reverse_linked_list",
+  "task_id": 914740858,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过",
+  "task_error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "failed_in_buggy": 27,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............................                                           [100%]\\n30 passed in 0.20s\\n'",
+   "fail_to_pass": 27,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 51.8
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_path_length",
+  "task_id": 927869642,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.07s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_paths",
+  "task_id": 952031652,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail=\"=============\\nFAILED test_gen_r1.py::test_source为存在节点_等价类划分 - KeyError: 'A'\\nFAILED test_gen_r1.py::test_不可达节点_等价类划分 - KeyError: 'C'\\n2 failed, 8 passed in 0.12s\\n\"",
+   "fail_to_pass": 4,
+   "fail_to_fail": 2,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "sieve",
+  "task_id": 945195984,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.08s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "subsequences",
+  "task_id": 921897744,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='en_r1.py::test_subsequences_判定表_k与区间组合 - assert [[]] == []\\nFAILED test_gen_r1.py::test_subsequences_语句分支覆盖_k为0分支 - assert [[]] ...\\n3 failed, 13 passed in 0.16s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 2,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 31.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shunting_yard",
+  "task_id": 932908180,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过",
+  "task_error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "failed_in_buggy": 30,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='::test_rpn_evaluation_equivalence_等价类划分 - NameError...\\nFAILED test_gen_r3.py::test_rpn_evaluation_equivalence_等价类划分 - NameError...\\n3 failed, 42 passed in 0.24s\\n'",
+   "fail_to_pass": 27,
+   "fail_to_fail": 3,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 53.8
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "topological_ordering",
+  "task_id": 965582113,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.08s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.5
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_10",
+  "task_id": 942837198,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='_r2.py::test_make_palindrome_单字符后缀_边界值分析 - Assertion...\\nFAILED test_gen_r3.py::test_make_palindrome_None输入_错误推测法 - Failed: DID...\\n10 failed, 42 passed in 0.29s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 323.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "bitcount",
+  "task_id": 994757304,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 613.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "find_first_in_sorted",
+  "task_id": 918619019,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.07s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 58.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "sqrt",
+  "task_id": 960348508,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 620.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "to_base",
+  "task_id": 969249587,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 625.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "wrap",
+  "task_id": 967927089,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过",
+  "task_error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=137 tail='FF'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 775.9
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tqdm-bug9__r2",
+  "task_id": 981285342,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail=''",
+   "fail_to_pass": 0,
+   "fail_to_fail": 4,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 56.9
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tqdm-bug9__r3",
+  "task_id": 911830017,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='gen_r1.py::test_format_meter_速率SI单位_边界值分析[\\\\u8fb9\\\\u754c999]\\nFAILED test_gen_r1.py::test_format_meter_速率SI单位_边界值分析[\\\\u8fb9\\\\u754c1000]\\n10 failed, 9 passed in 0.24s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 10,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 55.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_0__r2",
+  "task_id": 970545694,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='r1.py::test_has_close_elements_判定表_负阈值 - assert False i...\\nFAILED test_gen_r1.py::test_has_close_elements_错误推测法_浮点精度 - assert F...\\n3 failed, 11 passed in 0.11s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 1,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 30.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_0__r3",
+  "task_id": 924207065,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='n_r1.py::test_has_close_elements_错误推测法_浮点精度 - assert F...\\nFAILED test_gen_r1.py::test_has_close_elements_错误推测法_极大值 - assert Fal...\\n2 failed, 15 passed in 0.12s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 30.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_1__r2",
+  "task_id": 919452534,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='st_gen_r1.py::test_separate_paren_groups_错误推测法_制表符不忽略 - A...\\nFAILED test_gen_r1.py::test_separate_paren_groups_错误推测法_换行符不忽略 - A...\\n2 failed, 13 passed in 0.11s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 2,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 29.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_1__r3",
+  "task_id": 937736011,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 14,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.07s\\n'",
+   "fail_to_pass": 13,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.9
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_2__r3",
+  "task_id": 921617442,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='......                                                                   [100%]\\n6 passed in 0.07s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.5
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_4__r3",
+  "task_id": 920572414,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='t_gen_r1.py::test_mad_语句分支覆盖_公式逐项验证 - assert 1.2 == 2.0...\\nFAILED test_gen_r1.py::test_mad_错误推测法_均值为零 - Failed: DID NOT RAISE Z...\\n2 failed, 10 passed in 0.13s\\n'",
+   "fail_to_pass": 1,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_4__r2",
+  "task_id": 940409473,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='t_gen_r1.py::test_mad_语句分支覆盖_公式逐项验证 - assert 1.2 == 2.0...\\nFAILED test_gen_r1.py::test_mad_错误推测法_均值为零 - Failed: DID NOT RAISE Z...\\n2 failed, 10 passed in 0.12s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 1,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 32.4
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_3__r3",
+  "task_id": 986011170,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...................                                                      [100%]\\n19 passed in 0.11s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.4
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_2__r2",
+  "task_id": 956817741,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.08s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 38.1
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_5__r3",
+  "task_id": 920434975,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='==== short test summary info ============================\\nFAILED test_gen_r1.py::test_intersperse_None输入_错误推测法 - Failed: DID NOT...\\n1 failed, 9 passed in 0.09s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 30.9
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_6__r2",
+  "task_id": 903572951,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='_r1.py::test_parse_nested_parens_边界值分析[max \\\\u4e09\\\\u5c42]\\nFAILED test_gen_r1.py::test_parse_nested_parens_边界值分析[max+1 \\\\u56db\\\\u5c42]\\n4 failed, 10 passed in 0.13s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 4,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.5
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_5__r2",
+  "task_id": 919825111,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='=== short test summary info ============================\\nFAILED test_gen_r1.py::test_intersperse_错误推测法_None输入 - Failed: DID NOT...\\n1 failed, 10 passed in 0.14s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 36.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_7__r2",
+  "task_id": 965612813,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='== short test summary info ============================\\nFAILED test_gen_r1.py::test_not_contains_substring_等价类划分 - AssertionErro...\\n1 failed, 9 passed in 0.12s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 31.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_7__r3",
+  "task_id": 995485590,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='== short test summary info ============================\\nFAILED test_gen_r1.py::test_not_contains_substring_等价类划分 - AssertionErro...\\n1 failed, 9 passed in 0.13s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 31.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_6__r3",
+  "task_id": 966777985,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.08s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 38.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_8__r3",
+  "task_id": 959203558,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.08s\\n'",
+   "fail_to_pass": 2,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.7
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_8__r2",
+  "task_id": 998084743,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.09s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.9
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_9__r2",
+  "task_id": 982398860,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='== short test summary info ============================\\nFAILED test_gen_r1.py::test_rolling_max_错误推测法 - Failed: DID NOT RAISE Ty...\\n1 failed, 4 passed in 0.12s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_9__r3",
+  "task_id": 965101881,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.10s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.4
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_11__r2",
+  "task_id": 977732576,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.09s\\n'",
+   "fail_to_pass": 2,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_11__r3",
+  "task_id": 915286360,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.08s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.5
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_12__r2",
+  "task_id": 901743019,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.08s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_12__r3",
+  "task_id": 920912564,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='== short test summary info ============================\\nFAILED test_gen_r1.py::test_longest_错误推测_None输入 - Failed: DID NOT RAISE...\\n1 failed, 10 passed in 0.11s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_13__r2",
+  "task_id": 966566135,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='=============== short test summary info ============================\\nFAILED test_gen_r1.py::test_gcd_语句分支覆盖_语句分支覆盖 - assert 5 == 0\\n1 failed, 11 passed in 0.10s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.7
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_13__r3",
+  "task_id": 911663655,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='DID NO...\\nFAILED test_gen_r1.py::test_gcd_判定表_符号组合 - assert -4 == 4\\nFAILED test_gen_r1.py::test_gcd_语句分支覆盖_循环零次与多次 - assert 7 == 0\\n3 failed, 10 passed in 0.16s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 3,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.1
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_14__r3",
+  "task_id": 989585281,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.....                                                                    [100%]\\n5 passed in 0.07s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 30.1
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_14__r2",
+  "task_id": 945495813,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.........                                                                [100%]\\n9 passed in 0.07s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 36.7
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_15__r2",
+  "task_id": 998209826,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 17,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.09s\\n'",
+   "fail_to_pass": 2,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.1
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_16__r2",
+  "task_id": 908748590,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='t_gen_r1.py::test_count_distinct_characters_错误推测法_None输入 - A...\\nFAILED test_gen_r1.py::test_count_distinct_characters_错误推测法_数字类型输入\\n2 failed, 15 passed in 0.16s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 0,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 31.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_16__r3",
+  "task_id": 983612613,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='t_gen_r1.py::test_count_distinct_characters_错误推测_None输入 - Att...\\nFAILED test_gen_r1.py::test_count_distinct_characters_错误推测_非字符串整数\\n2 failed, 11 passed in 0.14s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 36.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_17__r2",
+  "task_id": 970985057,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.07s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_17__r3",
+  "task_id": 922732471,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='est_gen_r1.py::test_parse_music_边界值分析_单音符[\\\\u4e24\\\\u97f3\\\\u7b26]\\nFAILED test_gen_r1.py::test_parse_music_边界值分析_单音符[\\\\u4e09\\\\u97f3\\\\u7b26]\\n5 failed, 9 passed in 0.17s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 5,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 36.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_18__r3",
+  "task_id": 964668682,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='==== short test summary info ============================\\nFAILED test_gen_r1.py::test_how_many_times_空子串_错误推测法 - AssertionError...\\n1 failed, 16 passed in 0.12s\\n'",
+   "fail_to_pass": 1,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 29.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_18__r2",
+  "task_id": 956390998,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='==== short test summary info ============================\\nFAILED test_gen_r1.py::test_how_many_times_空子串_错误推测法 - AssertionError...\\n1 failed, 16 passed in 0.12s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 39.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_19__r3",
+  "task_id": 953040096,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='========== short test summary info ============================\\nFAILED test_gen_r1.py::test_sort_numbers_等价类划分_非法输入非数字单词 - KeyE...\\n1 failed, 14 passed in 0.11s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 30.4
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_20__r3",
+  "task_id": 956700286,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='===== short test summary info ============================\\nFAILED test_gen_r1.py::test_长度大于2_等价类划分 - assert (1.0, 3.0) == (3.0,...\\n1 failed, 10 passed in 0.11s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_19__r2",
+  "task_id": 994699595,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.10s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 40.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_20__r2",
+  "task_id": 935827492,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.................                                                        [100%]\\n17 passed in 0.09s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.0
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_21__r2",
+  "task_id": 981419689,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='====== short test summary info ============================\\nFAILED test_gen_r1.py::test_rescale_单元素列表_错误推测法 - ZeroDivisionError...\\n1 failed, 16 passed in 0.12s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 38.1
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_21__r3",
+  "task_id": 928159060,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='_r1.py::test_rescale_错误推测_负数区间 - assert [0.0, 0.5, 1.0...\\nFAILED test_gen_r1.py::test_rescale_错误推测_浮点精度 - assert [0.0, 0.500000...\\n10 failed, 8 passed in 0.28s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 2,
+   "pass_to_fail": 8
+  },
+  "grade": "detected",
+  "duration_s": 35.9
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_22__r2",
+  "task_id": 968658959,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='======= short test summary info ============================\\nFAILED test_gen_r1.py::test_布尔值被过滤_错误推测法 - assert [True, False, 1,...\\n1 failed, 12 passed in 0.16s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 36.9
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_23__r2",
+  "task_id": 972613366,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 14,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.07s\\n'",
+   "fail_to_pass": 13,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 26.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_24__r3",
+  "task_id": 960491981,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='===== short test summary info ============================\\nFAILED test_gen_r1.py::test_largest_divisor_n为1未定义_错误推测法 - ZeroDivis...\\n1 failed, 10 passed in 0.10s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 34.0
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_24__r2",
+  "task_id": 957838901,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 19,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='r1.py::test_largest_divisor_n为1_未定义_错误推测法 - ZeroDivi...\\nFAILED test_gen_r1.py::test_largest_divisor_语句分支覆盖 - ZeroDivisionError:...\\n2 failed, 20 passed in 0.16s\\n'",
+   "fail_to_pass": 17,
+   "fail_to_fail": 1,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 40.9
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_25__r2",
+  "task_id": 951213910,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='......                                                                   [100%]\\n6 passed in 0.07s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 29.3
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_25__r3",
+  "task_id": 976137935,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 14,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='_gen_r1.py::test_factorize_错误推测法 - Failed: DID NOT RAISE Zero...\\nFAILED test_gen_r1.py::test_factorize_性质_质数与顺序与乘积_等价类划分 - Name...\\n2 failed, 11 passed in 0.13s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 2,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 30.0
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_26__r3",
+  "task_id": 999356089,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='== short test summary info ============================\\nFAILED test_gen_r1.py::test_remove_duplicates_错误推测法 - Failed: DID NOT RA...\\n1 failed, 4 passed in 0.11s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.1
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_10__r2",
+  "task_id": 980088359,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='t_gen_r1.py::test_make_palindrome_判定表_后缀回文情况组合 - Asserti...\\nFAILED test_gen_r2.py::test_make_palindrome_错误推测法_攻击性输入 - Failed: D...\\n3 failed, 40 passed in 0.27s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 329.4
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_10__r3",
+  "task_id": 983340420,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='::test_make_palindrome_错误推测法 - Failed: DID NOT RAIS...\\nFAILED test_gen_r3.py::test_make_palindrome_错误推测法 - Failed: DID NOT RAIS...\\n8 failed, 56 passed in 0.37s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 331.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_27__r3",
+  "task_id": 927918181,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='........                                                                 [100%]\\n8 passed in 0.06s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 30.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_27__r2",
+  "task_id": 962483234,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.08s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 41.2
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_28__r3",
+  "task_id": 903771376,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.........                                                                [100%]\\n9 passed in 0.07s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 27.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_28__r2",
+  "task_id": 914917369,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='........                                                                 [100%]\\n8 passed in 0.05s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.5
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_29__r2",
+  "task_id": 925850132,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.08s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_29__r3",
+  "task_id": 905438781,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='............                                                             [100%]\\n12 passed in 0.07s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "breadth_first_search__r2",
+  "task_id": 982924647,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.06s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "breadth_first_search__r3",
+  "task_id": 927869553,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.07s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "bucketsort__r2",
+  "task_id": 972696318,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='========= short test summary info ============================\\nFAILED test_gen_r1.py::test_bucketsort_无效等价类_负元素_等价类划分 - Failed:...\\n1 failed, 13 passed in 0.11s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "bucketsort__r3",
+  "task_id": 962365266,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.07s\\n'",
+   "fail_to_pass": 12,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 39.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "depth_first_search__r2",
+  "task_id": 908031223,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 1,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.08s\\n'",
+   "fail_to_pass": 1,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 30.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "depth_first_search__r3",
+  "task_id": 975123412,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 2,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.08s\\n'",
+   "fail_to_pass": 2,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "detect_cycle__r2",
+  "task_id": 954901287,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过",
+  "task_error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "failed_in_buggy": 18,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='n_r1.py::test_detect_cycle_边界值分析[\\\\u5341\\\\u8282\\\\u70b9 max-1]\\nFAILED test_gen_r1.py::test_detect_cycle_边界值分析[\\\\u767e\\\\u8282\\\\u70b9 max]\\n10 failed, 32 passed in 0.36s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 10,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 57.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "detect_cycle__r3",
+  "task_id": 912786148,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过",
+  "task_error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "failed_in_buggy": 1,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.........................                                                [100%]\\n25 passed in 0.13s\\n'",
+   "fail_to_pass": 1,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 48.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "find_first_in_sorted__r2",
+  "task_id": 904568976,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.................                                                        [100%]\\n17 passed in 0.09s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 43.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "find_first_in_sorted__r3",
+  "task_id": 962414621,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.................                                                        [100%]\\n17 passed in 0.07s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 53.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "find_in_sorted__r2",
+  "task_id": 927420587,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='......                                                                   [100%]\\n6 passed in 0.08s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "find_in_sorted__r3",
+  "task_id": 963943920,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.08s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "flatten__r2",
+  "task_id": 946990599,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.07s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "flatten__r3",
+  "task_id": 968007996,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.07s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "gcd__r2",
+  "task_id": 948691742,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 15,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='==== short test summary info ============================\\nFAILED test_gen_r1.py::test_gcd_错误推测_非法输入 - Failed: DID NOT RAISE Exc...\\n1 failed, 17 passed in 0.13s\\n'",
+   "fail_to_pass": 15,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 35.8
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "gcd__r3",
+  "task_id": 910159210,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='en_r1.py::test_gcd_等价类划分_无效类型 - Failed: DID NOT RAISE T...\\nFAILED test_gen_r1.py::test_gcd_错误推测法_None与负数 - assert (5 <= 0 or (10...\\n2 failed, 7 passed in 0.11s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 1,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 41.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "get_factors__r2",
+  "task_id": 952025167,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 14,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='===== short test summary info ============================\\nFAILED test_gen_r1.py::test_get_factors_错误推测法_非法输入 - Failed: DID NOT...\\n1 failed, 16 passed in 0.13s\\n'",
+   "fail_to_pass": 13,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "get_factors__r3",
+  "task_id": 967063986,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='===== short test summary info ============================\\nFAILED test_gen_r1.py::test_get_factors_错误推测法_非法输入 - Failed: DID NOT...\\n1 failed, 12 passed in 0.09s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 33.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "hanoi__r2",
+  "task_id": 939293843,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..........                                                               [100%]\\n10 passed in 0.07s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 38.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "hanoi__r3",
+  "task_id": 971921033,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.07s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "is_valid_parenthesization__r2",
+  "task_id": 906318930,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 3,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.08s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 40.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "is_valid_parenthesization__r3",
+  "task_id": 909226066,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='====== short test summary info ============================\\nFAILED test_gen_r1.py::test_非括号字符_错误推测法 - AssertionError: assert Fa...\\n1 failed, 15 passed in 0.16s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 36.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "kheapsort__r2",
+  "task_id": 936613842,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.08s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 42.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "knapsack__r2",
+  "task_id": 910301339,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='1.py::test_knapsack_weight_sum_语句分支覆盖 - assert 19 == 17\\nFAILED test_gen_r1.py::test_knapsack_zero_weight_item_错误推测法 - assert 10 ...\\n4 failed, 9 passed in 0.15s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 1,
+   "pass_to_fail": 3
+  },
+  "grade": "detected",
+  "duration_s": 39.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "knapsack__r3",
+  "task_id": 992331105,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='======= short test summary info ============================\\nFAILED test_gen_r1.py::test_capacity_positive_等价类划分 - assert 20 == 10\\n1 failed, 13 passed in 0.13s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 36.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "kth__r2",
+  "task_id": 951475154,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='== short test summary info ============================\\nFAILED test_gen_r1.py::test_kth_等价类划分_无效k[k\\\\u8d85\\\\u4e0a\\\\u754c\\\\u9012\\\\u5f52]\\n1 failed, 16 passed in 0.19s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 34.3
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "lcs_length__r2",
+  "task_id": 960141076,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 16,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='fo ============================\\nFAILED test_gen_r1.py::test_lcs_length_公共子串位于首尾_边界值分析[\\\\u516c\\\\u5171\\\\u5b50\\\\u4e32\\\\u5728t\\\\u8d77\\\\u59cb]\\n1 failed, 20 passed in 0.12s\\n'",
+   "fail_to_pass": 15,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 38.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "lcs_length__r3",
+  "task_id": 965419725,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..................                                                       [100%]\\n18 passed in 0.09s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "levenshtein__r2",
+  "task_id": 937030885,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='....................                                                     [100%]\\n20 passed in 0.08s\\n'",
+   "fail_to_pass": 13,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 36.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "levenshtein__r3",
+  "task_id": 987156277,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='........                                                                 [100%]\\n8 passed in 0.07s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 40.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "lis__r2",
+  "task_id": 941989035,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='................                                                         [100%]\\n16 passed in 0.08s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 42.3
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "lis__r3",
+  "task_id": 923158218,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 3,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.08s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 43.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "longest_common_subsequence__r2",
+  "task_id": 947496849,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 1,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='=== short test summary info ============================\\nFAILED test_gen_r1.py::test_lcs_None输入_错误推测法 - Failed: DID NOT RAISE T...\\n1 failed, 14 passed in 0.15s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 35.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "longest_common_subsequence__r3",
+  "task_id": 946463999,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 2,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.12s\\n'",
+   "fail_to_pass": 2,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "bitcount__r3",
+  "task_id": 954047664,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 404.5,
+  "grade_note": "类③口径修正 2026-11-23：两版共挂非终止边界≠脚手架破碎"
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "max_sublist_sum__r2",
+  "task_id": 966472551,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.09s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 42.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "max_sublist_sum__r3",
+  "task_id": 969721840,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 3,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.10s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 38.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "mergesort__r2",
+  "task_id": 916707318,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.07s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 42.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "mergesort__r3",
+  "task_id": 959668037,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.10s\\n'",
+   "fail_to_pass": 13,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 47.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "minimum_spanning_tree__r2",
+  "task_id": 963954137,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.09s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 42.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "minimum_spanning_tree__r3",
+  "task_id": 952066073,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='............                                                             [100%]\\n12 passed in 0.07s\\n'",
+   "fail_to_pass": 11,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 44.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "next_palindrome__r2",
+  "task_id": 904344186,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='====== short test summary info ============================\\nFAILED test_gen_r1.py::test_非回文输入_错误推测法 - assert [1, 3, 3] == [3, 3...\\n1 failed, 31 passed in 0.16s\\n'",
+   "fail_to_pass": 12,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 47.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "next_palindrome__r3",
+  "task_id": 997558202,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='test_next_palindrome_判定表 - assert [1, 0, 1] == [1, ...\\nFAILED test_gen_r1.py::test_next_palindrome_错误推测法 - assert [1, 0, 0, 0, ...\\n3 failed, 14 passed in 0.22s\\n'",
+   "fail_to_pass": 3,
+   "fail_to_fail": 1,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 44.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "next_permutation__r2",
+  "task_id": 923318023,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='================ short test summary info ============================\\nFAILED test_gen_r1.py::test_单元素列表_边界值分析 - assert None == [5]\\n1 failed, 13 passed in 0.12s\\n'",
+   "fail_to_pass": 9,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 44.3
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "next_permutation__r3",
+  "task_id": 989980627,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='st_next_permutation_负整数_等价类划分 - assert [-2, ...\\nFAILED test_gen_r1.py::test_next_permutation_边界值分析[\\\\u5355\\\\u5143\\\\u7d20\\\\u5217\\\\u8868]\\n2 failed, 10 passed in 0.16s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 2,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 41.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "pascal__r2",
+  "task_id": 927891966,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.08s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "pascal__r3",
+  "task_id": 929429425,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 16,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='========= short test summary info ============================\\nFAILED test_gen_r1.py::test_pascal_n小于1不产生非法行_错误推测法 - assert 1 <= 0\\n1 failed, 17 passed in 0.16s\\n'",
+   "fail_to_pass": 15,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "possible_change__r2",
+  "task_id": 910273162,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 14,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='=========== short test summary info ============================\\nFAILED test_gen_r1.py::test_possible_change_错误推测法 - assert 4 == 2\\n1 failed, 14 passed in 0.12s\\n'",
+   "fail_to_pass": 13,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 43.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "powerset__r2",
+  "task_id": 917572997,
+  "status": "done",
+  "verdict": "pass",
+  "stop_reason": "达标（通过且覆盖率满足准出标准）",
+  "task_error": "",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.....                                                                    [100%]\\n5 passed in 0.07s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 36.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "possible_change__r3",
+  "task_id": 978587578,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='1.py::test_possible_change_等价类划分_无效 - Failed: DID NOT...\\nFAILED test_gen_r1.py::test_possible_change_错误推测法_None输入 - Failed: DID...\\n2 failed, 17 passed in 0.16s\\n'",
+   "fail_to_pass": 13,
+   "fail_to_fail": 0,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 44.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "powerset__r3",
+  "task_id": 953252212,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.10s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 37.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "quicksort__r2",
+  "task_id": 921460609,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.09s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 35.8
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "quicksort__r3",
+  "task_id": 944841749,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='===== short test summary info ============================\\nFAILED test_gen_r1.py::test_quicksort_等价类划分_无效输入None - Failed: DID N...\\n1 failed, 15 passed in 0.11s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 38.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "reverse_linked_list__r3",
+  "task_id": 943908505,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.........                                                                [100%]\\n9 passed in 0.08s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.3
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "reverse_linked_list__r2",
+  "task_id": 907607242,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='........                                                                 [100%]\\n8 passed in 0.09s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 38.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "rpn_eval__r2",
+  "task_id": 973841731,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.14s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 34.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "rpn_eval__r3",
+  "task_id": 931605909,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.............                                                            [100%]\\n13 passed in 0.07s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 44.6
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_path_length__r2",
+  "task_id": 950740971,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.07s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 43.2
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_path_length__r3",
+  "task_id": 953821195,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='============= short test summary info ============================\\nFAILED test_gen_r1.py::test_shortest_path_length_判定表_绕行路径按边长度求和\\n1 failed, 12 passed in 0.19s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 40.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_path_lengths__r2",
+  "task_id": 948189857,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='====================== short test summary info ============================\\nFAILED test_gen_r1.py::test_自环为0_边界值分析 - assert 5 == 0\\n1 failed, 12 passed in 0.16s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 39.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "bitcount__r2",
+  "task_id": 901114487,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 627.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_path_lengths__r3",
+  "task_id": 962339139,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='==================== short test summary info ============================\\nFAILED test_gen_r1.py::test_零权边与自环_错误推测法 - assert 5 == 0\\n1 failed, 10 passed in 0.15s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 45.8
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_paths__r2",
+  "task_id": 943106125,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail=\"- KeyError: 'A'\\nFAILED test_gen_r1.py::test_边方向由有序对决定_等价类划分 - KeyError: 'A'\\nFAILED test_gen_r1.py::test_不可达节点_等价类划分 - KeyError: 'C'\\n4 failed, 9 passed in 0.20s\\n\"",
+   "fail_to_pass": 6,
+   "fail_to_fail": 3,
+   "pass_to_fail": 1
+  },
+  "grade": "detected",
+  "duration_s": 41.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shortest_paths__r3",
+  "task_id": 976180477,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail=\" RAISE Exception\\nFAILED test_gen_r1.py::test_source存在节点_等价类划分 - KeyError: 'A'\\nFAILED test_gen_r1.py::test_有向边方向_判定表 - KeyError: 'A'\\n3 failed, 7 passed in 0.15s\\n\"",
+   "fail_to_pass": 5,
+   "fail_to_fail": 3,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 43.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shunting_yard__r2",
+  "task_id": 978944449,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='::test_long_expression_rpn_equivalence_等价类划分 - asse...\\nFAILED test_gen_r1.py::test_invalid_operator_错误推测法 - Failed: DID NOT RAI...\\n2 failed, 11 passed in 0.22s\\n'",
+   "fail_to_pass": 2,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 43.8
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_3__r2",
+  "task_id": 949428588,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 11,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...............                                                          [100%]\\n15 passed in 0.10s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 32.5
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_15__r3",
+  "task_id": 908117404,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.........                                                                [100%]\\n9 passed in 0.09s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.6
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_22__r3",
+  "task_id": 970246706,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='======= short test summary info ============================\\nFAILED test_gen_r1.py::test_filter_integers_布尔值被过滤_错误推测法 - assert ...\\n1 failed, 13 passed in 0.14s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 40.7
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_23__r3",
+  "task_id": 925868090,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='.......                                                                  [100%]\\n7 passed in 0.08s\\n'",
+   "fail_to_pass": 6,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 31.0
+ },
+ {
+  "bench": "HumanEvalFix(BigCode'23)",
+  "name": "Python_26__r2",
+  "task_id": 925443127,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='====== short test summary info ============================\\nFAILED test_gen_r1.py::test_remove_duplicates_错误推测法_字符串输入 - Failed:...\\n1 failed, 14 passed in 0.14s\\n'",
+   "fail_to_pass": 10,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 39.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "kheapsort__r3",
+  "task_id": 938741992,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='======= short test summary info ============================\\nFAILED test_gen_r1.py::test_kheapsort_等价类划分_有效_混合符号 - assert [-1, ...\\n1 failed, 13 passed in 0.14s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 40.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "sieve__r3",
+  "task_id": 985516945,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 5,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='............                                                             [100%]\\n12 passed in 0.14s\\n'",
+   "fail_to_pass": 5,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 38.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "sieve__r2",
+  "task_id": 954762052,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='..............                                                           [100%]\\n14 passed in 0.16s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 39.9
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "kth__r3",
+  "task_id": 990988193,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 7,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...................                                                      [100%]\\n19 passed in 0.20s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 42.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "shunting_yard__r3",
+  "task_id": 998458825,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 18,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail=\"::test_multiset_preserved_等价类划分 - TypeError: '<' no...\\nFAILED test_gen_r1.py::test_attack_invalid_token_错误推测法 - Failed: DID NOT...\\n2 failed, 21 passed in 0.27s\\n\"",
+   "fail_to_pass": 16,
+   "fail_to_fail": 2,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 43.5
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "subsequences__r3",
+  "task_id": 960816906,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 6,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='gen_r1.py::test_subsequences_语句分支覆盖 - assert [[]] == []\\nFAILED test_gen_r1.py::test_subsequences_错误推测法 - RecursionError: maximum...\\n4 failed, 8 passed in 1.62s\\n'",
+   "fail_to_pass": 2,
+   "fail_to_fail": 4,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 42.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "to_base__r3",
+  "task_id": 992852694,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='==== short test summary info ============================\\nFAILED test_gen_r1.py::test_to_base_错误推测_非法进制 - Failed: DID NOT RAISE...\\n1 failed, 12 passed in 0.24s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 41.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "subsequences__r2",
+  "task_id": 945362342,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 9,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='r1.py::test_subsequences_语句分支覆盖_k为0分支 - assert [[]] ...\\nFAILED test_gen_r1.py::test_subsequences_错误推测法_负k - RecursionError: max...\\n3 failed, 15 passed in 1.53s\\n'",
+   "fail_to_pass": 8,
+   "fail_to_fail": 1,
+   "pass_to_fail": 2
+  },
+  "grade": "detected",
+  "duration_s": 47.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "topological_ordering__r3",
+  "task_id": 958598245,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='...........                                                              [100%]\\n11 passed in 0.19s\\n'",
+   "fail_to_pass": 4,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 42.1
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "topological_ordering__r2",
+  "task_id": 931205186,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='================= short test summary info ============================\\nFAILED test_gen_r1.py::test_输入含重复元素去重_错误推测法 - assert 3 == 2\\n1 failed, 11 passed in 0.18s\\n'",
+   "fail_to_pass": 7,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "detected",
+  "duration_s": 52.7
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "wrap__r2",
+  "task_id": 937104184,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=137 tail='F'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 273.0
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "to_base__r2",
+  "task_id": 962821651,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 344.3
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "sqrt__r3",
+  "task_id": 989131413,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 12,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 403.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "sqrt__r2",
+  "task_id": 960070392,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 18,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 425.4
+ },
+ {
+  "bench": "QuixBugs(Lin'17)",
+  "name": "wrap__r3",
+  "task_id": 959362872,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 13,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=-9 tail='replay 超时 300s 被杀（fixed 版也挂死=类③非终止边界）'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 379.2
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "cookiecutter-bug1",
+  "task_id": 915376115,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py"
+  ],
+  "replay": {
+   "n_files": 2,
+   "fixed_pass": false,
+   "detail": "exit=2 tail='!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!\\n============================== 2 errors in 0.59s ===============================\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 97.7
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "cookiecutter-bug2",
+  "task_id": 912717841,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 8,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py"
+  ],
+  "replay": {
+   "n_files": 2,
+   "fixed_pass": false,
+   "detail": "exit=2 tail='!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!\\n============================== 2 errors in 0.70s ===============================\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 107.1
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "sanic-bug1",
+  "task_id": 924146113,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 10,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py"
+  ],
+  "replay": {
+   "n_files": 2,
+   "fixed_pass": false,
+   "detail": "exit=2 tail='==================\\nERROR test_gen_r1.py\\nERROR test_gen_r2.py\\n!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!\\n2 errors in 0.51s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 132.7
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "thefuck-bug1",
+  "task_id": 955451221,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [],
+  "replay": {
+   "n_files": 0,
+   "fixed_pass": null,
+   "detail": ""
+  },
+  "grade": "no_tests",
+  "duration_s": 167.4
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tornado-bug1",
+  "task_id": 905708307,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 35,
+  "gen_files": [],
+  "replay": {
+   "n_files": 0,
+   "fixed_pass": null,
+   "detail": ""
+  },
+  "grade": "no_tests",
+  "duration_s": 106.2
+ }
+]
