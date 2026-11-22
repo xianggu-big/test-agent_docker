@@ -25,6 +25,10 @@ data/candidates/
 
 # 基准池拉取产物（体积/许可纪律：不 vendor Defects4J/BugsInPy，manifest 入库、源码不入库）
 data/benchmarks/repos/
+# 项目索引快照（force 重建可得的产物，470 个 JSON 不入库）
+data/index/
+# 数据库手工备份（ disaster recovery 用，留在磁盘不进库）
+data/*.db.bak*
 # 实验轮：拉取的开源项目源码/tarball/诊断工具不进库（同 benchmarks/repos 先例）
 data/experiments/multilang/repos/
 data/experiments/multilang/tarballs/
