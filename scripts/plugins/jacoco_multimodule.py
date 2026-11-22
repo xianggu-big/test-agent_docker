@@ -28,8 +28,11 @@ COUNTERS = ("INSTRUCTION", "LINE")
 
 
 def _counters(node) -> dict:
+    """取节点**直接子级** counter（2026-11-22 真机修复：iter 全层级遍历会让最深的
+    class/method 级 counter（如 missed=0 covered=1）覆盖 report 级总数——三模块真机
+    重放实锤每模块恒 1/1 lines。report 根的直接子 counter 才是模块 LINE 总数）。"""
     out = {}
-    for c in node.iter("counter"):
+    for c in node.findall("counter"):
         t = c.get("type")
         if t in COUNTERS:
             out[t] = (int(c.get("missed", 0)), int(c.get("covered", 0)))

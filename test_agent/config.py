@@ -174,6 +174,15 @@ def _flag(env_key: str, default: bool) -> bool:
 
 DEFENSE_V2_ENABLED = False
 SUT_MANIFEST_ENABLED = _flag("MTA_SUT_MANIFEST", False)
+# 任务6 java 半（2026-11-22）：多模块 jacoco 兜底——多模块 Maven 每模块各产
+# jacoco.xml，适配器只认根 target 单 XML → 解析失败熔断（存疑 35 姊妹首案）。
+# 开=发现多份 jacoco.xml 时调 jacoco_multimodule 合并出统一 TOTAL；关=现状逐字节不变。
+JACOCO_MULTIMODULE_FALLBACK = _flag("MTA_JACOCO_MULTIMODULE", False)
+# 任务2（2026-11-22）：伪造网络环境——--internal Docker 网+桩服务器（WireMock），
+# 容器"有网的感觉、零真实外发"。开=provision 起桩容器+SUT 双网络挂载
+# （bridge 保 host.docker.internal MySQL + mta-fakenet 挂桩）；关=现状逐字节不变。
+FAKE_NET_ENABLED = _flag("MTA_FAKE_NET", False)
+FAKE_NET_NAME = os.environ.get("MTA_FAKE_NET_NAME", "mta-fakenet")
 # B2（任务卡-369：SUT 功能函数候选清单注入——治「纯数据文件被当被测单元」，
 # 369 实锤 questions.js 被当 SUT 而真功能 app.js 零执行）
 DEFECT_CLUSTERING_ENABLED = _flag("MTA_DEFECT_CLUSTER", False)

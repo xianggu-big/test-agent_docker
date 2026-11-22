@@ -10,6 +10,7 @@ class FakeContainer:
         self.status = status
         self.started = False
         self.removed = False
+        self.id = f"fake-id-{name}"   # 任务2：attach_network connect(c.id) 用
 
     def start(self):
         self.started = True
@@ -77,6 +78,81 @@ def test_missing_container_creates_fresh():
     r = _runner_with([], after_start="running")
     out = r.ensure_container("img", "mta-run-9")
     assert out.name == "mta-run-9" and out.status == "running"
+
+
+# ---------- 任务2（2026-11-22）：伪造网络——runner network 参数透传 + 双网络 attach ----------
+
+class FakeRunRecorder(FakeContainers):
+    """记录 run() 收到的全部 kwargs（network 透传断言用）。"""
+
+    def __init__(self, existing):
+        super().__init__(existing)
+        self.run_kwargs = None
+
+    def run(self, image, name=None, **kw):
+        self.run_kwargs = kw
+        return super().run(image, name=name, **kw)
+
+
+class FakeNetwork:
+    def __init__(self, name):
+        self.name = name
+        self.connected = []
+
+    def connect(self, container_id):
+        self.connected.append(container_id)
+
+
+class FakeNetworks:
+    def __init__(self, nets):
+        self._nets = nets
+
+    def get(self, name):
+        for n in self._nets:
+            if n.name == name:
+                return n
+        from docker.errors import NotFound
+        raise NotFound(name)
+
+
+def test_network_none_by_default_omits_kwarg():
+    """默认 network=None=现状逐字节不变：run 不收 network 键（零变化铁律）。"""
+    r = _runner_with([], after_start="running")
+    r.client.containers = FakeRunRecorder([])
+    r.ensure_container("img", "mta-run-x")
+    assert "network" not in (r.client.containers.run_kwargs or {}), \
+        "默认不得传 network（docker-py None 也会改变 bridge 解析语义）"
+
+
+def test_network_passthrough_to_containers_run():
+    """network='mta-fakenet' 透传 containers.run（--internal 网单挂载形态）。"""
+    r = _runner_with([], after_start="running")
+    r.client.containers = FakeRunRecorder([])
+    r.ensure_container("img", "mta-run-x", network="mta-fakenet")
+    assert r.client.containers.run_kwargs.get("network") == "mta-fakenet"
+
+
+def test_attach_network_two_step_connect():
+    """双网络=先建后连两步：run 主网络创建后 networks.get(net).connect(c.id)。"""
+    r = _runner_with([], after_start="running")
+    fake = FakeRunRecorder([])
+    r.client.containers = fake
+    net = FakeNetwork("mta-fakenet")
+    r.client.networks = FakeNetworks([net])
+    c = r.ensure_container("img", "mta-run-x",
+                           network="bridge", attach_network="mta-fakenet")
+    assert fake.run_kwargs.get("network") == "bridge", "主网络走 run(network=)"
+    assert net.connected == [c.id], "第二网络走 connect 两步"
+
+
+def test_attach_network_fail_open():
+    """attach 的网不存在：留痕不炸（fail-open——桩网缺失不阻断主任务）。"""
+    r = _runner_with([], after_start="running")
+    r.client.containers = FakeRunRecorder([])
+    r.client.networks = FakeNetworks([])
+    c = r.ensure_container("img", "mta-run-x",
+                           network="bridge", attach_network="mta-fakenet")
+    assert c.status == "running", "主容器照常返回"
 
 
 # ---------- Loop-6（TODO-13）：repo_url 防御性校验 ----------

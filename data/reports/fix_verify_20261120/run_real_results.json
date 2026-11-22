@@ -1,0 +1,13 @@
+{
+  "zero_llm": {
+    "pass": "6/6",
+    "file": "run_zero_llm_results.json"
+  },
+  "real_cells_g7_g10": {
+    "status": "blocked_by_402",
+    "detail": "DeepSeek 余额不足（402 Insufficient Balance）——plan 阶段即停，零 token 消耗（402 不降级设计内行为）",
+    "resume": "充值后逐格执行：run_g7_release_gate.py / run_g8_cancel_race.py / run_g9_verify_freeze.py / run_g10_wave2_cell.py（脚本全就绪）",
+    "residual_task": "G7 建的任务已 402 如实落库 failed"
+  },
+  "budget_note": "预算停车线 ¥5 未动用（真机格零消耗）"
+}

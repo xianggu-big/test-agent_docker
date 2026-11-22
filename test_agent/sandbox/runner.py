@@ -163,7 +163,9 @@ class SandboxRunner:
     def ensure_container(self, image: str, name: str,
                          cpu_limit: float = config.DEFAULT_CPU_LIMIT,
                          mem_mb: int = config.DEFAULT_MEM_LIMIT_MB,
-                         fresh: bool = False, volumes: dict | None = None):
+                         fresh: bool = False, volumes: dict | None = None,
+                         network: str | None = None,
+                         attach_network: str | None = None):
         """确保常驻容器在跑（幂等：同名容器存在则复用）。
 
         fresh=True 时先销毁同名旧容器再新建——用于超时后重建（A2）与脏容器场景（A3）；
@@ -172,6 +174,11 @@ class SandboxRunner:
         {宿主路径: {"bind": 容器路径, "mode": "rw"}}），仅新建路径生效；复用路径
         沿用旧容器既有挂载（缓存本来就在）。真机实锤：docker-py 无 binds 参数——
         Compose 才叫 binds，containers.run 的参数名是 volumes。
+        network/attach_network（任务2 2026-11-22 伪造网络）：network=主网络直传
+        containers.run（--internal 网单挂载形态）；attach_network=第二网络走
+        networks.get(net).connect(c.id) 两步（双网络=bridge 保 host.docker.internal
+        MySQL + mta-fakenet 挂桩）。两参默认 None=现状逐字节不变（network 键不传）。
+        attach 失败 fail-open 留痕（桩网缺失不阻断主任务）。
         """
         try:
             c = self.client.containers.get(name)
@@ -188,19 +195,25 @@ class SandboxRunner:
                     if getattr(c, "status", "running") != "running":
                         log.warning("容器 %s start 后仍为 %s，销毁重建", name, c.status)
                         c.remove(force=True)
-                        return self._run_sandbox(image, name, cpu_limit, mem_mb, volumes=volumes)
+                        return self._run_sandbox(image, name, cpu_limit, mem_mb,
+                                                 volumes=volumes, network=network,
+                                                 attach_network=attach_network)
                 return c
         except NotFound:
             pass
-        log.info("启动沙箱容器 %s (image=%s, cpu=%s, mem=%sm)", name, image, cpu_limit, mem_mb)
-        return self._run_sandbox(image, name, cpu_limit, mem_mb, volumes=volumes)
+        log.info("启动沙箱容器 %s (image=%s, cpu=%s, mem=%sm, network=%s)",
+                 name, image, cpu_limit, mem_mb, network or "default")
+        return self._run_sandbox(image, name, cpu_limit, mem_mb, volumes=volumes,
+                                 network=network, attach_network=attach_network)
 
     def _run_sandbox(self, image: str, name: str, cpu_limit: float, mem_mb: int,
-                     volumes: dict | None = None):
+                     volumes: dict | None = None, network: str | None = None,
+                     attach_network: str | None = None):
         """新建沙箱容器（幂等规格集中一处，Loop-2 抽出）。volumes=构建缓存挂载（卡 4，
-        docker-py containers.run 的参数名——真机实锤 TypeError: unexpected 'binds'）。"""
-        return self.client.containers.run(
-            image,
+        docker-py containers.run 的参数名——真机实锤 TypeError: unexpected 'binds'）。
+        network=None 时**不传 network 键**（docker-py 传 None 也会改变默认解析语义，
+        任务2 关态逐字节不变铁律）。attach_network=容器创建后 connect 第二网络。"""
+        kw = dict(
             name=name,
             command=["sleep", "infinity"],
             detach=True,
@@ -208,6 +221,17 @@ class SandboxRunner:
             mem_limit=f"{mem_mb}m",
             volumes=volumes,
         )
+        if network is not None:
+            kw["network"] = network
+        c = self.client.containers.run(image, **kw)
+        if attach_network:
+            try:
+                self.client.networks.get(attach_network).connect(c.id)
+                log.info("容器 %s 已挂第二网络 %s", name, attach_network)
+            except Exception as e:      # noqa: BLE001 —— fail-open：桩网缺失不阻断
+                log.warning("容器 %s 挂网 %s 失败（fail-open）：%s",
+                            name, attach_network, e)
+        return c
 
     def image_exists(self, image: str) -> bool:
         """本地是否已有该镜像（只探测不构建，沙箱自适应模式①的判定用）。"""

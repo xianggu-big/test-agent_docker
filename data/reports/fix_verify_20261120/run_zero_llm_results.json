@@ -1,0 +1,38 @@
+[
+  {
+    "gid": "G1",
+    "name": "OpenAPI 死分支复活",
+    "pass": true,
+    "detail": "spec 端点注册 ['/owners', '/pets']；modules 键=['_root']"
+  },
+  {
+    "gid": "G2",
+    "name": "缓存指纹校验",
+    "pass": true,
+    "detail": "复用=True（fp=73fa1376）；新增文件触发重建=True"
+  },
+  {
+    "gid": "G3",
+    "name": "需求侧词边界",
+    "pass": true,
+    "detail": "login 需求命中=login（应非 log）；log 需求命中=log（应=log）"
+  },
+  {
+    "gid": "G6",
+    "name": "真机索引链路（嵌套布局注入）",
+    "pass": true,
+    "detail": "scope 必须是真实路径 src/user（修复前拼模块名=user/ 永远锁空）；实际=['src/user']"
+  },
+  {
+    "gid": "G4",
+    "name": "UNC 路径 400",
+    "pass": true,
+    "detail": "HTTP 400 detail=UNC 网络路径不受支持（D3 本地安全边界：路径解析会触发网络访问）——请使用本地目录或 http(s) 仓库 URL"
+  },
+  {
+    "gid": "G5",
+    "name": "连通性白名单",
+    "pass": true,
+    "detail": "ok=False error=base_url 不在可信白名单（已登记 profile + 预设端点）——临时连通性测试禁止向未登记地址发送凭据（D1 安全边界）（拒绝在发请求前=零外发）"
+  }
+]

@@ -212,12 +212,23 @@ def precheck_one(m: dict, cname: str) -> dict:
                 if r.returncode != 0:
                     card["detail"] = f"拷 fixed 测试文件失败（fixed 缺 {tf}?）: {r.stderr[:160]}"
                     return card
+            # setup：容忍失败（老项目 py312 构建炸属常态——源码 import 路径仍可能
+            # 可用），只记录 warning 不阻断；rc 保真（管道吃退出码教训：tail 的 rc
+            # 恒 0 曾把 setup 失败/测试败全判成"过"）。
+            # extra_deps（P0 全量实锤后加）：老项目测试依赖 pin（click<8.1/pytest-httpbin/
+            # multidict 等）——py312 容器跑 2019 生态的版本地狱修补，装失败同样容忍。
+            # shell 解析坑（第二轮实锤）：spec 含 '<'/';'/引号必须逐个单引号包裹——
+            # 裸拼会把 'jinja2<3.1' 当重定向、'pkg; marker' 当命令分隔
+            extra = m.get("extra_deps") or []
+            extra_q = " ".join(f"'{d}'" for d in extra)
+            pre = (f"python -m pip install --quiet {extra_q} > /tmp/deps_out 2>&1; "
+                   if extra else "")
             setup = m.get("setup_cmd") or "python -m pip install . --quiet"
             rc, out = _docker(["exec", "-w", f"/ws_{side}", cname, "sh", "-c",
-                               f"{setup} 2>&1 | tail -3"], timeout=420)
+                               f"{pre}{setup} > /tmp/setup_out 2>&1; rc=$?; "
+                               f"tail -3 /tmp/setup_out; exit $rc"], timeout=420)
             if rc != 0:
-                card["detail"] = f"{side} setup 失败: {out[-260:]}"
-                return card
+                card.setdefault("setup_warn", {})[side] = out[-160:]
             tcmd = m["official_test_cmd"]
             # 归一：非 python -m pytest 开头的（如 'pytest ...'）统一补 python -m；
             # 全量形态（无 .py 文件）收窄到 bug.info 的 test_file（P0 只验目标文件，
@@ -227,15 +238,20 @@ def precheck_one(m: dict, cname: str) -> dict:
             if not re.search(r"\.py", tcmd):
                 tcmd = f"python -m pytest -q {tf}" + (nodeid or "")
             rc, out = _docker(["exec", "-w", f"/ws_{side}", "-e", "PYTHONPATH=/ws_{side}",
-                               cname, "sh", "-c", f"{tcmd} 2>&1 | tail -25"], timeout=420)
+                               cname, "sh", "-c",
+                               f"{tcmd} > /tmp/test_out 2>&1; rc=$?; "
+                               f"tail -25 /tmp/test_out; exit $rc"], timeout=420)
             results[side] = (rc, out)
         rc_f, out_f = results["fixed"]
         rc_b, out_b = results["buggy"]
         fixed_pass = (rc_f == 0)
         buggy_fail = (rc_b != 0)
-        # 败因必须是断言失败（非 collection error/ImportError——那是环境边界）
-        assertion_fail = buggy_fail and "error" not in out_b.splitlines()[-1].lower()[:0] + \
-            ("1 failed" in out_b or "FAILED" in out_b or "assert" in out_b.lower())
+        # 败因分类：环境边界（nose 等老依赖 py312 装不了/collection error）≠ 断言败
+        ENV_MARKS = ("ModuleNotFoundError", "ImportError", "ERROR collecting",
+                     "no collectors", "SyntaxError")
+        env_blocked = any(k in out_b for k in ENV_MARKS)
+        assertion_fail = buggy_fail and not env_blocked and (
+            "failed" in out_b or "FAILED" in out_b or "assert" in out_b.lower())
         if fixed_pass and buggy_fail and assertion_fail:
             card["status"] = "ok"
             card["detail"] = (f"fixed 过(rc=0)；buggy 断言败 tail={out_b[-160:]!r}")
@@ -244,9 +260,10 @@ def precheck_one(m: dict, cname: str) -> dict:
             if not fixed_pass:
                 why.append(f"fixed 未过 rc={rc_f} tail={out_f[-140:]!r}")
             if not buggy_fail:
-                why.append(f"buggy 未败 rc={rc_b}（bug 信号缺失）")
+                why.append(f"buggy 未败 rc={rc_b}（bug 信号缺失）tail={out_b[-120:]!r}")
             if buggy_fail and not assertion_fail:
-                why.append(f"buggy 败因疑似环境边界（非断言）tail={out_b[-140:]!r}")
+                kind = "环境边界（老依赖 py312 不可用/collect 炸）" if env_blocked else "非断言败"
+                why.append(f"buggy 败因={kind} tail={out_b[-140:]!r}")
             card["status"] = "blocked"
             card["detail"] = "；".join(why)
     except subprocess.TimeoutExpired:

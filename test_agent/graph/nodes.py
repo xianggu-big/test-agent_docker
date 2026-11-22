@@ -1493,6 +1493,30 @@ def make_nodes(deps: GraphDeps) -> dict:
                         jacoco_path = Path(td) / "jacoco.xml"
                         jacoco_path.write_text(jacoco.stdout, encoding="utf-8")
                     r["stdout"] = surefire_dir_to_pytest_text(td, jacoco_xml=jacoco_path)
+                    # 任务6 java 半（2026-11-22）：多模块兜底——旗标开时 find /work 全部
+                    # jacoco.xml（限定 /work 别扫容器系统目录——交接文档坑段），≥2 份
+                    # 或根 target 无而模块有 → jacoco_multimodule 合并渲染统一 TOTAL。
+                    # 关=本块零执行，现状逐字节不变。
+                    if config.JACOCO_MULTIMODULE_FALLBACK:
+                        fnd = runner.exec_in(
+                            runner.client.containers.get(state["container_name"]),
+                            ["sh", "-c", "find /work -name jacoco.xml 2>/dev/null"],
+                            timeout_s=15, workdir="/")
+                        found = [l for l in (fnd.stdout or "").splitlines() if l.strip()]
+                        need = (len(found) >= 2
+                                or (found and not jacoco_path))
+                        if need:
+                            texts = []
+                            for fp in found[:12]:   # 封顶防极端
+                                xr = runner.exec_in(
+                                    runner.client.containers.get(state["container_name"]),
+                                    ["cat", fp], timeout_s=15, workdir="/")
+                                if xr.ok and xr.stdout.strip():
+                                    texts.append(xr.stdout)
+                            from ..skills.java_adapter import render_multimodule_coverage
+                            seg = render_multimodule_coverage(texts)
+                            if seg:
+                                r["stdout"] = (r.get("stdout") or "") + "\n" + seg
             else:
                 r["stdout"] = (r.get("stdout") or "") + "\n(no surefire reports: 编译失败或用例未执行)\n"
         if lang == "go":

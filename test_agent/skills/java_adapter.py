@@ -109,3 +109,60 @@ def jacoco_xml_to_rows(xml_text: str) -> tuple[list[dict], int]:
                 break                       # 每类只取 LINE counter 一个
     total_pct = round(100 * tot_covered / (tot_missed + tot_covered)) if (tot_missed + tot_covered) else 0
     return rows, total_pct
+
+
+def render_multimodule_coverage(xml_texts: list[str]) -> str | None:
+    """任务6（2026-11-22）：多模块 jacoco.xml 兜底渲染——统一文本覆盖段。
+
+    背景：多模块 Maven 每模块各产 jacoco.xml，surefire_dir_to_pytest_text 只认
+    根 target 单 XML → 多模块拿不到统一 TOTAL（存疑 35 姊妹首案）。本函数把
+    find 收集的 XML 文本列表喂 jacoco_multimodule（scripts/plugins CLI，与 D2
+    tool.parse.jacoco-multimodule 能力同源），渲染 per-module+TOTAL 段。
+    诚实降级：空列表=no_coverage 段（非 None）；坏 XML 逐份剔除留痕。
+    """
+    import json as _json
+    import subprocess as _sp
+    import sys as _sys
+    import tempfile as _tf
+    from pathlib import Path as _Path
+    ROOT = _Path(__file__).resolve().parents[2]
+
+    good: list[str] = []
+    bad_n = 0
+    for t in xml_texts or []:
+        try:
+            ET.fromstring(t)
+            good.append(t)
+        except ET.ParseError:
+            bad_n += 1
+    head = f"---------- coverage: multimodule jacoco (modules={len(good)}"
+    head += f", bad_xml={bad_n}" if bad_n else ""
+    head += ") ----------"
+    if not good:
+        return head + "\nno_coverage（空表诚实降级——jacoco_multimodule 契约）"
+    with _tf.TemporaryDirectory() as td:
+        paths = []
+        for i, t in enumerate(good):
+            p = _Path(td) / f"jacoco_{i}.xml"
+            p.write_text(t, encoding="utf-8")
+            paths.append(str(p))
+        r = _sp.run([_sys.executable, "-I",
+                     str(ROOT / "scripts" / "plugins" / "jacoco_multimodule.py"),
+                     *paths], capture_output=True, text=True, timeout=60)
+        try:
+            d = _json.loads(r.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            return head + "\n(no_coverage: 合并器输出不可解析——诚实降级)"
+        if d.get("status") != "ok":
+            return head + f"\n(no_coverage: 合并器 status={d.get('status')}——诚实降级)"
+        lines = [head]
+        m = d["metrics"]
+        for mod in d.get("modules", []):
+            mpct = (round(100 * mod.get("covered", 0) / mod["total"])
+                    if mod.get("total") else 0)
+            lines.append(f"  module {mod.get('file', '?')}: "
+                         f"{mod.get('covered', 0)}/{mod.get('total', 0)} lines "
+                         f"({mpct}%)")
+        lines.append(f"{'TOTAL':<44}{'':>6}{round(m.get('pct', 0) * 100):>7}%"
+                     f"  ({m.get('covered', 0)}/{m.get('total', 0)} lines)")
+        return "\n".join(lines)
