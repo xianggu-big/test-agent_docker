@@ -107,6 +107,9 @@ def stage_all():
                             f"（{card.get('test_file', '')}）的边界与异常路径"),
             "precheck": {"kind": "official", "cmd": [PY, "-S", "-c", "print('ok')"],
                          "env": {}},   # P0 已在 healthcard 过——执行期预检走轻探活
+            # 请示卡 A（2026-11-23）：healthcard 以 py38 基座验证——真格同镜像
+            # （2019 生态原生环境；tqdm-bug9 硬编码格保持 py312 与 r1-r3 可比）
+            "image_override": "mta-test:py38",
         })
 
     # ② HumanEvalFix python（前 2 个小函数；答案键=官方 check）
@@ -476,7 +479,10 @@ def run_one_cell_cli(name, out_path):
     """worker 子进程入口：隔离修复的核心——本进程内改写 config 只影响自己。
     --repeat 后缀（2026-11-23 凌晨实锤修复）：worker 重新 stage_all 只有原名，
     NAME 带 __rN 后缀会"未知格"秒退——剥后缀匹配原格，结果 name 写回全名
-    （staging 共享同一场，独立采样语义不变）。"""
+    （staging 共享同一场，独立采样语义不变）。
+    image_override（2026-11-23 请示卡 A）：BugsInPy 格走 py38 基座（2019 生态原生
+    环境）——必须在 import test_agent.config 前写 env（config 模块加载时求值）；
+    worker 子进程内 env 出不了进程，HEF/QuixBugs 格不受影响。"""
     items = stage_all()
     match = [i for i in items if i["name"] == name]
     if not match and "__r" in name:
@@ -487,6 +493,9 @@ def run_one_cell_cli(name, out_path):
     if not match:
         print(f"[worker] 未知格 {name}", flush=True)
         return 2
+    if match[0].get("image_override"):
+        os.environ["MTA_PY_IMAGE"] = match[0]["image_override"]
+        print(f"[worker] {name}: 镜像覆盖 → {match[0]['image_override']}", flush=True)
     res = run_cells_serial([match[0]])
     Path(out_path).write_text(json.dumps(res, ensure_ascii=False, indent=1),
                               encoding="utf-8")

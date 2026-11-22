@@ -13,7 +13,9 @@ DB_PATH = DATA_DIR / "test_agent.db"                   # 第 5 层数据库
 SCHEMA_PATH = ROOT / "docs" / "layer5-data-schema.sql"  # 建库脚本（22 张表）
 
 # —— L4 执行镜像（与 docker/ 下 Dockerfile 对应；注册表供镜像管理/自动补齐用） ——
-IMAGE_PY = "mta-test:py312"
+# Python 执行镜像（2026-11-23 请示卡 A：env 可覆盖——BugsInPy 2019 生态格走
+# mta-test:py38 基座；默认 py312 逐字节不变。bench3 worker 按 item 注入）
+IMAGE_PY = os.environ.get("MTA_PY_IMAGE", "mta-test:py312")
 IMAGE_JAVA = "mta-test:jdk17-maven"
 IMAGE_JS = "mta-test:node20-jest"     # JS/TS 执行链路（jest Tier2，2026-11-01）
 IMAGE_UI = "mta-test:playwright"      # UI 黑盒执行链路（黑盒能力补齐阶段3，2026-11-07）
@@ -24,6 +26,8 @@ IMAGE_GRPC = "mta-test:grpcurl"       # gRPC 黑盒执行链路（黑盒能力�
 IMAGE_PHP = "mta-test:php83"          # PHP 执行链路（白包阶段4，2026-11-07）
 IMAGE_BUILD_CTX = {
     IMAGE_PY: ROOT / "docker" / "python-test",
+    # py38 基座（请示卡 A）：MTA_PY_IMAGE=mta-test:py38 时 ensure_image 兜底构建路径
+    "mta-test:py38": ROOT / "docker" / "python38-test",
     IMAGE_JAVA: ROOT / "docker" / "java-test",
     IMAGE_JS: ROOT / "docker" / "js-test",
     IMAGE_UI: ROOT / "docker" / "playwright-test",

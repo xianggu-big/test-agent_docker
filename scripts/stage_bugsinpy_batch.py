@@ -28,6 +28,7 @@ data/benchmarks/repos/BugsInPy-master 提供 bug.info 真值）。
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -46,7 +47,9 @@ REPOS_DIR = ROOT / "data/benchmarks/repos"
 STG = ROOT / "data/benchmarks/staging"
 BUGSINPY_LOCAL = REPOS_DIR / "BugsInPy-master"
 HEALTH_DIR = STG / "healthcards"
-IMG = "mta-test:py312"
+# P0 预检镜像（2026-11-23 请示卡 A）：env 可覆盖——py38 基座跑 2019 生态
+# （默认 py312=请示卡前的行为；MTA_P0_IMAGE=mta-test:py38 切 A 路线）
+IMG = os.environ.get("MTA_P0_IMAGE", "mta-test:py312")
 SKIP = {"py-requests-smoke"}          # example 占位（无双 ref）
 
 
