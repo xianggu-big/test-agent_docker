@@ -373,12 +373,14 @@ def run_cells_serial(items):
         replay = {"n_files": len(gen_files), "fixed_pass": None, "detail": ""}
         replay_ran = False
         if gen_files:
-            fdir = Path(it["ws_fixed"])
-            saved = []
+            # 复演目录=每格独立 tmp 副本（2026-11-23 凌晨竞态实锤：__r2/__r3 共享
+            # staging fixed 目录+同名 test_gen_r*.py，A worker 跑完 unlink 清理删掉
+            # B worker replay 正要用的文件→exit=4 file not found 8 格——串账事故的
+            # 表亲：共享可变目录×并发。tmp 副本天然隔离，staging 保持只读纯净）
+            fdir = Path(tempfile.mkdtemp(prefix=f"bench3_replay_{it['name'][:24]}_"))
+            shutil.copytree(it["ws_fixed"], fdir, dirs_exist_ok=True)
             for g in gen_files:
-                dst = fdir / g
-                saved.append((dst, dst.exists()))
-                shutil.copy(ws / g, dst)
+                shutil.copy(ws / g, fdir / g)
             # P2 复演=容器内执行（2026-11-22 用户纠偏：研究方向=容器隔离沙箱，
             # 宿主 python 与真格环境不同源 → fail-to-pass 判定有环境偏差风险。
             # 与真格同镜像 mta-test:py312 同挂载形态 /work，环境同源可复现）
@@ -430,9 +432,12 @@ def run_cells_serial(items):
             replay["fail_to_pass"] = fp
             replay["fail_to_fail"] = ff
             replay["pass_to_fail"] = pf
-            for (dst, existed) in saved:
-                if not existed:
-                    dst.unlink(missing_ok=True)   # 复演文件不留 fixed 目录（幂等）
+            # tmp 副本整体清理（原 saved/unlink 针对 staging 共享目录——竞态根因，
+            # 已改 tmp 副本，无需逐文件回滚；finally 保证异常路径也清）
+            try:
+                shutil.rmtree(fdir, ignore_errors=True)
+            except Exception:   # noqa: BLE001
+                pass
         detected = bool(gen_files) and failed_n > 0 and fp >= 1
         task_err_txt = row["error"] or err or ""
         # 类③口径修正（2026-11-23 凌晨）：fixed 版也挂死（replay 超时被杀/exit 137/-9）
