@@ -23,8 +23,10 @@ ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
 # 2026-11-16 环境体检实锤（18 格 task 1166 族）：requests（HTTP 用例/契约轨）/
 # httpx（fastapi TestClient 运行时依赖，requirements 漏声明高频形态）/jsonschema
 # （L2 schema 校验）是生成用例高频 import——镜像层烘焙，漏装=collect 闸三轮废案
+# 任务3（2026-11-22）：pytest-timeout——per-test 粒度超时（挂死用例只杀单条，
+# junit 证据不蒸发；bench3 find_first_in_sorted 格活案例）
 RUN pip install --no-cache-dir --retries 3 \
-      pytest pytest-cov coverage \
+      pytest pytest-cov coverage pytest-timeout \
       requests jsonschema httpx \
       ruff bandit
 
@@ -45,6 +47,7 @@ USER tester
 RUN pytest --version \
  && coverage --version \
  && python -c "import requests, jsonschema, httpx" \
+ && python -c "import pytest_timeout" \
  && ruff --version \
  && bandit --version
 

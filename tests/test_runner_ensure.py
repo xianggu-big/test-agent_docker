@@ -124,3 +124,49 @@ def test_build_run_cmd_round1_full_dir_baseline():
     from test_agent.graph.nodes import build_run_cmd
     cmd = build_run_cmd(round_no=1, gen_files=["test_gen_r1.py"])
     assert not any(f.endswith(".py") for f in cmd), "首轮保持全目录基线（自带测试）"
+
+
+# ---------- 任务3（2026-11-22）：per-test 粒度超时——bench3 第四轮活案例 ----------
+# find_first_in_sorted 格：1 条挂死用例烧穿整轮 90s 超时 → junit 未落盘 → 证据蒸发
+# 判 not_detected（类①最强检测信号形态落不了账）。per-test 超时=唯一能把挂死信号
+# 记进 junit 的机制：挂死那条 failed（Timeout 进 message），其余用例结果保住。
+
+def test_build_run_cmd_pertest_timeout_off_by_default(monkeypatch):
+    """关态逐字节不变：PER_TEST_TIMEOUT_S=0 时命令不得出现 --timeout（零变化铁律）。"""
+    import test_agent.config as config
+    from test_agent.graph.nodes import build_run_cmd
+    monkeypatch.setattr(config, "PER_TEST_TIMEOUT_S", 0)
+    cmd = build_run_cmd()
+    assert "--timeout" not in cmd, "关态不得注入 --timeout"
+    assert "--timeout-method" not in cmd
+
+
+def test_build_run_cmd_pertest_timeout_on_injects_signal_method(monkeypatch):
+    """开态：>0 时追加 --timeout N --timeout-method signal（真机容器实测反转：thread
+    法超时即 os._exit 无 junit=证据蒸发复发；signal 法 junit 落盘才达验收标准）。"""
+    import test_agent.config as config
+    from test_agent.graph.nodes import build_run_cmd
+    monkeypatch.setattr(config, "PER_TEST_TIMEOUT_S", 30)
+    cmd = build_run_cmd()
+    i = cmd.index("--timeout")
+    assert cmd[i + 1] == "30"
+    assert "--timeout-method" in cmd and cmd[cmd.index("--timeout-method") + 1] == "signal"
+
+
+def test_build_run_cmd_pertest_timeout_round2_still_scopes(monkeypatch):
+    """开态+round2：注入不破坏 Loop-9 生成物限定语义。"""
+    import test_agent.config as config
+    from test_agent.graph.nodes import build_run_cmd
+    monkeypatch.setattr(config, "PER_TEST_TIMEOUT_S", 30)
+    cmd = build_run_cmd(round_no=2, gen_files=["test_gen_r1.py"])
+    assert "test_gen_r1.py" in cmd and "--timeout" in cmd
+
+
+def test_build_run_cmd_js_unaffected_by_pertest_timeout(monkeypatch):
+    """JS 侧第一版不做（jest 无原生 per-test timeout CLI——挂账），命令不受旗标影响。"""
+    import test_agent.config as config
+    from test_agent.graph.nodes import build_run_cmd_js
+    monkeypatch.setattr(config, "PER_TEST_TIMEOUT_S", 30)
+    cmd = build_run_cmd_js(1)
+    assert "--timeout" not in cmd
+

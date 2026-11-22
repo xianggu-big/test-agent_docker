@@ -81,6 +81,13 @@ JUNIT_PATH = "/tmp/mta_junit.xml"              # 容器内 pytest --junitxml 输
 DEFAULT_CPU_LIMIT = 1.0
 DEFAULT_MEM_LIMIT_MB = 1024
 DEFAULT_JOB_TIMEOUT_S = 600          # 单次容器任务超时（秒）
+# 任务3（2026-11-22）per-test 粒度超时：bench3 第四轮活案例 find_first_in_sorted——
+# 1 条挂死用例烧穿整轮超时→junit 未落盘→证据蒸发判 not_detected。0=关（逐字节不变）；
+# >0 时 build_run_cmd 注入 pytest-timeout（--timeout N --timeout-method signal——
+# 真机容器实测 thread 法超时即 os._exit 无 junit，signal 法 junit 落盘才达验收）。
+# 分层约束：per-test << 轮超时（DEFAULT_JOB_TIMEOUT_S）<< worker 封顶——挂死只杀单条
+# （failed+Timeout 进 junit message），其余用例结果保住，repair 轮不替挂死用例付时钟。
+PER_TEST_TIMEOUT_S = int(os.environ.get("MTA_PER_TEST_TIMEOUT_S", "0") or 0)
 
 # —— R-Loop 补测闭环预算（第 4 步启用） ——
 MAX_REPAIR_ROUNDS = 3                # 同一模块最多补测轮数

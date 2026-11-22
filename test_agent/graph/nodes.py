@@ -55,6 +55,14 @@ def build_run_cmd(round_no: int = 1, gen_files: list[str] | None = None) -> list
            # 任务C：逐用例结果（junitxml→test_case_results 表，实时看板数据源）；
            # 与 stdout 解析互不影响（--junitxml 只写文件）；超时/崩溃无文件=诚实缺席
            f"--junitxml={config.JUNIT_PATH}"]
+    # 任务3（2026-11-22）per-test 粒度超时：>0 注入 pytest-timeout。方法=signal（实测
+    # 反转：thread 法超时即 os._exit，junit 永不落盘=证据蒸发复发；signal 法 SIGALRM
+    # 真打断死循环，挂死条 failed+Timeout 进 junit message，其余用例照常出结果——
+    # 容器内 docker exec 主线程场景实测 1 failed+9 passed in 3.04s+junit 落盘）。
+    # 0=关=命令逐字节不变。
+    if config.PER_TEST_TIMEOUT_S > 0:
+        cmd += ["--timeout", str(config.PER_TEST_TIMEOUT_S),
+                "--timeout-method", "signal"]
     if round_no > 1 and gen_files:
         cmd += gen_files
     return cmd
