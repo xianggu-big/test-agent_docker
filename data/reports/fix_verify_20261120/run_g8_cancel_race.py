@@ -1,20 +1,32 @@
-# -*- coding: utf-8 -*-
-"""G8 取消竞态真机验收（2026-11-20 设计文档 §2）+ 全流程健康对照格。
+"""G8 竞态真机格 v2（2026-11-21 设计稿 docs/G8长链占位格设计-20261121.md 实施）。
 
-验证 A4（f7203f0）：放行入队后立即停止 → 零执行。
-对照格：同需求第二任务正常放行跑完全链（provision→run→evaluate→report），
-同时证明修复后全流程管道健康。真 LLM（低价窗）。
+v1 miss 根因（三跑全 miss 取证）：占位格（js-calc 80s 快链）在竞态格阶段一（~80s）
+期间就跑完——竞态格放行阶段二时 worker 空闲 → 秒认领 → stop@3s 已 running（按设计
+409）。v2 三改：
+1. **占位格换 java-multimodule-slow**（单阶段全链 ≈4 分钟占住 worker，mvn 慢点
+   45s 测试内 Thread.sleep 离线零插件——真容器验证 111s EXIT=0 在案）；
+2. **时序重排**：竞态格×3 的阶段一在占位格放行前先出好题（ready_for_review），
+   占位格阶段二占住 worker 后，期间依次放行三档竞态格；
+3. **三档窗口试探 1s/3s/8s**（单档三跑全 miss 教训：概率窗口多档采样）——
+   判据：任一档 stop 成功（cancelled 终态+零执行）即 PASS（与原判据同源）；
+   对照=占位格本身跑完 done（健康格证明，不再单开对照格）。
+
+前置：server 活+Docker 活+验收账号 fixverify（developer）；预算 ≈¥0.2-0.3
+（3×js-calc 出题 + 1×java-slow 全链 + 占位/竞态 stop 零 token）。
 """
 import json
+import sqlite3
 import sys
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
-
 OUT = Path(__file__).resolve().parent / "g8_cancel_race.json"
 API = "http://127.0.0.1:8000"
+REPO_SLOW = r"D:\test agent_docker\data\demo\java-multimodule-slow"
+REPO_JS = r"D:\test agent_docker\data\demo\js-calc"
+DELAYS = [1, 3, 8]
 
 
 def _token():
@@ -25,100 +37,106 @@ def _token():
     return r.json()["token"]
 
 
-def _mk_task(tk, requirement):
+def _mk_task(tk, repo, requirement, two_stage=True):
     import httpx
     r = httpx.post(f"{API}/api/tasks",
-                   json={"repo_url": r"D:\test agent_docker\data\demo\js-calc",
-                         "requirement": requirement, "two_stage": True},
+                   json={"repo_url": repo, "requirement": requirement,
+                         "two_stage": two_stage},
                    headers={"Authorization": f"Bearer {tk}"}, timeout=10)
     r.raise_for_status()
     return r.json()["task_id"]
 
 
 def _wait_status(tk, tid, want, timeout_s=900):
-    import sqlite3
     t0 = time.time()
     while time.time() - t0 < timeout_s:
-        c = sqlite3.connect(f"file:{(ROOT / 'data' / 'test_agent.db').as_posix()}?mode=ro", uri=True)
+        c = sqlite3.connect(f"file:{(ROOT / 'data' / 'test_agent.db').as_posix()}?mode=ro",
+                            uri=True)
         row = c.execute("SELECT status FROM test_tasks WHERE id=?", (tid,)).fetchone()
         c.close()
         if row and row[0] == want:
             return row[0]
-        time.sleep(5)
-    return (row[0] if row else "none")
+        time.sleep(3)
+    return row[0] if row else "timeout"
+
+
+def _q_status(tid):
+    c = sqlite3.connect(f"file:{(ROOT / 'data' / 'test_agent.db').as_posix()}?mode=ro",
+                        uri=True)
+    qstat = [r[0] for r in c.execute(
+        "SELECT status FROM exec_queue WHERE task_id=?", (tid,))]
+    tstat = c.execute("SELECT status FROM test_tasks WHERE id=?", (tid,)).fetchone()[0]
+    c.close()
+    return tstat, qstat
 
 
 def main():
     import httpx
     tk = _token()
-    rec = {"gid": "G8", "steps": [], "pass": False}
+    H = {"Authorization": f"Bearer {tk}"}
+    rec = {"delays": DELAYS, "steps": []}
 
     def step(name, ok, detail):
         rec["steps"].append({"name": name, "pass": bool(ok), "detail": detail})
         print(f"[{'PASS' if ok else 'FAIL'}] {name}: {detail}", flush=True)
 
-    # 1. 竞态格：先放一个占位格堵住 worker（否则放行即被认领，stop 永远赶不上——
-    # 2026-11-20 首跑实锤：3s 后任务已 reporting，stop 按设计 409 不支持运行中强停；
-    # A4 的"stop 先取消则认领失败"分支必须让目标格停在 queued 才能制造）
-    blocker = _mk_task(tk, "测试计算器除法功能（验收格 G8 占位格：堵住单 worker 让竞态格停在 queued）")
+    # —— 1. 三竞态格阶段一出题（prep worker 空闲时串行出好，停 ready_for_review） ——
+    race_tids = []
+    for i in range(len(DELAYS)):
+        tid = _mk_task(tk, REPO_JS,
+                       f"测试计算器 clamp 边界（G8 v2 竞态格第 {i+1} 档）")
+        httpx.post(f"{API}/api/tasks/{tid}/confirm", headers=H, timeout=10)
+        st = _wait_status(tk, tid, "ready_for_review", timeout_s=600)
+        step(f"竞态格{i+1} 阶段一出题", st == "ready_for_review", f"tid={tid} status={st}")
+        race_tids.append(tid)
+
+    # —— 2. 占位格：java-slow 单阶段全链（占住 worker ≈4 分钟） ——
+    blocker = _mk_task(tk, REPO_SLOW,
+                       "测试多模块项目的核心功能（G8 v2 占位格：java 慢链堵住单 worker）",
+                       two_stage=False)
     rec["tid_blocker"] = blocker
-    httpx.post(f"{API}/api/tasks/{blocker}/confirm", headers={"Authorization": f"Bearer {tk}"},
-               timeout=10)
-    _wait_status(tk, blocker, "ready_for_review")
-    httpx.post(f"{API}/api/tasks/{blocker}/run", headers={"Authorization": f"Bearer {tk}"},
-               timeout=10)
-    import sqlite3 as _sq
-    _c = _sq.connect(f"file:{(ROOT / 'data' / 'test_agent.db').as_posix()}?mode=ro", uri=True)
-    for _ in range(30):        # 等 worker 认领占位格（队列 running=占住）
-        q = _c.execute("SELECT status FROM exec_queue WHERE task_id=?", (blocker,)).fetchone()
+    httpx.post(f"{API}/api/tasks/{blocker}/confirm", headers=H, timeout=10)
+    httpx.post(f"{API}/api/tasks/{blocker}/run", headers=H, timeout=10)
+    c = sqlite3.connect(f"file:{(ROOT / 'data' / 'test_agent.db').as_posix()}?mode=ro",
+                        uri=True)
+    for _ in range(60):        # 等 worker 认领占位格（exec_queue running=占住）
+        q = c.execute("SELECT status FROM exec_queue WHERE task_id=?",
+                      (blocker,)).fetchone()
         if q and q[0] == "running":
             break
         time.sleep(2)
-    _c.close()
-
-    tid = _mk_task(tk, "测试计算器乘法功能（验收格 G8 竞态格）")
-    rec["tid_race"] = tid
-    httpx.post(f"{API}/api/tasks/{tid}/confirm", headers={"Authorization": f"Bearer {tk}"},
-               timeout=10)
-    st = _wait_status(tk, tid, "ready_for_review")
-    step("阶段一完成", st == "ready_for_review", f"status={st}")
-    r = httpx.post(f"{API}/api/tasks/{tid}/run", headers={"Authorization": f"Bearer {tk}"},
-                   timeout=10)
-    time.sleep(3)
-    r2 = httpx.post(f"{API}/api/tasks/{tid}/stop", headers={"Authorization": f"Bearer {tk}"},
-                    timeout=10)
-    body = r2.json()
-    import sqlite3
-    c = sqlite3.connect(f"file:{(ROOT / 'data' / 'test_agent.db').as_posix()}?mode=ro", uri=True)
-    tstat = c.execute("SELECT status FROM test_tasks WHERE id=?", (tid,)).fetchone()[0]
-    qstat = [row[0] for row in c.execute("SELECT status FROM exec_queue WHERE task_id=?", (tid,))]
     c.close()
-    step("stop 后零执行", body.get("stopped") is True and tstat == "cancelled"
-         and all(s in ("cancelled", "failed") for s in qstat),
-         f"stopped={body.get('stopped')} 任务={tstat} 队列={qstat}")
+    step("占位格已认领 running", q and q[0] == "running",
+         f"tid={blocker} 队列={q and q[0]}（java-slow 全链 ≈4 分钟窗口）")
 
-    # 2. 对照格：正常放行跑完全链（全流程管道健康）
-    tid2 = _mk_task(tk, "测试计算器乘法功能（验收格 G8 对照格）")
-    rec["tid_control"] = tid2
-    httpx.post(f"{API}/api/tasks/{tid2}/confirm", headers={"Authorization": f"Bearer {tk}"},
-               timeout=10)
-    _wait_status(tk, tid2, "ready_for_review")
-    httpx.post(f"{API}/api/tasks/{tid2}/run", headers={"Authorization": f"Bearer {tk}"},
-               timeout=10)
-    final = _wait_status(tk, tid2, None, timeout_s=1500)   # 等终态（轮询内判终态）
-    import sqlite3
-    c = sqlite3.connect(f"file:{(ROOT / 'data' / 'test_agent.db').as_posix()}?mode=ro", uri=True)
-    tstat2 = c.execute("SELECT status FROM test_tasks WHERE id=?", (tid2,)).fetchone()[0]
-    err2 = c.execute("SELECT substr(error,1,60) FROM test_tasks WHERE id=?", (tid2,)).fetchone()[0]
-    c.close()
-    healthy = tstat2 in ("done", "failed") and (err2 is None or "402" not in err2)
-    step("对照格全链健康", healthy,
-         f"终态={tstat2}（done=全绿 / failed+疑似产品缺陷=真检出均健康）error={err2}")
-    rec["pass"] = all(s["pass"] for s in rec["steps"])
+    # —— 3. 三档竞态：放行 + sleep 档位 + stop（窗口内依次做） ——
+    any_hit = False
+    for tid, delay in zip(race_tids, DELAYS):
+        r = httpx.post(f"{API}/api/tasks/{tid}/run", headers=H, timeout=10)
+        time.sleep(delay)
+        r2 = httpx.post(f"{API}/api/tasks/{tid}/stop", headers=H, timeout=10)
+        body = r2.json()
+        tstat, qstat = _q_status(tid)
+        hit = body.get("stopped") is True and tstat == "cancelled" \
+            and all(s in ("cancelled", "failed") for s in qstat)
+        step(f"竞态 stop@{delay}s", hit,
+             f"stopped={body.get('stopped')} 任务={tstat} 队列={qstat} "
+             f"http={r2.status_code}")
+        any_hit = any_hit or hit
+
+    # —— 4. 对照：占位格本身跑到终态（健康格证明——java-slow 链路全通） ——
+    st = _wait_status(tk, blocker, "done", timeout_s=900)
+    step("占位格链路健康（done）", st == "done",
+         f"tid={blocker} 终态={st}（java 多模块 mvn+LLM 全链）")
+
+    n_pass = sum(1 for s_ in rec["steps"] if s_["pass"])
+    rec["verdict"] = "PASS" if (any_hit and st == "done") else "FAIL"
+    rec["summary"] = (f"竞态制造={'成功' if any_hit else '未制造'}（三档 {'、'.join(map(str, DELAYS))}s）；"
+                      f"占位格健康={'是' if st == 'done' else '否'}")
     OUT.write_text(json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nG8 判定: {'PASS' if rec['pass'] else 'FAIL'} → {OUT}", flush=True)
-    return 0 if rec["pass"] else 1
+    print(f"\nG8 v2 判定: {rec['verdict']} —— {rec['summary']} → {OUT}", flush=True)
+    sys.exit(0 if rec["verdict"] == "PASS" else 1)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

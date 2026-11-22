@@ -152,7 +152,7 @@ def _run_wave() -> int:
     done_n = sum(1 for r in results if r.get("status") == "done")
     first_cell_ok = False   # C1：首格停波——首个实跑格非终态即停（先核验再放量）
     t0, stop_reason = time.time(), None
-    CONCURRENCY = int(os.environ.get("WAVE2_CONCURRENCY", "4"))
+    CONCURRENCY = int(os.environ.get("WAVE2_CONCURRENCY", "6"))   # 2026-11-21 用户拍板默认 6（C 实验 5 路实测余量+云端 4 路延迟不变，4→6 提速 50%）
     # 并发池形态（2026-11-21 用户拍板开启）：复用 E9 worker 子进程形态——每格独立
     # 子进程独立连接独立 config 空间（进程退出自动消失），B1 时代串行化的四条理由
     # 逐一对照：SQLite 锁=子进程结构性免疫+C 实验 5 并发零 locked+E9 487 格实证；
