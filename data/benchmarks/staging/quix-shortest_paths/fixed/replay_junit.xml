@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="10" time="0.092" timestamp="2026-11-22T12:32:24.790382+00:00" hostname="285ab74a1c9b"><testcase classname="test_gen_r1" name="test_负权边无负环_等价类划分" file="test_gen_r1.py" line="4" time="0.000" /><testcase classname="test_gen_r1" name="test_负权环_错误推测法" file="test_gen_r1.py" line="9" time="0.000" /><testcase classname="test_gen_r1" name="test_结果覆盖所有节点_等价类划分" file="test_gen_r1.py" line="18" time="0.000" /><testcase classname="test_gen_r1" name="test_多路径取最小_判定表" file="test_gen_r1.py" line="23" time="0.000" /><testcase classname="test_gen_r1" name="test_source为存在节点_等价类划分" file="test_gen_r1.py" line="28" time="0.000"><failure message="KeyError: 'A'">def test_source为存在节点_等价类划分():
+        graph = {('A','B'):2,('B','C'):3}
+&gt;       result = shortest_paths('B', graph)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test_gen_r1.py:31: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = 'B', weight_by_edge = {('A', 'B'): 2, ('B', 'C'): 3}
+
+    def shortest_paths(source, weight_by_edge):
+        weight_by_node = {
+            v: float('inf') for u, v in weight_by_edge
+        }
+        weight_by_node[source] = 0
+    
+        for i in range(len(weight_by_node) - 1):
+            for (u, v), weight in weight_by_edge.items():
+                weight_by_node[v] = min(
+&gt;                   weight_by_node[u] + weight,
+                    ^^^^^^^^^^^^^^^^^
+                    weight_by_node[v]
+                )
+E               KeyError: 'A'
+
+shortest_paths.py:11: KeyError</failure></testcase><testcase classname="test_gen_r1" name="test_有向边方向_等价类划分" file="test_gen_r1.py" line="35" time="0.000" /><testcase classname="test_gen_r1" name="test_空图_边界值分析" file="test_gen_r1.py" line="41" time="0.000" /><testcase classname="test_gen_r1" name="test_不可达节点_等价类划分" file="test_gen_r1.py" line="45" time="0.000"><failure message="KeyError: 'C'">def test_不可达节点_等价类划分():
+        graph = {('A','B'):1,('C','D'):1}
+&gt;       result = shortest_paths('A', graph)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test_gen_r1.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = 'A', weight_by_edge = {('A', 'B'): 1, ('C', 'D'): 1}
+
+    def shortest_paths(source, weight_by_edge):
+        weight_by_node = {
+            v: float('inf') for u, v in weight_by_edge
+        }
+        weight_by_node[source] = 0
+    
+        for i in range(len(weight_by_node) - 1):
+            for (u, v), weight in weight_by_edge.items():
+                weight_by_node[v] = min(
+&gt;                   weight_by_node[u] + weight,
+                    ^^^^^^^^^^^^^^^^^
+                    weight_by_node[v]
+                )
+E               KeyError: 'C'
+
+shortest_paths.py:11: KeyError</failure></testcase><testcase classname="test_gen_r1" name="test_source自身为0_边界值分析" file="test_gen_r1.py" line="53" time="0.000" /><testcase classname="test_gen_r1" name="test_负权边减少权重_判定表" file="test_gen_r1.py" line="58" time="0.000" /></testsuite></testsuites>

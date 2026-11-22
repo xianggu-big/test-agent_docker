@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="19" time="0.180" timestamp="2026-11-22T12:29:00.356186+00:00" hostname="78921c5fc11d"><testcase classname="test_gen_r1" name="test_get_factors_返回类型_等价类划分" file="test_gen_r1.py" line="4" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_元素均为质数_等价类划分" file="test_gen_r1.py" line="8" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_乘积等于n_等价类划分" file="test_gen_r1.py" line="19" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_升序排列_等价类划分" file="test_gen_r1.py" line="26" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_保留重复因子_等价类划分" file="test_gen_r1.py" line="30" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_质数输入_等价类划分" file="test_gen_r1.py" line="33" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_合数输入_等价类划分" file="test_gen_r1.py" line="36" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_2的幂_等价类划分" file="test_gen_r1.py" line="39" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_边界值[min]" file="test_gen_r1.py" line="46" time="0.001" /><testcase classname="test_gen_r1" name="test_get_factors_边界值[min+1]" file="test_gen_r1.py" line="46" time="0.001" /><testcase classname="test_gen_r1" name="test_get_factors_边界值[min+2]" file="test_gen_r1.py" line="46" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_边界值[min+3]" file="test_gen_r1.py" line="46" time="0.001" /><testcase classname="test_gen_r1" name="test_get_factors_边界值[min+4]" file="test_gen_r1.py" line="46" time="0.001" /><testcase classname="test_gen_r1" name="test_get_factors_边界值[min+5]" file="test_gen_r1.py" line="46" time="0.001" /><testcase classname="test_gen_r1" name="test_get_factors_判定表_质数与合数组合" file="test_gen_r1.py" line="57" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_语句分支覆盖" file="test_gen_r1.py" line="63" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_错误推测_None输入" file="test_gen_r1.py" line="69" time="0.000" /><testcase classname="test_gen_r1" name="test_get_factors_错误推测_零输入" file="test_gen_r1.py" line="73" time="0.001"><failure message="Failed: DID NOT RAISE ZeroDivisionError">def test_get_factors_错误推测_零输入():
+&gt;       with pytest.raises(ZeroDivisionError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ZeroDivisionError
+
+test_gen_r1.py:75: Failed</failure></testcase><testcase classname="test_gen_r1" name="test_get_factors_错误推测_负数输入" file="test_gen_r1.py" line="77" time="0.000"><failure message="TypeError: int() argument must be a string, a bytes-like object or a real number, not 'complex'">def test_get_factors_错误推测_负数输入():
+&gt;       assert get_factors(-12) == []
+               ^^^^^^^^^^^^^^^^
+
+test_gen_r1.py:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+n = -12
+
+    def get_factors(n):
+        if n == 1:
+            return []
+    
+&gt;       for i in range(2, int(n ** 0.5) + 1):
+                          ^^^^^^^^^^^^^
+E       TypeError: int() argument must be a string, a bytes-like object or a real number, not 'complex'
+
+get_factors.py:6: TypeError</failure></testcase></testsuite></testsuites>

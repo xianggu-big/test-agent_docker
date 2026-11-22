@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="18" time="0.211" timestamp="2026-11-22T12:26:55.461650+00:00" hostname="6f96ec870528"><testcase classname="test_gen_r1" name="test_find_closest_elements_边界值分析[\u957f\u5ea62\u6700\u5c0f\u5408\u6cd5]" file="test_gen_r1.py" line="8" time="0.001"><failure message="assert (1.0, 2.0) == [1.0, 2.0]&#10;  &#10;  Use -v to get more diff">value = [1.0, 2.0], expected = [1.0, 2.0]
+
+    @pytest.mark.parametrize("value,expected", [
+        ([1.0, 2.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [1.0, 2.0]),
+    ], ids=['长度2最小合法', '长度3 min+1', '长度4', '长度5 max-1', '长度6 max'])
+    def test_find_closest_elements_边界值分析(value, expected):
+&gt;       assert find_closest_elements(value) == expected
+E       assert (1.0, 2.0) == [1.0, 2.0]
+E         
+E         Use -v to get more diff
+
+test_gen_r1.py:17: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_边界值分析[\u957f\u5ea63 min+1]" file="test_gen_r1.py" line="8" time="0.001"><failure message="assert (1.0, 2.0) == [1.0, 2.0]&#10;  &#10;  Use -v to get more diff">value = [1.0, 2.0, 3.0], expected = [1.0, 2.0]
+
+    @pytest.mark.parametrize("value,expected", [
+        ([1.0, 2.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [1.0, 2.0]),
+    ], ids=['长度2最小合法', '长度3 min+1', '长度4', '长度5 max-1', '长度6 max'])
+    def test_find_closest_elements_边界值分析(value, expected):
+&gt;       assert find_closest_elements(value) == expected
+E       assert (1.0, 2.0) == [1.0, 2.0]
+E         
+E         Use -v to get more diff
+
+test_gen_r1.py:17: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_边界值分析[\u957f\u5ea64]" file="test_gen_r1.py" line="8" time="0.001"><failure message="assert (1.0, 2.0) == [1.0, 2.0]&#10;  &#10;  Use -v to get more diff">value = [1.0, 2.0, 3.0, 4.0], expected = [1.0, 2.0]
+
+    @pytest.mark.parametrize("value,expected", [
+        ([1.0, 2.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [1.0, 2.0]),
+    ], ids=['长度2最小合法', '长度3 min+1', '长度4', '长度5 max-1', '长度6 max'])
+    def test_find_closest_elements_边界值分析(value, expected):
+&gt;       assert find_closest_elements(value) == expected
+E       assert (1.0, 2.0) == [1.0, 2.0]
+E         
+E         Use -v to get more diff
+
+test_gen_r1.py:17: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_边界值分析[\u957f\u5ea65 max-1]" file="test_gen_r1.py" line="8" time="0.001"><failure message="assert (1.0, 2.0) == [1.0, 2.0]&#10;  &#10;  Use -v to get more diff">value = [1.0, 2.0, 3.0, 4.0, 5.0], expected = [1.0, 2.0]
+
+    @pytest.mark.parametrize("value,expected", [
+        ([1.0, 2.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [1.0, 2.0]),
+    ], ids=['长度2最小合法', '长度3 min+1', '长度4', '长度5 max-1', '长度6 max'])
+    def test_find_closest_elements_边界值分析(value, expected):
+&gt;       assert find_closest_elements(value) == expected
+E       assert (1.0, 2.0) == [1.0, 2.0]
+E         
+E         Use -v to get more diff
+
+test_gen_r1.py:17: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_边界值分析[\u957f\u5ea66 max]" file="test_gen_r1.py" line="8" time="0.001"><failure message="assert (1.0, 2.0) == [1.0, 2.0]&#10;  &#10;  Use -v to get more diff">value = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], expected = [1.0, 2.0]
+
+    @pytest.mark.parametrize("value,expected", [
+        ([1.0, 2.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0], [1.0, 2.0]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [1.0, 2.0]),
+    ], ids=['长度2最小合法', '长度3 min+1', '长度4', '长度5 max-1', '长度6 max'])
+    def test_find_closest_elements_边界值分析(value, expected):
+&gt;       assert find_closest_elements(value) == expected
+E       assert (1.0, 2.0) == [1.0, 2.0]
+E         
+E         Use -v to get more diff
+
+test_gen_r1.py:17: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_等价类划分[\u9700\u6c42\u793a\u4f8b1]" file="test_gen_r1.py" line="22" time="0.001"><failure message="assert (2.0, 2.2) == [2.0, 2.2]&#10;  &#10;  Use -v to get more diff">value = [1.0, 2.0, 3.0, 4.0, 5.0, 2.2], expected = [2.0, 2.2]
+
+    @pytest.mark.parametrize("value,expected", [
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 2.2], [2.0, 2.2]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 2.0], [2.0, 2.0]),
+        ([10.0, 1.0, 5.0], [1.0, 5.0]),
+    ], ids=['需求示例1', '需求示例2', '乱序有效类'])
+    def test_find_closest_elements_等价类划分(value, expected):
+&gt;       assert find_closest_elements(value) == expected
+E       assert (2.0, 2.2) == [2.0, 2.2]
+E         
+E         Use -v to get more diff
+
+test_gen_r1.py:29: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_等价类划分[\u9700\u6c42\u793a\u4f8b2]" file="test_gen_r1.py" line="22" time="0.001"><failure message="assert (2.0, 2.0) == [2.0, 2.0]&#10;  &#10;  Use -v to get more diff">value = [1.0, 2.0, 3.0, 4.0, 5.0, 2.0], expected = [2.0, 2.0]
+
+    @pytest.mark.parametrize("value,expected", [
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 2.2], [2.0, 2.2]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 2.0], [2.0, 2.0]),
+        ([10.0, 1.0, 5.0], [1.0, 5.0]),
+    ], ids=['需求示例1', '需求示例2', '乱序有效类'])
+    def test_find_closest_elements_等价类划分(value, expected):
+&gt;       assert find_closest_elements(value) == expected
+E       assert (2.0, 2.0) == [2.0, 2.0]
+E         
+E         Use -v to get more diff
+
+test_gen_r1.py:29: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_等价类划分[\u4e71\u5e8f\u6709\u6548\u7c7b]" file="test_gen_r1.py" line="22" time="0.001"><failure message="assert (1.0, 5.0) == [1.0, 5.0]&#10;  &#10;  Use -v to get more diff">value = [10.0, 1.0, 5.0], expected = [1.0, 5.0]
+
+    @pytest.mark.parametrize("value,expected", [
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 2.2], [2.0, 2.2]),
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 2.0], [2.0, 2.0]),
+        ([10.0, 1.0, 5.0], [1.0, 5.0]),
+    ], ids=['需求示例1', '需求示例2', '乱序有效类'])
+    def test_find_closest_elements_等价类划分(value, expected):
+&gt;       assert find_closest_elements(value) == expected
+E       assert (1.0, 5.0) == [1.0, 5.0]
+E         
+E         Use -v to get more diff
+
+test_gen_r1.py:29: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_最小差值对_等价类划分" file="test_gen_r1.py" line="30" time="0.000" /><testcase classname="test_gen_r1" name="test_find_closest_elements_相等元素对_边界值分析" file="test_gen_r1.py" line="33" time="0.000" /><testcase classname="test_gen_r1" name="test_find_closest_elements_返回顺序_等价类划分" file="test_gen_r1.py" line="36" time="0.001"><failure message="assert (3.0, 5.0) == (1.0, 3.0)&#10;  &#10;  At index 0 diff: 3.0 != 1.0&#10;  Use -v to get more diff">def test_find_closest_elements_返回顺序_等价类划分():
+        result = find_closest_elements([5.0, 1.0, 3.0])
+&gt;       assert result == (1.0, 3.0)
+E       assert (3.0, 5.0) == (1.0, 3.0)
+E         
+E         At index 0 diff: 3.0 != 1.0
+E         Use -v to get more diff
+
+test_gen_r1.py:39: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_并列最小差值_等价类划分" file="test_gen_r1.py" line="41" time="0.000" /><testcase classname="test_gen_r1" name="test_find_closest_elements_负数_等价类划分" file="test_gen_r1.py" line="46" time="0.000" /><testcase classname="test_gen_r1" name="test_find_closest_elements_浮点精度_错误推测法" file="test_gen_r1.py" line="49" time="0.001"><failure message="assert (0.30000000000000004, 0.4) == (0.2, 0.30000000000000004)&#10;  &#10;  At index 0 diff: 0.30000000000000004 != 0.2&#10;  Use -v to get more diff">def test_find_closest_elements_浮点精度_错误推测法():
+&gt;       assert find_closest_elements([0.1, 0.2, 0.30000000000000004, 0.4]) == (0.2, 0.30000000000000004)
+E       assert (0.30000000000000004, 0.4) == (0.2, 0.30000000000000004)
+E         
+E         At index 0 diff: 0.30000000000000004 != 0.2
+E         Use -v to get more diff
+
+test_gen_r1.py:51: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_find_closest_elements_None输入_错误推测法" file="test_gen_r1.py" line="52" time="0.000" /><testcase classname="test_gen_r1" name="test_find_closest_elements_极大值_错误推测法" file="test_gen_r1.py" line="56" time="0.000" /><testcase classname="test_gen_r1" name="test_find_closest_elements_判定表_长度与差值组合" file="test_gen_r1.py" line="61" time="0.000" /><testcase classname="test_gen_r1" name="test_find_closest_elements_语句分支覆盖" file="test_gen_r1.py" line="67" time="0.000" /></testsuite></testsuites>
