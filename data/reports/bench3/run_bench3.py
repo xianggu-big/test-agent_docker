@@ -194,10 +194,19 @@ def precheck(items):
             rec["ok"] = c == 0 and "DIFF-OK" in o
             rec["detail"] = f"exit={c} out={o.strip()[-80:]!r}"
         else:
-            bf = next(Path(it["ws_buggy"]).glob("*.py"))
-            ff = next(Path(it["ws_fixed"]).glob("*.py"))
+            # replay 残留防御（2026-11-23 凌晨实锤：wrap 的 fixed 目录有 test_gen_r1.py
+            # 残留→glob 拿错"fixed 源码"）；QuixBugs 源文件=小写开头，排除生成物
+            def _src_py(ws):
+                cands = sorted(p for p in Path(ws).glob("*.py")
+                               if not p.name.startswith("test_gen"))
+                return cands[0]
+            bf = _src_py(it["ws_buggy"])
+            ff = _src_py(it["ws_fixed"])
+            # GBK 解码坑（同夜实锤：wrap diff 输出含 UTF-8 中文 docstring，
+            # text=True 默认 GBK→readerthread UnicodeDecodeError→stdout=None）
             diff = subprocess.run(["diff", str(bf), str(ff)], capture_output=True,
-                                  text=True).stdout
+                                  text=True, encoding="utf-8",
+                                  errors="replace").stdout
             rec["ok"] = bool(diff.strip())
             rec["detail"] = f"官方单行修复 diff 存在（benchmark 保证 bug 真实）：" \
                             f"{[l for l in diff.splitlines() if l.startswith('<')][:1]}"
