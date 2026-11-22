@@ -52,7 +52,8 @@ def make_agent_nodes(deps):
         ctx = _make_ctx(deps, state, "strategy")
         budget = {"max_steps": config.AGENT_LOOP_MAX_STEPS,
                   "max_tokens": config.AGENT_LOOP_MAX_TOKENS,
-                  "max_seconds": config.AGENT_LOOP_MAX_SECONDS}
+                  "max_seconds": config.AGENT_LOOP_MAX_SECONDS,
+                  "observe_cap": config.AGENT_LOOP_OBSERVE_CAP}   # v1.1：观察子预算
         result = run_tool_loop(deps, ctx, goal=state.get("requirement") or "",
                                mode="strategy", budget=budget, phase="agent_strategy")
         strategy = (result.get("payload") or {}).get("strategy") or {}

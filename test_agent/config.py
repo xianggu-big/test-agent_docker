@@ -214,6 +214,10 @@ AGENT_LOOP_MAX_TOKENS = int(os.environ.get("MTA_AGENT_LOOP_TOKENS", "30000") or 
 AGENT_LOOP_MAX_SECONDS = int(os.environ.get("MTA_AGENT_LOOP_SECONDS", "600") or 600)
 AGENT_LOOP_DIAG_STEPS = int(os.environ.get("MTA_AGENT_LOOP_DIAG_STEPS", "3") or 3)
 AGENT_LOOP_DIAG_MAX_ROUNDS = int(os.environ.get("MTA_AGENT_LOOP_DIAG_ROUNDS", "2") or 2)
+# v1.1（2026-11-21 欠账清偿）：strategy 模式观察子预算——2×2 首夜实锤模型倾向
+# 观察不 finish（策略产物零出现）；observe 类能力 ≤CAP 步后闸拒绝（denied 留痕
+# 提示必须 finish），execute 类不受限；诊断模式不受影响（3 步即全预算）
+AGENT_LOOP_OBSERVE_CAP = int(os.environ.get("MTA_AGENT_LOOP_OBSERVE_CAP", "3") or 3)
 # V4（宏观稿附录 B 对码实锤 nodes.py:1049 l4 误用 L3 开关）：独立 L4 开关，
 # 默认 False=现状逐字节不变（此前 l4 路线随 LEVELS_L3_ENABLED 联动）
 LEVELS_L4_ENABLED = _flag("MTA_LEVELS_L4", False)

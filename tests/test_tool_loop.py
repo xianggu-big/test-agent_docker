@@ -137,3 +137,68 @@ def test_llm_exception_hard_error(tmp_path, monkeypatch):
     result, _ = _run(tmp_path, [RuntimeError("402 boom")], monkeypatch=monkeypatch)
     assert result["stop"] == "hard_error"
     assert "402" in (result["payload"] or {}).get("summary", "")
+
+# ---------- v1.1 观察子预算（finish 引导，2026-11-21 欠账清偿） ----------
+
+def test_observe_cap_forces_finish_path(tmp_path, monkeypatch):
+    """strategy 模式观察子预算（默认 3）：第 4 次 observe 类调用被拒（denied 留痕
+    含"观察子预算"），随后 finish → goal_met。2×2 实锤模型倾向观察不 finish 的闸层引导。"""
+    from test_agent import config
+    monkeypatch.setattr(config, "AGENT_LOOP_OBSERVE_CAP", 3)
+    # 变化参数（不同 offset）——完全相同重复走重复闸（更早），观察闸管"变化但同 kind"
+    reads = [json.dumps({"action": "call", "capability": "test.observe.read",
+                         "args": {"path": "a.py", "mode": "read", "offset": i}})
+             for i in range(1, 5)]
+    script = reads + [json.dumps({"action": "finish", "summary": "观察够了",
+                                  "strategy": {"priorities": [{"order": 1,
+                                                               "capability_id": "test.run.unit",
+                                                               "why": "跑"}]}})]
+    result, _ = _run(tmp_path, script, budget={"max_steps": 6, "max_tokens": 99999,
+                                               "max_seconds": 9999}, monkeypatch=monkeypatch)
+    assert result["stop"] == "goal_met", f"实得 {result['stop']}"
+    denied = [e for e in result["evidence"] if e["status"] == "denied"]
+    assert denied and "观察子预算" in denied[0]["summary"], "第 4 次 observe 必须被子预算闸拒"
+    assert result["payload"]["strategy"]["priorities"], "finish 产物 strategy 必须透传"
+
+
+def test_observe_cap_zero_denies_first_observe(tmp_path, monkeypatch):
+    from test_agent import config
+    monkeypatch.setattr(config, "AGENT_LOOP_OBSERVE_CAP", 0)
+    act = json.dumps({"action": "call", "capability": "test.observe.read",
+                      "args": {"path": "a.py", "mode": "read"}})
+    script = [act, json.dumps({"action": "finish", "summary": "直接给结论",
+                               "strategy": {"priorities": []}})]
+    result, _ = _run(tmp_path, script, budget={"max_steps": 4, "max_tokens": 99999,
+                                               "max_seconds": 9999}, monkeypatch=monkeypatch)
+    assert result["stop"] == "goal_met"
+    assert result["evidence"][0]["status"] == "denied"
+
+
+def test_observe_cap_not_for_execute(tmp_path, monkeypatch):
+    """execute 类不受观察子预算限（run.unit 第 4 步仍放行——子预算只管 observe kind）。"""
+    from test_agent import config
+    monkeypatch.setattr(config, "AGENT_LOOP_OBSERVE_CAP", 3)
+    monkeypatch.setattr(tool_loop, "_execute_capability", lambda *a, **k: CapResult(
+        status="ok", summary="run ok", metrics={"exit_code": 0},
+        evidence=[{"kind": "x", "path": "p", "sha256": "h"*64}]))
+    script = [json.dumps({"action": "call", "capability": "test.run.unit",
+                          "args": {"targets": ["a.py"]}}) for _ in range(4)]
+    script.append(json.dumps({"action": "finish", "summary": "ok",
+                              "strategy": {"priorities": []}}))
+    result, _ = _run(tmp_path, script, budget={"max_steps": 6, "max_tokens": 99999,
+                                               "max_seconds": 9999}, monkeypatch=monkeypatch)
+    denied = [e for e in result["evidence"] if e["status"] == "denied"]
+    assert not denied, "execute 类不被观察子预算拒绝"
+
+
+def test_observation_warns_when_observe_cap_exhausted(tmp_path, monkeypatch):
+    """观察包在子预算耗尽后注入 finish 强提醒（信息提供层）。"""
+    from test_agent.skills.capabilities import TaskCtx
+    ctx = _ctx(tmp_path)
+    budget = {"max_steps": 8, "max_tokens": 30000, "max_seconds": 600}
+    used = {"steps": 4, "observe_steps": 3, "tokens": 0, "seconds": 0}
+    obs = tool_loop.build_observation(ctx, "目标", "strategy", 
+                                      [{"id": "test.observe.read", "description": "d",
+                                        "risk": "R0", "args_hint": ""}],
+                                      [], budget, used)
+    assert "观察预算已用尽" in obs and "finish" in obs

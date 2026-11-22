@@ -120,6 +120,11 @@ def build_observation(ctx: TaskCtx, goal: str, mode: str, menu: list[dict],
         + (f"\n注意：这是第 {used.get('steps', 0)} 步（共 {budget.get('max_steps')} 步）"
            "——信息足够时立即 finish，不要继续观察。")
     )
+    if (mode == "strategy"
+            and used.get("observe_steps", 0) >= int(budget.get("observe_cap")
+                                                    or config.AGENT_LOOP_OBSERVE_CAP)):
+        obs += ("\n⚠ 观察预算已用尽——本轮必须输出 finish 形态（附 strategy）。"
+                "继续调用观察类能力会被拒绝。")
     return obs[:12000]          # 观察包硬封顶（防菜单/证据膨胀吃满上下文）
 
 
@@ -194,6 +199,23 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
                              {"summary": "连续 3 次被拒——策略与权限面失配（OpenHands Stuck 同款判据）"})
             continue
         denied_streak = 0
+        cap = find_capability_extended(ctx, action["capability"])
+        # v1.1 观察子预算闸（strategy 模式）：observe 类 ≤AGENT_LOOP_OBSERVE_CAP 步，
+        # 超出=denied 留痕提示必须 finish（execute 类不受限——预算细化非行为阻止）
+        if mode == "strategy" and cap is not None and cap.kind == "observe":
+            used["observe_steps"] = used.get("observe_steps", 0)
+            ocap = int(budget.get("observe_cap") or config.AGENT_LOOP_OBSERVE_CAP)
+            if used["observe_steps"] >= ocap:
+                evidence.append({"step": step, "capability": cap.id,
+                                 "status": "denied",
+                                 "summary": f"观察子预算耗尽（{used['observe_steps']}/{ocap}）"
+                                            "——现在必须输出 finish 形态（附 strategy）"})
+                denied_streak += 1
+                if denied_streak >= 3:
+                    return _stop("policy_deadlock",
+                                 {"summary": "观察子预算耗尽后仍连续尝试观察（无 finish）"})
+                continue
+            used["observe_steps"] += 1
         afp = action_fingerprint(action["capability"], action["args"])
         seen_action_fps[afp] = seen_action_fps.get(afp, 0) + 1
         cap = find_capability_extended(ctx, action["capability"])
