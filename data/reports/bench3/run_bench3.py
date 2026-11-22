@@ -464,10 +464,19 @@ def main():
     ap.add_argument("--run", action="store_true")
     ap.add_argument("--cell", help="worker 模式：只跑该 name 的格（子进程隔离）")
     ap.add_argument("--cell-out", help="worker 模式：结果 JSON 输出路径")
+    ap.add_argument("--repeat", type=int, default=1,
+                    help="小件3：重复采样 n（>1 时每格跑 n 次独立采样，格名 __r{i} "
+                         "后缀进断点名——r1 用原名；staging 共享）")
     args = ap.parse_args()
     if args.cell:
         sys.exit(run_one_cell_cli(args.cell, args.cell_out))
     items = stage_all()
+    if args.repeat > 1:
+        extra = []
+        for it in items:
+            for i in range(2, args.repeat + 1):
+                extra.append({**it, "name": f"{it['name']}__r{i}"})
+        items = items + extra
     print(f"staged {len(items)} items:", [i["name"] for i in items])
     if args.precheck:
         pre = precheck(items)
