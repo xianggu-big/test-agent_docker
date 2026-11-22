@@ -298,11 +298,16 @@ def run_cells_workers(items, max_workers=6):
                 head = res[0] if res else {}
                 print(f"[worker done] {head.get('name')}: {head.get('grade')} "
                       f"fp={((head.get('replay') or {}).get('fail_to_pass'))}", flush=True)
+                # 护栏口径修正（2026-11-23 凌晨实锤）：异常格=driver_error 类基础设施错；
+                # scaffold_broken 是终态判定（per-test 5s 下挂死族从证据蒸发变破碎，
+                # 9 个破碎触发误停杀掉 12 格 pending）——从异常计数剔除
                 n_det = sum(1 for r in results if r["grade"] == "detected")
                 n_all = len(results)
-                if (n_all - n_det
-                        - sum(1 for r in results if r["grade"] == "not_detected") > 8):
-                    print("[stop] 异常格 >8——停车对账（杀活 worker）", flush=True)
+                n_term_ok = sum(1 for r in results if r["grade"] in
+                                ("not_detected", "scaffold_broken", "no_tests"))
+                if n_all - n_det - n_term_ok > 8:
+                    print("[stop] 异常格(driver_error) >8——停车对账（杀活 worker）",
+                          flush=True)
                     stop = True
             if stop:
                 for f2 in pending:
@@ -430,10 +435,18 @@ def run_cells_serial(items):
                     dst.unlink(missing_ok=True)   # 复演文件不留 fixed 目录（幂等）
         detected = bool(gen_files) and failed_n > 0 and fp >= 1
         task_err_txt = row["error"] or err or ""
+        # 类③口径修正（2026-11-23 凌晨）：fixed 版也挂死（replay 超时被杀/exit 137/-9）
+        # =两版共挂非终止边界（bench3 第四轮三分类的类③），不是脚手架破碎——
+        # per-test 5s 下挂死信号能进 junit（failed>0）但 fixed replay 超时 → 首轮
+        # repeat 把这类误判 scaffold_broken（r1 是 not_detected，口径漂移 9 格）。
+        rep_detail = (replay.get("detail") or "")
+        both_hang = (not replay["fixed_pass"]) and (
+            "超时" in rep_detail or "exit=137" in rep_detail or "exit=-9" in rep_detail)
         # driver_error 永远非终态（可重试）；402/余额不足=环境问题不算 agent 无产出
         budget_hit = any(k in task_err_txt for k in ("BudgetExhausted", "402"))
         verdict_cls = ("driver_error" if verdict == "driver_error" or budget_hit else
                        "detected" if detected else
+                       "not_detected" if (both_hang and gen_files) else
                        "scaffold_broken" if gen_files and failed_n > 0 and fp == 0
                        and not replay_ran else
                        "not_detected" if gen_files else "no_tests")
