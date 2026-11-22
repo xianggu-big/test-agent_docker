@@ -105,8 +105,13 @@ def stage_all():
             "ws_buggy": str(sd / "buggy"), "ws_fixed": str(sd / "fixed"),
             "requirement": (f"测试 {repo} 的行为，重点覆盖官方失败用例所在模块"
                             f"（{card.get('test_file', '')}）的边界与异常路径"),
-            "precheck": {"kind": "official", "cmd": [PY, "-S", "-c", "print('ok')"],
-                         "env": {}},   # P0 已在 healthcard 过——执行期预检走轻探活
+            # 执行期预检=轻探活（真 P0 已在 healthcard：py38 容器 buggy 必败+fixed 必过）。
+            # kind=behavioral-diff 探 DIFF-OK——不能用 kind=official（其语义=buggy 侧
+            # 必败，探活命令 buggy/fixed 都成功会被判"预检不过"→全格过滤空集停波，
+            # 2026-11-23 凌晨首启实锤）
+            "precheck": {"kind": "behavioral-diff",
+                         "cmd": [PY, "-S", "-c", "print('DIFF-OK')"],
+                         "env": {}},
             # 请示卡 A（2026-11-23）：healthcard 以 py38 基座验证——真格同镜像
             # （2019 生态原生环境；tqdm-bug9 硬编码格保持 py312 与 r1-r3 可比）
             "image_override": "mta-test:py38",
