@@ -455,9 +455,17 @@ def run_cells_serial(items):
 
 
 def run_one_cell_cli(name, out_path):
-    """worker 子进程入口：隔离修复的核心——本进程内改写 config 只影响自己。"""
+    """worker 子进程入口：隔离修复的核心——本进程内改写 config 只影响自己。
+    --repeat 后缀（2026-11-23 凌晨实锤修复）：worker 重新 stage_all 只有原名，
+    NAME 带 __rN 后缀会"未知格"秒退——剥后缀匹配原格，结果 name 写回全名
+    （staging 共享同一场，独立采样语义不变）。"""
     items = stage_all()
     match = [i for i in items if i["name"] == name]
+    if not match and "__r" in name:
+        base = name.rsplit("__r", 1)[0]
+        match = [i for i in items if i["name"] == base]
+        if match:
+            match = [dict(match[0], name=name)]   # 结果与断点都用带后缀全名
     if not match:
         print(f"[worker] 未知格 {name}", flush=True)
         return 2
