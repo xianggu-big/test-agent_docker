@@ -1,0 +1,45 @@
+{
+ "arm": "B",
+ "project": "js-calc",
+ "n": 1,
+ "task_id": 1,
+ "model": "deepseek-flash",
+ "loop": true,
+ "status": "failed",
+ "verdict": "stop",
+ "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+ "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+ "prompt_tokens": 9534,
+ "completion_tokens": 6799,
+ "tokens_total": 16333,
+ "cost_yuan_est": 0.0735,
+ "duration_s": 40.2,
+ "agent": {
+  "denied": 0,
+  "plugin_invocations": 1,
+  "agent_llm_calls": 2,
+  "strategy": {
+   "msg": "[strategy] 决策循环 goal_met（2 步）——策略 2 项优先级，plan 将参考（测试条件仍锚真值清单）"
+  },
+  "diagnose": {},
+  "loop_msgs": [
+   "[strategy] 决策循环 goal_met（2 步）——策略 2 项优先级，plan 将参考（测试条件仍锚真值清单）"
+  ]
+ },
+ "driver_error": "",
+ "funnel": {
+  "rounds": [
+   {
+    "round_no": 1,
+    "passed": 24,
+    "failed": 6,
+    "skipped": 0,
+    "verdict": "stop",
+    "failure_kind": "product_defect",
+    "coverage_line": 1.0
+   }
+  ],
+  "coverage_line": 1.0
+ },
+ "requirements_source": "baseline#1156"
+}
