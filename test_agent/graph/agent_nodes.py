@@ -70,7 +70,8 @@ def make_agent_nodes(deps):
                                 "used_seconds": (result.get("used") or {}).get("seconds", 0)},
                "agent_evidence": result.get("evidence", []),
                "agent_capability_grants": grants,
-               "agent_loop_stop": result.get("stop")}
+               "agent_loop_stop": result.get("stop"),
+               "agent_prompt_version": result.get("prompt_version") or "?"}
         return out   # 366 教训：跨节点键必须进返回值（strategy 只读 state 的写入方就是这里）
 
     def diagnose_node(state: dict) -> dict:

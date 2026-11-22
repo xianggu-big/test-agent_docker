@@ -197,8 +197,61 @@ def test_observation_warns_when_observe_cap_exhausted(tmp_path, monkeypatch):
     ctx = _ctx(tmp_path)
     budget = {"max_steps": 8, "max_tokens": 30000, "max_seconds": 600}
     used = {"steps": 4, "observe_steps": 3, "tokens": 0, "seconds": 0}
-    obs = tool_loop.build_observation(ctx, "目标", "strategy", 
+    obs = tool_loop.build_observation(ctx, "目标", "strategy",
                                       [{"id": "test.observe.read", "description": "d",
                                         "risk": "R0", "args_hint": ""}],
                                       [], budget, used)
     assert "观察预算已用尽" in obs and "finish" in obs
+
+
+# ---------- 任务5 v1（2026-11-22）：finish 引导——断链修复+三问+示例+重复计数+版本戳 ----------
+
+def test_prompt_version_v1():
+    """版本戳常量（2×2 可比性防线：v0 vs v1 对照必注明）。"""
+    from test_agent.skills.prompt_library import AGENT_LOOP_PROMPT_VERSION
+    assert AGENT_LOOP_PROMPT_VERSION == "v1"
+
+
+def test_decide_system_strategy_has_finish_key_and_example():
+    """断链修复验收：strategy 模式系统提示词必须含 finish 产物键说明（priorities）
+    + 最小 finish 示例 + 三问判定锚（此前 build_agent_decide_system 零调用方
+    =从未注入，策略产物零出现的根因之一）。"""
+    from test_agent.skills.prompt_library import build_agent_decide_system
+    s = build_agent_decide_system("strategy")
+    assert '"strategy"' in s and "priorities" in s, "finish 产物键说明必须在"
+    assert '"action": "finish"' in s and "evidence_plan" in s, "finish 示例必须在"
+    assert "再观察一次会改变结论吗" in s, "三问判定锚必须在"
+
+
+def test_decide_system_diagnose_has_discipline_not_strategy_example():
+    """diagnose 模式：DISCIPLINE 段在，strategy 示例不在（模式互斥）。"""
+    from test_agent.skills.prompt_library import build_agent_decide_system
+    s = build_agent_decide_system("diagnose")
+    assert "分类定义" in s, "诊断纪律段必须在"
+    assert "evidence_plan" not in s, "strategy 示例不得混入 diagnose"
+
+
+def test_observation_shows_repeat_counts(tmp_path):
+    """重复观察惩罚进 obs：重复指纹的计数可见（第 N 次）。"""
+    ctx = _ctx(tmp_path)
+    budget = {"max_steps": 8, "max_tokens": 30000, "max_seconds": 600}
+    used = {"steps": 3, "observe_steps": 2, "tokens": 0, "seconds": 0}
+    obs = tool_loop.build_observation(
+        ctx, "目标", "strategy",
+        [{"id": "test.observe.read", "description": "d", "risk": "R0", "args_hint": ""}],
+        [], budget, used,
+        repeat_fps={"read|src/a.py|200": 3})
+    assert "第 3 次" in obs and "重复观察不再提供新信息" in obs
+
+
+def test_observation_no_repeat_section_when_none(tmp_path):
+    """无重复指纹（空 dict / 默认 None）=零新增文案（不无条件加段）。"""
+    ctx = _ctx(tmp_path)
+    budget = {"max_steps": 8, "max_tokens": 30000, "max_seconds": 600}
+    used = {"steps": 2, "observe_steps": 1, "tokens": 0, "seconds": 0}
+    menu = [{"id": "test.observe.read", "description": "d", "risk": "R0", "args_hint": ""}]
+    obs = tool_loop.build_observation(ctx, "目标", "strategy", menu, [], budget, used,
+                                      repeat_fps={"x": 1})
+    assert "已重复的动作" not in obs, "只见 1 次的指纹不算重复"
+    obs2 = tool_loop.build_observation(ctx, "目标", "strategy", menu, [], budget, used)
+    assert "已重复的动作" not in obs2, "默认参数（None）也不出现重复段"

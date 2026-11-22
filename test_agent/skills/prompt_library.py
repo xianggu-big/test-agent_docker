@@ -470,7 +470,13 @@ def _endpoint_gap_section(endpoint_gaps: list[str] | None) -> str:
             "禁止虚构清单外端点）")
 
 
-# ==================== Agent Loop 提示词（2026-11-20 设计稿 §3.7；实施附录件 3 v0） ====================
+# ==================== Agent Loop 提示词（2026-11-20 设计稿 §3.7；实施附录件 3 v0；任务5 v1 2026-11-22） ====================
+
+# 版本戳（任务5 硬纪律：提示词改动破坏 2×2 可比性——重测对照必须写明 v0 vs v1）
+# v1 变更：①修断链（mode_extra_key 的 finish 产物键说明从未注入系统提示词——
+#   tool_loop 直用模块常量，build_agent_decide_system 零调用方；策略产物零出现的
+#   根因之一）②三问判定锚 ③strategy 模式 finish 示例锚定 ④重复观察计数进 obs。
+AGENT_LOOP_PROMPT_VERSION = "v1"
 
 AGENT_DECIDE_SYSTEM = """你是测试 Agent 的决策器。你只能输出一个 JSON 对象，两种形态之一。
 
@@ -482,6 +488,11 @@ AGENT_DECIDE_SYSTEM = """你是测试 Agent 的决策器。你只能输出一个
 {"action": "finish", "summary": "≤200 字总结已获得的证据与剩余缺口"
  {mode_extra_key}}
 
+## 何时该 finish（三问自检——每次想 call 之前先问自己）
+① 我已有的观察足够回答本任务的问题了吗？——够=必须立即 finish。
+② 再观察一次会改变结论吗？——不会=必须立即 finish。
+③ 步数预算还剩多少？——剩余 ≤2 步时只允许 finish（不够再观察一轮）。
+
 ## 硬约束
 1. capability 必须来自菜单，args 必须符合该能力的参数说明（未知键会被拒绝）。
 2. 同一个动作（能力+参数完全相同）重复出现会被平台停止——拿到足够信息立即 finish，
@@ -489,6 +500,19 @@ AGENT_DECIDE_SYSTEM = """你是测试 Agent 的决策器。你只能输出一个
 3. 连续被拒绝说明你越出了权限，换目标而不是换姿势重试；调用前先看菜单里的参数提示。
 4. 你的结论必须引用证据（近期证据列表），没有证据支撑的判断不要下。
 5. 你不能修改被测产品代码、不能写任务终态、不能放宽断言——这些平台会硬拒绝。"""
+
+# finish 示例锚定（任务5：防御矩阵 P2 结论复用——对照示例强于负面清单；
+# 2×2 首夜实锤模型不知道 finish 要附 strategy 键）
+AGENT_STRATEGY_FINISH_EXAMPLE = """
+
+## 最小 finish 示例（strategy 模式的正确收尾形态——照这个结构写）
+{"action": "finish",
+ "summary": "已读 calc 模块源码与首轮用例执行结果：add/sub 正常，clamp 边界有 3 条失败疑似缺陷；缺口是 div 未覆盖。",
+ "strategy": {"priorities": [{"order": 1, "capability_id": "gen_cases",
+                              "why": "clamp 失败证据已足，补 div 边界用例",
+                              "args_hint": {"target": "div"}}],
+              "evidence_plan": ["div 各边界的新用例执行结果"],
+              "fallback": "若 gen 失败则手动审查 div 源码并报告缺口"}}"""
 
 AGENT_STRATEGY_FINISH_KEY = (
     '，并附 "strategy": {"priorities": [{"order": 1, "capability_id": "...", '
@@ -517,10 +541,13 @@ AGENT_DIAGNOSE_DISCIPLINE = """
 
 
 def build_agent_decide_system(mode: str) -> str:
-    """DECIDE 系统提示词：strategy/diagnose 两模式在 finish 形态附不同产物键。"""
+    """DECIDE 系统提示词：strategy/diagnose 两模式在 finish 形态附不同产物键。
+    任务5 v1（2026-11-22）：strategy 模式追加 finish 示例锚定。"""
     extra = (AGENT_STRATEGY_FINISH_KEY if mode == "strategy"
              else AGENT_DIAGNOSE_FINISH_KEY)
     text = AGENT_DECIDE_SYSTEM.replace("{mode_extra_key}", extra)
+    if mode == "strategy":
+        text += AGENT_STRATEGY_FINISH_EXAMPLE
     if mode == "diagnose":
         text += AGENT_DIAGNOSE_DISCIPLINE
     return text

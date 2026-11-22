@@ -26,7 +26,8 @@ from .capabilities import (CapResult, TaskCtx, action_fingerprint, capability_me
                            find_capability_extended, normalize_result)
 from .llm_client import make_chat          # 模块级：测试 monkeypatch 锚点
 from .llm_usage import log_llm_call
-from .prompt_library import AGENT_DECIDE_SYSTEM, estimate_tokens
+from .prompt_library import (AGENT_LOOP_PROMPT_VERSION, build_agent_decide_system,
+                             estimate_tokens)
 
 log = logging.getLogger(__name__)
 
@@ -96,9 +97,11 @@ def _execute_capability(deps, ctx: TaskCtx, cap, args: dict) -> CapResult:
 
 def build_observation(ctx: TaskCtx, goal: str, mode: str, menu: list[dict],
                       recent_evidence: list[dict], budget: dict,
-                      used: dict) -> str:
+                      used: dict, repeat_fps: dict | None = None) -> str:
     """观察包（token 封顶）：目标+任务上下文+菜单+近 3 条证据摘要+剩余预算。
-    摘要级——原始大文本永远不进观察（证据文件留盘按需引用）。"""
+    摘要级——原始大文本永远不进观察（证据文件留盘按需引用）。
+    任务5 v1：repeat_fps（动作指纹→已见次数）注入——重复观察惩罚可见
+    （此前 denied 留痕但下次提示词里看不到重复计数）。"""
     snap = ctx.state_snapshot or {}
     ev_lines = []
     for e in recent_evidence:
@@ -125,6 +128,14 @@ def build_observation(ctx: TaskCtx, goal: str, mode: str, menu: list[dict],
                                                     or config.AGENT_LOOP_OBSERVE_CAP)):
         obs += ("\n⚠ 观察预算已用尽——本轮必须输出 finish 形态（附 strategy）。"
                 "继续调用观察类能力会被拒绝。")
+    # 任务5 v1：重复观察惩罚进 obs（重复的指纹明示"已看过第 N 次"——
+    # 模型下次决策前可见，不再只留 denied 痕迹）
+    if repeat_fps:
+        rep = [(fp, n) for fp, n in repeat_fps.items() if n >= 2]
+        if rep:
+            obs += (f"\n⚠ 已重复的动作（{len(rep)} 个）：其中 "
+                    + "、".join(f"{fp[:40]}（第 {n} 次）" for fp, n in rep[:3])
+                    + "——重复观察不再提供新信息，请基于已有证据 finish。")
     return obs[:12000]          # 观察包硬封顶（防菜单/证据膨胀吃满上下文）
 
 
@@ -145,8 +156,11 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
     t0 = time.monotonic()
 
     def _stop(reason: str, payload=None) -> dict:
+        # prompt_version（任务5）：提示词版本戳随 result 落库——2×2 可比性防线
+        # （v0 vs v1 对照必注明，历史数据边界可审计）
         return {"stop": reason, "steps": used["steps"], "used": used,
-                "evidence": evidence, "payload": payload or {}}
+                "evidence": evidence, "payload": payload or {},
+                "prompt_version": AGENT_LOOP_PROMPT_VERSION}
 
     if not menu:
         return _stop("hard_error", {"summary": "能力菜单为空（配置异常）"})
@@ -156,13 +170,19 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
         log.warning("agent loop make_chat 失败 task=%s: %s", ctx.task_id, e)
         return _stop("hard_error", {"summary": f"LLM 构造失败：{type(e).__name__}"})
 
+    # 任务5 v1（2026-11-22）修断链：此前直用模块常量 AGENT_DECIDE_SYSTEM——
+    # build_agent_decide_system(mode) 零调用方，finish 的 strategy/diagnosis 产物键
+    # 说明从未注入系统提示词（2×2"策略产物零出现"根因之一，对码实锤）
+    system_prompt = build_agent_decide_system(mode)
+
     max_steps = int(budget.get("max_steps") or 1)
     for step in range(1, max_steps + 1):
         used["steps"] = step
         used["seconds"] = int(time.monotonic() - t0)
-        obs = build_observation(ctx, goal, mode, menu, evidence[-3:], budget, used)
+        obs = build_observation(ctx, goal, mode, menu, evidence[-3:], budget, used,
+                                repeat_fps=seen_action_fps)
         try:
-            resp = llm.invoke([("system", AGENT_DECIDE_SYSTEM), ("user", obs)])
+            resp = llm.invoke([("system", system_prompt), ("user", obs)])
         except Exception as e:  # noqa: BLE001 —— LLM 调用异常（402 分类已在包装层）
             log.warning("agent loop LLM 异常 task=%s: %s", ctx.task_id, e)
             return _stop("hard_error",
