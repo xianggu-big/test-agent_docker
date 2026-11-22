@@ -204,6 +204,10 @@ def precheck_one(m: dict, cname: str) -> dict:
             if r.returncode != 0:
                 card["detail"] = f"docker cp {side} 失败: {r.stderr[:200]}"
                 return card
+            # docker cp 落盘属 root（第三轮实锤 cookiecutter SQLITE_CACHE 写不了）：
+            # 以 root 放开写权再回到 tester 跑（maven 重放同款坑：tester 无权 chmod root 文件）
+            _docker(["exec", "-u", "root", cname, "chmod", "-R", "a+rwX",
+                     f"/ws_{side}"], timeout=120)
             # SWT 口径：buggy 侧用 fixed 版的测试文件（失败用例随 fix 提交新增）
             if side == "buggy":
                 r = subprocess.run(

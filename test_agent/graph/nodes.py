@@ -1132,6 +1132,21 @@ def make_nodes(deps: GraphDeps) -> dict:
             volumes = None
         container = runner.ensure_container(image, state["container_name"], fresh=fresh,
                                             volumes=volumes)
+        # 任务2（2026-11-22）：伪造网络——旗标开时起桩+SUT 双网络挂载+API_BASE_URL 注入。
+        # 关=零执行逐字节不变。桩 fail-open（起失败主任务照常）；双网络=
+        # bridge 主网保 host.docker.internal MySQL + mta-fakenet 挂桩。
+        if config.FAKE_NET_ENABLED:
+            from ..sandbox import fakenet
+            stub = fakenet.ensure_stub(runner.client, tid)
+            if stub:
+                try:
+                    runner.client.networks.get(config.FAKE_NET_NAME).connect(container.id)
+                    msg(state["session_id"], "assistant",
+                        f"[fakenet] 伪造网络已挂：桩 http://{stub}"
+                        f"（internal 网，外发隔离实证见 scripts/ensure_fake_net.py）")
+                    state["fakenet_stub"] = stub
+                except Exception as e:  # noqa: BLE001 —— fail-open
+                    log.warning("[fakenet] SUT 挂网失败（fail-open）：%s", e)
         # 任务B：快照摘要落 agent_messages——跳过了什么/打了多大，界面可查
         # （#281 教训：7.7GB 工作区静默 OOM，用户只看到 MemoryError 不知道为什么）
         # 缺口②修复（2026-11-05）：差分闸开启时 .git 必须随行进考场，否则
