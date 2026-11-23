@@ -1,0 +1,8 @@
+{
+ "id": "py-tornado-bug5",
+ "test_file": "tornado/test/ioloop_test.py",
+ "nodeid": null,
+ "python_version_manifest": "3.7.0",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail='========================\\nFAILED tornado/test/ioloop_test.py::TestPeriodicCallbackMath::test_clock_backwards\\n1 failed, 52 passed, 5 skipped, 2 warnings in 1.46s\\n'"
+}

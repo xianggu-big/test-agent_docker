@@ -1,0 +1,8 @@
+{
+ "id": "py-PySnooper-bug1",
+ "test_file": "tests/test_chinese.py",
+ "nodeid": ".py::test_chinese",
+ "python_version_manifest": "3.8.1",
+ "status": "blocked",
+ "detail": "fixed 未过 rc=4 tail=\"s_fixed/tests/test_chinese.py::test_chinese\\n(no name '/ws_fixed/tests/test_chinese.py::test_chinese' in any of [<Module test_chinese.py>])\\n\\n\"；buggy 败因=环境边界（老依赖 py312 不可用/collect 炸） tail=\"s_buggy/tests/test_chinese.py::test_chinese\\n(no name '/ws_buggy/tests/test_chinese.py::test_chinese' in any of [<Module test_chinese.py>])\\n\\n\""
+}

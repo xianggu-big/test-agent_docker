@@ -1,0 +1,8 @@
+{
+ "id": "py-sanic-bug1",
+ "test_file": "tests/test_blueprints.py",
+ "nodeid": ".py::test_bp_middleware_order",
+ "python_version_manifest": "3.8.3",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail='ILED tests/test_blueprints.py::test_bp_middleware_order - assert [1, 2, 3, ...\\n============================== 1 failed in 0.09s ===============================\\n'"
+}

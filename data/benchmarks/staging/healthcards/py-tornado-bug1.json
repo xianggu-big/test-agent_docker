@@ -1,0 +1,8 @@
+{
+ "id": "py-tornado-bug1",
+ "test_file": "tornado/test/websocket_test.py",
+ "nodeid": null,
+ "python_version_manifest": "3.7.0",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail='===========================\\nFAILED tornado/test/websocket_test.py::WebSocketTest::test_nodelay - Assertio...\\n1 failed, 45 passed, 1 skipped, 1 warning in 0.67s\\n'"
+}

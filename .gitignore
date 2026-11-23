@@ -52,3 +52,11 @@ data/benchmarks/staging/**/replay_junit.xml
 data/benchmarks/staging/**/test_gen_r*.py
 data/reports/bench3/*.flag
 data/reports/e10/wave2_p_*.json
+
+# BugsInPy 真仓库源码树不 vendor（同 benchmarks/repos 先例：codeload 按 manifest 可复现）
+# 收完整性元数据：healthcards + buggy/fixed digest 侧车文件（幂等再 staging 的校验层）
+data/benchmarks/staging/bugsinpy-*/*
+!data/benchmarks/staging/bugsinpy-*/.buggy_digest.json
+!data/benchmarks/staging/bugsinpy-*/.fixed_digest.json
+# 外部工具（WorkBuddy）本地会话记录
+.workbuddy/

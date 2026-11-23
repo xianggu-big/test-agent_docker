@@ -1,0 +1,8 @@
+{
+ "id": "py-cookiecutter-bug2",
+ "test_file": "tests/test_hooks.py",
+ "nodeid": null,
+ "python_version_manifest": "3.6.9",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail='ILED tests/test_hooks.py::TestExternalHooks::test_run_failing_hook - Failed...\\n========================= 3 failed, 7 passed in 0.27s ==========================\\n'"
+}

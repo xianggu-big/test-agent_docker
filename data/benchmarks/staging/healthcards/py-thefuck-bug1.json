@@ -1,0 +1,8 @@
+{
+ "id": "py-thefuck-bug1",
+ "test_file": "tests/rules/test_pip_unknown_command.py",
+ "nodeid": ".py::test_get_new_command",
+ "python_version_manifest": "3.7.0",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail='new_command[pip un+install thefuck-un+install-uninstall-pip uninstall thefuck]\\n==================== 1 failed, 1 passed, 1 warning in 0.08s ====================\\n'"
+}

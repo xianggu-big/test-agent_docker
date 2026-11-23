@@ -1,0 +1,8 @@
+{
+ "id": "py-tqdm-bug2",
+ "test_file": "tqdm/tests/tests_tqdm.py",
+ "nodeid": null,
+ "python_version_manifest": "3.6.9",
+ "status": "blocked",
+ "detail": "fixed 未过 rc=1 tail='=======\\nFAILED tqdm/tests/tests_tqdm.py::test_ansi_escape_codes - AssertionError: ass...\\n1 failed, 57 passed, 1 skipped, 1 warning in 0.85s\\n'"
+}

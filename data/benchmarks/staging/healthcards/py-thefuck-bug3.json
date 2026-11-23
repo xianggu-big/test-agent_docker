@@ -1,0 +1,8 @@
+{
+ "id": "py-thefuck-bug3",
+ "test_file": "tests/shells/test_fish.py",
+ "nodeid": ".py::TestFish::test_info",
+ "python_version_manifest": "3.7.0",
+ "status": "blocked",
+ "detail": "fixed 未过 rc=1 tail=\"t_fish.py::TestFish::test_info - AttributeError: 'Funct...\\n========================= 1 warning, 1 error in 0.06s ==========================\\n\"；buggy 败因=非断言败 tail=\"t_fish.py::TestFish::test_info - AttributeError: 'Funct...\\n========================= 1 warning, 1 error in 0.08s ==========================\\n\""
+}

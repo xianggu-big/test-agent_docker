@@ -1,0 +1,8 @@
+{
+ "id": "py-tornado-bug3",
+ "test_file": "tornado/test/httpclient_test.py",
+ "nodeid": null,
+ "python_version_manifest": "3.7.0",
+ "status": "blocked",
+ "detail": "buggy 未败 rc=0（bug 信号缺失）tail='\"HTTP/[0-9]\\\\\\\\.[0-9] 200.*\\\\r\\\\n\")\\n\\n-- Docs: https://docs.pytest.org/en/stable/warnings.html\\n48 passed, 1 warning in 0.68s\\n'"
+}

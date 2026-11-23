@@ -1,0 +1,8 @@
+{
+ "id": "py-cookiecutter-bug3",
+ "test_file": "tests/test_read_user_choice.py",
+ "nodeid": null,
+ "python_version_manifest": "3.6.9",
+ "status": "blocked",
+ "detail": "fixed 未过 rc=1 tail='user_choice.py::test_click_invocation[3-foo]\\nERROR tests/test_read_user_choice.py::test_click_invocation[4-bar]\\n1 passed, 4 errors in 0.07s\\n'；buggy 败因=非断言败 tail='user_choice.py::test_click_invocation[3-foo]\\nERROR tests/test_read_user_choice.py::test_click_invocation[4-bar]\\n1 passed, 4 errors in 0.07s\\n'"
+}

@@ -1,0 +1,8 @@
+{
+ "id": "py-tqdm-bug3",
+ "test_file": "tqdm/tests/tests_tqdm.py",
+ "nodeid": null,
+ "python_version_manifest": "3.6.9",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail=\"===========================\\nFAILED tqdm/tests/tests_tqdm.py::test_bool - TypeError: 'NoneType' object can...\\n1 failed, 54 passed, 1 skipped, 1 warning in 0.85s\\n\""
+}

@@ -1,0 +1,8 @@
+{
+ "id": "py-tqdm-bug1",
+ "test_file": "tqdm/tests/tests_contrib.py",
+ "nodeid": null,
+ "python_version_manifest": "3.6.9",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail=\"r: 'int' object ...\\nERROR tqdm/tests/tests_contrib.py::test_enumerate - OSError: 1 `tqdm` instanc...\\n1 failed, 2 passed, 1 skipped, 1 warning, 1 error in 0.28s\\n\""
+}

@@ -1,0 +1,8 @@
+{
+ "id": "py-tornado-bug2",
+ "test_file": "tornado/test/httpclient_test.py",
+ "nodeid": null,
+ "python_version_manifest": "3.7.0",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail='======================\\nFAILED tornado/test/httpclient_test.py::HTTPClientCommonTestCase::test_redirect_put_without_body\\n1 failed, 51 passed, 1 warning in 5.74s\\n'"
+}

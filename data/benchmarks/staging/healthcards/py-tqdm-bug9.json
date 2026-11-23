@@ -1,0 +1,8 @@
+{
+ "id": "py-tqdm-bug9",
+ "test_file": "tqdm/tests/tests_tqdm.py",
+ "nodeid": ".py::test_si_format -q",
+ "python_version_manifest": "3.6.9",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail=\"======= short test summary info ============================\\nFAILED tqdm/tests/tests_tqdm.py::test_si_format - AssertionError: assert '10....\\n1 failed in 0.04s\\n\""
+}
