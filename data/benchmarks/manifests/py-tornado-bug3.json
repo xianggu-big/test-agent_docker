@@ -1,0 +1,17 @@
+{
+ "id": "py-tornado-bug3",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/tornadoweb/tornado",
+ "version_anchor": "bugsinpy:projects/tornado/bugs/3",
+ "buggy_ref": "940fd87fe9145d1154c8457221f86d56ea063c65",
+ "fixed_ref": "aa622e724f80e0f7fcee369f75d69d1db13d72f2",
+ "official_test_cmd": "python -m unittest -q tornado.test.httpclient_test.SyncHTTPClientSubprocessTest",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy 本地 tornado/bugs/3",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "30d27208b8bb64c377ec1970f35b43842c15627924fc7cf75e3e846ce8584a57",
+  "fixed": "1034b31e07ff225399931d6d775e5a1ecc091e01de111f29fe7f17872c2598da"
+ }
+}

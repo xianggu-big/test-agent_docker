@@ -1,0 +1,17 @@
+{
+ "id": "py-tornado-bug5",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/tornadoweb/tornado",
+ "version_anchor": "bugsinpy:projects/tornado/bugs/5",
+ "buggy_ref": "2d4053daa56c609d642b214399e046671d4a593e",
+ "fixed_ref": "886643965b5cb782503d8d7b374b7a794ec2077b",
+ "official_test_cmd": "python -m unittest -q tornado.test.ioloop_test.TestPeriodicCallbackMath.test_clock_backwards",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy 本地 tornado/bugs/5",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "e9f95ebe7aca9e7208a18722aa4cbff5077d79b5d73cf09264eb01c185232041",
+  "fixed": "70d232f1ae3bdb6afbfd781d4abcbe7f47333e182fe666c1e72d6aa8606cf612"
+ }
+}

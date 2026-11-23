@@ -1,13 +1,23 @@
 {
-  "id": "py-cookiecutter-bug2",
-  "language": "python",
-  "track": "A",
-  "repo": "https://github.com/cookiecutter/cookiecutter",
-  "version_anchor": "bugsinpy:projects/cookiecutter/bugs/2",
-  "buggy_ref": "d7e7b28811e474e14d1bed747115e47dcdd15ba3",
-  "fixed_ref": "90434ff4ea4477941444f1e83313beb414838535",
-  "official_test_cmd": "python -m pytest -q",
-  "setup_cmd": "python -m pip install . --quiet",
-  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/cookiecutter/bugs/2：bug.info 双 commit+run_test.sh 官方失败用例",
-  "status": "planned"
+ "id": "py-cookiecutter-bug2",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/cookiecutter/cookiecutter",
+ "version_anchor": "bugsinpy:projects/cookiecutter/bugs/2",
+ "buggy_ref": "d7e7b28811e474e14d1bed747115e47dcdd15ba3",
+ "fixed_ref": "90434ff4ea4477941444f1e83313beb414838535",
+ "official_test_cmd": "python -m pytest -q",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy（本地 BugsInPy-master）projects/cookiecutter/bugs/2：bug.info 双 commit+run_test.sh 官方失败用例",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "d5adab16985792cd4ebfb3a0fc82a3c2f7cee639a30dfebfc0031f84e6629dd2",
+  "fixed": "1e294e3a2833eb38b59ee1e967f8d8a343b7d622e21cf0c4d252c25342aa65a7"
+ },
+ "extra_deps": [
+  "click==7.1.2",
+  "jinja2<3.1",
+  "MarkupSafe==2.0.1"
+ ],
+ "extra_deps_note": "P0 首轮 blocked 后补（2026-11-22）：py312 容器跑 2019 生态的版本地狱修补"
 }

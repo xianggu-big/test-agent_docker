@@ -1,0 +1,17 @@
+{
+ "id": "py-tornado-bug4",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/tornadoweb/tornado",
+ "version_anchor": "bugsinpy:projects/tornado/bugs/4",
+ "buggy_ref": "a8420fc681c5423d072978f00eab4d0645057d16",
+ "fixed_ref": "db529031a1e1a6e951826aba0b7d0b18f05cd4c7",
+ "official_test_cmd": "python -m unittest -q tornado.test.web_test.StaticFileTest.test_static_with_range_neg_past_start\npython -m unittest -q tornado.test.web_test.StaticFileTest.test_static_unsatisfiable_range_end_less_than_start",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy 本地 tornado/bugs/4",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "53870605d2c6fda46b716c3427a67a3c055d018518cef8266ee8fdd44455dde7",
+  "fixed": "9a823c73ddc018b7314b4478ed1281c2f5a89a8a3686dc3cf228740c54118b3d"
+ }
+}

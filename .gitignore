@@ -47,3 +47,8 @@ data/demo/php-api-book/vendor/
 # 本地 LLM 模型权重（GB 级，不入库；重建走 ollama create 或 registry manifest+blob 绕 Clash fake-ip）
 docker/ollama/qwen35/model.gguf
 data/build_cache/
+# bench3 replay 运行时产物（junit/生成用例副本）——staging 保持只读纯净
+data/benchmarks/staging/**/replay_junit.xml
+data/benchmarks/staging/**/test_gen_r*.py
+data/reports/bench3/*.flag
+data/reports/e10/wave2_p_*.json

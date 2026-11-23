@@ -1,13 +1,23 @@
 {
-  "id": "py-sanic-bug2",
-  "language": "python",
-  "track": "A",
-  "repo": "https://github.com/sanic-org/sanic",
-  "version_anchor": "bugsinpy:projects/sanic/bugs/2",
-  "buggy_ref": "ba9b432993019b0af0c4827a5ed42aaa091bd17d",
-  "fixed_ref": "801595e24acdf8050b8d3ffa512d424147848d32",
-  "official_test_cmd": "pytest tests/test_app.py::test_asyncio_server_start_serving",
-  "setup_cmd": "python -m pip install . --quiet",
-  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/sanic/bugs/2：bug.info 双 commit+run_test.sh 官方失败用例",
-  "status": "planned"
+ "id": "py-sanic-bug2",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/sanic-org/sanic",
+ "version_anchor": "bugsinpy:projects/sanic/bugs/2",
+ "buggy_ref": "ba9b432993019b0af0c4827a5ed42aaa091bd17d",
+ "fixed_ref": "801595e24acdf8050b8d3ffa512d424147848d32",
+ "official_test_cmd": "pytest tests/test_app.py::test_asyncio_server_start_serving",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy（本地 BugsInPy-master）projects/sanic/bugs/2：bug.info 双 commit+run_test.sh 官方失败用例",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "0a9b65a5c90b67bbed2b1332e7165350f706d9c443fa941471286518708edf1e",
+  "fixed": "dd3d405b092d4b0d148cc728ea8a04aa7ecb3ac7aa5cabb702bc5b036ca827ab"
+ },
+ "extra_deps": [
+  "multidict",
+  "httptools",
+  "uvloop==0.19.0"
+ ],
+ "extra_deps_note": "P0 首轮 blocked 后补（2026-11-22）：py312 容器跑 2019 生态的版本地狱修补"
 }

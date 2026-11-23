@@ -1,13 +1,17 @@
 {
-  "id": "py-tqdm-bug9",
-  "language": "python",
-  "track": "A",
-  "repo": "https://github.com/tqdm/tqdm",
-  "version_anchor": "bugsinpy:projects/tqdm/bugs/9（format_sizeof 边界舍入缺陷）",
-  "buggy_ref": "9da1d5d116aec7a23d8f6dc22d5e23ecb1c40a7c",
-  "fixed_ref": "d877c1dfb4739852105f7b967a8fceb869ac5042",
-  "official_test_cmd": "python -m pytest tqdm/tests/tests_tqdm.py::test_si_format -q",
-  "setup_cmd": "python -m pip install . --quiet",
-  "truth_source": "BugsInPy（soarsmu/bugsinpy）projects/tqdm/bugs/9：bug.info 双 commit + bug_patch.txt 修复补丁 + run_test.sh 官方失败用例；经 codeload tarball 拉取（git clone 通道被代理阻塞，见归因保证方案文档 §Track C）",
-  "status": "planned"
+ "id": "py-tqdm-bug9",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/tqdm/tqdm",
+ "version_anchor": "bugsinpy:projects/tqdm/bugs/9（format_sizeof 边界舍入缺陷）",
+ "buggy_ref": "9da1d5d116aec7a23d8f6dc22d5e23ecb1c40a7c",
+ "fixed_ref": "d877c1dfb4739852105f7b967a8fceb869ac5042",
+ "official_test_cmd": "python -m pytest tqdm/tests/tests_tqdm.py::test_si_format -q",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy（soarsmu/bugsinpy）projects/tqdm/bugs/9：bug.info 双 commit + bug_patch.txt 修复补丁 + run_test.sh 官方失败用例；经 codeload tarball 拉取（git clone 通道被代理阻塞，见归因保证方案文档 §Track C）",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "1c88a417588cd1b58e4bbbc65299b8fae556c07b1532871c67a9ca286ee7811a",
+  "fixed": "bfc693fedef65cf7ba35c08a6a59b08e0b19e1e3560e672a719550a0a01ff225"
+ }
 }

@@ -1,0 +1,17 @@
+{
+ "id": "py-tornado-bug1",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/tornadoweb/tornado",
+ "version_anchor": "bugsinpy:projects/tornado/bugs/1",
+ "buggy_ref": "6a5a0bfa370b6c0d3dbbf9589a560a98202d2baa",
+ "fixed_ref": "4677c54cc18bbfbdf0f4dadf11610fab6203fd63",
+ "official_test_cmd": "python -m unittest -q tornado.test.websocket_test.WebSocketTest.test_nodelay",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy 本地 tornado/bugs/1",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "ee41fd6dd6a2d33447f6089e2cc1611b97f0bb3ee857abf0f4613f302c5ea84d",
+  "fixed": "bb094e64afe77f97684b149d1e13686d32e60817ac2067d021ce52363c15393e"
+ }
+}

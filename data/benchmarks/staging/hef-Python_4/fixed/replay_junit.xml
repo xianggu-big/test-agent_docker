@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="11" time="0.075" timestamp="2026-11-22T11:49:42.155147+00:00" hostname="4ed013c77e59"><testcase classname="test_gen_r1" name="test_mad_典型列表_等价类划分" file="test_gen_r1.py" line="5" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_公式计算_语句分支覆盖" file="test_gen_r1.py" line="8" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_单元素_边界值分析" file="test_gen_r1.py" line="11" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_全相等元素_等价类划分" file="test_gen_r1.py" line="14" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_含负数_等价类划分" file="test_gen_r1.py" line="17" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_浮点数_等价类划分" file="test_gen_r1.py" line="22" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_空列表_错误推测法" file="test_gen_r1.py" line="25" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_判定表_正负混合与零均值" file="test_gen_r1.py" line="29" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_判定表_全负且均值非零" file="test_gen_r1.py" line="32" time="0.000" /><testcase classname="test_gen_r1" name="test_mad_极大值_错误推测法" file="test_gen_r1.py" line="35" time="0.000"><failure message="assert inf == 0.0 ± 1.0e-12&#10;  &#10;  comparison failed&#10;  Obtained: inf&#10;  Expected: 0.0 ± 1.0e-12">def test_mad_极大值_错误推测法():
-&gt;       assert mean_absolute_deviation([1e308, 1e308]) == pytest.approx(0.0)
-E       assert inf == 0.0 ± 1.0e-12
-E         
-E         comparison failed
-E         Obtained: inf
-E         Expected: 0.0 ± 1.0e-12
-
-test_gen_r1.py:37: AssertionError</failure></testcase><testcase classname="test_gen_r1" name="test_mad_None输入_错误推测法" file="test_gen_r1.py" line="38" time="0.000" /></testsuite></testsuites>

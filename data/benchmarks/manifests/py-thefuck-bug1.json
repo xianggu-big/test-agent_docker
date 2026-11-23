@@ -1,0 +1,23 @@
+{
+ "id": "py-thefuck-bug1",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/nvbn/thefuck",
+ "version_anchor": "bugsinpy:projects/thefuck/bugs/1",
+ "buggy_ref": "2ced7a7f33ae0bec3ffc7a43ce95330bdf6cfcb9",
+ "fixed_ref": "444908ce1c17767ef4aaf9e0b4950497914f7f63",
+ "official_test_cmd": "pytest tests/rules/test_pip_unknown_command.py::test_get_new_command",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy 本地 thefuck/bugs/1",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "30e75ae72f14707a80ac03a5a2d36f371879adeb2638dca9116fb155fdd6369c",
+  "fixed": "6e0af782b60391f72238db1119b9fb6a3d9ec2d4f5b396ff3d2a45903eec5e39"
+ },
+ "extra_deps": [
+  "psutil",
+  "colorama",
+  "six",
+  "pytest<7"
+ ]
+}
