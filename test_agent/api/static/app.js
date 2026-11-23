@@ -1016,7 +1016,9 @@ function renderTasks() {
     h.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
   });
   document.querySelectorAll(".pg-task").forEach(tr => {
-    tr.onclick = e => { if (e.target.closest("button")) return; viewReport(Number(tr.dataset.tid)); };
+    // 行点击 → 任务详情页（#/task/{id} 原生 URL 路由，无竞速）；报告页只由行内"报告"按钮进入。
+    // 行内链接（实时进度/失败原因等 <a>）与按钮点击不触发行跳转。
+    tr.onclick = e => { if (e.target.closest("a,button")) return; location.hash = "#/task/" + tr.dataset.tid; };
   });
 }
 
@@ -1070,8 +1072,21 @@ async function watchTaskFinal(tid, label, tries = 0) {
   } catch (_) { /* 网络抖动继续 */ }
   FINAL_WATCH[tid] = setTimeout(() => watchTaskFinal(tid, label, tries + 1), 4000);
 }
-function viewReport(id) { location.hash = "#/reports"; setTimeout(() => { $("rp-task").value = String(id); loadReport(); }, 150); }
-async function viewLogs(id) { location.hash = "#/reports"; setTimeout(() => { $("rp-task").value = String(id); switchRp("logs"); loadReport(); }, 150); }
+// 待选任务 id：viewReport/viewLogs 先记下，refreshReports 渲染下拉时优先选中它，
+// 选完立即 loadReport——取代旧版"150ms 后 setTimeout 塞回 id"的竞速写法（快慢决定成败）。
+let REPORT_PENDING_TID = null;
+let REPORT_PENDING_TAB = null;   // viewLogs 附带要切到的报告页 tab
+
+function viewReport(id) {
+  REPORT_PENDING_TID = id; REPORT_PENDING_TAB = null;
+  if (location.hash === "#/reports") refreshReports();   // hash 不变不触发 hashchange，直接刷
+  else location.hash = "#/reports";
+}
+function viewLogs(id) {
+  REPORT_PENDING_TID = id; REPORT_PENDING_TAB = "logs";
+  if (location.hash === "#/reports") refreshReports();
+  else location.hash = "#/reports";
+}
 
 /* ---------- 报告 ---------- */
 async function refreshReports() {
@@ -1079,7 +1094,12 @@ async function refreshReports() {
   $("rp-task").innerHTML = tasks.map(t => { const pn = truncName(t.project_name);
       return `<option value="${t.id}" title="${esc(t.project_name)}">#${t.id} ${esc(pn)}（${STATUS_CN[t.status]}）</option>`; }).join("");
   $("rp-task").onchange = loadReport;
-  if (tasks.length) { $("rp-task").value = String(tasks[0].id); await loadReport(); }
+  // 优先选用户点进来的任务（viewReport/viewLogs 记的待选 id），没有才落第一个（最新）。
+  // 消费完立即清空，保证手动切下拉/纯导航进报告页不受影响。
+  const want = (REPORT_PENDING_TID && tasks.some(t => t.id === REPORT_PENDING_TID)) ? REPORT_PENDING_TID : (tasks[0] && tasks[0].id);
+  const tab = REPORT_PENDING_TAB;
+  REPORT_PENDING_TID = null; REPORT_PENDING_TAB = null;
+  if (want) { $("rp-task").value = String(want); if (tab) switchRp(tab); await loadReport(); }
 }
 
 // 全局下载助手：文本内容 → 浏览器下载（缺陷报告单等 Markdown 交付物共用）
