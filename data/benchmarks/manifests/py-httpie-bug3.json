@@ -1,13 +1,35 @@
 {
-  "id": "py-httpie-bug3",
-  "language": "python",
-  "track": "A",
-  "repo": "https://github.com/httpie/httpie",
-  "version_anchor": "bugsinpy:projects/httpie/bugs/3",
-  "buggy_ref": "8c33e5e3d31d3cd6476c4d9bc963a4c529f883d2",
-  "fixed_ref": "589887939507ff26d36ec74bd2c045819cfa3d56",
-  "official_test_cmd": "pytest tests/test_sessions.py::TestSession::test_download_in_session",
-  "setup_cmd": "python -m pip install . --quiet",
-  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/httpie/bugs/3：bug.info 双 commit+run_test.sh 官方失败用例",
-  "status": "planned"
+ "id": "py-httpie-bug3",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/httpie/httpie",
+ "version_anchor": "bugsinpy:projects/httpie/bugs/3",
+ "buggy_ref": "8c33e5e3d31d3cd6476c4d9bc963a4c529f883d2",
+ "fixed_ref": "589887939507ff26d36ec74bd2c045819cfa3d56",
+ "official_test_cmd": "pytest tests/test_sessions.py::TestSession::test_download_in_session",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy（本地 BugsInPy-master）projects/httpie/bugs/3：bug.info 双 commit+run_test.sh 官方失败用例",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "c101160cd49fe6e4e0a3df9f399cf0f23ebcdd1673ae91c0bfaa8bddc0c11349",
+  "fixed": "aa4cba91209edc843770785e687e8643ef6fc6d57dbbe7fe23dd5cb43bbcb563"
+ },
+ "extra_deps": [
+  "pytest-httpbin==1.0.2",
+  "httpbin==0.7.0",
+  "werkzeug==1.0.1",
+  "flask==1.1.4",
+  "itsdangerous==1.1.0",
+  "jinja2==2.11.3",
+  "markupsafe==1.1.1",
+  "pytest==5.4.3",
+  "pytest-cov==2.10.1",
+  "mock"
+ ],
+ "extra_deps_note": "P0 首轮 blocked 后补（2026-11-22）：py312 容器跑 2019 生态的版本地狱修补",
+ "conftest_patch": {
+  "file": "tests/conftest.py",
+  "replace": "pytest.fixture(autouse=True)(httpbin_ca_bundle)",
+  "with": "httpbin_ca_bundle"
+ }
 }

@@ -1,13 +1,36 @@
 {
-  "id": "py-httpie-bug1",
-  "language": "python",
-  "track": "A",
-  "repo": "https://github.com/httpie/httpie",
-  "version_anchor": "bugsinpy:projects/httpie/bugs/1",
-  "buggy_ref": "001bda19450ad85c91345eea3cfa3991e1d492ba",
-  "fixed_ref": "5300b0b490b8db48fac30b5e32164be93dc574b7",
-  "official_test_cmd": "pytest tests/test_downloads.py::TestDownloadUtils::test_unique_filename",
-  "setup_cmd": "python -m pip install . --quiet",
-  "truth_source": "BugsInPy（本地 BugsInPy-master）projects/httpie/bugs/1：bug.info 双 commit+run_test.sh 官方失败用例",
-  "status": "planned"
+ "id": "py-httpie-bug1",
+ "language": "python",
+ "track": "A",
+ "repo": "https://github.com/httpie/httpie",
+ "version_anchor": "bugsinpy:projects/httpie/bugs/1",
+ "buggy_ref": "001bda19450ad85c91345eea3cfa3991e1d492ba",
+ "fixed_ref": "5300b0b490b8db48fac30b5e32164be93dc574b7",
+ "official_test_cmd": "pytest tests/test_downloads.py::TestDownloadUtils::test_unique_filename",
+ "setup_cmd": "python -m pip install . --quiet",
+ "truth_source": "BugsInPy（本地 BugsInPy-master）projects/httpie/bugs/1：bug.info 双 commit+run_test.sh 官方失败用例",
+ "status": "staged",
+ "tarball_sha256": {
+  "buggy": "714e53c73b0c7791d53b1254b7283336c17f77fa459e824d8a7268ccb2c49e61",
+  "fixed": "0697b0d9d2edb847e4e7240db00db96bd12de2688fc8adb30f7bfd55a3e70c22"
+ },
+ "extra_deps": [
+  "pytest-httpbin==1.0.2",
+  "httpbin==0.7.0",
+  "werkzeug==1.0.1",
+  "flask==1.1.4",
+  "itsdangerous==1.1.0",
+  "jinja2==2.11.3",
+  "markupsafe==1.1.1",
+  "pytest==5.4.3",
+  "pytest-cov==2.10.1",
+  "mock"
+ ],
+ "extra_deps_note": "P0 首轮 blocked 后补（2026-11-22）：py312 容器跑 2019 生态的版本地狱修补",
+ "conftest_patch": {
+  "file": "tests/conftest.py",
+  "replace": "pytest.fixture(autouse=True)(httpbin_ca_bundle)",
+  "with": "httpbin_ca_bundle  # patched: double-decoration fix",
+  "note": "2026-11-23 手动探针实证：该行在任何 pytest 下双重应用 fixture 必炸"
+ }
 }

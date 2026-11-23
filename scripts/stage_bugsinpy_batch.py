@@ -211,6 +211,20 @@ def precheck_one(m: dict, cname: str) -> dict:
             # 以 root 放开写权再回到 tester 跑（maven 重放同款坑：tester 无权 chmod root 文件）
             _docker(["exec", "-u", "root", cname, "chmod", "-R", "a+rwX",
                      f"/ws_{side}"], timeout=120)
+            # conftest_patch（2026-11-23 httpie 实锤）：仓库自带 conftest 的
+            # pytest.fixture(autouse=True)(...) 双重应用在任何 pytest 下必炸——
+            # 预检容器内原地补丁（staging 不动），manifest 声明替换对
+            cp_ = m.get("conftest_patch")
+            if cp_:
+                esc_old = cp_["replace"].replace("'", "'\\''")
+                esc_new = cp_["with"].replace("'", "'\\''")
+                _docker(["exec", "-w", f"/ws_{side}", cname, "sh", "-c",
+                         f"python - << 'PYEOF'\n"
+                         f"p = {cp_['file']!r}\n"
+                         f"s = open(p).read()\n"
+                         f"s = s.replace({cp_['replace']!r}, {cp_['with']!r})\n"
+                         f"open(p, 'w').write(s)\n"
+                         f"PYEOF"], timeout=60)
             # SWT 口径：buggy 侧用 fixed 版的测试文件（失败用例随 fix 提交新增）
             if side == "buggy":
                 r = subprocess.run(

@@ -1,0 +1,8 @@
+{
+ "id": "py-httpie-bug1",
+ "test_file": "tests/test_downloads.py",
+ "nodeid": ".py::TestDownloadUtils::test_unique_filename",
+ "python_version_manifest": "3.7.3",
+ "status": "ok",
+ "detail": "fixed 过(rc=0)；buggy 断言败 tail='estDownloadUtils::test_unique_filename[foo.AAAAAAAAAAAAAAAAAAAA-10-foo.AAA-10]\\n======================== 11 failed, 5 warnings in 1.61s ========================\\n'"
+}

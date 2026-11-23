@@ -457,6 +457,55 @@ def build_pitfall_section(lang: str, requirement: str) -> str:
 禁止一律标「常识」——依据可溯是审查与归因的前提。"""
 
 
+def _repo_probe_section(harness_card: dict | None,
+                        intent_skeletons: list[dict] | None,
+                        call_sites: list[dict] | None) -> str:
+    """方案 D+1+4 注入段（2026-11-23 真仓库破局）：三卡合一，空输入=空串
+    （提示词逐字节不变铁律）。段落结构按外部 AI 协同定稿：
+    ①线束卡（机械结构，不含测试内容）②负空间排除表+漏缺陷声明 ③盲意图骨架
+    ④调用点假设 ⑤蜕变断言锚例（治断言瞎猜——不猜魔数，断言普适规律）。"""
+    if not (harness_card or intent_skeletons):
+        return ""
+    L = ["\n\n## 仓库测试线束卡（只学结构，禁学测试点）"]
+    hc = harness_card or {}
+    if hc.get("imports_sample"):
+        L.append("导入与基座：\n" + "\n".join(f"  {x}" for x in hc["imports_sample"][:15]))
+    if hc.get("fixture_signatures"):
+        L.append("夹具签名：\n" + "\n".join(f"  {x}" for x in hc["fixture_signatures"][:5]))
+    if hc.get("assert_style"):
+        L.append("断言语法习惯：" + "、".join(f"{k}×{v}" for k, v in hc["assert_style"][:4]))
+    if hc.get("biased_test_names"):
+        L.append("异常/边界风格测试名参考（只学命名意图，禁抄内容）："
+                 + "、".join(hc["biased_test_names"][:5]))
+    names = (hc.get("names_excluded") or [])
+    if names:
+        L.append(f"### 负空间排除表（{len(names)} 个仓库已有测试，全部通过=它们漏掉了潜伏缺陷）\n"
+                 "你只能复用上述夹具与断言语法；"
+                 "**每条新用例必须构造上述测试未覆盖的边界条件、异常退出或极值组合**"
+                 "——严禁重复它们的正常输入模式。")
+    if intent_skeletons:
+        L.append("### 被测符号意图骨架（签名+文档=用户契约；实现体刻意不可见——"
+                 "断言锚定这里的语义，禁照实现反推预期）")
+        for sk in intent_skeletons[:8]:
+            L.append(f"  {sk.get('signature', '?')}  # {sk.get('where', '')}")
+            doc = (sk.get("docstring") or "").strip().splitlines()
+            if doc:
+                L.append("    doc: " + " ".join(doc[:3])[:160])
+            if sk.get("raises"):
+                L.append("    raises: " + ", ".join(sk["raises"]))
+    if call_sites:
+        L.append("### 调用方假设（上游代码对本函数的使用预期——与实现冲突处=高嫌疑）")
+        for cs in call_sites[:8]:
+            L.append(f"  {cs.get('callee')} @ {cs.get('where')}:{cs.get('line')}")
+    L.append("### 断言纪律（蜕变/不变量优先——治瞎猜期望值）\n"
+             "不知道精确期望值时，禁猜魔数；改断言普适规律：\n"
+             "  · 数值/格式化：尾数有界（如 SI 缩放尾数必须 <1000）、还原误差 <5%、"
+             "输入单调→输出量级非降；\n"
+             "  · 失败契约：非法输入必须显式抛文档声明的受控异常，禁静默成功；\n"
+             "  · 顺序契约：声明的前后件序列（request→handler→response）全序成立。")
+    return "\n".join(L)
+
+
 def _endpoint_gap_section(endpoint_gaps: list[str] | None) -> str:
     """端点缺口补测段（2026-11-19 复盘方案 A 收尾）：黑盒出口对账发现的未覆盖端点
     直接注入生成提示词——补测从"盲重跑"变"定向补齐"。两条提示词路径共用
@@ -611,7 +660,10 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       endpoint_gaps: list[str] | None = None,
                       agent_diagnosis: dict | None = None,
                       layer_aware: bool = False,
-                      ctx_budget: int | None = None) -> str:
+                      ctx_budget: int | None = None,
+                      harness_card: dict | None = None,
+                      intent_skeletons: list[dict] | None = None,
+                      call_sites: list[dict] | None = None) -> str:
     """sources: [(相对路径, 源码)]；requirement: 用户自然语言需求。
 
     coverage_gaps: 上一轮 term-missing 逐文件缺口（①覆盖缺口回灌，CoverUp 模式）——
@@ -704,6 +756,11 @@ docstring 没写的行为，按需求文档推断，禁止猜。
         # E10 Arm 1 动态陷阱库 v2（2026-11-16）：历史失败聚类注入——接在 B 源段后
         # （开=MTA 层 TRAPKB_V2_ENABLED；默认关=本参数空串，提示词逐字节不变）
         pitfall_text = pitfall_text + trapkb_extra
+    # 方案 D+1+4（2026-11-23 真仓库破局，外部 AI 协同定稿）：harness/intent/mr
+    # 三段注入，全默认 None/空=提示词逐字节不变；旗标 MTA_REPO_PROBE=1 才开。
+    # 三段组装走 _repo_probe_section（负空间排斥+蜕变锚例一次拼好）。
+    repo_probe_text = _repo_probe_section(harness_card, intent_skeletons,
+                                           call_sites)
     cond_text = ""
     if conditions:
         rows = "\n".join(f"{i}. [{c.get('priority') or '中'}] {c['condition']}"
@@ -944,7 +1001,7 @@ subprocess/cwd/文件路径的基准用 os.path.dirname(os.path.abspath(__file__
 {requirement or "（无额外需求，按源码行为设计）"}{sut_text}{mismatch_text}{layer_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
-    {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}
+    {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{repo_probe_text}{defense_text}
 
 ## 输出格式
 只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。{lang_rules}
@@ -963,7 +1020,8 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "expected": "预期输出/状态变化",
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
     "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
-        return lean + _endpoint_gap_section(endpoint_gaps)             + _agent_diagnosis_section(agent_diagnosis)
+        return (lean + repo_probe_text
+                + _endpoint_gap_section(endpoint_gaps)             + _agent_diagnosis_section(agent_diagnosis))
 
     final_prompt = f"""## 被测源码
 {src_text}
@@ -972,7 +1030,7 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
 {requirement or "（无额外需求，按源码行为设计）"}{sut_text}{mismatch_text}{layer_text}{cond_text}{seed_text}{docs_text}{usage_text}{feedback_sec}{gap_text}{boundary_text}{pbt_text}{template_text}{st_text}{mt_text}
 
 ## 用例设计方法（每种方法至少生成 1 条用例，name 后缀标注方法名）
-    {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{defense_text}
+    {method_text if include_methods else "（本组不限定方法，按你的测试经验自由设计用例）"}{pitfall_text}{repo_probe_text}{defense_text}
 
 ## 输出格式
 只输出一个 JSON 对象，禁止输出任何其他文字或 markdown 代码块标记。{lang_rules}
