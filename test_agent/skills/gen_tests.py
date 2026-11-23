@@ -147,6 +147,40 @@ def gen_file_naming(lang: str, round_no: int, feedback: bool = False, fb_no: int
     return f"test_gen_r{round_no}{ext}", framework
 
 
+def _repo_probe_payload(ws):
+    """方案 D+1（2026-11-23 真仓库破局）：旗标开时从被测工作区抽线束卡+盲意图骨架
+    （+调用点），关={}（build_user_prompt 默认参数=提示词逐字节不变）。
+    抽取只读 workspace（buggy 快照副本）——三道泄漏门禁在 tests/test_no_leakage.py。
+    Python-only（AST 抽壳器 py 实现）；fail-open：抽取失败不阻断生成主链路。"""
+    if not config.REPO_PROBE_ENABLED or ws is None:
+        return {}
+    try:
+        import importlib.util as _ilu
+        root = Path(config.ROOT)
+
+        def _load(name, rel):
+            spec = _ilu.spec_from_file_location(name, root / rel)
+            mod = _ilu.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+
+        hc_mod = _load("harness_card", "scripts/harness_card.py")
+        out = hc_mod.extract_card(Path(ws))
+        card = out.get("card") if out.get("status") == "ok" else None
+        skel = cs = None
+        if config.REPO_PROBE_INTENT:
+            is_mod = _load("intent_skeleton", "scripts/intent_skeleton.py")
+            iso = is_mod.extract(Path(ws), None)
+            if iso.get("status") == "ok":
+                skel, cs = iso["skeletons"], iso["call_sites"]
+        log.info("gen_tests repo_probe 注入：card=%s skel=%s call_sites=%s",
+                 bool(card), skel and len(skel), cs and len(cs))
+        return {"harness_card": card, "intent_skeletons": skel, "call_sites": cs}
+    except Exception as e:      # noqa: BLE001 —— fail-open
+        log.warning("repo_probe 抽取失败（fail-open）：%s", e)
+        return {}
+
+
 def _load_trapkb_v2() -> str:
     """动态陷阱库 v2 注入段加载（E10 Arm 1，2026-11-16；默认关=空串提示词逐字节不变）。
     产物=build_trapkb_v2.py 的历史失败聚类（signature/size/top_messages）——渲染 top
@@ -1826,7 +1860,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   sut_mismatch=sut_mismatch,
                                                   endpoint_gaps=(args.get("endpoint_gaps") or None),
                                                   agent_diagnosis=(args.get("agent_diagnosis") or None),
-                                                  ctx_budget=getattr(llm, "_ctx_budget", None)))])
+                                                  ctx_budget=getattr(llm, "_ctx_budget", None),
+                                                  **_repo_probe_payload(ws)))])
     log_llm_call(task_id, phase, resp,
                  ctx_budget=getattr(llm, "_ctx_budget", None),
                  base_url=getattr(llm, "_base_url", ""))

@@ -187,6 +187,11 @@ JACOCO_MULTIMODULE_FALLBACK = _flag("MTA_JACOCO_MULTIMODULE", False)
 # （bridge 保 host.docker.internal MySQL + mta-fakenet 挂桩）；关=现状逐字节不变。
 FAKE_NET_ENABLED = _flag("MTA_FAKE_NET", False)
 FAKE_NET_NAME = os.environ.get("MTA_FAKE_NET_NAME", "mta-fakenet")
+# 真仓库破局（2026-11-23 外部 AI 协同定稿）：方案 D 线束卡+方案 1 盲意图骨架
+# 注入 gen_tests 提示词。REPO_PROBE=线束卡（治断言瞎猜+脚手架）；INTENT=加盲意图
+# +调用点（治没 oracle）。默认全关=逐字节不变；三道泄漏门禁 tests/test_no_leakage.py
+REPO_PROBE_ENABLED = _flag("MTA_REPO_PROBE", False)
+REPO_PROBE_INTENT = _flag("MTA_REPO_PROBE_INTENT", False)
 # B2（任务卡-369：SUT 功能函数候选清单注入——治「纯数据文件被当被测单元」，
 # 369 实锤 questions.js 被当 SUT 而真功能 app.js 零执行）
 DEFECT_CLUSTERING_ENABLED = _flag("MTA_DEFECT_CLUSTER", False)
