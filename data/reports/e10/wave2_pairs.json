@@ -6,10 +6,10 @@
    "anchor": "go-l3l4-demo",
    "rounds": {
     "1": {
-     "det": "budget_exhausted",
-     "passed": null,
-     "failed": null,
-     "tokens": 0
+     "det": "detected",
+     "passed": 14,
+     "failed": 1,
+     "tokens": 15799
     },
     "2": {
      "det": "detected",
@@ -24,15 +24,15 @@
      "tokens": 15882
     }
    },
-   "trajectory": "budget_exhausted → detected → detected",
-   "layer1_qual": "分歧(2种)",
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
    "layer2_quant": {
-    "passed": "8.3±7.6",
-    "failed": "1.7±1.5",
-    "tokens": "10527.7±9117.7"
+    "passed": "13.0±2.6",
+    "failed": "2.0±1.0",
+    "tokens": "15794.0±90.6"
    },
-   "delta_pass_r3_r1": 15,
-   "delta_fail_r3_r1": 3,
+   "delta_pass_r3_r1": 1,
+   "delta_fail_r3_r1": 2,
    "layer3_trend": "上升"
   },
   {
@@ -41,10 +41,10 @@
    "anchor": "go-l3l4-demo",
    "rounds": {
     "1": {
-     "det": "error",
-     "passed": null,
-     "failed": null,
-     "tokens": null
+     "det": "detected",
+     "passed": 14,
+     "failed": 4,
+     "tokens": 19362
     },
     "2": {
      "det": "detected",
@@ -59,16 +59,16 @@
      "tokens": 14531
     }
    },
-   "trajectory": "error → detected → detected",
-   "layer1_qual": "分歧(2种)",
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
    "layer2_quant": {
-    "passed": "7.0±6.1",
-    "failed": "2.7±2.5",
-    "tokens": "9870.0±8552.1"
+    "passed": "11.7±2.1",
+    "failed": "4.0±1.0",
+    "tokens": "16324.0±2645.2"
    },
-   "delta_pass_r3_r1": 10,
-   "delta_fail_r3_r1": 3,
-   "layer3_trend": "上升"
+   "delta_pass_r3_r1": -4,
+   "delta_fail_r3_r1": -1,
+   "layer3_trend": "下降"
   },
   {
    "lang": "go",
@@ -356,10 +356,10 @@
    "anchor": "js-calc",
    "rounds": {
     "1": {
-     "det": "error",
-     "passed": null,
-     "failed": null,
-     "tokens": null
+     "det": "detected",
+     "passed": 8,
+     "failed": 8,
+     "tokens": 15415
     },
     "2": {
      "det": "detected",
@@ -374,15 +374,15 @@
      "tokens": 13835
     }
    },
-   "trajectory": "error → detected → detected",
-   "layer1_qual": "分歧(2种)",
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
    "layer2_quant": {
-    "passed": "6.3±5.5",
-    "failed": "3.0±2.6",
-    "tokens": "8407.0±7382.9"
+    "passed": "9.0±1.0",
+    "failed": "5.7±2.1",
+    "tokens": "13545.3±2030.1"
    },
-   "delta_pass_r3_r1": 10,
-   "delta_fail_r3_r1": 4,
+   "delta_pass_r3_r1": 2,
+   "delta_fail_r3_r1": -4,
    "layer3_trend": "上升"
   },
   {
@@ -403,21 +403,21 @@
      "tokens": 16165
     },
     "3": {
-     "det": "error",
-     "passed": null,
-     "failed": null,
-     "tokens": null
+     "det": "detected",
+     "passed": 9,
+     "failed": 5,
+     "tokens": 12001
     }
    },
-   "trajectory": "detected → detected → error",
-   "layer1_qual": "分歧(2种)",
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
    "layer2_quant": {
-    "passed": "5.7±5.1",
-    "failed": "3.7±3.5",
-    "tokens": "10169.3±8853.9"
+    "passed": "8.7±1.5",
+    "failed": "5.3±1.5",
+    "tokens": "14169.7±2087.4"
    },
-   "delta_pass_r3_r1": -10,
-   "delta_fail_r3_r1": -4,
+   "delta_pass_r3_r1": -1,
+   "delta_fail_r3_r1": 1,
    "layer3_trend": "下降"
   },
   {
@@ -718,18 +718,18 @@
      "tokens": 23260
     },
     "3": {
-     "det": "error",
-     "passed": null,
-     "failed": null,
-     "tokens": null
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 23871
     }
    },
-   "trajectory": "honest_exit → honest_exit → error",
-   "layer1_qual": "分歧(2种)",
+   "trajectory": "honest_exit → honest_exit → honest_exit",
+   "layer1_qual": "一致(honest_exit)",
    "layer2_quant": {
     "passed": "0.0±0.0",
     "failed": "0.0±0.0",
-    "tokens": "15976.0±13853.5"
+    "tokens": "23933.0±706.0"
    },
    "delta_pass_r3_r1": 0,
    "delta_fail_r3_r1": 0,
@@ -1278,22 +1278,22 @@
      "tokens": 38085
     },
     "3": {
-     "det": "budget_exhausted",
-     "passed": null,
-     "failed": null,
-     "tokens": 0
+     "det": "detected",
+     "passed": 32,
+     "failed": 7,
+     "tokens": 27052
     }
    },
-   "trajectory": "detected → detected → budget_exhausted",
-   "layer1_qual": "分歧(2种)",
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
    "layer2_quant": {
-    "passed": "11.0±10.1",
-    "failed": "5.3±4.7",
-    "tokens": "21381.7±19468.7"
+    "passed": "21.7±9.6",
+    "failed": "7.7±1.2",
+    "tokens": "30399.0±6674.7"
    },
-   "delta_pass_r3_r1": -20,
-   "delta_fail_r3_r1": -9,
-   "layer3_trend": "下降"
+   "delta_pass_r3_r1": 12,
+   "delta_fail_r3_r1": -2,
+   "layer3_trend": "上升"
   },
   {
    "lang": "python",
@@ -1727,10 +1727,10 @@
      "tokens": 13768
     },
     "2": {
-     "det": "error",
-     "passed": null,
-     "failed": null,
-     "tokens": null
+     "det": "detected",
+     "passed": 10,
+     "failed": 2,
+     "tokens": 17082
     },
     "3": {
      "det": "detected",
@@ -1739,12 +1739,12 @@
      "tokens": 16387
     }
    },
-   "trajectory": "detected → error → detected",
-   "layer1_qual": "分歧(2种)",
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
    "layer2_quant": {
-    "passed": "7.7±6.8",
-    "failed": "2.0±1.7",
-    "tokens": "10051.7±8802.9"
+    "passed": "11.0±1.7",
+    "failed": "2.7±0.6",
+    "tokens": "15745.7±1747.6"
    },
    "delta_pass_r3_r1": -3,
    "delta_fail_r3_r1": 0,
@@ -1753,11 +1753,11 @@
  ],
  "trend": {
   "1": {
-   "detected": 43,
+   "detected": 46,
    "n": 50,
    "passed": [
-    0,
-    0,
+    14,
+    14,
     12,
     10,
     13,
@@ -1766,7 +1766,7 @@
     10,
     9,
     11,
-    0,
+    8,
     10,
     14,
     10,
@@ -1808,8 +1808,8 @@
     13
    ],
    "tokens": [
-    0,
-    0,
+    15799,
+    19362,
     14389,
     17343,
     18273,
@@ -1818,7 +1818,7 @@
     14096,
     13069,
     13325,
-    0,
+    15415,
     14343,
     14919,
     12645,
@@ -1861,7 +1861,7 @@
    ]
   },
   "2": {
-   "detected": 45,
+   "detected": 46,
    "n": 50,
    "passed": [
     10,
@@ -1913,7 +1913,7 @@
     13,
     12,
     9,
-    0
+    10
    ],
    "tokens": [
     15701,
@@ -1965,11 +1965,11 @@
     18798,
     13929,
     12014,
-    0
+    17082
    ]
   },
   "3": {
-   "detected": 43,
+   "detected": 45,
    "n": 50,
    "passed": [
     15,
@@ -1983,7 +1983,7 @@
     11,
     12,
     10,
-    0,
+    9,
     10,
     16,
     8,
@@ -2008,7 +2008,7 @@
     26,
     33,
     16,
-    0,
+    32,
     33,
     30,
     15,
@@ -2035,7 +2035,7 @@
     14361,
     11651,
     13835,
-    0,
+    12001,
     11249,
     15102,
     12707,
@@ -2044,7 +2044,7 @@
     10708,
     11538,
     12212,
-    0,
+    23871,
     23589,
     22062,
     32012,
@@ -2060,7 +2060,7 @@
     33731,
     34304,
     25498,
-    0,
+    27052,
     33351,
     32467,
     24986,
@@ -2257,11 +2257,11 @@
    ],
    "k_det": "detected",
    "d_det": "detected",
-   "d_det_rate": "18/20",
+   "d_det_rate": "19/20",
    "k_passed": 8,
-   "d_passed": 9.7,
+   "d_passed": 10.6,
    "k_tokens": 12703,
-   "d_tokens": 12073.0
+   "d_tokens": 13447.0
   }
  ],
  "unpaired_k": [
