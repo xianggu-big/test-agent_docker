@@ -1094,7 +1094,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                       "请在界面点「一键准备」或到设置页构建镜像，"
                       "或新建任务时勾选「自动准备环境」后重跑")
             msg(state["session_id"], "assistant", f"[provision] {reason}")
-            return {"done": True, "verdict": "stop", "stop_reason": reason}
+            return {"done": True, "verdict": "stop", "stop_reason": reason,
+                    "failure_kind": "env"}
         msg(state["session_id"], "assistant", f"[provision] 执行镜像 {image} 就绪（{how}）")
         # 两阶段"布考场"（docs/两阶段人机协作流程设计-20261031.md）：快照前按审查结论
         # 重写生成用例文件（评审页勾掉/增补的用例以库为准），再补跑阶段一顺延的收集闸
@@ -1199,7 +1200,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                 gate = check_go_toolchain(state["workspace"], gv.stdout or gv.stderr or "")
                 if not gate["ok"]:
                     msg(state["session_id"], "assistant", f"[provision·toolchain] {gate['reason']}")
-                    return {"done": True, "verdict": "stop", "stop_reason": gate["reason"]}
+                    return {"done": True, "verdict": "stop", "stop_reason": gate["reason"],
+                            "failure_kind": "env"}
             except Exception as e:   # noqa: BLE001 —— 闸自身失败不引入新失败面（fail-open）
                 log.warning("Go 工具链闸跳过（%s: %s）", type(e).__name__, e)
         # PHP 平台闸（2026-11-15 卡 2，1148 真机复现实锤：composer.lock 要求 PHP>=8.4.1
@@ -1214,7 +1216,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                 reason = php_platform_gate_result(pr.exit_code, pr.stdout + pr.stderr)
                 if reason:
                     msg(state["session_id"], "assistant", f"[provision·toolchain] {reason}")
-                    return {"done": True, "verdict": "stop", "stop_reason": reason}
+                    return {"done": True, "verdict": "stop", "stop_reason": reason,
+                            "failure_kind": "env"}
             except Exception as e:   # noqa: BLE001 —— 闸自身失败不引入新失败面（fail-open）
                 log.warning("PHP 平台闸跳过（%s: %s）", type(e).__name__, e)
         # L1 服务编排兜底（2026-11-15 存疑 33/34 拍板全修）：repair_env 回炉轮遇连接类
@@ -1371,7 +1374,8 @@ def make_nodes(deps: GraphDeps) -> dict:
                     f"不产出任何产品缺陷结论（fail-fast）")
                 return {"done": True, "verdict": "stop",
                         "stop_reason": "环境闸：金丝雀自检未通过（框架/IO），判环境无效——"
-                                       "不产出产品缺陷结论（11.4 归因三闸）"}
+                                       "不产出产品缺陷结论（11.4 归因三闸）",
+                        "failure_kind": "env"}
             msg(state["session_id"], "assistant", "[env-gate] 金丝雀通过：框架/IO 自检 OK")
         if lang in ("javascript", "typescript"):
             # JS/TS 执行链路（Tier2）：jest --json 输出经宿主侧适配器转 pytest 风格文本，
