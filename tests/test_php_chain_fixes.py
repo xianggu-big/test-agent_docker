@@ -157,6 +157,31 @@ def test_platform_gate_passes_on_success():
     assert php_platform_gate_result(0, "all success") is None
 
 
+def test_platform_gate_no_lockfile_leads_with_actionable_text():
+    """#2597 实锤：无 composer.lock（库项目 gitignore 掉）时 composer 报
+    "No lockfile found"埋在长输出里、无 failed 行 → detail 截断后用户先看到 root
+    package 警告，尾句"与 composer.lock 不匹配"纯误导。缺 lock 分支必须把
+    可行动修法（生成 lock 后重新下发）放在最前面。"""
+    text = ("Composer could not detect the root package (ramsey/collection) version, "
+            "defaulting to '1.0.0'. See https://getcomposer.org/root-version\n"
+            "No vendor dir present, checking platform requirements from the lock file instead.\n"
+            "No lockfile found. Unable to read locked versions.")
+    reason = php_platform_gate_result(1, text)
+    assert reason and "缺少 composer.lock" in reason
+    assert reason.index("缺少 composer.lock") < reason.index("root package")
+    assert "composer install 生成 lock" in reason
+    assert "与项目 composer.lock 不匹配" not in reason
+
+
+def test_platform_gate_version_mismatch_keeps_original_text():
+    """lock 在场的版本错配（1148 形态）不受缺 lock 分支影响，文案逐字节不变。"""
+    text = ("php                  8.3.36   doctrine/collections requires php ([>= 8.4]) failed\n"
+            "checking platform requirements from the lock file.")
+    reason = php_platform_gate_result(1, text)
+    assert reason and "与项目 composer.lock 不匹配" in reason
+    assert "缺少 composer.lock" not in reason
+
+
 # ---------- 5. run 节点证据保留（1148：Fatal 只在原始 stdout） ----------
 
 def test_unified_text_keeps_raw_when_junit_missing():

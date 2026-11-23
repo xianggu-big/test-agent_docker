@@ -147,6 +147,14 @@ def php_platform_gate_result(exit_code: int, gate_text: str) -> str | None:
     # composer 输出是宽列对齐（failed 在行尾 120+ 列）——压缩空白再截，保关键词可见
     detail = "；".join(" ".join(ln.split())[:200] for ln in failed_lines[:3]) \
         or (gate_text or "").strip()[:200]
+    # 缺 lock 是可行动的环境准备问题（库项目常 gitignore composer.lock）——#2597 实锤：
+    # 真因是无 lock，首行却是 root package 警告+被 200 字截断，尾句"与 composer.lock
+    # 不匹配"误导。提到最前面并给出修法；非缺 lock 路径逐字节不变。
+    if "no lockfile found" in (gate_text or "").lower():
+        return (f"PHP 平台要求不满足（composer check-platform-reqs exit={exit_code}）："
+                "缺少 composer.lock——在项目目录执行 composer install 生成 lock 文件后"
+                "重新下发任务（生成锁的机器 PHP 需满足 composer.json 声明）。"
+                f"原始输出：{detail}——环境准备事实，repair 修不动，诚实拦停")
     return (f"PHP 平台要求不满足（composer check-platform-reqs exit={exit_code}）：{detail}"
             "——镜像 PHP 版本/扩展与项目 composer.lock 不匹配，诚实拦停（环境事实，repair 修不动）")
 
