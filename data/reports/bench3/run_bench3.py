@@ -392,17 +392,27 @@ def run_cells_serial(items):
             # P2 复演=容器内执行（2026-11-22 用户纠偏：研究方向=容器隔离沙箱，
             # 宿主 python 与真格环境不同源 → fail-to-pass 判定有环境偏差风险。
             # 与真格同镜像同挂载形态 /work，环境同源可复现。
-            # 2026-11-23 修复：镜像跟随格的 image_override——BugsInPy py38 格真格跑
-            # py38 但 replay 曾硬编码 py312 → collection 炸 → f_map 空 → fp=0 误判
-            # not_detected（3 格测量伪影实锤）；同格同镜像是环境同源的本义）
+            # 2026-11-23 修复×2：①镜像跟随格的 image_override（py38 格曾硬编码
+            # py312 → collection 炸 → fp=0 误判）②override 格补 pip install .——
+            # 真格容器由平台 install_deps 装项目依赖，replay 裸 PYTHONPATH 对
+            # cookiecutter（binaryornot）类必炸（reverify 实锤）；-u root 同
+            # maven 教训：docker cp 落盘 root 属主）
             replay_img = it.get("image_override") or "mta-test:py312"
-            replay_cmd = ["docker", "run", "--rm",
-                          "-v", f"{fdir.as_posix()}:/work", "-w", "/work",
-                          "-e", "PYTHONPATH=/work",
-                          replay_img,
-                          "python", "-m", "pytest", "-q",
-                          "-o", "junit_family=xunit1",
-                          "--junitxml=/work/replay_junit.xml", *gen_files]
+            if it.get("image_override"):
+                replay_cmd = ["docker", "run", "--rm", "-u", "root",
+                              "-v", f"{fdir.as_posix()}:/work", "-w", "/work",
+                              "-e", "PYTHONPATH=/work", replay_img, "sh", "-c",
+                              "python -m pip install -q . 2>&1 | tail -1; "
+                              "python -m pytest -q -o junit_family=xunit1 "
+                              f"--junitxml=/work/replay_junit.xml {' '.join(gen_files)}"]
+            else:
+                replay_cmd = ["docker", "run", "--rm",
+                              "-v", f"{fdir.as_posix()}:/work", "-w", "/work",
+                              "-e", "PYTHONPATH=/work",
+                              replay_img,
+                              "python", "-m", "pytest", "-q",
+                              "-o", "junit_family=xunit1",
+                              "--junitxml=/work/replay_junit.xml", *gen_files]
             try:
                 rf, of_ = _run(replay_cmd, timeout=300)
             except subprocess.TimeoutExpired:
@@ -520,10 +530,14 @@ def main():
     ap.add_argument("--repeat", type=int, default=1,
                     help="小件3：重复采样 n（>1 时每格跑 n 次独立采样，格名 __r{i} "
                          "后缀进断点名——r1 用原名；staging 共享）")
+    ap.add_argument("--bench", default="",
+                    help="只跑 bench 名含该串的格（如 BugsInPy——探针/消融臂过滤）")
     args = ap.parse_args()
     if args.cell:
         sys.exit(run_one_cell_cli(args.cell, args.cell_out))
     items = stage_all()
+    if args.bench:
+        items = [i for i in items if args.bench in i["bench"]]
     if args.repeat > 1:
         extra = []
         for it in items:
