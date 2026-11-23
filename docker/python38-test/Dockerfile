@@ -24,11 +24,16 @@ ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
 
 # 工具链：pytest 6.2（2019 fixture 语法兼容末代）+ pytest-cov/coverage + per-test 超时
 # （任务3 机制同源 signal 法）+ nose（老测试链依赖）+ 体检同款 requests/jsonschema/httpx
-# （era 锁版本：httpx 新版要 3.9+）
+# （era 锁版本：httpx 新版要 3.9+）+ P0 实证 extra_deps 钉版（2026-11-23 py38 P0
+# 11/21 格实证的组合——cookiecutter 防 click8 拉升/sanic C 扩展族/thefuck 依赖，
+# 全有 cp38 wheel；pytest-httpbin 不烤[brotlicffi 源码编译炸，httpie 格本就 blocked]）
 RUN pip install --no-cache-dir --retries 3 \
       "pytest==6.2.5" "pytest-cov==3.0.0" "coverage==6.5.0" pytest-timeout \
       nose \
-      "requests<3" "jsonschema<4.18" "httpx<0.26"
+      "requests<3" "jsonschema<4.18" "httpx<0.26" \
+      "click==7.1.2" "jinja2<3.1" "MarkupSafe==2.0.1" \
+      multidict httptools "uvloop==0.19.0" \
+      psutil colorama six
 
 # git（差分闸同款：A 轨容器内 checkout 对照 ref）
 RUN apt-get update \

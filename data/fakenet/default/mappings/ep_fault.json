@@ -1,0 +1,4 @@
+{
+  "request": {"method": "GET", "url": "/api/flaky"},
+  "response": {"fault": "CONNECTION_RESET_BY_PEER"}
+}

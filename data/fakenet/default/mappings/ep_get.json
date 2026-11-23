@@ -1,0 +1,4 @@
+{
+  "request": {"method": "GET", "url": "/api/users/1"},
+  "response": {"status": 200, "jsonBody": {"id": 1, "name": "stub-user"}, "headers": {"Content-Type": "application/json"}}
+}

@@ -1,0 +1,4 @@
+{
+  "request": {"method": "GET", "url": "/api/slow"},
+  "response": {"status": 200, "body": "slow-ok", "fixedDelayMilliseconds": 1500}
+}

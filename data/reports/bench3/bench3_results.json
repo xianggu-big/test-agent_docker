@@ -5165,5 +5165,201 @@
   "duration_s": 112.8,
   "arm": "D",
   "relabel_note": "2026-11-23 12:xx 以 MTA_REPO_PROBE=1 跑出但落了裸基线名（--repeat 首样本沿用基线名的打标缺陷）；12:58 重标归位 @D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tqdm-bug9@D",
+  "task_id": 952811932,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 3,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='gen_r1.py::test_format_meter_SI切换边界_边界值分析 - AssertionErr...\\nFAILED test_gen_r1.py::test_format_meter_分支覆盖_语句分支覆盖 - AssertionErr...\\n3 failed, 11 passed in 0.18s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 3,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 55.1,
+  "arm": "D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "cookiecutter-bug1@D",
+  "task_id": 917132968,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 4,
+  "gen_files": [
+   "test_gen_r2.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='=============\\nFAILED test_gen_r2.py::test_unzip_目标目录不存在时创建_语句分支覆盖 - cookiec...\\n========================= 1 failed, 12 passed in 1.10s =========================\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 106.6,
+  "arm": "D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "cookiecutter-bug2@D",
+  "task_id": 966139710,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 15,
+  "gen_files": [
+   "test_gen_r2.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='分析\\nFAILED test_gen_r2.py::test_read_user_choice_invalid_then_valid_错误推测法 - ...\\n======================== 15 failed, 12 passed in 1.60s =========================\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 15,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 125.1,
+  "arm": "D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "sanic-bug1@D",
+  "task_id": 990353595,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 15,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='_等价类划分[\\\\u6709\\\\u6548\\\\u540d\\\\u79f0]\\nFAILED test_gen_r1.py::test_blueprint_name_equivalence_等价类划分[\\\\u53e6\\\\u4e00\\\\u6709\\\\u6548\\\\u540d\\\\u79f0]\\n8 failed, 7 passed in 0.60s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 8,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 128.0,
+  "arm": "D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "thefuck-bug1@D",
+  "task_id": 939628474,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [],
+  "replay": {
+   "n_files": 0,
+   "fixed_pass": null,
+   "detail": ""
+  },
+  "grade": "no_tests",
+  "duration_s": 81.5,
+  "arm": "D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tornado-bug5@D",
+  "task_id": 995879895,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 36,
+  "gen_files": [],
+  "replay": {
+   "n_files": 0,
+   "fixed_pass": null,
+   "detail": ""
+  },
+  "grade": "no_tests",
+  "duration_s": 99.1,
+  "arm": "D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tqdm-bug1@D",
+  "task_id": 998505039,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [],
+  "replay": {
+   "n_files": 0,
+   "fixed_pass": null,
+   "detail": ""
+  },
+  "grade": "no_tests",
+  "duration_s": 99.8,
+  "arm": "D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tqdm-bug3@D",
+  "task_id": 909787474,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "task_error": "同指纹熔断：失败模式重复 3 次，Agent 原地打转",
+  "failed_in_buggy": 0,
+  "gen_files": [],
+  "replay": {
+   "n_files": 0,
+   "fixed_pass": null,
+   "detail": ""
+  },
+  "grade": "no_tests",
+  "duration_s": 112.0,
+  "arm": "D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tornado-bug1@D",
+  "task_id": 972098444,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 110,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='ED test_gen_r1.py::test_websocket_unmasked_frame_closes_1002_错误推测法\\nFAILED test_gen_r1.py::test_websocket_message_too_large_closes_1009_边界值分析\\n6 failed in 30.67s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 6,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 218.1,
+  "arm": "D"
  }
 ]
