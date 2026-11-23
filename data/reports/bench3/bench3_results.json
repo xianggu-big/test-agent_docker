@@ -4942,13 +4942,14 @@
   "replay": {
    "n_files": 2,
    "fixed_pass": false,
-   "detail": "exit=2 tail='!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!\\n============================== 2 errors in 0.59s ===============================\\n'",
+   "detail": "reverify(py38): exit=1 tail='pti...\\nFAILED test_gen_r2.py::test_prompt_for_config_no_input无默认值_错误推测法 - F...\\n========================= 4 failed, 25 passed in 1.67s =========================\\n'",
    "fail_to_pass": 0,
-   "fail_to_fail": 0,
+   "fail_to_fail": 4,
    "pass_to_fail": 0
   },
   "grade": "not_detected",
-  "duration_s": 97.7
+  "duration_s": 97.7,
+  "grade_note": "2026-11-23 replay 镜像重验：原 replay 硬编码 py312 致 collection error → fp=0 误判；同格 py38 重跑"
  },
  {
   "bench": "BugsInPy(ESEC/FSE'20)",
@@ -4966,13 +4967,14 @@
   "replay": {
    "n_files": 2,
    "fixed_pass": false,
-   "detail": "exit=2 tail='!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!\\n============================== 2 errors in 0.70s ===============================\\n'",
+   "detail": "reverify(py38): exit=1 tail='语句分支覆盖\\nFAILED test_gen_r2.py::test_unzip_valid_zip_extracts_all_entries_语句分支覆盖\\n========================= 9 failed, 25 passed in 1.89s =========================\\n'",
    "fail_to_pass": 0,
-   "fail_to_fail": 0,
-   "pass_to_fail": 0
+   "fail_to_fail": 8,
+   "pass_to_fail": 1
   },
   "grade": "not_detected",
-  "duration_s": 107.1
+  "duration_s": 107.1,
+  "grade_note": "2026-11-23 replay 镜像重验：原 replay 硬编码 py312 致 collection error → fp=0 误判；同格 py38 重跑"
  },
  {
   "bench": "BugsInPy(ESEC/FSE'20)",
@@ -4990,13 +4992,14 @@
   "replay": {
    "n_files": 2,
    "fixed_pass": false,
-   "detail": "exit=2 tail='==================\\nERROR test_gen_r1.py\\nERROR test_gen_r2.py\\n!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!\\n2 errors in 0.51s\\n'",
+   "detail": "reverify(py38): exit=1 tail='st_gen_r2.py::test_blueprint_路由列表空与非空_等价类划分 - assert 2 ...\\nFAILED test_gen_r2.py::test_url_for_参数多余_错误推测法 - AssertionError: ass...\\n6 failed, 24 passed in 1.03s\\n'",
    "fail_to_pass": 0,
-   "fail_to_fail": 0,
+   "fail_to_fail": 6,
    "pass_to_fail": 0
   },
   "grade": "not_detected",
-  "duration_s": 132.7
+  "duration_s": 132.7,
+  "grade_note": "2026-11-23 replay 镜像重验：原 replay 硬编码 py312 致 collection error → fp=0 误判；同格 py38 重跑"
  },
  {
   "bench": "BugsInPy(ESEC/FSE'20)",

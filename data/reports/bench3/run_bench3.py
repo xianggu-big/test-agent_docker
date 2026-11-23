@@ -391,11 +391,15 @@ def run_cells_serial(items):
                 shutil.copy(ws / g, fdir / g)
             # P2 复演=容器内执行（2026-11-22 用户纠偏：研究方向=容器隔离沙箱，
             # 宿主 python 与真格环境不同源 → fail-to-pass 判定有环境偏差风险。
-            # 与真格同镜像 mta-test:py312 同挂载形态 /work，环境同源可复现）
+            # 与真格同镜像同挂载形态 /work，环境同源可复现。
+            # 2026-11-23 修复：镜像跟随格的 image_override——BugsInPy py38 格真格跑
+            # py38 但 replay 曾硬编码 py312 → collection 炸 → f_map 空 → fp=0 误判
+            # not_detected（3 格测量伪影实锤）；同格同镜像是环境同源的本义）
+            replay_img = it.get("image_override") or "mta-test:py312"
             replay_cmd = ["docker", "run", "--rm",
                           "-v", f"{fdir.as_posix()}:/work", "-w", "/work",
                           "-e", "PYTHONPATH=/work",
-                          "mta-test:py312",
+                          replay_img,
                           "python", "-m", "pytest", "-q",
                           "-o", "junit_family=xunit1",
                           "--junitxml=/work/replay_junit.xml", *gen_files]
