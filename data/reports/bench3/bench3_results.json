@@ -5036,5 +5036,134 @@
   },
   "grade": "no_tests",
   "duration_s": 106.2
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "httpie-bug1@D",
+  "task_id": 936079473,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 1,
+  "gen_files": [
+   "test_gen_r1.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='st summary info ============================\\nFAILED test_gen_r1.py::test_get_lexer_hit_and_fallback_语句分支覆盖 - assert ...\\n1 failed, 1 passed, 5 warnings in 0.74s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 1,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 75.3,
+  "arm": "D",
+  "relabel_note": "2026-11-23 12:xx 以 MTA_REPO_PROBE=1 跑出但落了裸基线名（--repeat 首样本沿用基线名的打标缺陷）；12:58 重标归位 @D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "httpie-bug2@D",
+  "task_id": 914825692,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过",
+  "task_error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "failed_in_buggy": 119,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py",
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 3,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='::test_main_跟随重定向时check_status返回0_判定表 - asser...\\nFAILED test_gen_r3.py::test_main_show_redirects遍历历史响应_语句分支覆盖 - as...\\n13 failed, 39 passed, 5 warnings in 1.64s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 10,
+   "pass_to_fail": 3
+  },
+  "grade": "not_detected",
+  "duration_s": 119.4,
+  "arm": "D",
+  "relabel_note": "2026-11-23 12:xx 以 MTA_REPO_PROBE=1 跑出但落了裸基线名（--repeat 首样本沿用基线名的打标缺陷）；12:58 重标归位 @D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "httpie-bug3@D",
+  "task_id": 969771217,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "task_error": "疑似产品缺陷：断言失败用例保留为证人，如实上报缺陷清单（不回炉迁就）",
+  "failed_in_buggy": 108,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py"
+  ],
+  "replay": {
+   "n_files": 2,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='_guess_method_with_data_语句分支覆盖 - SystemExit: 2\\nFAILED test_gen_r1.py::test_guess_method_explicit_边界值分析 - SystemExit: 2\\n3 failed, 28 passed, 5 warnings in 0.66s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 3,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 84.0,
+  "arm": "D",
+  "relabel_note": "2026-11-23 12:xx 以 MTA_REPO_PROBE=1 跑出但落了裸基线名（--repeat 首样本沿用基线名的打标缺陷）；12:58 重标归位 @D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tornado-bug2@D",
+  "task_id": 912659146,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "补测轮次预算耗尽（3 轮）仍未通过",
+  "task_error": "补测轮次预算耗尽（3 轮）仍未通过",
+  "failed_in_buggy": 113,
+  "gen_files": [
+   "test_gen_r1.py",
+   "test_gen_r2.py"
+  ],
+  "replay": {
+   "n_files": 2,
+   "fixed_pass": false,
+   "detail": "exit=1 tail='pclient_async_connection_refused_错误推测法 - ...\\nFAILED test_gen_r1.py::test_httpresponse_headers_access_等价类划分 - Attribut...\\n7 failed, 8 passed, 1 warning in 1.33s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 7,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 148.7,
+  "arm": "D",
+  "relabel_note": "2026-11-23 12:xx 以 MTA_REPO_PROBE=1 跑出但落了裸基线名（--repeat 首样本沿用基线名的打标缺陷）；12:58 重标归位 @D"
+ },
+ {
+  "bench": "BugsInPy(ESEC/FSE'20)",
+  "name": "tornado-bug4@D",
+  "task_id": 988127395,
+  "status": "failed",
+  "verdict": "stop",
+  "stop_reason": "覆盖率16%未达准出标准（目标 70%）且补测预算耗尽",
+  "task_error": "覆盖率16%未达准出标准（目标 70%）且补测预算耗尽",
+  "failed_in_buggy": 35,
+  "gen_files": [
+   "test_gen_r3.py"
+  ],
+  "replay": {
+   "n_files": 1,
+   "fixed_pass": true,
+   "detail": "exit=0 tail='                                                      [100%]\\n------------------ generated xml file: /work/replay_junit.xml ------------------\\n2 passed in 0.42s\\n'",
+   "fail_to_pass": 0,
+   "fail_to_fail": 0,
+   "pass_to_fail": 0
+  },
+  "grade": "not_detected",
+  "duration_s": 112.8,
+  "arm": "D",
+  "relabel_note": "2026-11-23 12:xx 以 MTA_REPO_PROBE=1 跑出但落了裸基线名（--repeat 首样本沿用基线名的打标缺陷）；12:58 重标归位 @D"
  }
 ]

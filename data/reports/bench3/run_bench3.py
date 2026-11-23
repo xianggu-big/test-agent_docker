@@ -225,18 +225,31 @@ def precheck(items):
 
 # ---------- P1+P2 平台真格+复演 ----------
 
-def run_cells(items):
+def run_cells(items, skip_c1: bool = False):
     """C1 放量纪律内嵌（2026-11-22 中档）：前 5 格（pilot 组）先跑核验——
     detected ≥2 且脚手架破碎 ≤1 才放量其余格；不合格停波（防批量废案烧钱，
     批 3 白烧 205k 教训）。pilot 也走 worker 子进程（串行）=worker 链路在
     放量前先自证 5 格；并发=每格一个子进程（E9 同款）。
     2026-11-22 线程版翻车教训：6 线程共享全局 config.DB_PATH 互相覆盖
     （database is locked ×4 + UNIQUE users.username ×3）——进程边界天然
-    隔离，子进程内改写 config 出不了进程。"""
+    隔离，子进程内改写 config 出不了进程。
+
+    skip_c1（2026-11-23 探针实锤）：C1 是"管线健康才放量"的闸，判据 detected≥2——
+    但治疗臂探针恰恰跑在【基线 0 检出】的格上，低检出是预期读数而非管线故障。
+    两次探针都被 C1 在 pilot 处截停（0/5）只拿到 n=5。--arm-tag 存在时自动跳过
+    C1 的 detected 判据（臂实验必须拿全量读数），其余护栏（402 熔断/driver_error
+    >8 停车/worker 1200s 超时）全部保留——那些才是护钱的。"""
     results = []
     n_pilot = min(5, len(items))
     pilot = items[:n_pilot]
     rest = items[n_pilot:]
+    if skip_c1:
+        # 臂实验：pilot 组仍串行先跑（首格自证链路），但不以检出率截停
+        results.extend(run_cells_workers(pilot, max_workers=1))
+        print(f"[C1-skip] 臂实验模式：pilot {n_pilot} 格已跑，不以检出率截停", flush=True)
+        print(f"[放量] 臂余 {len(rest)} 格 × 6 worker 子进程", flush=True)
+        results.extend(run_cells_workers(rest))
+        return results
     pilot_res = run_cells_workers(pilot, max_workers=1)
     results.extend(pilot_res)
     n_det = sum(1 for r in pilot_res if r["grade"] == "detected")
@@ -483,6 +496,8 @@ def run_cells_serial(items):
                "failed_in_buggy": failed_n, "gen_files": gen_files,
                "replay": replay, "grade": verdict_cls,
                "duration_s": round(time.time() - t0, 1)}
+        if it.get("arm_tag"):
+            rec["arm"] = it["arm_tag"]          # 血统字段：不靠名字推断臂
         print(f"[cell] {it['name']}: verdict={verdict} failed={failed_n} "
               f"fail-to-pass={replay.get('fail_to_pass')} → {verdict_cls} "
               f"({rec['duration_s']}s)", flush=True)
@@ -494,21 +509,45 @@ def run_cells_serial(items):
     return results
 
 
+def strip_cell_decorations(name: str) -> tuple[str, str | None, int | None]:
+    """单元格全名 → (原格名, 臂标签, 重复序号)。三种装饰的剥离唯一真源：
+      base            → (base, None, None)
+      base__rN        → (base, None, N)
+      base@arm        → (base, arm, None)
+      base@arm__rN    → (base, arm, N)
+    worker 侧用它把带装饰的名映射回 stage_all 的原格；main 侧 arm_decorate
+    是它的逆运算——两者必须成对（tests/test_arm_namespace.py 锁）。"""
+    rep = None
+    core = name
+    if "__r" in core:
+        core, tail = core.rsplit("__r", 1)
+        if tail.isdigit():
+            rep = int(tail)
+        else:                               # 不是重复后缀（名字本身含 __r）
+            core = name
+    arm = None
+    if "@" in core:
+        core, arm = core.split("@", 1)
+    return core, arm, rep
+
+
 def run_one_cell_cli(name, out_path):
     """worker 子进程入口：隔离修复的核心——本进程内改写 config 只影响自己。
-    --repeat 后缀（2026-11-23 凌晨实锤修复）：worker 重新 stage_all 只有原名，
-    NAME 带 __rN 后缀会"未知格"秒退——剥后缀匹配原格，结果 name 写回全名
-    （staging 共享同一场，独立采样语义不变）。
+    装饰名剥壳（2026-11-23 两次根修）：worker 重新 stage_all 只有原名，带
+    __rN / @arm 装饰的名会"未知格"秒退——strip_cell_decorations 剥回原格，
+    结果 name 写回带装饰全名（staging 共享同一场，独立采样语义不变）。
     image_override（2026-11-23 请示卡 A）：BugsInPy 格走 py38 基座（2019 生态原生
     环境）——必须在 import test_agent.config 前写 env（config 模块加载时求值）；
     worker 子进程内 env 出不了进程，HEF/QuixBugs 格不受影响。"""
     items = stage_all()
-    match = [i for i in items if i["name"] == name]
-    if not match and "__r" in name:
-        base = name.rsplit("__r", 1)[0]
-        match = [i for i in items if i["name"] == base]
-        if match:
-            match = [dict(match[0], name=name)]   # 结果与断点都用带后缀全名
+    core, arm, _rep = strip_cell_decorations(name)
+    match = [i for i in items if i["name"] == core]
+    if not match:
+        print(f"[worker] 未知格 {name}", flush=True)
+        return 2
+    match = [dict(match[0], name=name)]
+    if arm:
+        match[0]["arm_tag"] = arm
     if not match:
         print(f"[worker] 未知格 {name}", flush=True)
         return 2
@@ -532,6 +571,11 @@ def main():
                          "后缀进断点名——r1 用原名；staging 共享）")
     ap.add_argument("--bench", default="",
                     help="只跑 bench 名含该串的格（如 BugsInPy——探针/消融臂过滤）")
+    ap.add_argument("--arm-tag", default="",
+                    help="实验臂独立名空间（2026-11-23 探针翻车根修）：给了就把【每格】"
+                         "重命名为 {name}@{tag}——与基线名彻底隔离。此前的坑：--repeat "
+                         "的首样本沿用基线原名，无基线记录的格会以治疗臂旗标跑出"
+                         "基线名记录（5 格实锤），有记录的则被断点跳过=治疗臂空跑")
     args = ap.parse_args()
     if args.cell:
         sys.exit(run_one_cell_cli(args.cell, args.cell_out))
@@ -544,6 +588,19 @@ def main():
             for i in range(2, args.repeat + 1):
                 extra.append({**it, "name": f"{it['name']}__r{i}"})
         items = items + extra
+    if args.arm_tag:
+        # 臂标签包住【整格清单含首样本】。命名规范 = base@arm__rN（strip_cell_decorations
+        # 的逆运算）：先剥 __rN 再剥 @arm——所以 @arm 必须插在 __rN 【之前】。
+        # 首版写成 name@arm（arm 在最外层 → base__rN@arm）与剥壳协议不互逆，
+        # tests/test_arm_namespace.py 锁死本顺序。
+        def _arm_name(n: str, tag: str) -> str:
+            if "__r" in n:
+                core, tail = n.rsplit("__r", 1)
+                if tail.isdigit():
+                    return f"{core}@{tag}__r{tail}"
+            return f"{n}@{tag}"
+        items = [{**it, "name": _arm_name(it["name"], args.arm_tag),
+                  "arm_tag": args.arm_tag} for it in items]
     print(f"staged {len(items)} items:", [i["name"] for i in items])
     if args.precheck:
         pre = precheck(items)
@@ -563,7 +620,7 @@ def main():
         skipped = len(items) - len(ok_items) - sum(1 for it, p in zip(items, pre) if not p["ok"])
         print(f"预检过 {len(ok_items)}/{len(items)}，断点跳过已终态 {skipped} 格"
               f"（中档剩余 {len(ok_items)} 格，转移矩阵判定版）")
-        res = run_cells(ok_items)
+        res = run_cells(ok_items, skip_c1=bool(args.arm_tag))
         # 合并写（索引覆盖事故教训）：只追加/覆盖本跑条目，既有终态真账保留；
         # driver_error 旧条目不保留=下次断点自动重试
         merged = {}
