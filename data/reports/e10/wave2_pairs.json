@@ -11,16 +11,239 @@
      "failed": null,
      "tokens": 0
     },
-    "2": "missing",
-    "3": "missing"
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 2,
+     "tokens": 15701
+    },
+    "3": {
+     "det": "detected",
+     "passed": 15,
+     "failed": 3,
+     "tokens": 15882
+    }
    },
-   "trajectory": "budget_exhausted → ? → ?",
-   "layer1_qual": "一致(budget_exhausted)",
+   "trajectory": "budget_exhausted → detected → detected",
+   "layer1_qual": "分歧(2种)",
    "layer2_quant": {
-    "passed": "0",
-    "failed": "0",
-    "tokens": "0"
-   }
+    "passed": "8.3±7.6",
+    "failed": "1.7±1.5",
+    "tokens": "10527.7±9117.7"
+   },
+   "delta_pass_r3_r1": 15,
+   "delta_fail_r3_r1": 3,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "go",
+   "baseline": "1159",
+   "anchor": "go-l3l4-demo",
+   "rounds": {
+    "1": {
+     "det": "error",
+     "passed": null,
+     "failed": null,
+     "tokens": null
+    },
+    "2": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 5,
+     "tokens": 15079
+    },
+    "3": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 3,
+     "tokens": 14531
+    }
+   },
+   "trajectory": "error → detected → detected",
+   "layer1_qual": "分歧(2种)",
+   "layer2_quant": {
+    "passed": "7.0±6.1",
+    "failed": "2.7±2.5",
+    "tokens": "9870.0±8552.1"
+   },
+   "delta_pass_r3_r1": 10,
+   "delta_fail_r3_r1": 3,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "go",
+   "baseline": "1176",
+   "anchor": "go-l3l4-demo",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 12,
+     "failed": 3,
+     "tokens": 14389
+    },
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 2,
+     "tokens": 18474
+    },
+    "3": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 4,
+     "tokens": 14224
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.0±1.0",
+    "failed": "3.0±1.0",
+    "tokens": "15695.7±2407.5"
+   },
+   "delta_pass_r3_r1": -1,
+   "delta_fail_r3_r1": 1,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "go",
+   "baseline": "1980",
+   "anchor": "go-l3l4-demo",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 7,
+     "tokens": 17343
+    },
+    "2": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 5,
+     "tokens": 15161
+    },
+    "3": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 1,
+     "tokens": 13508
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "10.7±0.6",
+    "failed": "4.3±3.1",
+    "tokens": "15337.3±1923.6"
+   },
+   "delta_pass_r3_r1": 1,
+   "delta_fail_r3_r1": -6,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "go",
+   "baseline": "1994",
+   "anchor": "go-l3l4-demo",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 13,
+     "failed": 3,
+     "tokens": 18273
+    },
+    "2": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 3,
+     "tokens": 13891
+    },
+    "3": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 4,
+     "tokens": 24070
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.7±1.2",
+    "failed": "3.3±0.6",
+    "tokens": "18744.7±5105.9"
+   },
+   "delta_pass_r3_r1": -2,
+   "delta_fail_r3_r1": 1,
+   "layer3_trend": "下降"
+  },
+  {
+   "lang": "go",
+   "baseline": "1995",
+   "anchor": "go-l3l4-demo",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 4,
+     "tokens": 15466
+    },
+    "2": {
+     "det": "detected",
+     "passed": 10,
+     "failed": 1,
+     "tokens": 13279
+    },
+    "3": {
+     "det": "detected",
+     "passed": 13,
+     "failed": 2,
+     "tokens": 26189
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "11.0±1.7",
+    "failed": "2.3±1.5",
+    "tokens": "18311.3±6909.3"
+   },
+   "delta_pass_r3_r1": 3,
+   "delta_fail_r3_r1": -2,
+   "layer3_trend": "上升"
+  },
+  {
+   "lang": "go",
+   "baseline": "1996",
+   "anchor": "go-l3l4-demo",
+   "rounds": {
+    "1": {
+     "det": "detected",
+     "passed": 8,
+     "failed": 2,
+     "tokens": 12005
+    },
+    "2": {
+     "det": "detected",
+     "passed": 11,
+     "failed": 2,
+     "tokens": 15541
+    },
+    "3": {
+     "det": "detected",
+     "passed": 7,
+     "failed": 8,
+     "tokens": 13311
+    }
+   },
+   "trajectory": "detected → detected → detected",
+   "layer1_qual": "一致(detected)",
+   "layer2_quant": {
+    "passed": "8.7±2.1",
+    "failed": "4.0±3.5",
+    "tokens": "13619.0±1788.0"
+   },
+   "delta_pass_r3_r1": -1,
+   "delta_fail_r3_r1": 6,
+   "layer3_trend": "下降"
   },
   {
    "lang": "javascript",
@@ -138,7 +361,12 @@
      "failed": null,
      "tokens": null
     },
-    "2": "missing",
+    "2": {
+     "det": "detected",
+     "passed": 9,
+     "failed": 5,
+     "tokens": 11386
+    },
     "3": {
      "det": "detected",
      "passed": 10,
@@ -146,12 +374,12 @@
      "tokens": 13835
     }
    },
-   "trajectory": "error → ? → detected",
+   "trajectory": "error → detected → detected",
    "layer1_qual": "分歧(2种)",
    "layer2_quant": {
-    "passed": "5.0±7.1",
-    "failed": "2.0±2.8",
-    "tokens": "6917.5±9782.8"
+    "passed": "6.3±5.5",
+    "failed": "3.0±2.6",
+    "tokens": "8407.0±7382.9"
    },
    "delta_pass_r3_r1": 10,
    "delta_fail_r3_r1": 4,
@@ -174,15 +402,23 @@
      "failed": 7,
      "tokens": 16165
     },
-    "3": "missing"
+    "3": {
+     "det": "error",
+     "passed": null,
+     "failed": null,
+     "tokens": null
+    }
    },
-   "trajectory": "detected → detected → ?",
-   "layer1_qual": "一致(detected)",
+   "trajectory": "detected → detected → error",
+   "layer1_qual": "分歧(2种)",
    "layer2_quant": {
-    "passed": "8.5±2.1",
-    "failed": "5.5±2.1",
-    "tokens": "15254.0±1288.3"
-   }
+    "passed": "5.7±5.1",
+    "failed": "3.7±3.5",
+    "tokens": "10169.3±8853.9"
+   },
+   "delta_pass_r3_r1": -10,
+   "delta_fail_r3_r1": -4,
+   "layer3_trend": "下降"
   },
   {
    "lang": "javascript",
@@ -463,6 +699,146 @@
    "delta_pass_r3_r1": -2,
    "delta_fail_r3_r1": 0,
    "layer3_trend": "下降"
+  },
+  {
+   "lang": "php",
+   "baseline": "1180",
+   "anchor": "php-shop",
+   "rounds": {
+    "1": {
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 24668
+    },
+    "2": {
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 23260
+    },
+    "3": {
+     "det": "error",
+     "passed": null,
+     "failed": null,
+     "tokens": null
+    }
+   },
+   "trajectory": "honest_exit → honest_exit → error",
+   "layer1_qual": "分歧(2种)",
+   "layer2_quant": {
+    "passed": "0.0±0.0",
+    "failed": "0.0±0.0",
+    "tokens": "15976.0±13853.5"
+   },
+   "delta_pass_r3_r1": 0,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "持平"
+  },
+  {
+   "lang": "php",
+   "baseline": "1289",
+   "anchor": "php-shop",
+   "rounds": {
+    "1": {
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 26511
+    },
+    "2": {
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 23899
+    },
+    "3": {
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 23589
+    }
+   },
+   "trajectory": "honest_exit → honest_exit → honest_exit",
+   "layer1_qual": "一致(honest_exit)",
+   "layer2_quant": {
+    "passed": "0.0±0.0",
+    "failed": "0.0±0.0",
+    "tokens": "24666.3±1605.0"
+   },
+   "delta_pass_r3_r1": 0,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "持平"
+  },
+  {
+   "lang": "php",
+   "baseline": "1316",
+   "anchor": "php-shop",
+   "rounds": {
+    "1": {
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 23955
+    },
+    "2": {
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 21969
+    },
+    "3": {
+     "det": "honest_exit",
+     "passed": 0,
+     "failed": 0,
+     "tokens": 22062
+    }
+   },
+   "trajectory": "honest_exit → honest_exit → honest_exit",
+   "layer1_qual": "一致(honest_exit)",
+   "layer2_quant": {
+    "passed": "0.0±0.0",
+    "failed": "0.0±0.0",
+    "tokens": "22662.0±1120.7"
+   },
+   "delta_pass_r3_r1": 0,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "持平"
+  },
+  {
+   "lang": "php",
+   "baseline": "1971",
+   "anchor": "realworld-laravel-layered-architecture-main（php_test2）",
+   "rounds": {
+    "1": {
+     "det": "honest_exit",
+     "passed": 33,
+     "failed": 0,
+     "tokens": 25255
+    },
+    "2": {
+     "det": "honest_exit",
+     "passed": 22,
+     "failed": 0,
+     "tokens": 21965
+    },
+    "3": {
+     "det": "honest_exit",
+     "passed": 39,
+     "failed": 0,
+     "tokens": 32012
+    }
+   },
+   "trajectory": "honest_exit → honest_exit → honest_exit",
+   "layer1_qual": "一致(honest_exit)",
+   "layer2_quant": {
+    "passed": "31.3±8.6",
+    "failed": "0.0±0.0",
+    "tokens": "26410.7±5122.2"
+   },
+   "delta_pass_r3_r1": 6,
+   "delta_fail_r3_r1": 0,
+   "layer3_trend": "上升"
   },
   {
    "lang": "python",
@@ -924,7 +1300,12 @@
    "baseline": "357",
    "anchor": "e7-corpus-003",
    "rounds": {
-    "1": "missing",
+    "1": {
+     "det": "detected",
+     "passed": 28,
+     "failed": 7,
+     "tokens": 23824
+    },
     "2": {
      "det": "detected",
      "passed": 32,
@@ -938,13 +1319,16 @@
      "tokens": 33351
     }
    },
-   "trajectory": "? → detected → detected",
+   "trajectory": "detected → detected → detected",
    "layer1_qual": "一致(detected)",
    "layer2_quant": {
-    "passed": "32.5±0.7",
-    "failed": "8.0±0.0",
-    "tokens": "34121.0±1088.9"
-   }
+    "passed": "31.0±2.6",
+    "failed": "7.7±0.6",
+    "tokens": "30688.7±5994.6"
+   },
+   "delta_pass_r3_r1": 5,
+   "delta_fail_r3_r1": 1,
+   "layer3_trend": "上升"
   },
   {
    "lang": "python",
@@ -1342,7 +1726,12 @@
      "failed": 3,
      "tokens": 13768
     },
-    "2": "missing",
+    "2": {
+     "det": "error",
+     "passed": null,
+     "failed": null,
+     "tokens": null
+    },
     "3": {
      "det": "detected",
      "passed": 10,
@@ -1350,12 +1739,12 @@
      "tokens": 16387
     }
    },
-   "trajectory": "detected → ? → detected",
-   "layer1_qual": "一致(detected)",
+   "trajectory": "detected → error → detected",
+   "layer1_qual": "分歧(2种)",
    "layer2_quant": {
-    "passed": "11.5±2.1",
-    "failed": "3.0±0.0",
-    "tokens": "15077.5±1851.9"
+    "passed": "7.7±6.8",
+    "failed": "2.0±1.7",
+    "tokens": "10051.7±8802.9"
    },
    "delta_pass_r3_r1": -3,
    "delta_fail_r3_r1": 0,
@@ -1364,10 +1753,16 @@
  ],
  "trend": {
   "1": {
-   "detected": 37,
-   "n": 39,
+   "detected": 43,
+   "n": 50,
    "passed": [
     0,
+    0,
+    12,
+    10,
+    13,
+    10,
+    8,
     10,
     9,
     11,
@@ -1381,6 +1776,10 @@
     10,
     8,
     12,
+    0,
+    0,
+    0,
+    33,
     30,
     22,
     23,
@@ -1394,6 +1793,7 @@
     27,
     35,
     20,
+    28,
     12,
     34,
     10,
@@ -1409,6 +1809,12 @@
    ],
    "tokens": [
     0,
+    0,
+    14389,
+    17343,
+    18273,
+    15466,
+    12005,
     14096,
     13069,
     13325,
@@ -1422,6 +1828,10 @@
     11288,
     10963,
     12188,
+    24668,
+    26511,
+    23955,
+    25255,
     27222,
     25623,
     29256,
@@ -1435,6 +1845,7 @@
     27905,
     34581,
     26060,
+    23824,
     22010,
     26048,
     13552,
@@ -1450,12 +1861,20 @@
    ]
   },
   "2": {
-   "detected": 37,
-   "n": 37,
+   "detected": 45,
+   "n": 50,
    "passed": [
+    10,
+    11,
+    10,
+    11,
+    11,
+    10,
+    11,
     10,
     9,
     10,
+    9,
     7,
     15,
     8,
@@ -1465,6 +1884,10 @@
     10,
     21,
     9,
+    0,
+    0,
+    0,
+    22,
     17,
     33,
     12,
@@ -1489,12 +1912,21 @@
     14,
     13,
     12,
-    9
+    9,
+    0
    ],
    "tokens": [
+    15701,
+    15079,
+    18474,
+    15161,
+    13891,
+    13279,
+    15541,
     12912,
     16531,
     11828,
+    11386,
     16165,
     12664,
     10240,
@@ -1504,6 +1936,10 @@
     14449,
     16554,
     16677,
+    23260,
+    23899,
+    21969,
+    21965,
     29218,
     29254,
     32101,
@@ -1528,17 +1964,26 @@
     14732,
     18798,
     13929,
-    12014
+    12014,
+    0
    ]
   },
   "3": {
-   "detected": 36,
-   "n": 38,
+   "detected": 43,
+   "n": 50,
    "passed": [
+    15,
+    10,
+    11,
+    11,
+    11,
+    13,
+    7,
     10,
     11,
     12,
     10,
+    0,
     10,
     16,
     8,
@@ -1547,6 +1992,10 @@
     10,
     9,
     10,
+    0,
+    0,
+    0,
+    39,
     36,
     29,
     14,
@@ -1575,10 +2024,18 @@
     10
    ],
    "tokens": [
+    15882,
+    14531,
+    14224,
+    13508,
+    24070,
+    26189,
+    13311,
     14525,
     14361,
     11651,
     13835,
+    0,
     11249,
     15102,
     12707,
@@ -1587,6 +2044,10 @@
     10708,
     11538,
     12212,
+    0,
+    23589,
+    22062,
+    32012,
     34184,
     36273,
     25196,
@@ -1618,6 +2079,52 @@
  },
  "pairs": [
   {
+   "lang": "go",
+   "corpus": "demo/go-api-book",
+   "requirement": "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。",
+   "k_round": 3,
+   "k_base": 1159,
+   "d_n": 29,
+   "d_bases": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "k_det": "detected",
+   "d_det": "detected",
+   "d_det_rate": "28/29",
+   "k_passed": 10,
+   "d_passed": 11.7,
+   "k_tokens": 14531,
+   "d_tokens": 16680
+  },
+  {
    "lang": "javascript",
    "corpus": "demo/js-calc",
    "requirement": "验证 src/calc.js 的三��函数：\n1. add(a, b)：两数相加；任一参数非数字时抛 TypeError",
@@ -1646,6 +2153,61 @@
    "d_tokens": 12342.0
   },
   {
+   "lang": "php",
+   "corpus": "demo/php-api-book",
+   "requirement": "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。",
+   "k_round": 3,
+   "k_base": 1971,
+   "d_n": 38,
+   "d_bases": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "k_det": "honest_exit",
+   "d_det": "not_detected",
+   "d_det_rate": "4/38",
+   "k_passed": 39,
+   "d_passed": 25.6,
+   "k_tokens": 32012,
+   "d_tokens": 24497.0
+  },
+  {
    "lang": "python",
    "corpus": "corpus-003",
    "requirement": "# 会议室预约 API 需求（corpus-003）\n\n1. 创建会议室 `POST /rooms`：`name` 长度",
@@ -1670,8 +2232,10 @@
    "requirement": "# 验收需求（ts-calc，TypeScript 执行链路·白包阶段1）\n\n被测模块 src/calc.ts，三组行为",
    "k_round": 3,
    "k_base": 1157,
-   "d_n": 18,
+   "d_n": 20,
    "d_bases": [
+    null,
+    null,
     null,
     null,
     null,
@@ -1693,11 +2257,11 @@
    ],
    "k_det": "detected",
    "d_det": "detected",
-   "d_det_rate": "18/18",
+   "d_det_rate": "18/20",
    "k_passed": 8,
-   "d_passed": 10.7,
+   "d_passed": 9.7,
    "k_tokens": 12703,
-   "d_tokens": 13414.0
+   "d_tokens": 12073.0
   }
  ],
  "unpaired_k": [
@@ -1722,6 +2286,11 @@
    "验证 src/calc.js 的三个函数：\n1. add(a, b)：两数相加；任一参数非数字时抛 TypeError。\n2. div(a, b)：a 除以 b；b 为 0 时抛 RangeError。\n3. clamp(x, lo, hi)：把 x 限制在闭区间 [lo, hi]——x 小于 lo 返回 lo，x 大于 hi 返回 hi，x 等于 hi 时必须返回 hi 本身。"
   ],
   [
+   "php",
+   "demo/php-api-book",
+   "# php-shop demo（白包阶段4 PHP 真机验收需求）\n\n一个订单分级模块（PHP 类 DemoShop\\Shop，composer classmap autoload）：\n\n1. `Shop::getTier(score)`：按积分分级——**>=90 返回 \"A\"，>=60 返回 \"B\"，其余返回 \"C\"**；\n2. `Shop::add(a, b)`：返回两数之和。\n\n要求对两个方法设计测试用例，重点覆盖 getTier 的边界值（90/89/60/59 端点本身）。"
+  ],
+  [
    "python",
    "corpus-003",
    "对被测项目做功能测试：接口契约与业务流程（添加/查询/取消，边界与非法输入），顺序场景约束（创建→按 id 读回）；行覆盖率目标 70%。"
@@ -1732,7 +2301,13 @@
    "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。"
   ]
  ],
- "unpaired_d": [],
+ "unpaired_d": [
+  [
+   "java",
+   "demo/java-api-book",
+   "测试项目的核心功能：正常输入、边界值、非法输入与错误处理，覆盖主要接口/函数。"
+  ]
+ ],
  "pairing_key": "lang+corpus+requirement",
  "sign_tests": {
   "det": [
@@ -1741,11 +2316,11 @@
   ],
   "pass": [
    1.0,
-   3
+   5
   ],
   "tokens": [
    1.0,
-   3
+   5
   ]
  }
 }

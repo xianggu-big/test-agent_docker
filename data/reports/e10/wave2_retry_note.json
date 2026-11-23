@@ -1,0 +1,18 @@
+{
+ "time": "2026-11-23 08:27",
+ "cleared": [
+  "s0039",
+  "s0063",
+  "s0064",
+  "s0068",
+  "s0129",
+  "s0149",
+  "s0150",
+  "s0151",
+  "s0154",
+  "s0203",
+  "s0292"
+ ],
+ "reason": "9 error=wave2_p.json 共享参数文件竞态（worker 身份未写上零 LLM 消耗）；2 budget_exhausted=主波中段 402 未消耗轮次，余额已恢复按 C1 清行重试纪律",
+ "backup": "wave2_results_v2.bak_presettled"
+}

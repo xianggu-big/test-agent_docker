@@ -82,8 +82,11 @@ def spec_params(spec: dict) -> dict:
 
 
 def run_cell(spec: dict) -> dict:
-    """跑一格（独立子进程 worker，复用 E9 run_worker 的 demo 分支与 flags 通道）。"""
-    ppath = E10 / "wave2_p.json"
+    """跑一格（独立子进程 worker，复用 E9 run_worker 的 demo 分支与 flags 通道）。
+    参数文件每格独立（2026-11-23 凌晨竞态根修：共享 wave2_p.json × 6 并发 worker
+    =A 写参数时 B 正在读→空/半截 JSON→worker 内 json.loads 炸 9 格 lang=None
+    status=error——bench3 replay 共享目录竞态同族：共享可变文件×并发）。"""
+    ppath = E10 / f"wave2_p_{spec['key']}.json"
     ppath.write_text(json.dumps(spec_params(spec), ensure_ascii=False),
                      encoding="utf-8")
     t0 = time.time()
