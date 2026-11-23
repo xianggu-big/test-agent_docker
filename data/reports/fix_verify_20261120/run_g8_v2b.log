@@ -1,0 +1,10 @@
+[PASS] 竞态格1 阶段一出题: tid=2591 status=ready_for_review
+[PASS] 竞态格2 阶段一出题: tid=2592 status=ready_for_review
+[PASS] 竞态格3 阶段一出题: tid=2593 status=ready_for_review
+[PASS] 占位格已认领 running: tid=2594 队列=running（java-slow 全链 ≈4 分钟窗口）
+[FAIL] 竞态 stop@1s: stopped=True 任务=cancelled 队列=['done', 'cancelled'] http=200
+[FAIL] 竞态 stop@3s: stopped=True 任务=cancelled 队列=['done', 'cancelled'] http=200
+[FAIL] 竞态 stop@8s: stopped=True 任务=cancelled 队列=['done', 'cancelled'] http=200
+[FAIL] 占位格链路健康（done）: tid=2594 终态=failed（java 多模块 mvn+LLM 全链）
+
+G8 v2 判定: FAIL —— 竞态制造=未制造（三档 1、3、8s）；占位格健康=否 → D:\test agent_docker\data\reports\fix_verify_20261120\g8_cancel_race.json
