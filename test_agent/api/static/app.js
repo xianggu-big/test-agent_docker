@@ -1235,12 +1235,26 @@ function renderVerdict(t, latest, an) {
   const kpis = (items) => `<div class="v-kpis">${items.map(([k, v]) =>
     `<div class="v-kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}</div>`;
 
-  // ✅ 通过
-  if (fk === "none" || (!FK_META[fk] && failed === 0 && t?.status === "done")) {
+  // ✅ 通过——必须同时满足：任务终态 done 且有用例（total>0）。
+  // 2026-11-23 修复（#2594 实锤）：此前 fk==="none" 分支不看任务状态——
+  // 同指纹熔断失败的 failed 任务（三轮 0/0/0 也写过报告行）被渲染成绿色
+  // "测试通过·0 条用例全部通过"（空真）。失败任务一律落失败卡。
+  const passOk = t?.status === "done" && total > 0 && failed === 0 &&
+                 (fk === "none" || !FK_META[fk]);
+  if (passOk) {
     return `<div class="verdict" style="background:#e8f7ee;border-color:#bbe7cb;color:#15803d">
       <div class="v-title">✅ 测试通过</div>
       <div class="v-sub">${total} 条用例全部通过，覆盖率 ${cov}，R-Loop ${rounds} 轮${rev ? "，报告二次审查" + (rev.status === "pass" ? "通过" : "未过") : ""}——完整数据在下方展开。</div>
       ${kpis([["用例", total], ["通过", passed], ["覆盖率", cov], ["轮次", rounds]])}</div>`;
+  }
+  if (t && t.status === "failed" && total === 0) {
+    // 失败任务但评估阶段写过报告行（如同指纹熔断前有三轮 0/0/0）——
+    // 不得落进任何"通过"形态，按失败卡渲染（同无报告失败卡的诚实口径）
+    return `<div class="verdict" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c">
+      <div class="v-title">⛔ 任务失败——${rounds} 轮未产出任何可执行用例</div>
+      <div class="v-sub" style="margin-top:6px">失败原因：<code>${esc(String(t.error || "（未记录，看日志 tab 定位阶段）").slice(0, 400))}</code></div>
+      <div class="v-advice" style="margin-top:8px"><b>为什么是 0/0/0</b>
+      <div class="hint" style="margin:4px 0 0">每轮生成的用例都没能通过可收集性检查（或编译/收集失败），评估阶段记了 0——但任务的失败原因才是根因（见上方代码）。</div></div></div>`;
   }
   const meta = FK_META[fk] || { title: "任务未完成", icon: "⛔", bg: "#f3f4f6", bd: "#e2e5ea", fg: "#52525b",
     advice: ["执行在某一步诚实停下（见原因），修复后重新下发。"] };
