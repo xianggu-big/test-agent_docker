@@ -154,6 +154,7 @@ def part1_completion() -> list[Item]:
     #     + 30 ui_asserts：ui_assert 断言台账（黑盒能力补齐阶段3，双闸+Playwright 执行结果）
     #     + 31 grpc_asserts：grpc_assert 断言台账（黑盒能力补齐阶段4，method 闸+grpcurl 执行结果）
     #     + 40-42 tool_catalog/tool_installations/plugin_proposals：Agent Loop 包 2（2026-11-21）
+    #     + 43-44 agent_runs/agent_steps：运行级账本（学院达标 T2，2026-11-25）
     ddl = config.SCHEMA_PATH.read_text(encoding="utf-8")
     created = set(re.findall(r"CREATE TABLE IF NOT EXISTS\s+(\w+)", ddl))
     expected_tables = {
@@ -165,10 +166,11 @@ def part1_completion() -> list[Item]:
         "review_decisions", "test_case_results", "exec_queue", "image_recipes", "login_events",
         "app_logs", "db_asserts", "ui_asserts", "grpc_asserts", "app_settings",
         "route_plan", "module_profiles",
-        "tool_catalog", "tool_installations", "plugin_proposals"}
+        "tool_catalog", "tool_installations", "plugin_proposals",
+        "agent_runs", "agent_steps"}
     (ok if created == expected_tables else miss)(
-        "L5 schema 37 表契约",
-        "37 表齐备" if created == expected_tables else
+        "L5 schema 39 表契约",
+        "39 表齐备" if created == expected_tables else
         f"缺失={sorted(expected_tables - created)} 多余={sorted(created - expected_tables)}")
     tasks_ddl = re.search(r"CREATE TABLE IF NOT EXISTS test_tasks\s*\(.*?\n\)", ddl, re.S)
     (ok if tasks_ddl and "ready_for_review" in tasks_ddl.group(0) else miss)(

@@ -75,4 +75,10 @@ class TaskState(TypedDict, total=False):
     agent_plugin_requests: list[dict]   # 能力缺口申请（阶段 2 写入方；先声明防 schema 二次改动）
     agent_loop_stop: str             # goal_met/budget/no_new_evidence/repeated_action/
                                      # policy_deadlock/hard_error
+    # —— 运行级账本（学院达标 T2，2026-11-25）：start_run 建 run 行后注入 init/会话产物，
+    #    report 消费 run_started_ms 算 duration_ms。
+    #    必须声明：未声明键被 LangGraph schema 过滤=366/two_stage_rebuild/agent_prompt_version
+    #    三重实锤 ——
+    run_id: int                      # agent_runs 行 id（账本主键，采集接线 T3）
+    run_started_ms: int              # 运行起点 epoch 毫秒（report 计 duration 用）
     done: bool

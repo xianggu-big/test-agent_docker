@@ -247,6 +247,11 @@ AGENT_LOOP_OBSERVE_CAP = int(os.environ.get("MTA_AGENT_LOOP_OBSERVE_CAP", "3") o
 # 默认 False=现状逐字节不变（此前 l4 路线随 LEVELS_L3_ENABLED 联动）
 LEVELS_L4_ENABLED = _flag("MTA_LEVELS_L4", False)
 
+# —— 运行级账本（学院达标 T2，2026-11-25 设计稿 §6）：旁路两表 agent_runs/agent_steps，
+#    只多写不改任何现有输出；默认关（Q1 未拍板按默认）=两表零写入行为逐字节不变；
+#    真机验证与点火由驱动器显式带 MTA_RUN_LEDGER=1 ——
+RUN_LEDGER_ENABLED = _flag("MTA_RUN_LEDGER", False)
+
 # 连接探针（2026-11-08 655/656 锁循环诊断：未提交事务悬挂持锁的运行时定位器，
 # 后台线程周期点名 in_transaction 连接的创建栈；默认关=零行为变化）
 CONN_PROBE_ENABLED = _flag("MTA_CONN_PROBE", False)

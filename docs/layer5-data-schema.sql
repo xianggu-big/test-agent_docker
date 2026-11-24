@@ -620,3 +620,52 @@ CREATE TABLE IF NOT EXISTS plugin_proposals (
   decided_by       TEXT,
   decided_at       TEXT
 );
+
+-- 43) 智能体运行账本：一次图执行一行，与 agent_sessions 1:1（学院达标 T2，2026-11-25；
+--     开关 MTA_RUN_LEDGER 默认关=两表零写入；设计=docs/学院达标-任务规划与设计-20261124.md §6）
+CREATE TABLE IF NOT EXISTS agent_runs (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id        INTEGER NOT NULL REFERENCES test_tasks(id),
+  session_id     INTEGER REFERENCES agent_sessions(id),
+  attempt_no     INTEGER NOT NULL DEFAULT 1,
+  kind           TEXT NOT NULL CHECK (kind IN ('single','prep','exec','d1_review')),
+  queue_id       INTEGER REFERENCES exec_queue(id),
+  goal_text      TEXT,
+  started_ms     INTEGER,
+  ended_ms       INTEGER,
+  status         TEXT NOT NULL DEFAULT 'running'
+                 CHECK (status IN ('running','done','failed','cancelled','orphan')),
+  stop_reason    TEXT,
+  outcome        TEXT,          -- 契约 §1.1 五类，由指标层回填
+  prompt_version TEXT,
+  config_json    TEXT,
+  summary_json   TEXT,          -- 终态快照：轮次轨迹/报告关键数字/循环汇总
+  metrics_json   TEXT,          -- 计算缓存；真源永远是重算函数
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_agent_runs_task ON agent_runs(task_id, attempt_no);
+
+-- 44) 智能体步骤账本：决策循环逐步一行，只存决策与链接（防双轨：token/耗时/执行结果
+--     仍以 llm_calls / skill_invocations 为真源，外键指过去；决策原文封顶 8000 字符）
+CREATE TABLE IF NOT EXISTS agent_steps (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id         INTEGER NOT NULL REFERENCES agent_runs(id),
+  mode           TEXT NOT NULL,            -- strategy / diagnose
+  loop_no        INTEGER NOT NULL DEFAULT 1,
+  step_no        INTEGER NOT NULL,
+  action_type    TEXT NOT NULL CHECK (action_type IN ('call','finish','unparseable')),
+  capability     TEXT,
+  args_json      TEXT,
+  decision_json  TEXT,                     -- 模型原始动作 JSON，封顶 8000 字符
+  allowed        INTEGER,                  -- 1 / 0 / NULL=不适用
+  deny_reason    TEXT,                     -- 策略闸原文；deny 子类由指标层按前缀推导
+  llm_call_id    INTEGER REFERENCES llm_calls(id),
+  invocation_id  INTEGER REFERENCES skill_invocations(id),
+  result_status  TEXT,
+  result_summary TEXT,
+  evidence_json  TEXT,                     -- [{kind,path,sha256}] 指针，不存原文
+  decision_ms    INTEGER,
+  exec_ms        INTEGER,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (run_id, loop_no, step_no)
+);
