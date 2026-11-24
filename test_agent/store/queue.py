@@ -217,6 +217,8 @@ class QueueWorker:
         qid, tid, kind = row["id"], row["task_id"], row["kind"]
         self._running_task = tid
         ok, err = True, None
+        from ..skills.run_ledger import set_current_queue_id   # T3：队列行 id 经 ContextVar
+        set_current_queue_id(qid)
         try:
             if kind == "prep":
                 from ..graph.builder import run_task_prep, post_prep_review_hook
@@ -245,6 +247,7 @@ class QueueWorker:
             log.error("队列任务失败 task=%s kind=%s: %s", tid, kind, err)
         finally:
             self._running_task = None
+            set_current_queue_id(None)
         conn = get_conn()
         try:
             conn.execute(

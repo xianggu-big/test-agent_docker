@@ -21,6 +21,7 @@ import re
 import time
 
 from .. import config
+from . import run_ledger
 from . import tool_policy
 from .capabilities import (CapResult, TaskCtx, action_fingerprint, capability_menu,
                            find_capability_extended, normalize_result)
@@ -30,6 +31,14 @@ from .prompt_library import (AGENT_LOOP_PROMPT_VERSION, build_agent_decide_syste
                              estimate_tokens)
 
 log = logging.getLogger(__name__)
+
+
+def _ledger_step(ctx: TaskCtx, **kw):
+    """运行账本步骤行（T3 采集）：ctx.run_id 为空（账本关/降级）=零写入；
+    写失败 guarded 只 warning。键名见 run_ledger.record_step。"""
+    if ctx.run_id is None:
+        return None
+    return run_ledger.guarded(run_ledger.record_step, ctx.conn, ctx.run_id, **kw)
 
 
 def _extract_json(text: str):
@@ -64,10 +73,12 @@ def _evidence_fp(capability: str, result: CapResult) -> str:
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
 
 
-def _execute_capability(deps, ctx: TaskCtx, cap, args: dict) -> CapResult:
+def _execute_capability(deps, ctx: TaskCtx, cap, args: dict) -> tuple[CapResult, int | None]:
     """能力执行：统一经 SkillRegistry.invoke（复用 skill_invocations 审计台账——
     每个 Capability 注册同名 Skill；R0→low/R1→medium 映射避免撞 0-B 高险确认门）。
-    deps.registry 不可得（纯单测形态）→ 直接调 handler（零审计，仅测试用）。"""
+    返回 (结果, invocation_id)——invocation_id 是运行账本 agent_steps 的外键
+    （T3：此前已有但没往上抛）。deps.registry 不可得（纯单测形态）→ 直接调
+    handler（零审计，仅测试用，invocation_id=None）。"""
     reg = getattr(deps, "registry", None)
 
     def _run(_task_id, _args):
@@ -75,7 +86,7 @@ def _execute_capability(deps, ctx: TaskCtx, cap, args: dict) -> CapResult:
         return json.dumps(dataclasses.asdict(r), ensure_ascii=False)
 
     if reg is None:
-        return CapResult(**json.loads(_run(ctx.task_id, args)))
+        return CapResult(**json.loads(_run(ctx.task_id, args))), None
     from .registry import Skill
     skill = Skill(name=cap.id, description=cap.description, func=_run,
                   risk_level="low" if cap.risk == "R0" else "medium",
@@ -83,16 +94,16 @@ def _execute_capability(deps, ctx: TaskCtx, cap, args: dict) -> CapResult:
     reg.register(skill)
     res = reg.invoke(ctx.task_id, skill, args)
     if res.status == "denied":
-        return CapResult(status="denied", summary=(res.error or "denied")[:200])
+        return CapResult(status="denied", summary=(res.error or "denied")[:200]), res.invocation_id
     if res.status == "timeout":
-        return CapResult(status="timeout", summary=(res.error or "timeout")[:200])
+        return CapResult(status="timeout", summary=(res.error or "timeout")[:200]), res.invocation_id
     try:
         data = json.loads(res.output or "{}")
-        return CapResult(**{k: data.get(k) for k in
-                            ("status", "summary", "metrics", "evidence",
-                             "diagnostics", "raw_exit")})
+        return (CapResult(**{k: data.get(k) for k in
+                             ("status", "summary", "metrics", "evidence",
+                              "diagnostics", "raw_exit")}), res.invocation_id)
     except Exception as e:      # noqa: BLE001
-        return CapResult(status="failed", summary=f"结果解析失败：{type(e).__name__}")
+        return CapResult(status="failed", summary=f"结果解析失败：{type(e).__name__}"), res.invocation_id
 
 
 def build_observation(ctx: TaskCtx, goal: str, mode: str, menu: list[dict],
@@ -140,8 +151,10 @@ def build_observation(ctx: TaskCtx, goal: str, mode: str, menu: list[dict],
 
 
 def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
-                  phase: str) -> dict:
+                  phase: str, loop_no: int = 1) -> dict:
     """有界决策循环。mode：strategy（规划前观察）| diagnose（失败证据诊断）。
+    loop_no：账本 agent_steps 的循环号（UNIQUE(run_id,loop_no,step_no)——同一 run
+    多次进循环必须不同号：strategy=1，diagnose 第 N 轮=100+N，见 agent_nodes）。
     返回 {"stop", "steps", "used", "evidence", "payload"}——payload=finish 动作
     原文（strategy/diagnosis 由调用方提取）。fail-closed：任何循环级异常 →
     stop("hard_error") 且证据如实保留。"""
@@ -181,6 +194,7 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
         used["seconds"] = int(time.monotonic() - t0)
         obs = build_observation(ctx, goal, mode, menu, evidence[-3:], budget, used,
                                 repeat_fps=seen_action_fps)
+        t_dec = time.monotonic()
         try:
             resp = llm.invoke([("system", system_prompt), ("user", obs)])
         except Exception as e:  # noqa: BLE001 —— LLM 调用异常（402 分类已在包装层）
@@ -188,19 +202,28 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
             return _stop("hard_error",
                          {"summary": f"LLM 调用异常：{type(e).__name__}: {str(e)[:120]}"})
         used["tokens"] += estimate_tokens(obs) + estimate_tokens(getattr(resp, "content", "") or "")
-        log_llm_call(ctx.task_id, phase, resp,
-                     ctx_budget=getattr(llm, "_ctx_budget", None),
-                     base_url=getattr(llm, "_base_url", ""))
-        action = _extract_json(getattr(resp, "content", "") or "")
+        llm_call_id = log_llm_call(ctx.task_id, phase, resp,
+                                   ctx_budget=getattr(llm, "_ctx_budget", None),
+                                   base_url=getattr(llm, "_base_url", ""))
+        decision_ms = int((time.monotonic() - t_dec) * 1000)
+        raw_text = getattr(resp, "content", "") or ""
+        action = _extract_json(raw_text)
         if action is None:
             unparseable += 1
+            _ledger_step(ctx, mode=mode, loop_no=loop_no, step_no=step,
+                         action_type="unparseable", decision_json=raw_text,
+                         llm_call_id=llm_call_id, decision_ms=decision_ms)
             if unparseable >= 2:
                 return _stop("hard_error", {"summary": "模型输出两次不可解析（原始已留档 llm_parse_fail/）"})
             evidence.append({"step": step, "capability": "-", "status": "unparseable",
                              "summary": "输出不可解析，重试一次"})
             continue
         unparseable = 0
+        action_json = json.dumps(action, ensure_ascii=False)
         if action.get("action") == "finish":
+            _ledger_step(ctx, mode=mode, loop_no=loop_no, step_no=step,
+                         action_type="finish", decision_json=action_json,
+                         allowed=1, llm_call_id=llm_call_id, decision_ms=decision_ms)
             return _stop("goal_met", payload=action)
         decision = tool_policy.authorize(action, ctx, menu=menu,
                                          seen_fps=seen_action_fps,
@@ -209,8 +232,20 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
                                                       "max_tokens": budget.get("max_tokens"),
                                                       "max_seconds": budget.get("max_seconds")})
         if decision.stop:
+            # 该步已发起（LLM 已决策）但未执行——契约 §1.2 的 not_executed 结局
+            _ledger_step(ctx, mode=mode, loop_no=loop_no, step_no=step,
+                         action_type="call", capability=action.get("capability"),
+                         args=action.get("args") or {}, decision_json=action_json,
+                         allowed=None, deny_reason=f"预算/重复闸停止：{decision.reason}",
+                         llm_call_id=llm_call_id, decision_ms=decision_ms,
+                         result_status="not_executed")
             return _stop(decision.stop_reason)
         if not decision.allowed:
+            _ledger_step(ctx, mode=mode, loop_no=loop_no, step_no=step,
+                         action_type="call", capability=action.get("capability"),
+                         args=action.get("args") or {}, decision_json=action_json,
+                         allowed=0, deny_reason=decision.reason,
+                         llm_call_id=llm_call_id, decision_ms=decision_ms)
             evidence.append({"step": step, "capability": action.get("capability"),
                              "status": "denied", "summary": decision.reason[:200]})
             denied_streak += 1
@@ -226,10 +261,16 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
             used["observe_steps"] = used.get("observe_steps", 0)
             ocap = int(budget.get("observe_cap") or config.AGENT_LOOP_OBSERVE_CAP)
             if used["observe_steps"] >= ocap:
+                deny_msg = (f"观察子预算耗尽（{used['observe_steps']}/{ocap}）"
+                            "——现在必须输出 finish 形态（附 strategy）")
+                _ledger_step(ctx, mode=mode, loop_no=loop_no, step_no=step,
+                             action_type="call", capability=cap.id,
+                             args=action.get("args") or {}, decision_json=action_json,
+                             allowed=0, deny_reason=deny_msg,
+                             llm_call_id=llm_call_id, decision_ms=decision_ms)
                 evidence.append({"step": step, "capability": cap.id,
                                  "status": "denied",
-                                 "summary": f"观察子预算耗尽（{used['observe_steps']}/{ocap}）"
-                                            "——现在必须输出 finish 形态（附 strategy）"})
+                                 "summary": deny_msg})
                 denied_streak += 1
                 if denied_streak >= 3:
                     return _stop("policy_deadlock",
@@ -239,12 +280,21 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
         afp = action_fingerprint(action["capability"], action["args"])
         seen_action_fps[afp] = seen_action_fps.get(afp, 0) + 1
         cap = find_capability_extended(ctx, action["capability"])
+        t_exec = time.monotonic()
         try:
-            result = _execute_capability(deps, ctx, cap, action.get("args") or {})
+            result, invocation_id = _execute_capability(deps, ctx, cap, action.get("args") or {})
         except Exception as e:  # noqa: BLE001 —— handler 异常降级为 failed 结果
             result = CapResult(status="failed",
                                summary=f"{type(e).__name__}: {str(e)[:150]}")
+            invocation_id = None
+        exec_ms = int((time.monotonic() - t_exec) * 1000)
         result = normalize_result(result)
+        _ledger_step(ctx, mode=mode, loop_no=loop_no, step_no=step,
+                     action_type="call", capability=cap.id,
+                     args=action.get("args") or {}, decision_json=action_json,
+                     allowed=1, llm_call_id=llm_call_id, invocation_id=invocation_id,
+                     result_status=result.status, result_summary=result.summary,
+                     evidence=result.evidence, decision_ms=decision_ms, exec_ms=exec_ms)
         rfp = _evidence_fp(action["capability"], result)
         if rfp in result_fps:
             new_evidence_streak += 1

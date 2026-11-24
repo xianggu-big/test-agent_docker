@@ -43,16 +43,18 @@ def is_context_truncated(prompt_tokens: int, base_url: str = "",
 
 def log_llm_call(task_id: int | None, phase: str, resp,
                  model: str | None = None, ctx_budget: int | None = None,
-                 base_url: str = "") -> None:
+                 base_url: str = "") -> int | None:
     """单次 LLM 调用记账：自建短连接 INSERT llm_calls；任何情况不上抛。
 
+    返回 llm_calls.id（T3 运行账本 agent_steps.llm_call_id 外键需要；现有调用方
+    全部忽略返回值=零影响）。None=跳过（无 task_id）或记账失败。
     task_id 为 None（无任务上下文的调用方，如离线脚本注入的 llm）时跳过。
     ctx_budget/base_url：调用方从 make_chat 产物读（rc._ctx_budget / 内层 base_url），
     传入则启用对账闸（prompt ≥ 预算×0.95 → truncated=1 落库 + warn 留痕）；
     不传=云端档不限，行为与旧行为一致（truncated 恒 0）。
     """
     if task_id is None:
-        return
+        return None
     u = extract_usage(resp)
     if not u:
         return
@@ -68,14 +70,16 @@ def log_llm_call(task_id: int | None, phase: str, resp,
     try:
         conn = get_conn()
         try:
-            conn.execute(
+            cur = conn.execute(
                 "INSERT INTO llm_calls(task_id, phase, prompt_tokens,"
                 " completion_tokens, total_tokens, model, truncated)"
                 " VALUES (?,?,?,?,?,?,?)",
                 (task_id, phase, u[0], u[1], u[2], model_name,
                  truncated))
             conn.commit()
+            return cur.lastrowid
         finally:
             conn.close()
     except Exception as e:              # noqa: BLE001 —— 记账失败不上抛，主链路优先
         log.warning("llm_calls 记账失败 task=%s phase=%s: %s", task_id, phase, e)
+        return None

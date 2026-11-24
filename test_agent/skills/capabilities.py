@@ -48,6 +48,7 @@ class TaskCtx:
     runner: object
     artifacts_dir: Path             # 证据落盘根：data/artifacts/task-{tid}/agent-loop/
     agent_mode: str = "strategy"    # strategy / diagnose
+    run_id: int | None = None       # agent_runs 行 id（运行级账本 T3；None=账本关/降级）
 
 
 @dataclass

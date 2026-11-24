@@ -40,7 +40,8 @@ def _make_ctx(deps, state: dict, mode: str) -> TaskCtx:
         image=state.get("image") or "",
         state_snapshot=dict(state), conn=deps.conn, runner=deps.runner,
         artifacts_dir=config.DATA_DIR / "artifacts" / f"task-{tid}" / "agent-loop",
-        agent_mode=mode)
+        agent_mode=mode,
+        run_id=state.get("run_id"))   # 运行账本（T3）：None=账本关/降级，零写入
 
 
 def make_agent_nodes(deps):
@@ -55,7 +56,13 @@ def make_agent_nodes(deps):
                   "max_seconds": config.AGENT_LOOP_MAX_SECONDS,
                   "observe_cap": config.AGENT_LOOP_OBSERVE_CAP}   # v1.1：观察子预算
         result = run_tool_loop(deps, ctx, goal=state.get("requirement") or "",
-                               mode="strategy", budget=budget, phase="agent_strategy")
+                               mode="strategy", budget=budget, phase="agent_strategy",
+                               loop_no=1)
+        if ctx.run_id is not None and result.get("prompt_version"):
+            # §7 采集点：版本戳写进 agent_runs.prompt_version（2×2 可比性防线；
+            # builder start_run 已带同常量——此处用循环实际返回值再确认一次）
+            from ..skills.run_ledger import guarded, set_prompt_version
+            guarded(set_prompt_version, conn, ctx.run_id, result["prompt_version"])
         strategy = (result.get("payload") or {}).get("strategy") or {}
         grants = [m["id"] for m in capability_menu(ctx)]
         n_pri = len(strategy.get("priorities") or [])
@@ -82,7 +89,9 @@ def make_agent_nodes(deps):
                   "max_seconds": config.AGENT_LOOP_MAX_SECONDS}
         result = run_tool_loop(deps, ctx,
                                goal="诊断上一轮失败：归类并给出下一步建议（只读证据）",
-                               mode="diagnose", budget=budget, phase="agent_diagnose")
+                               mode="diagnose", budget=budget, phase="agent_diagnose",
+                               loop_no=100 + int(state.get("round_no") or 1))
+        # loop_no=100+N：strategy 用 1，diagnose 与其错开（UNIQUE(run_id,loop_no,step_no)）
         diagnosis = (result.get("payload") or {}).get("diagnosis") or {}
         _msg(conn, state["session_id"],
              f"[diagnose] 只读诊断 {result.get('stop')}（{result.get('steps')} 步）"

@@ -251,12 +251,14 @@ def run_task(task_id: int) -> dict:
     except Exception as e:  # 预清理失败不阻断，provision 的 ensure_container 会兜底
         log.warning("预清理容器失败: %s", e)
 
-    cur = conn.execute("INSERT INTO agent_sessions(task_id, agent_role) VALUES (?, 'test_agent')",
-                       (task_id,))
-    conn.commit()
+    from ..skills.prompt_library import AGENT_LOOP_PROMPT_VERSION
+    from ..skills.run_ledger import finish_run, guarded, ledger_start_run, run_init_keys
+    session_id, run_id = ledger_start_run(
+        conn, task_id, kind="single", goal_text=task["requirement_text"] or "",
+        prompt_version=AGENT_LOOP_PROMPT_VERSION)
     init: TaskState = {
         "task_id": task_id,
-        "session_id": cur.lastrowid,
+        "session_id": session_id,
         "repo_url": task["repo_url"],
         "requirement": task["requirement_text"] or "",
         "container_name": f"mta-run-{task_id}",
@@ -268,6 +270,7 @@ def run_task(task_id: int) -> dict:
         "agent_evidence": [], "agent_budget": {}, "agent_steps": 0,
         "agent_capability_grants": [],
     }
+    init.update(run_init_keys(conn, run_id))   # 账本开才有键（关态 init 逐字节不变）
     graph = build_graph(deps)
     try:
         final = graph.invoke(init, {"recursion_limit": 60})
@@ -279,6 +282,10 @@ def run_task(task_id: int) -> dict:
         conn.execute(
             "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
             (init.get("session_id"),))
+        # 运行账本收口（T3）：异常上抛=run 行 failed，不留永久 running
+        if init.get("run_id") is not None:
+            guarded(finish_run, conn, init["run_id"], status="failed",
+                    stop_reason=f"{type(e).__name__}: {e}"[:300])
         close_container_jobs(conn, task_id, "failed")   # 台账收口（倒推实锤 1001 条滞留）
         conn.commit()
         raise
@@ -305,11 +312,14 @@ def _load_task_full(conn, task_id: int):
     return row
 
 
-def _new_session(conn, task_id: int) -> int:
-    cur = conn.execute("INSERT INTO agent_sessions(task_id, agent_role) VALUES (?, 'test_agent')",
-                       (task_id,))
-    conn.commit()
-    return cur.lastrowid
+def _new_session(conn, task_id: int, kind: str = "single",
+                 goal_text: str | None = None, image: str | None = None) -> tuple[int, int | None]:
+    """会话+运行账本建行口（T3）。返回 (session_id, run_id)；账本关/降级时 run_id=None
+    （旧行为逐字节不变）。kind ∈ single/prep/exec/d1_review（agent_runs.kind CHECK）。"""
+    from ..skills.prompt_library import AGENT_LOOP_PROMPT_VERSION
+    from ..skills.run_ledger import ledger_start_run
+    return ledger_start_run(conn, task_id, kind=kind, goal_text=goal_text,
+                            prompt_version=AGENT_LOOP_PROMPT_VERSION, image=image)
 
 
 def _fail_task(conn, task_id: int, reason: str) -> None:
@@ -384,7 +394,9 @@ def run_task_prep(task_id: int) -> dict:
 
     deps = make_deps()
     conn = deps.conn
-    session_id = _new_session(conn, task_id)
+    from ..skills.run_ledger import finish_run, guarded, run_init_keys
+    session_id, run_id = _new_session(conn, task_id, kind="prep",
+                                      goal_text=task["requirement_text"] or "")
     init: TaskState = {
         "task_id": task_id,
         "session_id": session_id,
@@ -396,6 +408,7 @@ def run_task_prep(task_id: int) -> dict:
         "fingerprints": [],
         "auto_prepare": bool(task["auto_prepare"]) if "auto_prepare" in task.keys() else False,
     }
+    init.update(run_init_keys(conn, run_id))
     graph = build_prep_graph(deps)
     try:
         final = graph.invoke(init, {"recursion_limit": 30})
@@ -404,6 +417,9 @@ def run_task_prep(task_id: int) -> dict:
         conn.execute(
             "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
             (session_id,))
+        if init.get("run_id") is not None:   # T3：异常上抛=run 行 failed
+            guarded(finish_run, conn, init["run_id"], status="failed",
+                    stop_reason=f"{type(e).__name__}: {e}"[:300])
         conn.commit()
         raise
     if final.get("done") and final.get("verdict") not in ("pass", "stop"):
@@ -415,11 +431,17 @@ def run_task_prep(task_id: int) -> dict:
         conn.execute(
             "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
             (session_id,))
+        if init.get("run_id") is not None:   # T3：降级终止=run 行 failed
+            guarded(finish_run, conn, init["run_id"], status="failed",
+                    stop_reason=final.get("stop_reason") or "准备阶段诚实降级终止")
         conn.commit()
     else:
         conn.execute("UPDATE test_tasks SET status='ready_for_review', error=NULL, updated_at=datetime('now') WHERE id=?",
                      (task_id,))   # error 一并清空（348 实锤：重跑成功后界面仍显示上一轮失败原因）
         conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?", (session_id,))
+        if init.get("run_id") is not None:   # T3：阶段一正常停等=run 行 done
+            guarded(finish_run, conn, init["run_id"], status="done",
+                    stop_reason=final.get("stop_reason"))
         # 空集停等要给用户自愈指引（E2E 实锤：超长提示词可致两轮出题均不可解析，
         # 此时评审页对话框增补就是补救通道——指出来，别让人对着空清单发呆）
         n_cases = conn.execute(
@@ -470,7 +492,8 @@ def run_task_exec(task_id: int) -> dict:
         deps.runner.cleanup(f"mta-run-{task_id}")
     except Exception as e:
         log.warning("预清理容器失败: %s", e)
-    session_id = _new_session(conn, task_id)
+    session_id, run_id = _new_session(conn, task_id, kind="exec",
+                                      goal_text=task["requirement_text"] or "")
     primary = task["primary_language"] or "python"
     module_row = conn.execute("SELECT id FROM modules WHERE project_id=? AND path='.'",
                               (task["project_id"],)).fetchone()
@@ -493,6 +516,8 @@ def run_task_exec(task_id: int) -> dict:
         "agent_evidence": [], "agent_budget": {}, "agent_steps": 0,
         "agent_capability_grants": [],
     }
+    from ..skills.run_ledger import guarded, finish_run, run_init_keys
+    init.update(run_init_keys(conn, run_id))
     # A2 验证冻结（2026-11-20）：verify_mode 贯穿任务行 → TaskState → 图路由；
     # 用例集指纹执行前后留痕 agent_messages = 审计证据（写入拦截靠图路由，不靠指纹）
     is_verify = bool(task["verify_mode"])
@@ -553,6 +578,9 @@ def run_task_exec(task_id: int) -> dict:
         conn.execute(
             "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
             (session_id,))
+        if init.get("run_id") is not None:   # T3：异常上抛=run 行 failed
+            guarded(finish_run, conn, init["run_id"], status="failed",
+                    stop_reason=f"{type(e).__name__}: {e}"[:300])
         conn.commit()
         raise
     finally:
@@ -776,7 +804,9 @@ def run_task_auto(task_id: int) -> dict:
     if confirmed_by_human:
         run_task_prep(task_id)          # 人满足 D1；阶段一跑完停在待审查，D2 交给代审
     else:
-        session_id = _new_session(conn, task_id)
+        from ..skills.run_ledger import guarded, finish_run
+        session_id, d1_run_id = _new_session(conn, task_id, kind="d1_review",
+                                             goal_text=task["requirement_text"] or "")
         d1 = None
         try:
             d1 = run_d1_review(reviewer_llm(), conn, task_id,
@@ -786,10 +816,16 @@ def run_task_auto(task_id: int) -> dict:
         if d1 is None:
             _reviewer_msg(conn, task_id, "[ai-review] D1 准入代审不可用，停在待确认交人工（fail-closed）")
             conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?", (session_id,))
+            if d1_run_id is not None:   # T3：代审不可用=run 行 cancelled（任务交回人工）
+                guarded(finish_run, conn, d1_run_id, status="cancelled",
+                        stop_reason="D1 代审不可用，停在待确认交人工")
             conn.commit()
             return {"task_id": task_id, "stage": "D1", "stopped": "fail_closed"}
         if d1["decision"] != "approve":
             conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?", (session_id,))
+            if d1_run_id is not None:   # T3：代审拒绝=run 行 cancelled
+                guarded(finish_run, conn, d1_run_id, status="cancelled",
+                        stop_reason="D1 代审拒绝")
             conn.commit()
             return {"task_id": task_id, "stage": "D1", "stopped": "rejected"}
         conn.execute(
@@ -801,6 +837,8 @@ def run_task_auto(task_id: int) -> dict:
         conn.execute(
             "UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=? AND ended_at IS NULL",
             (session_id,))
+        if d1_run_id is not None:   # T3：代审通过=run 行 done
+            guarded(finish_run, conn, d1_run_id, status="done")
         conn.commit()
         run_task_prep(task_id)
     # A1 放行门：只凭 outcome 放行（状态检查保留为双保险）

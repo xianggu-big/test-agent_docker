@@ -1800,8 +1800,14 @@ def make_nodes(deps: GraphDeps) -> dict:
 
     # ---------- 7. 报告落库 + 诚实复盘 ----------
     def report(state: TaskState) -> dict:
+        import time as _time
         tid = state["task_id"]
         ok = state.get("verdict") == "pass"
+        # 响应时间采集（学院达标 T3）：run 行 epoch 毫秒差——账本关/降级（run_id 缺）
+        # =None，与历史 1525 行 NULL 口径一致（契约 §1.4：缺时间戳不进指标）
+        duration_ms = None
+        if state.get("run_id") is not None and state.get("run_started_ms"):
+            duration_ms = max(int(_time.time() * 1000) - state["run_started_ms"], 0)
         conn.execute(
             """INSERT INTO test_reports(task_id, module_id, passed, failed, skipped,
                                         coverage_line, defects, per_file, duration_ms)
@@ -1810,7 +1816,7 @@ def make_nodes(deps: GraphDeps) -> dict:
              state.get("skipped", 0), state.get("coverage_line"),
              json.dumps({"failure_kind": state.get("failure_kind"),
                          "stop_reason": state.get("stop_reason")}, ensure_ascii=False),
-             json.dumps(state.get("per_file") or [], ensure_ascii=False), None))
+             json.dumps(state.get("per_file") or [], ensure_ascii=False), duration_ms))
         final = "done" if ok else "failed"
         conn.execute("UPDATE test_tasks SET status=?, error=?, updated_at=datetime('now') WHERE id=?",
                      (final, None if ok else state.get("stop_reason"), tid))
@@ -1818,6 +1824,13 @@ def make_nodes(deps: GraphDeps) -> dict:
                      ("done" if ok else "failed", state.get("job_id", 0)))
         conn.execute("UPDATE agent_sessions SET ended_at=datetime('now') WHERE id=?",
                      (state["session_id"],))
+        # 运行账本终态收口（T3）：状态 + 终态快照（重跑 delete-first 后旧运行仍可回放）
+        if state.get("run_id") is not None:
+            from ..skills.run_ledger import build_run_summary, finish_run, guarded
+            snap = guarded(build_run_summary, conn, tid)
+            guarded(finish_run, conn, state["run_id"], status=final,
+                    stop_reason=state.get("stop_reason"),
+                    summary_json=json.dumps(snap, ensure_ascii=False) if snap else None)
         conn.commit()
         digest = (f"[digest] 终态 {final}｜通过{state.get('passed', 0)} 失败{state.get('failed', 0)}"
                   f"｜覆盖率{state.get('coverage_line')}｜{state.get('stop_reason')}")
