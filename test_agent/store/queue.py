@@ -119,6 +119,20 @@ class QueueWorker:
         if self._thread and self._thread.is_alive():
             return
         self._recover()
+        # 运行账本自愈对账（§6.3）：worker 每次启动把残留 running 的 run 收口——
+        # 图异常/进程被杀/漏接退出路径都不会留下永久 running。旗标关=零开销。
+        try:
+            from ..skills.run_ledger import guarded, reconcile_runs
+            from .db import get_conn as _gc
+            _c = _gc()
+            try:
+                n = guarded(reconcile_runs, _c)
+                if n:
+                    log.info("[agent-run] reconcile 收口 %d 条残留 running", n)
+            finally:
+                _c.close()
+        except Exception as e:      # noqa: BLE001 —— 对账失败不拦 worker 启动
+            log.warning("[agent-run] reconcile 失败: %s", e)
         self._thread = threading.Thread(target=self._loop, name="exec-queue", daemon=True)
         self._thread.start()
         log.info("执行队列 worker 已启动（单线程串行）")

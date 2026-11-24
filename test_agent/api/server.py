@@ -827,6 +827,207 @@ def api_agent_loop(tid: int, user: dict = Depends(current_user)):
             "note": "步数/证据细节见 agent_messages 的 [strategy]/[diagnose] 与 artifacts 目录"}
 
 
+# ==================== Agent 运行中心 API（学院达标 T4，2026-11-25 设计稿 §8） ====================
+# 口径真源=docs/指标契约-主方向四指标-20261124.md。诚实纪律：账本未开 →
+# ledger_enabled:false；没有 run 行 → 空列表；零样本指标 → null（不是 0）。
+
+def _ledger_off_payload() -> dict:
+    return {"ledger_enabled": False, "runs": [],
+            "note": "运行账本未开启（MTA_RUN_LEDGER=0）——无运行级数据，"
+                    "开启方法见设置页或环境变量说明"}
+
+
+@app.get("/api/runs")
+def api_runs(limit: int = 50, kind: str | None = None, status: str | None = None,
+             task_id: int | None = None, user: dict = Depends(current_user)):
+    """运行列表（含紧凑指标）。读路径顺带自愈对账（§6.3，旗标关零开销）。"""
+    if not bool(getattr(config, "RUN_LEDGER_ENABLED", False)):
+        return _ledger_off_payload()
+    from ..skills import run_ledger, run_metrics
+    conn = get_conn()
+    try:
+        run_ledger.guarded(run_ledger.reconcile_runs, conn)
+        q = ("SELECT r.*, t.status AS task_status FROM agent_runs r "
+             "LEFT JOIN test_tasks t ON t.id = r.task_id WHERE 1=1")
+        args: list = []
+        if kind:
+            q += " AND r.kind=?"; args.append(kind)
+        if status:
+            q += " AND r.status=?"; args.append(status)
+        if task_id:
+            q += " AND r.task_id=?"; args.append(task_id)
+        q += " ORDER BY r.id DESC LIMIT ?"
+        args.append(max(1, min(int(limit), 200)))
+        runs = []
+        for r in conn.execute(q, args).fetchall():
+            outcome = run_ledger.guarded(run_metrics.outcome_for_run, conn, r)
+            rt = run_ledger.guarded(run_metrics.response_time_for_run, conn, r)
+            runs.append({
+                "id": r["id"], "task_id": r["task_id"], "session_id": r["session_id"],
+                "attempt_no": r["attempt_no"], "kind": r["kind"], "status": r["status"],
+                "stop_reason": r["stop_reason"], "outcome": outcome,
+                "prompt_version": r["prompt_version"],
+                "started_ms": r["started_ms"], "ended_ms": r["ended_ms"],
+                "duration_ms": (rt or {}).get("total_ms") if rt else None,
+                "task_status": r["task_status"],
+            })
+        return {"ledger_enabled": True, "runs": runs}
+    finally:
+        conn.close()
+
+
+@app.get("/api/runs/{rid}")
+def api_run_detail(rid: int, user: dict = Depends(current_user)):
+    """运行详情：账本行 + 步骤 + 四项指标 + 配置快照。"""
+    if not bool(getattr(config, "RUN_LEDGER_ENABLED", False)):
+        return _ledger_off_payload()
+    from ..skills import run_ledger, run_metrics
+    conn = get_conn()
+    try:
+        r = conn.execute("SELECT * FROM agent_runs WHERE id=?", (rid,)).fetchone()
+        if r is None:
+            raise HTTPException(status_code=404, detail=f"运行 {rid} 不存在")
+        steps = [dict(s) for s in conn.execute(
+            "SELECT * FROM agent_steps WHERE run_id=? ORDER BY loop_no, step_no",
+            (rid,)).fetchall()]
+        outcome = run_ledger.guarded(run_metrics.outcome_for_run, conn, r)
+        tool = run_ledger.guarded(run_metrics.tool_metrics_for_run, conn, rid)
+        halluc = run_ledger.guarded(run_metrics.hallucination_checks_for_run, conn, rid)
+        rt = run_ledger.guarded(run_metrics.response_time_for_run, conn, r)
+        cfg = None
+        if r["config_json"]:
+            try:
+                cfg = json.loads(r["config_json"])
+            except (TypeError, ValueError):
+                cfg = None
+        return {"ledger_enabled": True, "run": {**dict(r), "outcome": outcome},
+                "steps": steps, "tool_metrics": tool, "hallucination_checks": halluc,
+                "response_time": rt, "config": cfg}
+    finally:
+        conn.close()
+
+
+@app.get("/api/tasks/{tid}/runs")
+def api_task_runs(tid: int, user: dict = Depends(current_user)):
+    """某任务的全部运行（按 attempt 分组，多次运行并排对比的数据源）。"""
+    if not bool(getattr(config, "RUN_LEDGER_ENABLED", False)):
+        return _ledger_off_payload()
+    from ..skills import run_ledger, run_metrics
+    conn = get_conn()
+    try:
+        _task_or_404(conn, tid)
+        rows = conn.execute("SELECT * FROM agent_runs WHERE task_id=? ORDER BY id",
+                            (tid,)).fetchall()
+        groups: dict[int, list] = {}
+        for r in rows:
+            outcome = run_ledger.guarded(run_metrics.outcome_for_run, conn, r)
+            rt = run_ledger.guarded(run_metrics.response_time_for_run, conn, r)
+            groups.setdefault(r["attempt_no"], []).append({
+                "id": r["id"], "kind": r["kind"], "status": r["status"],
+                "stop_reason": r["stop_reason"], "outcome": outcome,
+                "prompt_version": r["prompt_version"],
+                "started_ms": r["started_ms"], "ended_ms": r["ended_ms"],
+                "duration_ms": (rt or {}).get("total_ms") if rt else None})
+        return {"ledger_enabled": True, "task_id": tid,
+                "attempts": [{"attempt_no": k, "runs": v}
+                             for k, v in sorted(groups.items())]}
+    finally:
+        conn.close()
+
+
+@app.get("/api/runs/{rid}/export")
+def api_run_export(rid: int, user: dict = Depends(staff)):
+    """回放证据 JSON 下载（staff）：账本行+步骤+快照+配置+指标——离线复核全量素材。"""
+    if not bool(getattr(config, "RUN_LEDGER_ENABLED", False)):
+        return _ledger_off_payload()
+    from ..skills import run_ledger, run_metrics
+    conn = get_conn()
+    try:
+        r = conn.execute("SELECT * FROM agent_runs WHERE id=?", (rid,)).fetchone()
+        if r is None:
+            raise HTTPException(status_code=404, detail=f"运行 {rid} 不存在")
+        steps = [dict(s) for s in conn.execute(
+            "SELECT * FROM agent_steps WHERE run_id=? ORDER BY loop_no, step_no",
+            (rid,)).fetchall()]
+        payload = {
+            "exported_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + "Z",
+            "run": dict(r),
+            "steps": steps,
+            "tool_metrics": run_ledger.guarded(run_metrics.tool_metrics_for_run, conn, rid),
+            "hallucination_checks": run_ledger.guarded(
+                run_metrics.hallucination_checks_for_run, conn, rid),
+            "response_time": run_ledger.guarded(run_metrics.response_time_for_run, conn, r),
+            "outcome": run_ledger.guarded(run_metrics.outcome_for_run, conn, r),
+        }
+        return payload
+    finally:
+        conn.close()
+
+
+@app.get("/api/metrics/summary")
+def api_metrics_summary(task_ids: str | None = None, since: str | None = None,
+                        until: str | None = None, user: dict = Depends(current_user)):
+    """汇总表：完成率三口径 + 工具调用宏/微平均 + 响应时间分布 + 缺失率。
+    零样本 → null；not_completed_user 只报计数不进分母（契约 §1.1）。"""
+    if not bool(getattr(config, "RUN_LEDGER_ENABLED", False)):
+        return {**_ledger_off_payload(), "metrics": None}
+    from ..skills import run_ledger, run_metrics
+    conn = get_conn()
+    try:
+        q = "SELECT * FROM agent_runs WHERE 1=1"
+        args: list = []
+        if task_ids:
+            ids = [int(x) for x in task_ids.split(",") if x.strip().isdigit()]
+            if not ids:
+                return {"ledger_enabled": True, "metrics": None,
+                        "note": "task_ids 无有效整数"}
+            q += f" AND task_id IN ({','.join('?' * len(ids))})"
+            args.extend(ids)
+        if since:
+            q += " AND created_at >= ?"; args.append(since)
+        if until:
+            q += " AND created_at <= ?"; args.append(until)
+        rows = conn.execute(q, args).fetchall()
+        if not rows:
+            return {"ledger_enabled": True, "n_runs": 0, "metrics": None,
+                    "note": "无运行样本——零样本返回 null 不报 0"}
+        outcomes: dict[str, int] = {}
+        rt_values: list[float] = []
+        missing_rt = 0
+        closed = []
+        for r in rows:
+            oc = run_ledger.guarded(run_metrics.outcome_for_run, conn, r)
+            if oc is None:
+                continue   # running 未收口不进统计
+            outcomes[oc] = outcomes.get(oc, 0) + 1
+            closed.append(r)
+            rt = run_ledger.guarded(run_metrics.response_time_for_run, conn, r)
+            if rt and rt.get("total_ms") is not None:
+                rt_values.append(rt["total_ms"])
+            else:
+                missing_rt += 1
+        denom_keys = ("completed", "completed_with_limitation",
+                      "not_completed_agent", "not_completed_env")
+        D = sum(outcomes.get(k, 0) for k in denom_keys)
+        strict = (outcomes.get("completed", 0) / D) if D else None
+        degraded = ((outcomes.get("completed", 0)
+                     + outcomes.get("completed_with_limitation", 0)) / D) if D else None
+        valid_adj = (outcomes.get("completed", 0) / (D - outcomes.get("not_completed_env", 0))
+                     if (D - outcomes.get("not_completed_env", 0)) else None)
+        tool = run_ledger.guarded(run_metrics.tool_metrics_aggregate, conn,
+                                  [r["id"] for r in closed])
+        return {"ledger_enabled": True, "n_runs": len(rows), "n_closed": len(closed),
+                "metrics": {"outcomes": outcomes,
+                            "completion": {"denominator": D,
+                                           "strict": strict, "with_limitation": degraded,
+                                           "valid_excl_env": valid_adj,
+                                           "not_completed_user_count": outcomes.get("not_completed_user", 0)},
+                            "response_time_ms": run_metrics.summarize(rt_values, missing_rt),
+                            "tool_metrics": tool}}
+    finally:
+        conn.close()
+
+
 @app.post("/api/tasks/{tid}/verify-restore")
 def api_verify_restore(tid: int, user: dict = Depends(staff)):
     """0-A 恢复端点（2026-11-20 设计稿 §2.1）：从冻结快照逐字节恢复工作区用例文件。
