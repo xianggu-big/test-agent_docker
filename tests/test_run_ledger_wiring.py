@@ -269,3 +269,24 @@ def test_reconcile_after_four_endings(env):
     # ④ 任务仍执行态 → 保持 running（不误杀真实运行）；QueueWorker.start 每次启动
     # 都会再 reconcile，任务终态落库后自然收口
     assert c.execute("SELECT status FROM agent_runs WHERE id=?", (r4,)).fetchone()[0] == "running"
+
+
+def test_process_killed_chain_closes_run(env):
+    """验收⑥第④类字面链路：进程被杀 → worker 重启 _recover 把队列行 running 标
+    failed → reconcile 按队列状态收口 run 行。语义边界（R1 审查注记）：若任务仍在
+    真实执行态（worker 活着正跑），reconcile 保持 running 不误杀——见上一测试④。"""
+    c, tid = env
+    from test_agent.skills.run_ledger import reconcile_runs, start_run
+    _, rid = start_run(c, tid, kind="exec")
+    qid = c.execute("INSERT INTO exec_queue(task_id, kind, status, started_at) "
+                    "VALUES (?, 'exec', 'running', datetime('now'))", (tid,)).lastrowid
+    c.execute("UPDATE agent_runs SET queue_id=? WHERE id=?", (qid, rid))
+    c.execute("UPDATE test_tasks SET status='running' WHERE id=?", (tid,))
+    c.commit()
+    # 进程被杀后 QueueWorker.start：先 _recover（队列行 running→failed），再 reconcile
+    c.execute("UPDATE exec_queue SET status='failed', finished_at=datetime('now'), "
+              "error='进程重启恢复' WHERE id=?", (qid,))
+    c.commit()
+    n = reconcile_runs(c)
+    assert n == 1
+    assert c.execute("SELECT status FROM agent_runs WHERE id=?", (rid,)).fetchone()[0] == "failed"
