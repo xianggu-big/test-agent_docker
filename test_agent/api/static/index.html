@@ -42,6 +42,7 @@
       <a href="#/review" class="nav-item" data-page="review">✎ 用例评审</a>
       <a href="#/tasks" class="nav-item" data-page="tasks">≡ 任务列表</a>
       <a href="#/reports" class="nav-item" data-page="reports">▤ 报告</a>
+      <a href="#/runs" class="nav-item" data-page="runs">⟡ Agent 运行</a>
       <a href="#/profile" class="nav-item" data-page="profile">👤 个人中心</a>
       <a href="#/settings" class="nav-item" data-page="settings">⚙ 设置</a>
     </nav>
@@ -297,6 +298,28 @@
       </div>
     </section>
 
+    <!-- ④a-2 Agent 运行中心（学院达标 T5，2026-11-25）：列表 #/runs + 详情 #/run/{rid} -->
+    <section id="page-runs" class="page hidden">
+      <div id="runs-banner" class="card hidden"></div>
+      <div class="card">
+        <h3>Agent 运行列表</h3>
+        <div id="runs-hint" class="hint" style="margin-bottom:8px"></div>
+        <div class="table-wrap"><table class="tbl" id="runs-table"></table></div>
+      </div>
+    </section>
+    <section id="page-rundetail" class="page hidden">
+      <div id="rd-hero" class="card"></div>
+      <div id="rd-timeline" class="card"><h3>决策时间线</h3><div id="rd-timeline-body"></div></div>
+      <div class="card">
+        <h3>步骤明细</h3>
+        <div class="table-wrap"><table class="tbl" id="rd-steps-table"></table></div>
+      </div>
+      <div class="card">
+        <button id="rd-export" class="btn btn-primary btn-sm">⬇ 导出回放 JSON</button>
+        <span id="rd-export-hint" class="hint" style="margin-left:8px"></span>
+      </div>
+    </section>
+
     <!-- ④b 任务详情（设计图主页面：任务头+需求卡+级别卡+流水线+双面板） -->
     <section id="page-taskdetail" class="page hidden">
       <div id="td-hero" class="card"></div>
@@ -304,6 +327,7 @@
       <div id="td-levels" class="card"></div>
       <div id="td-pipeline" class="card"><div class="hint">执行流水线（F05 接线）</div></div>
       <div id="td-exec" class="card"><div class="hint">实时用例执行（任务C 接线）</div></div>
+      <div id="td-runs" class="card"><div class="hint">Agent 运行记录（T5 接线）</div></div>
       <div class="grid-2">
         <div id="td-trace" class="card"></div>
         <div id="td-defects" class="card"><div class="hint">缺陷归因清单（F10 接线）</div></div>

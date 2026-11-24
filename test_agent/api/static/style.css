@@ -420,3 +420,10 @@ select { max-width: min(60vw, 900px); }
 .llm-preset:hover { border-color: var(--ok2, #0e7c5a); }
 .llm-preset-sel { border-color: var(--ok2, #0e7c5a); box-shadow: 0 0 0 2px rgba(14,124,90,.15); }
 .llm-preset b { font-size: 14px; }
+
+/* ---------- Agent 运行中心（学院达标 T5，2026-11-25） ---------- */
+.tl { display: flex; flex-direction: column; gap: 6px; }
+.tl-item { padding: 8px 12px; border-left: 3px solid var(--ok, #16a34a); background: var(--idle-weak, #f8fafc); border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.5; }
+.tl-bad { border-left-color: var(--fail, #dc2626); background: var(--fail-weak, #fef2f2); }
+.tl-finish { border-left-color: var(--primary, #2563eb); background: var(--run-weak, #eff6ff); }
+.tl-deny { color: #b91c1c; font-weight: 600; }

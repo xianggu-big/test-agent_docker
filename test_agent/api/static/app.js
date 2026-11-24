@@ -89,9 +89,10 @@ function applyRole() {
 }
 
 /* ---------- 路由 ---------- */
-const PAGES = ["dashboard", "new", "workbench", "review", "tasks", "reports", "profile", "settings"];
+const PAGES = ["dashboard", "new", "workbench", "review", "tasks", "reports", "runs", "profile", "settings"];
 let TASK_TID = 0;                            // F03 详情页当前任务
 let REVIEW_TID = 0;                          // 评审页当前任务
+let RUN_RID = 0;                             // T5 运行详情页当前 run
 let REVIEW_POLL = null;                      // 评审页轮询（阶段一跑动时实时刷新）
 let TD_POLL = null;                          // 任务详情页轮询（活跃态 3s 刷新流水线）
 let EXEC_POLL = null;                        // 实时用例执行面板轮询（活跃态 2s）
@@ -105,7 +106,11 @@ function route() {
     page = "review";
     REVIEW_TID = parseInt(location.hash.split("/")[2] || "0", 10) || 0;
   }
-  if (!PAGES.includes(page) && page !== "taskdetail") page = "dashboard";
+  if (page.startsWith("run/")) {            // T5 运行详情路由 #/run/{rid}
+    page = "rundetail";
+    RUN_RID = parseInt(location.hash.split("/")[2] || "0", 10) || 0;
+  }
+  if (!PAGES.includes(page) && page !== "taskdetail" && page !== "rundetail") page = "dashboard";
   if (!ME) return;   // /api/me 未返回前先不渲染（whoami 返回后 808 行会重入 route()）
   if (page === "settings" && ME.role !== "admin") page = "dashboard";
   if ((page === "workbench" || page === "review") && !(ME.role === "admin" || ME.role === "developer")) page = "dashboard";
@@ -113,6 +118,7 @@ function route() {
   // 任务A3：taskdetail 不在 PAGES 里，上面那行永远碰不到它——初始 hidden 就永远摘不掉，
   // #/task/{tid} 变成"点了没反应"（所有「查看执行进度」链接全指这里）。显式 toggle：
   $("page-taskdetail").classList.toggle("hidden", page !== "taskdetail");
+  $("page-rundetail").classList.toggle("hidden", page !== "rundetail");   // T5 同款
   document.querySelectorAll(".nav-item").forEach(a => a.classList.toggle("active", a.dataset.page === page));
   if (page === "dashboard") loadDashboard();
   if (page === "workbench") refreshWorkbench();
@@ -123,6 +129,8 @@ function route() {
   if (page === "profile") loadProfile();
   if (page === "new" && NEW_TASK_ID) pollNewCases(NEW_TASK_ID);
   if (page === "taskdetail" && TASK_TID) loadTaskDetail(TASK_TID);
+  if (page === "runs") loadRuns();                                   // T5
+  if (page === "rundetail" && RUN_RID) loadRunDetail(RUN_RID);       // T5
   if (page !== "tasks" && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (page !== "review" && REVIEW_POLL) { clearInterval(REVIEW_POLL); REVIEW_POLL = null; }
   if (page !== "taskdetail" && TD_POLL) { clearTimeout(TD_POLL); TD_POLL = null; }
@@ -1524,6 +1532,191 @@ async function doLogout() {
   showLogin();
 }
 
+/* ---------- Agent 运行中心（学院达标 T5，2026-11-25）----------
+   列表 #/runs（GET /api/runs）；详情 #/run/{rid}（GET /api/runs/{rid}，
+   导出 GET /api/runs/{rid}/export）；任务详情页面板（GET /api/tasks/{tid}/runs）。
+   口径=docs/指标契约-主方向四指标-20261124.md；诚实纪律：账本未开给横幅+
+   开启方法，零样本 null 显示"—"不显示 0%。 */
+const OUTCOME_CN = {
+  completed: ["已完成", "badge-ok"],
+  completed_with_limitation: ["完成·有降级", "badge-cancel"],
+  not_completed_agent: ["未完成·Agent 侧", "badge-fail"],
+  not_completed_env: ["未完成·环境", "badge-cancel"],
+  not_completed_user: ["用户取消", "badge-queued"],
+};
+const KIND_CN = { single: "单阶段", prep: "准备", exec: "执行", d1_review: "D1 代审" };
+const RUN_STATUS_CN = { running: "运行中", done: "完成", failed: "失败", cancelled: "取消", orphan: "孤儿" };
+
+function outcomeBadge(oc) {
+  const [cn, cls] = OUTCOME_CN[oc] || ["—", "badge-queued"];
+  return `<span class="badge ${cls}">${cn}</span>`;
+}
+function fmtMs(ms) {
+  if (ms === null || ms === undefined) return "—";
+  return ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : ms + "ms";
+}
+function fmtMsTs(ms) {
+  if (!ms) return "—";
+  return bjTime(new Date(ms).toISOString().slice(0, 19).replace("T", " "));
+}
+
+async function loadRuns() {
+  const body = await api("/runs?limit=100").catch(e => ({ ledger_enabled: false, runs: [], detail: e.message }));
+  const banner = $("runs-banner"), tbl = $("runs-table"), hint = $("runs-hint");
+  if (!body.ledger_enabled) {
+    banner.classList.remove("hidden");
+    banner.innerHTML = `<b>⚠ 运行账本未开启</b><div class="hint" style="margin-top:6px">当前服务未带 <code>MTA_RUN_LEDGER=1</code> 启动——没有运行级数据。开启方法：以环境变量 <code>MTA_RUN_LEDGER=1</code>（可选 <code>MTA_AGENT_LOOP=1</code>）重启服务后重新加载本页。</div>`;
+    tbl.innerHTML = "";
+    hint.textContent = "";
+    return;
+  }
+  banner.classList.add("hidden");
+  const runs = body.runs || [];
+  if (!runs.length) {
+    tbl.innerHTML = "";
+    hint.textContent = "账本已开启，但还没有任何运行记录——下发一个任务后回到本页查看。";
+    return;
+  }
+  hint.textContent = `最近 ${runs.length} 次运行（点击行进入决策时间线）`;
+  tbl.innerHTML = `<thead><tr>
+      <th>Run</th><th>任务</th><th>尝试</th><th>类型</th><th>状态</th><th>结果</th>
+      <th>步数</th><th>调用成功率</th><th>响应时间</th><th>提示词版本</th><th>停止原因</th><th>开始时间</th>
+    </tr></thead><tbody>` +
+    runs.map(r => `<tr style="cursor:pointer" onclick="location.hash='#/run/${r.id}'">
+      <td><b>#${r.id}</b></td>
+      <td><a href="#/task/${r.task_id}">任务 ${r.task_id}</a></td>
+      <td>#${r.attempt_no}</td>
+      <td>${KIND_CN[r.kind] || r.kind}</td>
+      <td>${RUN_STATUS_CN[r.status] || r.status}</td>
+      <td>${outcomeBadge(r.outcome)}</td>
+      <td>${r.steps_n}</td>
+      <td>${r.call_rate === null || r.call_rate === undefined ? "—" : Math.round(r.call_rate * 100) + "%（" + r.calls + " 次）"}</td>
+      <td>${fmtMs(r.duration_ms)}</td>
+      <td><code>${esc(r.prompt_version || "—")}</code></td>
+      <td class="hint">${esc((r.stop_reason || "").slice(0, 40))}</td>
+      <td>${fmtMsTs(r.started_ms)}</td>
+    </tr>`).join("") + `</tbody>`;
+}
+
+async function loadRunDetail(rid) {
+  const d = await api(`/runs/${rid}`).catch(e => ({ ledger_enabled: false, detail: String(e.message || e) }));
+  const hero = $("rd-hero"), tl = $("rd-timeline-body"), stbl = $("rd-steps-table");
+  if (!d.ledger_enabled) {
+    hero.innerHTML = `<b>⚠ 运行账本未开启</b><div class="hint" style="margin-top:6px">${esc(d.detail || "以 MTA_RUN_LEDGER=1 重启服务后可见。")}</div>`;
+    tl.innerHTML = ""; stbl.innerHTML = "";
+    return;
+  }
+  const r = d.run || {};
+  const cfg = d.config || {};
+  const model = (cfg.llm_profile && (cfg.llm_profile.profile || cfg.llm_profile.name)) || "—";
+  hero.innerHTML = `
+    <h3 style="margin:0 0 8px">运行 #${r.id} · 任务 <a href="#/task/${r.task_id}">${r.task_id}</a> · 尝试 #${r.attempt_no} · ${KIND_CN[r.kind] || r.kind}</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <span class="badge ${r.status === "done" ? "badge-ok" : r.status === "running" ? "badge-run" : "badge-fail"}">${RUN_STATUS_CN[r.status] || r.status}</span>
+      ${outcomeBadge(r.outcome)}
+      <span class="hint">目标：${esc((r.goal_text || "—").slice(0, 80))}</span>
+    </div>
+    <div class="hint" style="margin-top:8px">
+      模型档 ${esc(String(model))} ｜ 提示词版本 <code>${esc(r.prompt_version || "—")}</code>
+      ｜ ${fmtMsTs(r.started_ms)} → ${fmtMsTs(r.ended_ms)} ｜ 响应时间 <b>${fmtMs(d.response_time && d.response_time.total_ms)}</b>
+      （排队 ${fmtMs(d.response_time && d.response_time.queue_ms)} / 执行 ${fmtMs(d.response_time && d.response_time.exec_ms)}）
+    </div>
+    <div class="hint" style="margin-top:4px">
+      工具调用成功率 <b>${d.tool_metrics && d.tool_metrics.call_success_rate !== null && d.tool_metrics.call_success_rate !== undefined ? Math.round(d.tool_metrics.call_success_rate * 100) + "%" : "—"}</b>
+      （发起 ${d.tool_metrics ? d.tool_metrics.calls : 0} 次，denied ${d.tool_metrics && d.tool_metrics.counts ? (d.tool_metrics.counts.denied_policy + d.tool_metrics.counts.denied_registry) : 0}）
+      ｜ 可核对幻觉率 <b>${d.hallucination_checks && d.hallucination_checks.checkable_hallucination_rate !== null && d.hallucination_checks.checkable_hallucination_rate !== undefined ? Math.round(d.hallucination_checks.checkable_hallucination_rate * 100) + "%" : "—"}</b>
+      ｜ 停止原因：${esc((r.stop_reason || "—").slice(0, 60))}
+    </div>`;
+  // 决策时间线（目标→每步→finish→报告摘要），拒绝红色
+  const steps = d.steps || [];
+  if (!steps.length) {
+    tl.innerHTML = `<div class="hint">本运行没有决策循环步骤（工作流直跑或账本中途开启）。</div>`;
+  } else {
+    tl.innerHTML = `<div class="tl">` + steps.map(s => {
+      const denied = s.allowed === 0;
+      const unparse = s.action_type === "unparseable";
+      const isFinish = s.action_type === "finish";
+      const cls = denied || unparse ? "tl-item tl-bad" : isFinish ? "tl-item tl-finish" : "tl-item";
+      const icon = isFinish ? "🏁" : denied ? "⛔" : unparse ? "❓" : "🔧";
+      const head = isFinish
+        ? `<b>finish</b>（${esc(s.mode)}·第 ${s.step_no} 步）`
+        : `<b>${esc(s.capability || "-")}</b>（${esc(s.mode)}·第 ${s.step_no} 步）`;
+      const line = denied
+        ? `被策略闸拒绝：<span class="tl-deny">${esc(s.deny_reason || "")}</span>`
+        : unparse ? `输出不可解析（已留档）`
+        : `${esc(s.result_status || "")} · ${esc((s.result_summary || "").slice(0, 90))}`;
+      const extra = s.decision_ms !== null && s.decision_ms !== undefined
+        ? ` <span class="hint">决策 ${fmtMs(s.decision_ms)}${s.exec_ms !== null && s.exec_ms !== undefined ? " / 执行 " + fmtMs(s.exec_ms) : ""}</span>` : "";
+      return `<div class="${cls}">${icon} ${head} → ${line}${extra}</div>`;
+    }).join("") + `</div>` +
+    (d.run && d.run.summary_json ? `<details style="margin-top:10px"><summary class="hint">终态快照（报告关键数字 / 用例计数 / 循环消息）</summary><pre class="trace-box" style="white-space:pre-wrap">${esc(d.run.summary_json.slice(0, 2000))}</pre></details>` : "");
+  }
+  // 步骤明细表
+  stbl.innerHTML = steps.length ? `<thead><tr>
+      <th>#</th><th>模式</th><th>动作</th><th>能力</th><th>参数</th><th>结果</th><th>拒绝原因</th><th>LLM</th><th>审计</th><th>耗时</th>
+    </tr></thead><tbody>` +
+    steps.map(s => `<tr${s.allowed === 0 ? ' style="background:var(--fail-weak)"' : ""}>
+      <td>${s.loop_no === 1 ? s.step_no : "D" + s.loop_no + "." + s.step_no}</td>
+      <td>${esc(s.mode)}</td>
+      <td>${esc(s.action_type)}</td>
+      <td><code>${esc(s.capability || "-")}</code></td>
+      <td class="hint">${esc((s.args_json || "").slice(0, 60))}</td>
+      <td>${esc(s.result_status || "—")}${s.result_summary ? `<div class="hint">${esc(s.result_summary.slice(0, 60))}</div>` : ""}</td>
+      <td class="tl-deny">${esc((s.deny_reason || "").slice(0, 60))}</td>
+      <td>${s.llm_call_id ? "#" + s.llm_call_id : "—"}</td>
+      <td>${s.invocation_id ? "#" + s.invocation_id : "—"}</td>
+      <td class="hint">${s.decision_ms !== null && s.decision_ms !== undefined ? "决" + fmtMs(s.decision_ms) : ""}${s.exec_ms !== null && s.exec_ms !== undefined ? " / 执" + fmtMs(s.exec_ms) : ""}</td>
+    </tr>`).join("") + `</tbody>` : `<tbody><tr><td class="hint">无步骤行</td></tr></tbody>`;
+  // 导出（staff 端点：caller 403 就地提示）
+  const btn = $("rd-export");
+  btn.onclick = async () => {
+    $("rd-export-hint").textContent = "导出中…";
+    try {
+      const token = localStorage.getItem("token");
+      const resp = await fetch(`/api/runs/${rid}/export`, { headers: { Authorization: "Bearer " + token } });
+      if (!resp.ok) {
+        const b = await resp.json().catch(() => ({}));
+        $("rd-export-hint").textContent = b.detail || ("HTTP " + resp.status);
+        return;
+      }
+      const blob = new Blob([JSON.stringify(await resp.json(), null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `run_${rid}_replay.json`;
+      a.click();
+      $("rd-export-hint").textContent = "已下载 run_" + rid + "_replay.json";
+    } catch (e) {
+      $("rd-export-hint").textContent = "导出失败：" + (e.message || e);
+    }
+  };
+}
+
+async function loadTaskRunsPanel(tid) {
+  const box = $("td-runs");
+  const body = await api(`/tasks/${tid}/runs`).catch(() => null);
+  if (!body || !body.ledger_enabled) {
+    box.innerHTML = `<div class="hint">Agent 运行记录：账本未开启（MTA_RUN_LEDGER=1 重启可见）。</div>`;
+    return;
+  }
+  const attempts = body.attempts || [];
+  if (!attempts.length) {
+    box.innerHTML = `<h3>Agent 运行记录</h3><div class="hint">本任务还没有运行级记录。</div>`;
+    return;
+  }
+  box.innerHTML = `<h3>Agent 运行记录（${attempts.length} 次尝试并排对比）</h3><div class="table-wrap"><table class="tbl">` +
+    `<thead><tr><th>尝试</th><th>Run</th><th>类型</th><th>状态</th><th>结果</th><th>响应时间</th><th>提示词版本</th><th>停止原因</th></tr></thead><tbody>` +
+    attempts.map(a => (a.runs || []).map(r => `<tr>
+      <td>#${a.attempt_no}</td>
+      <td><a href="#/run/${r.id}">#${r.id}</a></td>
+      <td>${KIND_CN[r.kind] || r.kind}</td>
+      <td>${RUN_STATUS_CN[r.status] || r.status}</td>
+      <td>${outcomeBadge(r.outcome)}</td>
+      <td>${fmtMs(r.duration_ms)}</td>
+      <td><code>${esc(r.prompt_version || "—")}</code></td>
+      <td class="hint">${esc((r.stop_reason || "").slice(0, 40))}</td>
+    </tr>`).join("")).join("") + `</tbody></table></div>`;
+}
+
 /* ---------- 设置（仅管理员） ---------- */
 let llmSelected = null;   // 设置页当前点选的 provider（高亮态，apply 前只是选择不生效）
 
@@ -1852,6 +2045,7 @@ async function loadTaskDetail(tid) {
     "测试级别计划（黑盒 + 白盒双轨）</div>" +
     (renderLevelCards(lv && lv.levels) || '<div class="hint">该任务尚无级别台账（未走 levels 流）</div>');
   await renderExecPanel(tid);
+  loadTaskRunsPanel(tid);   // T5：Agent 运行记录面板（多次尝试并排；失败不炸任务详情）
   // 任务A4：活跃态自动轮询（3s，终态/离开页面即停——上面提示语写了"自动轮询"，说到做到）
   clearTimeout(TD_POLL);
   if (["provisioning", "running", "reporting", "cloning", "analyzing", "generating"].includes(t.status)) {

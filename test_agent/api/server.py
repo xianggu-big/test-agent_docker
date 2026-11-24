@@ -858,10 +858,25 @@ def api_runs(limit: int = 50, kind: str | None = None, status: str | None = None
             q += " AND r.task_id=?"; args.append(task_id)
         q += " ORDER BY r.id DESC LIMIT ?"
         args.append(max(1, min(int(limit), 200)))
+        rows = conn.execute(q, args).fetchall()
+        # 步数+紧凑成功率（列表列：设计稿 §9；一条分组查询避免 N+1）
+        step_stats: dict[int, dict] = {}
+        if rows:
+            ids = [r["id"] for r in rows]
+            marks = ",".join("?" * len(ids))
+            for s in conn.execute(
+                f"""SELECT run_id, COUNT(*) AS steps_n,
+                           SUM(CASE WHEN action_type!='finish' THEN 1 ELSE 0 END) AS initiated,
+                           SUM(CASE WHEN allowed=1 AND result_status='ok' THEN 1 ELSE 0 END) AS ok_n
+                    FROM agent_steps WHERE run_id IN ({marks}) GROUP BY run_id""", ids).fetchall():
+                step_stats[s["run_id"]] = dict(s)
         runs = []
-        for r in conn.execute(q, args).fetchall():
+        for r in rows:
             outcome = run_ledger.guarded(run_metrics.outcome_for_run, conn, r)
             rt = run_ledger.guarded(run_metrics.response_time_for_run, conn, r)
+            st = step_stats.get(r["id"], {})
+            initiated = st.get("initiated") or 0
+            ok_n = st.get("ok_n") or 0
             runs.append({
                 "id": r["id"], "task_id": r["task_id"], "session_id": r["session_id"],
                 "attempt_no": r["attempt_no"], "kind": r["kind"], "status": r["status"],
@@ -870,6 +885,9 @@ def api_runs(limit: int = 50, kind: str | None = None, status: str | None = None
                 "started_ms": r["started_ms"], "ended_ms": r["ended_ms"],
                 "duration_ms": (rt or {}).get("total_ms") if rt else None,
                 "task_status": r["task_status"],
+                "steps_n": st.get("steps_n") or 0,
+                "call_rate": (ok_n / initiated) if initiated else None,
+                "calls": initiated,
             })
         return {"ledger_enabled": True, "runs": runs}
     finally:
