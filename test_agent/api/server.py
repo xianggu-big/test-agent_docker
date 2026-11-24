@@ -825,6 +825,9 @@ def api_agent_loop(tid: int, user: dict = Depends(current_user)):
             "invocations": invocations, "llm_calls": llm_rows,
             "trace": trace_lines,
             "note": "步数/证据细节见 agent_messages 的 [strategy]/[diagnose] 与 artifacts 目录"}
+
+
+@app.post("/api/tasks/{tid}/verify-restore")
 def api_verify_restore(tid: int, user: dict = Depends(staff)):
     """0-A 恢复端点（2026-11-20 设计稿 §2.1）：从冻结快照逐字节恢复工作区用例文件。
     人工触发（恢复是治理动作不是 Agent 动作）；不自动改库——DB 漂移由整体指纹
