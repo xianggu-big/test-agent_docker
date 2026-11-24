@@ -199,13 +199,16 @@ def tool_metrics_aggregate(conn, run_ids: list[int]) -> dict:
                               "denied_registry", "parse_error", "not_executed")}
     micro_init = sum(micro_counts.values())
     micro_exec = micro_counts["ok"] + micro_counts["failed"] + micro_counts["timeout"]
-    macro_call = ([m["call_success_rate"] for m in nonzero] or None) and \
-        sum(m["call_success_rate"] for m in nonzero) / len(nonzero)
+    # 宏平均分母=有定义值的 run（零执行 run 的 exec_success_rate=None——真机批
+    # 实锤 R3 循环点：unparseable+finish 两步 run 发起>0 但执行=0）
+    with_exec = [m for m in nonzero if m["exec_success_rate"] is not None]
+    macro_call = (sum(m["call_success_rate"] for m in nonzero) / len(nonzero)
+                  if nonzero else None)
     return {
         "n_runs": len(run_ids), "n_zero_call_runs": len(per_run) - len(nonzero),
         "macro": {"call_success_rate": macro_call,
-                  "exec_success_rate": (sum(m["exec_success_rate"] for m in nonzero)
-                                        / len(nonzero)) if nonzero else None},
+                  "exec_success_rate": (sum(m["exec_success_rate"] for m in with_exec)
+                                        / len(with_exec)) if with_exec else None},
         "micro": {
             "counts": micro_counts,
             "call_success_rate": (micro_counts["ok"] / micro_init) if micro_init else None,
