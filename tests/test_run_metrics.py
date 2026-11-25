@@ -242,8 +242,9 @@ def test_api_run_detail_no_cross_run_leak(client, monkeypatch, env):
 
 # ---------- 补充 8：旗标关态 API 诚实空态 ----------
 
-def test_apis_honest_when_ledger_off(client):
+def test_apis_honest_when_ledger_off(client, monkeypatch):
     client_, headers, c, tid = client
+    monkeypatch.setattr(config, "RUN_LEDGER_ENABLED", False)   # 默认已开（Q1 拍板），显式关
     assert config.RUN_LEDGER_ENABLED is False
     for url in ("/api/runs", f"/api/tasks/{tid}/runs", "/api/metrics/summary"):
         r = client_.get(url, headers=headers)

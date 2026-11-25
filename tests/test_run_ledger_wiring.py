@@ -43,6 +43,11 @@ def _on(monkeypatch):
     monkeypatch.setattr(config, "RUN_LEDGER_ENABLED", True)
 
 
+def _off(monkeypatch):
+    """默认已开（Q1 拍板 2026-11-25）；关态语义测试显式关闭。"""
+    monkeypatch.setattr(config, "RUN_LEDGER_ENABLED", False)
+
+
 class _FakeResp:
     def __init__(self, content):
         self.content = content
@@ -124,7 +129,8 @@ def test_two_runs_isolated_and_summary_replayable(env, monkeypatch):
 
 def test_ledger_off_zero_writes(env, tmp_path, monkeypatch):
     c, tid = env
-    assert config.RUN_LEDGER_ENABLED is False   # 默认关（Q1）
+    _off(monkeypatch)
+    assert config.RUN_LEDGER_ENABLED is False   # 显式关（默认开，Q1 拍板）
     sid, rid = run_ledger.ledger_start_run(c, tid, kind="single", goal_text="g")
     assert rid is None                          # 旧行为：只有会话行
     assert c.execute("SELECT COUNT(*) FROM agent_runs").fetchone()[0] == 0
@@ -162,9 +168,10 @@ def test_report_duration_non_null_when_ledger_on(env, monkeypatch):
     assert json.loads(run_row["summary_json"])["final"]["status"] == "done"
 
 
-def test_report_duration_null_when_ledger_off(env):
+def test_report_duration_null_when_ledger_off(env, monkeypatch):
     """账本关：duration_ms=None（历史 1525 行 NULL 口径，行为逐字节不变）。"""
     c, tid = env
+    _off(monkeypatch)
     ses = c.execute("INSERT INTO agent_sessions(task_id) VALUES (?)", (tid,)).lastrowid
     nodes = make_nodes(GraphDeps(conn=c, runner=None, registry=None, skills={}))
     nodes["report"]({"task_id": tid, "session_id": ses, "verdict": "pass",

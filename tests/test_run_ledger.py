@@ -1,7 +1,7 @@
 """T2 运行账本回归：agent_runs / agent_steps 两表 + start/finish/record/reconcile 纯函数。
 
 设计稿 §6（docs/学院达标-任务规划与设计-20261124.md）：账本是旁路——只多写两张表，
-不改提示词、不改图、不改任何现有输出。开关 RUN_LEDGER_ENABLED 默认关（Q1 未拍板按默认）。
+不改提示词、不改图、不改任何现有输出。开关 RUN_LEDGER_ENABLED 默认开（Q1 拍板 2026-11-25）。
 """
 import sqlite3
 
@@ -39,9 +39,10 @@ def test_taskstate_declares_run_keys():
     assert "run_started_ms" in TaskState.__annotations__
 
 
-def test_run_ledger_flag_defaults_off():
-    """Q1 未拍板按默认关：关 = 两表零写入，其余行为逐字节不变。"""
-    assert config.RUN_LEDGER_ENABLED is False
+def test_run_ledger_flag_defaults_on():
+    """Q1 已拍板（2026-11-25）默认开：纯记账不改行为，防手动跑忘开丢证据；
+    MTA_RUN_LEDGER=0 仍可关（关=两表零写入由 test_ledger_off_zero_writes 锁）。"""
+    assert config.RUN_LEDGER_ENABLED is True
 
 
 def test_start_run_creates_session_and_run(conn):
