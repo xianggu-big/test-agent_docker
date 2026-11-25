@@ -60,3 +60,4 @@ data/benchmarks/staging/bugsinpy-*/*
 !data/benchmarks/staging/bugsinpy-*/.fixed_digest.json
 # 外部工具（WorkBuddy）本地会话记录
 .workbuddy/
+data/artifacts/
