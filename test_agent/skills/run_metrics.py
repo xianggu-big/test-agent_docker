@@ -113,11 +113,21 @@ def outcome_for_run(conn, run_row) -> str | None:
         failed = max(failed, int(case_counts.get("failed") or 0))
     verdict = verdict or snap.get("verdict")   # 手工快照兼容
     stop_reason = run_row["stop_reason"]
-    return classify_outcome(
+    outcome = classify_outcome(
         run_status=run_row["status"], task_status=task["status"] if task else None,
         failure_kind=failure_kind, verdict=verdict,
         passed=passed or 0, failed=failed or 0, has_report=has_report,
         stop_reason=stop_reason)
+    # C1（2026-11-27）：agent_runs.outcome 列回填（契约 §1.1"由指标层回填"落地）。
+    # 该列是计算缓存——真源永远是本函数重算（与 metrics_json 同哲学，防双轨）；
+    # 此前 166/166 全 NULL（finish_run 支持形参但无人传）。写失败不炸读路径。
+    try:
+        conn.execute("UPDATE agent_runs SET outcome=? WHERE id=? AND outcome IS NULL",
+                     (outcome, run_row["id"]))
+        conn.commit()
+    except Exception:       # noqa: BLE001 —— 只读连接/账本关态下静默跳过
+        pass
+    return outcome
 
 
 # ---- 契约 §1.2：工具结局七分类 ----

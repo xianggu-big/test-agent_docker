@@ -344,3 +344,20 @@ def test_api_summary_mixed_versions_annotated(client, monkeypatch):
     assert body["mixed_prompt_versions"] is True
     assert "跨提示词版本" in body["note"]
     assert body["metrics"]["completion"]["denominator"] == 2
+
+
+def test_outcome_column_backfilled_on_read(env):
+    """C1（2026-11-27）：outcome_for_run 读路径回填 agent_runs.outcome 列
+    （计算缓存，真源=重算函数）——此前 166/166 全 NULL。"""
+    c, tid, uid, pid = env
+    rid = _make_run(c, tid, status="failed",
+                    summary=_summary(verdict="stop",
+                                     kind="product_defect",
+                                     stop="疑似产品缺陷：clamp"))
+    assert c.execute("SELECT outcome FROM agent_runs WHERE id=?", (rid,)).fetchone()[0] \
+        is None, "读之前列应为 NULL（未回填态）"
+    row = c.execute("SELECT * FROM agent_runs WHERE id=?", (rid,)).fetchone()
+    outcome = run_metrics.outcome_for_run(c, row)
+    assert outcome == "completed"                      # 检出缺陷=目标达成
+    assert c.execute("SELECT outcome FROM agent_runs WHERE id=?",
+                     (rid,)).fetchone()[0] == "completed"
