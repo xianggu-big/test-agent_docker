@@ -14,6 +14,27 @@ SYSTEM_PROMPT = (
     "断言必须先于执行结果确定（预期结果来自需求而非实际输出）。只输出 JSON。"
 )
 
+# C8（2026-11-27 总包）：用例隔离纪律段——旗标 MTA_GEN_ISOLATION 默认关，
+# 关态 system_prompt_with_isolation 逐字节等于 base（2670/2673 实锤的顺序依赖
+# 假失败与全局 store 污染是开启动机）
+GEN_ISOLATION_DISCIPLINE = (
+    "## 用例隔离纪律（启用时为硬性要求）\n"
+    "每条用例必须自建全部前置数据：独立 id/名称/输入，禁止依赖其他用例的执行顺序、"
+    "执行结果或共享可变状态；删除/修改/查询类用例必须自带自己的数据创建步骤"
+    "（自己创建再操作），不得消费其他用例的残留状态；断言只依赖本用例自己准备的数据。"
+)
+
+
+def system_prompt_with_isolation(base: str = "", enabled=None) -> str:
+    """C8：隔离纪律段注入。enabled 缺省读 config.GEN_ISOLATION_ENABLED（默认关）。"""
+    if base == "":
+        base = SYSTEM_PROMPT
+    if enabled is None:
+        from .. import config
+        enabled = bool(getattr(config, "GEN_ISOLATION_ENABLED", False))
+    return (base + "\n\n" + GEN_ISOLATION_DISCIPLINE) if enabled else base
+
+
 PLAN_SYSTEM = (
     "你是资深软件测试分析师（测试分析阶段）。把用户的自然语言需求拆解为可验证的测试条件"
     "（需求追踪矩阵 RTM 的条件层）。只输出 JSON。"

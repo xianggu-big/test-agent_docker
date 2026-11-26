@@ -21,6 +21,7 @@ from ..graph.repair import CASE_OWN_DEFECT_ERRORS
 from ..store.db import get_conn
 from .llm_usage import log_llm_call
 from .prompt_library import (CROSS_REVIEW_SYSTEM, MAX_SOURCE_CHARS, SYSTEM_PROMPT,
+                            system_prompt_with_isolation,
                              build_cross_review_prompt, build_regen_prompt,
                              build_user_prompt)
 from .test_templates import expand_template_cases
@@ -1550,7 +1551,7 @@ def refill_condition_gaps(llm, sources: list[tuple[str, str]], requirement: str,
                   "uncovered_after": len(gaps)}
     if not gaps:
         return [], "", info
-    resp = llm.invoke([("system", SYSTEM_PROMPT),
+    resp = llm.invoke([("system", system_prompt_with_isolation(SYSTEM_PROMPT)),
                        ("user", build_user_prompt(
                            sources, requirement, None, None, gaps,
                            include_methods=include_methods, pbt=pbt, cond_forced=True,
@@ -1668,7 +1669,7 @@ def cross_review_gate(llm, cases: list[dict], requirement: str,
     # 单独重造：逐案定向重造（原案被否决的理由随提示词进入），产物过静态闸 + def 名对齐
     regen: list[dict] = []
     for i, c in enumerate(failed):
-        r2 = llm.invoke([("system", SYSTEM_PROMPT),
+        r2 = llm.invoke([("system", system_prompt_with_isolation(SYSTEM_PROMPT)),
                          ("user", build_regen_prompt(sources, requirement, c,
                                                      verdicts[c["name"]]["reason"]))])
         log_llm_call(task_id, "regen_case", r2,
@@ -1859,7 +1860,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                 break
     if gen_targets:
         log.info("gen_tests task=%s 定向补测目标 %d 项（AL-7）", task_id, len(gen_targets))
-    resp = llm.invoke([("system", SYSTEM_PROMPT),
+    resp = llm.invoke([("system", system_prompt_with_isolation(SYSTEM_PROMPT)),
                        ("user", build_user_prompt(sources, args.get("requirement", ""),
                                                   args.get("coverage_gaps"),
                                                   args.get("coverage_target"),
