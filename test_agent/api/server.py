@@ -1858,6 +1858,12 @@ def _startup() -> None:
     auth.ensure_default_users()
     _sweep_orphan_containers()
     _sweep_orphan_active_tasks()
+    # B7（2026-11-27）：工作区回收（旗标 MTA_WS_RECYCLE 默认关=零行为；失败不阻断启动）
+    try:
+        from ..skills.workspace_gc import maybe_recycle_on_startup
+        maybe_recycle_on_startup()
+    except Exception as e:      # noqa: BLE001
+        log.warning("工作区回收跳过: %s: %s", type(e).__name__, e)
     # 陈旧中间态周期兜底（服务活着但执行线程死了的场景，daemon 随进程退出）
     _stale_sweep_stop = threading.Event()
     threading.Thread(target=_stale_sweep_loop, args=(_stale_sweep_stop,),

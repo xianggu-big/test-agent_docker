@@ -186,6 +186,7 @@ JACOCO_MULTIMODULE_FALLBACK = _flag("MTA_JACOCO_MULTIMODULE", False)
 # 容器"有网的感觉、零真实外发"。开=provision 起桩容器+SUT 双网络挂载
 # （bridge 保 host.docker.internal MySQL + mta-fakenet 挂桩）；关=现状逐字节不变。
 FAKE_NET_ENABLED = _flag("MTA_FAKE_NET", False)
+WORKSPACE_RECYCLE_ENABLED = _flag("MTA_WS_RECYCLE", False)  # B7 工作区回收：启动清扫删终态>14天且有冻结快照的 task_* 工作区（默认关）
 FAKE_NET_NAME = os.environ.get("MTA_FAKE_NET_NAME", "mta-fakenet")
 # 真仓库破局（2026-11-23 外部 AI 协同定稿）：方案 D 线束卡+方案 1 盲意图骨架
 # 注入 gen_tests 提示词。REPO_PROBE=线束卡（治断言瞎猜+脚手架）；INTENT=加盲意图

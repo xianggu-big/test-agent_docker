@@ -73,7 +73,10 @@ def seed() -> None:
                            decision_ms=1500, exec_ms=30)
     run_ledger.record_step(c, rid, mode="strategy", loop_no=1, step_no=2,
                            action_type="call", capability="test.run.unit",
-                           args={"container_name": "mta-run-1", "cmd": ["npx", "jest"]},
+                           # B1（F2 修复，2026-11-27）：args 改真实键——schema
+                           # （capabilities.py test.run.unit）={targets 必填, timeout_s}；
+                           # 旧 {"container_name","cmd"} 非合法参数形态（演示数据不实）
+                           args={"targets": ["test_gen_r1.test.js"], "timeout_s": 120},
                            decision_json='{"action":"call","capability":"test.run.unit"}',
                            allowed=0, deny_reason="验证冻结任务仅允许 R0（test.run.unit=R2）",
                            decision_ms=900)
@@ -145,9 +148,7 @@ def main() -> int:
     ap.add_argument("--live", action="store_true")
     args = ap.parse_args()
     if args.live:
-        print("[golden] --live 归 T10-1：生产 server 双旗标重启+低价窗+预算停车线（总入口）。"
-              "本驱动器当前只实现 --dry。")
-        return 2
+        return main_live()
     if not args.dry:
         print("[golden] 用 --dry（夹具库零 LLM）；--live 归 T10-1。")
         return 2
@@ -287,6 +288,190 @@ def pg_wait(pg) -> str:
     pg.goto(f"{BASE}/#/run/1")
     pg.wait_for_selector("#rd-hero h3", timeout=8000)
     return pg.inner_text("#rd-hero")
+
+
+# ---------------- --live（B6 接线，2026-11-27；T7 只实现了 --dry） ----------------
+# 真跑：连生产 server（127.0.0.1:8000，须 MTA_AGENT_LOOP=1 MTA_RUN_LEDGER=1 双旗标
+# 已启动）→ caller 建真实 js-calc 任务 → dev 确认+下发 → 等终态 → 对真实 run 断言
+# （时间线/报告页/导出/四表齐）。预算闸：单任务 chat 价估算 ≤¥0.15（B6 停车线）；
+# 高峰段闸拒绝点火（00:30-09:00/12-14/18-次日00:30 之外不跑）。留档 live_<ts>/。
+LIVE_BASE = "http://127.0.0.1:8000"
+LIVE_PARKING = 0.15
+
+
+def _live_api(method: str, path: str, token: str, body: dict | None = None) -> dict:
+    data = json.dumps(body or {}).encode()
+    req = urllib.request.Request(LIVE_BASE + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json",
+                                          "Authorization": "Bearer " + token})
+    return json.loads(urllib.request.urlopen(req, timeout=30).read())
+
+
+def _in_low_price_window() -> bool:
+    """低价窗=00:30-09:00、12:00-14:00、18:00-次日00:30（用户 2026-11-11 硬规则）。"""
+    m = time.strftime("%H:%M")
+    return ("00:30" <= m < "09:00") or ("12:00" <= m < "14:00") or (m >= "18:00") or (m < "00:30")
+
+
+def _task_cost_est(task_id: int) -> float:
+    import sqlite3
+    conn = sqlite3.connect("file:" + (config.DATA_DIR / "test_agent.db").as_posix()
+                           + "?mode=ro", uri=True)
+    try:
+        rows = conn.execute("SELECT prompt_tokens, completion_tokens FROM llm_calls "
+                            "WHERE task_id=?", (task_id,)).fetchall()
+    finally:
+        conn.close()
+    return round(sum((pt or 0) / 1e6 + (cm or 0) / 2e6      # chat 价 (1,2)
+                     for pt, cm in rows), 4)
+
+
+def main_live() -> int:
+    results: list[tuple[bool, str]] = []
+
+    def check(ok, name):
+        results.append((bool(ok), name))
+        print(("PASS  " if ok else "FAIL  ") + name, flush=True)
+
+    if not _in_low_price_window():
+        print("[golden-live] 高峰段——拒绝点火（硬规则 2026-11-11）")
+        return 2
+    outdir = HERE / f"live_{time.strftime('%Y%m%d-%H%M%S')}"
+
+    def _login(user, pwd):
+        body = json.dumps({"username": user, "password": pwd}).encode()
+        req = urllib.request.Request(LIVE_BASE + "/api/login", data=body,
+                                     headers={"Content-Type": "application/json"})
+        return json.loads(urllib.request.urlopen(req, timeout=15).read())["token"]
+
+    try:
+        dev_token = _login("dev", "dev123")
+        caller_token = _login("caller", "caller123")
+        ledger = _live_api("GET", "/api/runs?limit=1", dev_token)
+        check(bool(ledger.get("ledger_enabled")), "生产 server 账本开（双旗标）")
+    except Exception as e:      # noqa: BLE001
+        print(f"[golden-live] 生产 server 不可达或未双旗标启动：{e}")
+        return 2
+
+    calc = ROOT / "data" / "demo" / "js-calc" / "src" / "calc.js"
+    check(calc.exists() and "clamp" in calc.read_text(encoding="utf-8"),
+          "被测仓 js-calc clamp 就位")
+
+    # 真任务：幂等——已有终态 golden-live 任务则复用（B6 重跑不烧新格）；无则建新
+    import sqlite3
+    _db = config.DATA_DIR / "test_agent.db"
+    _ro = sqlite3.connect("file:" + _db.as_posix() + "?mode=ro", uri=True)
+    _ro.row_factory = sqlite3.Row
+    prev = _ro.execute("SELECT id, status FROM test_tasks "
+                       "WHERE requirement_text=? AND status IN ('done','failed','cancelled') "
+                       "ORDER BY id DESC LIMIT 1", (CLAMP_REQ,)).fetchone()
+    tid = prev["id"] if prev else None
+    row = {"status": prev["status"]} if prev else {}
+    if tid is None:
+        t = _live_api("POST", "/api/tasks", caller_token,
+                      {"repo_url": str(ROOT / "data/demo/js-calc"), "requirement": CLAMP_REQ,
+                       "coverage_target": 0.7, "name": f"golden-live-{time.strftime('%H%M%S')}"})
+        tid = t["task_id"]
+        _live_api("POST", f"/api/tasks/{tid}/confirm", dev_token)
+        _live_api("POST", f"/api/tasks/{tid}/run", dev_token)
+        t0 = time.time()
+        row = {}
+        while time.time() - t0 < 900:
+            row = _live_api("GET", f"/api/tasks/{tid}", dev_token)
+            if row.get("status") in ("done", "failed", "cancelled"):
+                break
+            time.sleep(6)
+    else:
+        print(f"[golden-live] 复用既有终态任务 tid={tid}（幂等重跑，零新花费）")
+    _ro.close()
+    check(row.get("status") in ("done", "failed"), f"真任务终态（tid={tid} {row.get('status')}）")
+    cost = _task_cost_est(tid)
+    check(cost <= LIVE_PARKING, f"停车线内（chat 价估算 ¥{cost} ≤ ¥{LIVE_PARKING}）")
+
+    # 负例（真库语义）：N1 caller 下发 403；N2 未确认任务 409
+    try:
+        _live_api("POST", f"/api/tasks/{tid}/run", caller_token)
+        check(False, "N1 caller 下发应 403")
+    except urllib.error.HTTPError as e:
+        check(e.code == 403, f"N1 caller 下发 403（实得 {e.code}）")
+    _ro2 = sqlite3.connect("file:" + _db.as_posix() + "?mode=ro", uri=True)
+    prev_n2 = _ro2.execute("SELECT id FROM test_tasks WHERE requirement_text=? "
+                           "AND confirmed=0 ORDER BY id DESC LIMIT 1",
+                           ("N2 未确认负例",)).fetchone()
+    _ro2.close()
+    if prev_n2 is None:
+        t2 = _live_api("POST", "/api/tasks", caller_token,
+                       {"repo_url": str(ROOT / "data/demo/js-calc"),
+                        "requirement": "N2 未确认负例",
+                        "coverage_target": 0.7,
+                        "name": f"golden-live-n2-{time.strftime('%H%M%S')}"})
+        n2id = t2["task_id"]
+    else:
+        n2id = prev_n2[0]
+    try:
+        _live_api("POST", f"/api/tasks/{n2id}/run", dev_token)
+        check(False, "N2 未确认下发应 409")
+    except urllib.error.HTTPError as e:
+        check(e.code == 409, f"N2 未确认下发 409（实得 {e.code}）")
+
+    # 对真实 run 的 UI 断言（时间线含真实步/报告页/导出）
+    runs = _live_api("GET", f"/api/runs?task_id={tid}&limit=5", dev_token)
+    items = runs.get("runs") or runs.get("items") or (runs if isinstance(runs, list) else [])
+    check(bool(items), f"run 行落账（n={len(items)}）")
+    rid = (items[0] or {}).get("id") if items else None
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page()
+        # 深链前先落地首页+置 token+整页 reload（同文档 hash 跳转不触发路由——
+        # dry 版靠 reload 触发；B6 首跑实锤：不 reload 则 section.page 保持 hidden）
+        pg.goto(f"{LIVE_BASE}/")
+        pg.evaluate(f"localStorage.setItem('token', '{dev_token}')")
+        pg.reload()
+        pg.wait_for_timeout(800)
+        pg.goto(f"{LIVE_BASE}/#/run/{rid}")
+        pg.wait_for_selector("#rd-hero h3", timeout=8000)
+        tl = pg.inner_text("#rd-timeline-body") if pg.query_selector("#rd-timeline-body") else ""
+        check("finish" in tl or "🏁" in tl, "时间线含 finish（真模型决策）")
+        pg.goto(f"{LIVE_BASE}/#/task/{tid}")
+        pg.reload()
+        pg.wait_for_timeout(1500)
+        check("clamp" in pg.content(), "报告页含 clamp 用例/需求")
+        pg.goto(f"{LIVE_BASE}/#/run/{rid}")
+        pg.reload()
+        pg.wait_for_selector("#rd-export", timeout=8000, state="visible")
+        pg.click("#rd-export")
+        pg.wait_for_timeout(800)
+        hint = pg.inner_text("#rd-export-hint") if pg.query_selector("#rd-export-hint") else ""
+        check("已下载" in hint, "导出回放 JSON")
+        b.close()
+
+    # 四表齐（真库直读）
+    import sqlite3
+    conn = sqlite3.connect("file:" + (config.DATA_DIR / "test_agent.db").as_posix()
+                           + "?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    four = {}
+    for tb in ("agent_runs", "agent_steps", "llm_calls", "skill_invocations"):
+        four[tb] = conn.execute(f"SELECT COUNT(*) AS n FROM {tb} WHERE task_id=?",
+                                (tid,)).fetchone()["n"] if tb == "llm_calls" else \
+            conn.execute(f"SELECT COUNT(*) AS n FROM {tb}").fetchone()["n"]
+    conn.close()
+    (outdir).mkdir(parents=True, exist_ok=True)
+    (outdir / "four_tables.json").write_text(json.dumps(four, ensure_ascii=False, indent=2),
+                                             encoding="utf-8")
+    check(all(four[t] > 0 for t in ("agent_runs", "agent_steps", "llm_calls")),
+          f"四表齐（live：llm_calls>0 属真实）{four}")
+
+    ok = all(o for o, _ in results)
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "results.json").write_text(
+        json.dumps({"task_id": tid, "cost_yuan_est": cost,
+                    "pass": sum(1 for o, _ in results if o), "total": len(results),
+                    "results": results}, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"RESULT: {'PASS' if ok else 'FAIL'} "
+          f"({sum(1 for o, _ in results if o)}/{len(results)}) | 留档 → {outdir}")
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
