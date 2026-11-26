@@ -269,6 +269,25 @@ def cost_metrics(conn, runs: list[dict]) -> dict:
             "llm_prompt_tokens": p, "llm_completion_tokens": c}
 
 
+def capability_usage(conn, runs: list[dict]) -> dict:
+    """C11（2026-11-27）：策略循环能力使用分布（只读统计，无行为改动）。
+    v3 批实锤 73 次调用全是 test.observe.read——list/grep/env/coverage 零使用，
+    分布入 kpi 报告让这个事实每批可见。"""
+    tids = [r["task_id"] for r in runs]
+    counts: dict[str, int] = {}
+    n_steps = 0
+    for t in tids:
+        for row in conn.execute(
+                "SELECT capability FROM agent_steps s JOIN agent_runs r ON r.id=s.run_id "
+                "WHERE r.task_id=? AND s.action_type='call'", (t,)):
+            cap = row["capability"] or "（未记录）"
+            counts[cap] = counts.get(cap, 0) + 1
+            n_steps += 1
+    return {"n_calls": n_steps,
+            "distribution": dict(sorted(counts.items(), key=lambda kv: -kv[1])),
+            "distinct_capabilities": len(counts)}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--since", default=None, help="只统计该本地时刻之后启动的 run")
@@ -285,7 +304,8 @@ def main() -> int:
                "runs": len(runs),
                "strategy": strategy_metrics(conn, runs, workspace_of),
                "diagnose": diagnose_metrics(conn, runs, labels),
-               "cost": cost_metrics(conn, runs)}
+               "cost": cost_metrics(conn, runs),
+               "capability_usage": capability_usage(conn, runs)}
     finally:
         conn.close()
     out = json.dumps(rep, ensure_ascii=False, indent=1)
