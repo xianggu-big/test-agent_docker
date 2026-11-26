@@ -118,8 +118,12 @@ def store_case_results(conn, task_id: int, round_no: int, rows: list[dict],
         # origin 细化（2026-11-10）：rows 可自带 origin（如 ui_idempotency 路线的
         # 交互用例不走 gen_tests 落库，名字匹配不到 gen_names——行级自带 origin
         # 优先，否则按规范化名匹配归 generated/repo 旧口径）
+        # C2（2026-11-27）：go 表驱动子测试执行名带 `/sub` 子路径——按父用例名
+        # 匹配归 origin（v3 批实锤：21 行 repo 里 20 行是生成用例的子测试误标）。
+        # 参数化 [x] 后缀已在解析层剥除，这里只处理 `/` 形态；行级自带 origin 仍优先。
+        parent_name = str(r["name"] or "").split("/")[0]
         origin = r.get("origin") or ("generated"
-                                     if normalize_case_name(r["name"]) in gen_names
+                                     if normalize_case_name(parent_name) in gen_names
                                      else "repo")
         conn.execute(
             """INSERT INTO test_case_results(task_id, round_no, level, nodeid, name,

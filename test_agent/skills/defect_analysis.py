@@ -60,7 +60,9 @@ def collect_failure_evidence(conn, task_id: int) -> dict:
                        "expected_basis": case.get("expected_basis"),
                        "method": case.get("method"),
                        "code": (case.get("content") or "")[:500],
-                       "origin": "generated" if base in cases_by_name else "repo"})
+                       "origin": "generated" if (base in cases_by_name or
+                                                 base.split("/")[0] in cases_by_name)
+                                                 else "repo"})
     req = conn.execute("SELECT requirement_text FROM test_tasks WHERE id=?", (task_id,)).fetchone()
     return {"failure_kind": defects.get("failure_kind"), "stop_reason": defects.get("stop_reason"),
             "failed": failed, "requirement": (req["requirement_text"] if req else "") or ""}

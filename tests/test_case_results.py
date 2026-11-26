@@ -180,3 +180,38 @@ def test_jest_name_uses_title_not_last_word():
         "title": "adds basic case", "status": "passed", "duration": 5}]}]})
     rows = parse_jest_results(stdout)
     assert rows and rows[0]["name"] == "adds basic case", "name 必须取 title 而非末词"
+
+
+def test_origin_go子测试按父用例名归generated(tmp_db):
+    """C2（2026-11-27）：go 表驱动子测试 `TestX/sub` 的执行名带子路径——
+    直接对登记名匹配失败 → 20/21 行误标 repo（实为生成用例）。修法：匹配前剥
+    `/sub` 后缀按父用例名归 origin（参数化 [x] 后缀已在解析层剥除）。"""
+    conn = get_conn()
+    sid = conn.execute(
+        "SELECT id FROM test_scripts WHERE task_id=?", (tmp_db,)).fetchone()["id"]
+    conn.execute("INSERT INTO test_cases(script_id,source,name,content) "
+                 "VALUES(?,'ai','TestR1_CreateBook_判定表','t')", (sid,))
+    conn.commit()
+    rows = [
+        {"nodeid": f"go-api-book::TestR1_CreateBook_判定表/{sub}", "name":
+         f"TestR1_CreateBook_判定表/{sub}", "status": "failed", "duration_ms": 1,
+         "message": "DELETE /books/999 status = 200, want 404"}
+        for sub in ("合法数字+不存在", "数字+不存在")]
+    store_case_results(conn, tmp_db, 1, rows)
+    got = conn.execute("SELECT origin FROM test_case_results WHERE task_id=?",
+                       (tmp_db,)).fetchall()
+    assert {g["origin"] for g in got} == {"generated"}, \
+        "go 子测试必须按父用例名归 generated（旧口径误标 repo）"
+    conn.close()
+
+
+def test_origin_真repo子测试不误标(tmp_db):
+    """C2 反向：父名不在登记集的子测试仍归 repo（不因剥后缀把真自带测试洗白）。"""
+    conn = get_conn()
+    rows = [{"nodeid": "go-api-book::TestRepoOwn/sub", "name": "TestRepoOwn/sub",
+             "status": "failed", "duration_ms": 1, "message": "m"}]
+    store_case_results(conn, tmp_db, 1, rows)
+    got = conn.execute("SELECT origin FROM test_case_results WHERE task_id=?",
+                       (tmp_db,)).fetchone()
+    assert got["origin"] == "repo"
+    conn.close()
