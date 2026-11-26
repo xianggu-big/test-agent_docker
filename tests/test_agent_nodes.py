@@ -60,3 +60,11 @@ def test_phase_groups_has_agent_loop():
     from test_agent.skills.llm_profile import phase_group
     for p in ("agent_loop", "agent_strategy", "agent_diagnose"):
         assert phase_group(p) == "agent_loop", f"{p} 必须命中 agent_loop 组"
+
+
+def test_phase_groups_has_module_profile():
+    """B5（2026-11-27）：module_profile 节点 phase 必须显式落组——
+    不落组=静默走 other/default 档（V5 坑同族第四起）。"""
+    from test_agent.skills.llm_profile import phase_group
+    assert phase_group("module_profile") == "module_profile"
+    assert phase_group(" module_profile ") == "module_profile"   # strip 口径

@@ -312,6 +312,11 @@ PHASE_GROUPS: dict[str, list[str]] = {
     # default 档：map_requirements :247 同族第三起的风险。routing 默认空=三 phase
     # 走 default 档行为不变，llm-routing 页可独立调档）
     "agent_loop": ["agent_loop", "agent_strategy", "agent_diagnose"],
+    # module_profile（B5，2026-11-27 补组）：模块画像节点 nodes.py:1009 的
+    # make_chat(phase="module_profile")——此前未落组，静默走 other/default 档
+    # （V5 坑同族第四起）。画像调用与主链生成同温（低成本、可用同档模型），
+    # 独立成组只为 llm-routing 页可见可调，不改默认行为。
+    "module_profile": ["module_profile"],
 }
 _RAW_TO_GROUP: dict[str, str] = {raw: g for g, raws in PHASE_GROUPS.items() for raw in raws}
 
