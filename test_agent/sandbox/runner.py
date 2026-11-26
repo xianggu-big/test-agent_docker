@@ -5,9 +5,11 @@
 - 资源限额在启动参数里（--cpus / --memory），镜像保持薄
 - 执行与判定分离：容器里只跑测试，判读由宿主侧做，容器不给特权
 
-诚实边界：docker SDK 的 exec_run 本身不支持超时中断，这里用线程 +
-future.result(timeout) 实现"超时返回"，超时后底层 exec 仍会占用直到
-容器回收 —— 因此超时任务由调用方（L4 队列）负责 cleanup，不得复用。
+超时语义（B3 更正 2026-11-27，原头注释停在 0-C/D7 之前的旧行为）：
+exec_in 的命令一律包 coreutils `timeout -k 5 <s>` 前缀=容器内进程级真终止
+（TERM 5s 后 KILL，exit 124/137 映射回 -1 超时语义，stdout 置空防误计）；
+外层线程 future.result(timeout_s+15) 只作兜底护栏。超时任务由调用方（L4 队列）
+负责 fresh 重建（fresh=True），不得复用脏容器。
 """
 import fnmatch
 import io
