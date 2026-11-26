@@ -294,6 +294,10 @@ def api_blackbox_stop(blackbox: bool, verdict: str, failed: int, exit_code: int,
                       endpoint_cov: dict | None = None
                       ) -> tuple[str, str, str] | None:
     """黑盒全过且 decide 因覆盖率卡住给 repair_gen → 覆盖为诚实 stop 声明。
+    【规约（B4，2026-11-27）】本函数是覆盖率双刻度的黑盒侧消费点：此处 coverage
+    参数是 API 黑盒任务的行覆盖读数（服务进程不在插桩范围=结构性偏低），只如实
+    展示"不作准出判据"，判停依据=接口级通过数/端点对账；与 repair.decide 的
+    进程内插桩刻度不得混算。
     有失败用例（failed>0）不适用——正常归因分诊优先；非黑盒/非 repair_gen 返回 None。
 
     2026-11-19 复盘升级（"接口级为准"从宣称变核实）：endpoint_cov={"covered",
