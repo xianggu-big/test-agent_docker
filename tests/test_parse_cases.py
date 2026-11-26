@@ -128,6 +128,50 @@ def test_parse_salvage_honest_on_real_garbage():
     assert _parse_cases("完全不是 JSON 的回复 {") is None
 
 
+# ---------- A0-3（2026-11-27）：合法 JSON 不许先变形再解析；Extra data 拖尾可救 ----------
+
+# task 2680 原文（生产库 agent_steps.decision_json 逐字摘录，135 字符）：句尾杂散
+# `}` → 标准 json.loads 报 Extra data → 旧 _loads_tolerant 同死 → unparseable×2
+# → hard_error（S-K1=44/45 的唯一败因）
+_T2680_RAW = ('{"action": "call", "capability": "test.observe.read", '
+              '"args": {"path": ".", "mode": "list"}, "reason": '
+              '"规划阶段先列出工作区结构，定位优惠券 API 的实现文件"}}')
+
+
+def test_tolerant_tries_plain_loads_before_rewrite(monkeypatch):
+    """A0-3：_loads_tolerant 必须先标准 json.loads，成功即直返——不许先做表达式
+    替换再解析（替换把合法 JSON 的中文字符串转义撑大——uXXXX 形态，2680 实测 135→250）。
+    植入一个会改坏文本的替换器：合法 JSON 路径根本不该触碰它。"""
+    from test_agent.skills import gen_tests
+
+    def _corrupt(m):
+        return '"XX"'                       # 只要被调用就把片段改坏
+
+    monkeypatch.setattr(gen_tests, "_eval_str_expr", _corrupt)
+    good = '{"cases": [{"name": "t1", "code": "def test_t1():\\n    assert f(1) == 2"}]}'
+    data = gen_tests._loads_tolerant(good)
+    assert data["cases"][0]["name"] == "t1"
+
+
+def test_tolerant_extra_data_trailing_brace_rescued():
+    """A0-3：Extra data（对象后拖尾冗余）取首个完整对象救回——与 _salvage_json_output
+    形态①同哲学。2680/2688 的杂散尾 `}` 两次不可解析→hard_error，不许再发生。"""
+    from test_agent.skills import gen_tests
+    data = gen_tests._loads_tolerant(_T2680_RAW)
+    assert data["action"] == "call"
+    assert data["args"] == {"path": ".", "mode": "list"}
+
+
+def test_extract_json_2680_original_returns_action():
+    """A0-3 端到端：tool_loop._extract_json 吃 2680 原文必须出 action=call
+    （旧链两候选全走 _loads_tolerant → 同死 → unparseable×2 → hard_error）。"""
+    from test_agent.skills import tool_loop
+    action = tool_loop._extract_json(_T2680_RAW)
+    assert action is not None
+    assert action["action"] == "call"
+    assert action["capability"] == "test.observe.read"
+
+
 # ---------- tsc 闸编译目标（2026-11-17 卡 2，1295 ts-ky 实锤） ----------
 
 def test_tsc_gate_modern_lib():

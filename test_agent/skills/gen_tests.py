@@ -701,13 +701,27 @@ def _salvage_json_output(text: str) -> dict | None:
 def _loads_tolerant(s: str):
     """JSON 宽容解析：DeepSeek 模型更新后偶发在 JSON 里输出 Python 形态（2026-10-30
     D8 实锤 True/False/None 字面量；2026-11-05 批4 实锤字符串重复/拼接表达式）。
-    只在解析器报错位置做字面量替换——报错点必然在字符串外，因此 code 字符串里
-    的 "assert x is True" 不会被误伤；替换后重试，至多 50 次防病态输入。"""
+    【A0-3 修订 2026-11-27】先标准 json.loads——合法输入零变形直返（旧版先做表达式
+    替换，把合法 JSON 的中文字符串转义撑大，2680 实测 135→250 字符）；失败才进修复链。
+    Extra data（对象后拖尾冗余——task 2680/2688 原文实锤句尾杂散 `}`，两次不可解析
+    →hard_error，S-K1=44/45 的唯一败因）用 raw_decode 取首个完整对象救回，与
+    _salvage_json_output 形态①同哲学。字面量替换只在解析器报错位置做——报错点必然
+    在字符串外，因此 code 字符串里的 "assert x is True" 不会被误伤；至多 50 次防病态输入。"""
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        pass
     s = _PY_STR_EXPR_RE.sub(_eval_str_expr, s)
     for _ in range(50):
         try:
             return json.loads(s)
         except json.JSONDecodeError as e:
+            if e.msg == "Extra data":
+                try:
+                    obj, _end = json.JSONDecoder().raw_decode(s)
+                    return obj
+                except json.JSONDecodeError:
+                    pass
             try:
                 # 本地小模型常见形态（qwen3:4b-instruct 实测）：字符串值内裸换行等
                 # 未转义控制字符——strict=False 只放开这一点，安全面不变；
