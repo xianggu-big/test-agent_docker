@@ -2094,6 +2094,20 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         (task_id, args.get("module_id"), framework, version, fname, content,
          hashlib.sha256(content.encode()).hexdigest()[:16]))
     script_id = cur.lastrowid
+    # —— C3（2026-11-27）：剔除项落库（enabled=0 + 原因）——"生成→剔除→落盘"漏斗
+    # 此前只在消息里（且 `[generate 第N轮] {json}` 多数不可解析）不可审计；现在每个
+    # 被闸剔除的用例在库里有行可查（source='ai_cull'，content=原因，enabled=0）。
+    cull_rows: list[tuple[str, str]] = []
+    for x in (template_rejected or []):
+        cull_rows.append((str(x)[:120], "模板展开失败"))
+    for x in (rejected or []):
+        cull_rows.append((str(x)[:120], "静态闸/断言质量闸剔除"))
+    for x in ((cross_info or {}).get("dropped") or []):
+        nm = x.get("name") if isinstance(x, dict) else str(x)
+        rs = x.get("reason") if isinstance(x, dict) else ""
+        cull_rows.append((str(nm)[:120], f"交叉语义审剔除：{rs}"))
+    for x in (go_stripped or []):
+        cull_rows.append((str(x)[:120], "Go 幻觉函数剔除"))
     for c in data["cases"]:
         conn.execute(
             """INSERT INTO test_cases(script_id, source, name, method, content,
@@ -2102,6 +2116,11 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
             (script_id, "ai", c.get("name", "unnamed"), c.get("method"), c["code"],
              c.get("priority"), c.get("input"), c.get("steps"),
              c.get("expected"), c.get("expected_basis")))
+    for cname, creason in cull_rows:
+        conn.execute(
+            """INSERT INTO test_cases(script_id, source, name, method, content, enabled)
+               VALUES (?, 'ai_cull', ?, NULL, ?, 0)""",
+            (script_id, cname, f"[已剔除] {creason}"))
     conn.commit()
 
     # —— 回灌容器（依赖随项目走，生成物也随项目走）。
