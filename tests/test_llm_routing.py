@@ -92,7 +92,7 @@ def test_phase_group映射_grep实测口径():
     assert phase_group("l3_gen_scenarios") == "l3"
     assert phase_group("l4_gen_scenarios") == "l4"
     assert phase_group("definitely_new_phase") == "other"     # 未知→other 走 default
-    assert len(PHASE_GROUPS) == 14   # 2026-11-21 包 3：+agent_loop 组（V5 坑预防——新 phase 显式落组）
+    assert len(PHASE_GROUPS) == 15   # 2026-11-21 包 3：+agent_loop；2026-11-27 B5：+module_profile（V5 坑预防——新 phase 显式落组）
 
 
 def test_逐字节一致_routing空等于单profile(db, monkeypatch):
