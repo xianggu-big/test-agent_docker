@@ -1689,7 +1689,28 @@ def make_nodes(deps: GraphDeps) -> dict:
                 if diff["status"] == "restore_failed":
                     msg(state["session_id"], "assistant",
                         "[diff-gate] ⚠ 工作区未切回原 HEAD——必须人工检查 git 状态后再用该工作区")
-        # —— 归因三闸·flaky 连跑（TestGen-LLM 口径，默认 FLAKY_RERUNS=0 关）——
+        # —— C7·预期依据审计（总包 2026-11-27；旗标 MTA_EXPECT_BASIS_AUDIT 默认关）——
+        # product_defect 停判时逐条保留失败标 expected_basis 与需求可追溯性；
+        # 全部无依据 → 判决降为「预期存疑待裁决」（expectation_dispute），缺陷清单
+        # 分组不再冒充 product_defect；部分有依据 → 维持原判但逐条留痕。
+        if (getattr(config, "EXPECT_BASIS_AUDIT_ENABLED", False)
+                and verdict == "stop" and kind == "product_defect"
+                and state.get("last_exit", 1) != 0):
+            from ..skills import expectation_audit
+            audit = expectation_audit.audit_retained_failures(conn, tid, stdout)
+            if audit["n_failed"]:
+                if audit["all_unfounded"]:
+                    kind = "expectation_dispute"
+                    reason = (f"预期存疑待裁决：{audit['n_failed']} 条保留失败的预期全部"
+                              f"无需求依据（{audit['basis_summary'][:120]}）——降为争议"
+                              "待人工裁决，不计入 product_defect 组")
+                    msg(state["session_id"], "assistant",
+                        f"[expect-audit] {reason}；逐条 {audit['per_case'][:260]}")
+                else:
+                    msg(state["session_id"], "assistant",
+                        f"[expect-audit] 保留失败 {audit['n_failed']} 条"
+                        f"（{audit['n_unfounded']} 条无据）：{audit['basis_summary'][:200]}")
+                # —— 归因三闸·flaky 连跑（TestGen-LLM 口径，默认 FLAKY_RERUNS=0 关）——
         # 疑似产品缺陷终判前同命令连跑 N 次：结果不一致 → stop_reason 标 flaky，
         # 报告侧据此把该轮不计入缺陷分母（taxonomy 不新增值，v1 靠 reason 携带）。
         if (config.FLAKY_RERUNS > 0 and kind == "product_defect"

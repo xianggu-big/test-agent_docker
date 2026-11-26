@@ -187,6 +187,8 @@ JACOCO_MULTIMODULE_FALLBACK = _flag("MTA_JACOCO_MULTIMODULE", False)
 # （bridge 保 host.docker.internal MySQL + mta-fakenet 挂桩）；关=现状逐字节不变。
 FAKE_NET_ENABLED = _flag("MTA_FAKE_NET", False)
 WORKSPACE_RECYCLE_ENABLED = _flag("MTA_WS_RECYCLE", False)  # B7 工作区回收：启动清扫删终态>14天且有冻结快照的 task_* 工作区（默认关）
+EXPECT_BASIS_AUDIT_ENABLED = _flag("MTA_EXPECT_BASIS_AUDIT", False)  # C7 预期依据审计：product_defect 停判时逐条标依据/需求可溯性，全无据降级「预期存疑待裁决」（默认关）
+GEN_ISOLATION_ENABLED = _flag("MTA_GEN_ISOLATION", False)            # C8 用例隔离纪律：生成提示词加隔离段（自建数据/独立 id/不依赖顺序），默认关
 FAKE_NET_NAME = os.environ.get("MTA_FAKE_NET_NAME", "mta-fakenet")
 # 真仓库破局（2026-11-23 外部 AI 协同定稿）：方案 D 线束卡+方案 1 盲意图骨架
 # 注入 gen_tests 提示词。REPO_PROBE=线束卡（治断言瞎猜+脚手架）；INTENT=加盲意图
