@@ -1,0 +1,66 @@
+{
+ "label": "abon_t2740",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 38,
+ "passed": 27,
+ "failed": 11,
+ "errors": 0,
+ "wall_clock_s": 2.4,
+ "baseline_failures": 11,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_validate_duration_boundary_边界值分析",
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_validate_duration_valid_等价类划分"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_quote_total_boundary_边界值分析",
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_quote_total_discount_等价类划分",
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_quote_total_rounding_边界值分析"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_read_booking_persisted_语句分支覆盖"
+   ],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_create_booking_adjacent_allowed_判定表",
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_has_overlap_adjacent_判定表",
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_list_bookings_active_only_语句分支覆盖"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_cancel_booking_twice_错误推测法"
+   ],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 5,
+ "defects_real": 5,
+ "detection_rate": 1.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_8ng5nc4p/test_gen_r1.py::test_create_booking_four_hours_allowed_边界值分析"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档",
+ "mutation": {
+  "mutants_total": 17,
+  "killed": 17,
+  "kill_rate": 1.0
+ }
+}

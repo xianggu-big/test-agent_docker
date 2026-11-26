@@ -1,0 +1,63 @@
+{
+ "label": "abon_t2741",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 20,
+ "passed": 12,
+ "failed": 8,
+ "errors": 0,
+ "wall_clock_s": 2.27,
+ "baseline_failures": 8,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_zox37ekl/test_gen_r1.py::test_validate_duration_边界值分析[max]"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_zox37ekl/test_gen_r1.py::test_quote_total_四舍五入_错误推测法",
+    "data/tmp_g_score/gscore_zox37ekl/test_gen_r1.py::test_quote_total_折扣_判定表"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_zox37ekl/test_gen_r1.py::test_create_booking_成功与持久化_等价类划分"
+   ],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_zox37ekl/test_gen_r1.py::test_create_booking_重叠与相邻_判定表",
+    "data/tmp_g_score/gscore_zox37ekl/test_gen_r1.py::test_has_overlap_相邻与重叠_判定表"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_zox37ekl/test_gen_r1.py::test_cancel_booking_分支覆盖"
+   ],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 5,
+ "defects_real": 5,
+ "detection_rate": 1.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_zox37ekl/test_gen_r1.py::test_create_booking_时长4小时_边界值分析"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档",
+ "mutation": {
+  "mutants_total": 17,
+  "killed": 17,
+  "kill_rate": 1.0
+ }
+}

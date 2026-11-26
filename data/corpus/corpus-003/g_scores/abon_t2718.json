@@ -1,0 +1,65 @@
+{
+ "label": "abon_t2718",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 42,
+ "passed": 32,
+ "failed": 10,
+ "errors": 0,
+ "wall_clock_s": 2.33,
+ "baseline_failures": 10,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_validate_duration_four_hours_边界值分析"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_quote_total_four_hours_边界值分析",
+    "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_quote_total_three_hours_等价类划分"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_read_booking_after_create_语句分支覆盖"
+   ],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_create_booking_adjacent_allowed_判定表",
+    "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_has_overlap_adjacent_边界值分析",
+    "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_list_bookings_active_only_判定表"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_cancel_booking_twice_conflict_错误推测法"
+   ],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 5,
+ "defects_real": 5,
+ "detection_rate": 1.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_create_booking_duration_four_hours_边界值分析",
+  "data/tmp_g_score/gscore_qbwr044g/test_gen_r1.py::test_quote_total_rounding_边界值分析"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档",
+ "mutation": {
+  "mutants_total": 17,
+  "killed": 17,
+  "kill_rate": 1.0
+ }
+}

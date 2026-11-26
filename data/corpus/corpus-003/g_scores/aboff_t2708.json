@@ -1,0 +1,59 @@
+{
+ "label": "aboff_t2708",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 29,
+ "passed": 24,
+ "failed": 5,
+ "errors": 0,
+ "wall_clock_s": 2.34,
+ "baseline_failures": 5,
+ "detection": {
+  "D1": {
+   "detected": false,
+   "tests": [],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_93886rxi/test_gen_r1.py::test_quote_total_折扣边界_错误推测法"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_93886rxi/test_gen_r1.py::test_create_booking_持久化可查询_语句分支覆盖"
+   ],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_93886rxi/test_gen_r1.py::test_create_booking_相邻时段不重叠_判定表"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_93886rxi/test_gen_r1.py::test_cancel_booking_重复取消_语句分支覆盖"
+   ],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 4,
+ "defects_real": 5,
+ "detection_rate": 0.8,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_93886rxi/test_gen_r1.py::test_create_booking_时长4小时_边界值分析"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档",
+ "mutation": {
+  "mutants_total": 17,
+  "killed": 17,
+  "kill_rate": 1.0
+ }
+}

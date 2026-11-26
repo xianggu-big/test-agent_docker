@@ -1,0 +1,62 @@
+{
+ "label": "abon_t2717",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 19,
+ "passed": 12,
+ "failed": 7,
+ "errors": 0,
+ "wall_clock_s": 2.28,
+ "baseline_failures": 7,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_gs8hsrth/test_gen_r1.py::test_validate_duration_边界值分析"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_gs8hsrth/test_gen_r1.py::test_quote_total_边界值分析"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_gs8hsrth/test_gen_r1.py::test_create_booking_persist_语句分支覆盖"
+   ],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_gs8hsrth/test_gen_r1.py::test_create_booking_adjacent_边界值分析",
+    "data/tmp_g_score/gscore_gs8hsrth/test_gen_r1.py::test_has_overlap_边界值分析"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_gs8hsrth/test_gen_r1.py::test_cancel_booking_判定表"
+   ],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 5,
+ "defects_real": 5,
+ "detection_rate": 1.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_gs8hsrth/test_gen_r1.py::test_quote_total_rounding_错误推测法"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档",
+ "mutation": {
+  "mutants_total": 17,
+  "killed": 17,
+  "kill_rate": 1.0
+ }
+}

@@ -40,7 +40,10 @@ PY = sys.executable
 def _run(cmd, cwd=None, env_extra=None, timeout=180):
     import os
     env = {**os.environ, **(env_extra or {})}
+    # encoding 显式 utf-8（2026-11-27 实锤：GBK 控制台下默认 cp936 解子进程 UTF-8
+    # 输出 → UnicodeDecodeError；与 run_g_scoring 同款修复）
     r = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace",
                        timeout=timeout, check=False)
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
