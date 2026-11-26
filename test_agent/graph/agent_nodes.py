@@ -21,11 +21,8 @@ log = logging.getLogger(__name__)
 def _msg(conn, session_id: int, content: str) -> None:
     """轨迹写进当前会话日志（前端日志流可见）。失败不炸主链路。"""
     try:
-        seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
-                           (session_id,)).fetchone()["n"]
-        conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) "
-                     "VALUES (?,?,?,?)", (session_id, seq, "assistant", content))
-        conn.commit()
+        from ..store.db import append_agent_message
+        append_agent_message(conn, session_id, "assistant", content)   # B2：原子 seq 取号
     except Exception as e:      # noqa: BLE001
         log.warning("agent 节点留痕失败: %s", e)
 

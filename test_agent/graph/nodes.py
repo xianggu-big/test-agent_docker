@@ -787,11 +787,8 @@ def make_nodes(deps: GraphDeps) -> dict:
     registry, skills = deps.registry, deps.skills
 
     def msg(session_id: int, role: str, content: str) -> None:
-        seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
-                           (session_id,)).fetchone()["n"]
-        conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
-                     (session_id, seq, role, content))
-        conn.commit()
+        from ..store.db import append_agent_message
+        append_agent_message(conn, session_id, role, content)   # B2：原子 seq 取号
 
     # ---------- 1. 克隆 ----------
     def clone(state: TaskState) -> dict:

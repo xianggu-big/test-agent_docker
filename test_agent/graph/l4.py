@@ -49,11 +49,8 @@ def run_l4_task(task_id: int, trace_from: int | None = None) -> dict:
     conn.commit()
 
     def msg(content: str) -> None:
-        seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
-                           (cur.lastrowid,)).fetchone()["n"]
-        conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
-                     (cur.lastrowid, seq, "assistant", content))
-        conn.commit()
+        from ..store.db import append_agent_message
+        append_agent_message(conn, cur.lastrowid, "assistant", content)   # B2：原子 seq 取号
 
     # 会话收口（2026-11-15 闲时找bug）：成功/诚实跳过/异常三路都不悬开——
     # 整段 try/finally 关闭（l4 是唯一从不写 ended_at 的 leg）

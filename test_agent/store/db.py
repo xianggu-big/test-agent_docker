@@ -279,3 +279,17 @@ def write_conn(db_path: Path | None = None):
         raise
     finally:
         conn.close()
+
+
+def append_agent_message(conn, session_id: int, role: str, content: str) -> None:
+    """会话消息原子追加（B2，2026-11-27）：seq 取号内联在 INSERT 子查询里——
+    `(SELECT COALESCE(MAX(seq),-1)+1 FROM agent_messages WHERE session_id=?)`，
+    SQLite 单写锁下同语句取号+写入原子化。旧口径先 COUNT(*) 再 INSERT 有两类坏法：
+    ①两连接并发 COUNT 同值 → UNIQUE(session_id,seq) IntegrityError；
+    ②删过消息后 COUNT 偏小 → 序号重用同撞 UNIQUE。"""
+    conn.execute(
+        "INSERT INTO agent_messages(session_id, seq, role, content) "
+        "VALUES (?, (SELECT COALESCE(MAX(seq),-1)+1 FROM agent_messages "
+        "WHERE session_id=?), ?, ?)",
+        (session_id, session_id, role, content))
+    conn.commit()

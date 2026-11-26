@@ -129,12 +129,9 @@ def record_soft_override(ctx: TaskCtx, heuristic: str, evidence: str) -> None:
             (ctx.task_id,)).fetchone()
         if row is None:
             return
-        seq = ctx.conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
-                               (row["id"],)).fetchone()["n"]
-        ctx.conn.execute(
-            "INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
-            (row["id"], seq, "assistant",
-             f"[agent-loop·soft-override] {heuristic}：{evidence[:300]}（留痕，未生效）"))
-        ctx.conn.commit()
+        from ..store.db import append_agent_message
+        append_agent_message(
+            ctx.conn, row["id"], "assistant",
+            f"[agent-loop·soft-override] {heuristic}：{evidence[:300]}（留痕，未生效）")
     except Exception as e:      # noqa: BLE001 —— 留痕失败不炸主链路
         log.warning("soft-override 留痕失败 task=%s: %s", ctx.task_id, e)

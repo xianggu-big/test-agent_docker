@@ -573,11 +573,8 @@ def make_l2_nodes(deps):
     conn, registry, skills = deps.conn, deps.registry, deps.skills
 
     def msg(session_id: int, content: str) -> None:
-        seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
-                           (session_id,)).fetchone()["n"]
-        conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES(?,?,?,?)",
-                     (session_id, seq, "assistant", content))
-        conn.commit()
+        from ..store.db import append_agent_message
+        append_agent_message(conn, session_id, "assistant", content)   # B2：原子 seq 取号
 
     def _collect_app_logs(state: L2State, round_no: int) -> None:
         # 黑盒能力补齐阶段1：应用日志分流落库（采集→宿主快照→解析→app_logs）。

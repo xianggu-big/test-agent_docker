@@ -43,11 +43,8 @@ def make_l3_nodes(deps):
     conn, registry = deps.conn, deps.registry
 
     def msg(session_id: int, content: str) -> None:
-        seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
-                           (session_id,)).fetchone()["n"]
-        conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
-                     (session_id, seq, "assistant", content))
-        conn.commit()
+        from ..store.db import append_agent_message
+        append_agent_message(conn, session_id, "assistant", content)   # B2：原子 seq 取号
 
     def _leg_update(task_id: int, **fields) -> None:
         sets = ", ".join(f"{k}=?" for k in fields)

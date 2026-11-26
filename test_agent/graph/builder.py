@@ -604,13 +604,12 @@ def log_feedback_message(conn, task_id: int, fb_no: int, feedback_text: str) -> 
             (task_id,)).fetchone()
         if ses is None:
             return None
-        seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
-                           (ses["id"],)).fetchone()["n"]
-        cur = conn.execute(
-            "INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
-            (ses["id"], seq, "user", f"[feedback 第{fb_no}轮] {feedback_text}"))
-        conn.commit()
-        return cur.lastrowid
+        from ..store.db import append_agent_message
+        append_agent_message(conn, ses["id"], "user",
+                             f"[feedback 第{fb_no}轮] {feedback_text}")   # B2：原子 seq 取号
+        cur = conn.execute("SELECT id FROM agent_messages WHERE session_id=? "
+                           "ORDER BY seq DESC LIMIT 1", (ses["id"],))
+        return cur.fetchone()[0]
     except Exception as e:      # noqa: BLE001 —— 留痕失败不炸增补主链路（如实日志）
         logging.warning("反馈留档失败 task=%s: %s", task_id, e)
         return None
@@ -727,11 +726,8 @@ def _reviewer_msg(conn, task_id: int, content: str) -> None:
                        (task_id,)).fetchone()
     if not row:
         return
-    seq = conn.execute("SELECT COUNT(*) AS n FROM agent_messages WHERE session_id=?",
-                       (row["id"],)).fetchone()["n"]
-    conn.execute("INSERT INTO agent_messages(session_id, seq, role, content) VALUES (?,?,?,?)",
-                 (row["id"], seq, "assistant", content))
-    conn.commit()
+    from ..store.db import append_agent_message
+    append_agent_message(conn, row["id"], "assistant", content)   # B2：原子 seq 取号
 
 
 def _auto_review_loop(deps: GraphDeps, task_id: int) -> dict:
