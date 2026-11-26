@@ -66,3 +66,24 @@ def test_rootdir_subdir_value_restricts(tmp_path):
     ws = tmp_path
     _mk(ws, "jest.config.js", "module.exports = { rootDir: 'app', };")
     assert _jest_config_restricts_scan(ws) is True
+
+
+def test_ts_config_nonrestrict_needs_inline(tmp_path):
+    """1968 实锤（2026-11-26 容器复现）：jest.config.ts（Nx 异步工厂形态）裸 jest
+    必崩 readConf（index.js:147）——容器全局 jest 无 ts-node，任何 .ts 配置文件都
+    加载不了；项目自带 ts-node 也救不了（Nx 工厂在裸 jest 上下文跑不起来）。
+    修复=非限定 .ts 配置也注入内联（"宁可误注入"既有纪律；1664 实锤内联形态对
+    TS 有效）。.js/.mjs/.cjs/.json 的非限定配置不受影响（可被全局 jest 加载）。"""
+    ws = tmp_path
+    _mk(ws, "jest.config.ts",
+        "export default async (): Promise<Config> => ({ projects: await getJestProjectsAsync() });")
+    _mk(ws, "package.json", json.dumps({"name": "nx-app", "devDependencies": {"@nx/jest": "*"}}))
+    assert _js_needs_inline(ws, "typescript") is True
+
+
+def test_mjs_config_nonrestrict_still_project(tmp_path):
+    """可加载形态（.mjs）的非限定配置保持走项目配置（零行为变化档不收窄）。"""
+    ws = tmp_path
+    _mk(ws, "jest.config.mjs", "export default { testEnvironment: 'node' };")
+    _mk(ws, "package.json", json.dumps({"name": "x"}))
+    assert _js_needs_inline(ws, "javascript") is False

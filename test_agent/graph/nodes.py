@@ -516,12 +516,20 @@ def _js_needs_inline(ws: Path, lang: str) -> bool:
     """run 节点 jest 内联配置注入判定（纯函数，单测锁）。
     三档：①无任何配置 → TS/散装形态注入（853 先例）②有配置但限定扫描范围
     （testMatch/roots/rootDir 子目录）→ 注入覆盖（1291 nestjs 盲区，2026-11-17
-    并行取证会商修复方向）③有配置且不限定 → 走项目自己的配置（零行为变化）。"""
+    并行取证会商修复方向）③有配置且不限定 → 走项目自己的配置（零行为变化）。
+    例外（1968 实锤，2026-11-26 容器复现）：.ts 配置不限定也注入——容器全局 jest
+    无 ts-node 加载不了任何 TS 配置（readConf index.js:147 崩），Nx 异步工厂在裸
+    jest 下更跑不起来；"宁可误注入"纪律（1664 实锤内联形态对 TS 有效）。"""
     has_cfg = any((ws / n).exists() for n in
                   ("jest.config.js", "jest.config.ts", "jest.config.mjs",
                    "jest.config.cjs", "jest.config.json")) or _pkg_declares_jest(ws)
     if has_cfg:
-        return _jest_config_restricts_scan(ws)
+        if _jest_config_restricts_scan(ws):
+            return True
+        # 可加载形态（.js/.mjs/.cjs/.json/package.json 内嵌）保持零行为变化档
+        if (ws / "jest.config.ts").exists():
+            return True
+        return False
     return lang == "typescript" or not (ws / "package.json").exists()
 
 
