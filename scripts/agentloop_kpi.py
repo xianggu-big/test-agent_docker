@@ -80,11 +80,25 @@ def load_runs(conn, since: str | None, baseline: bool) -> list[dict]:
     if baseline:
         q += " AND r.prompt_version='v1'"
     elif since:
-        # 点火时刻（本地时间）之后启动的 run
-        q += " AND r.started_ms >= (SELECT strftime('%s', ?) * 1000)"
-        args.append(since)
+        # 点火时刻（本地时间）之后启动的 run——SQLite strftime 会把字符串当 UTC，
+        # 本地时区换算必须在 Python 侧做（实测踩坑：UTC 语义把窗口推到未来=0 run）
+        import datetime as _dt
+        epoch_ms = int(_dt.datetime.strptime(since, "%Y-%m-%d %H:%M")
+                       .timestamp() * 1000)
+        q += " AND r.started_ms >= ?"
+        args.append(epoch_ms)
     q += " ORDER BY r.id"
     return [dict(r) for r in conn.execute(q, args).fetchall()]
+
+
+def task_steps(conn, task_id: int, mode: str) -> list[dict]:
+    """按 task 取某模式的全部循环步（跨 run 行——两阶段任务有 prep/exec 两条 run，
+    诊断步挂在阶段二 run 下，按单 run 查会漏）。"""
+    rows = conn.execute(
+        "SELECT s.step_no, s.action_type, s.decision_json FROM agent_steps s "
+        "JOIN agent_runs r ON r.id=s.run_id WHERE r.task_id=? AND s.mode=? "
+        "ORDER BY s.run_id, s.step_no", (task_id, mode)).fetchall()
+    return [dict(r) for r in rows]
 
 
 def strategy_metrics(conn, runs: list[dict], workspace_of) -> dict:
@@ -98,9 +112,7 @@ def strategy_metrics(conn, runs: list[dict], workspace_of) -> dict:
     steps_sum = 0
     samples: list[dict] = []
     for r in runs:
-        steps = conn.execute(
-            "SELECT step_no, action_type, decision_json FROM agent_steps "
-            "WHERE run_id=? AND mode='strategy' ORDER BY step_no", (r["id"],)).fetchall()
+        steps = task_steps(conn, r["task_id"], "strategy")
         if not steps:
             continue          # 非 strategy 循环（诊断行等）不计
         n_loops += 1
@@ -165,7 +177,8 @@ def workspace_of(conn, task_id: int, cases_only: bool = False) -> list[str]:
 
 
 def diagnose_metrics(conn, runs: list[dict], labels: dict) -> dict:
-    """D-K1..K4（D-K5 只观察）。labels={task_id: {"class": 设定类别}}——夹具标签。"""
+    """D-K1..K4（D-K5 只观察）。labels={task_id: {"class": 设定类别}}——夹具标签。
+    两阶段任务有 prep/exec 两条 run 行——按 task 去重（每格只判一次）。"""
     n_valid = 0
     n_kind_ok = 0
     n_refs = 0
@@ -175,17 +188,19 @@ def diagnose_metrics(conn, runs: list[dict], labels: dict) -> dict:
     n_suggest_ok = 0
     n_suggest = 0
     per_cell: list[dict] = []
+    seen_tasks: set[int] = set()
     consistent = {"scaffold_error": {"scaffold_fix", "generate"},
                   "expectation_dispute": {"generate", "report_human"},
                   "env_error": {"env_fix"},
                   "product_defect": {"report_human"}}
     for r in runs:
+        if r["task_id"] in seen_tasks:
+            continue
+        seen_tasks.add(r["task_id"])
         lab = labels.get(str(r["task_id"])) or labels.get(r["task_id"])
         if not lab:
             continue
-        steps = conn.execute(
-            "SELECT step_no, action_type, decision_json FROM agent_steps "
-            "WHERE run_id=? AND mode='diagnose' ORDER BY step_no", (r["id"],)).fetchall()
+        steps = task_steps(conn, r["task_id"], "diagnose")
         if not steps:
             continue          # 夹具未触发诊断（不算数也不算失败）
         n_valid += 1
@@ -234,11 +249,16 @@ def cost_metrics(conn, runs: list[dict]) -> dict:
             durs.append((r["ended_ms"] - r["started_ms"]) / 1000)
     durs.sort()
     p50 = durs[len(durs) // 2] if durs else None
-    toks = conn.execute(
-        "SELECT COALESCE(SUM(prompt_tokens),0) p, COALESCE(SUM(completion_tokens),0) c "
-        "FROM llm_calls").fetchone()
+    tids = [r["task_id"] for r in runs]
+    p = c = 0
+    for t in tids:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(prompt_tokens),0) p, COALESCE(SUM(completion_tokens),0) c "
+            "FROM llm_calls WHERE task_id=?", (t,)).fetchone()
+        p += row["p"]
+        c += row["c"]
     return {"n_runs": len(runs), "P50_s": round(p50, 1) if p50 else None,
-            "llm_prompt_tokens": toks["p"], "llm_completion_tokens": toks["c"]}
+            "llm_prompt_tokens": p, "llm_completion_tokens": c}
 
 
 def main() -> int:

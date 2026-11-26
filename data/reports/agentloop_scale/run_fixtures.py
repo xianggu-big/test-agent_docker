@@ -33,38 +33,53 @@ CELLS = HERE / "cells"
 LABELS = HERE / "fixture_labels.json"
 PRICE = {"deepseek-chat": (1, 2)}
 PEAK_START = ("09:00", "14:00")
-REPO = ROOT / "data/demo/js-calc"
-BASELINE = 1156
+REPO = ROOT / "data/demo/L2场景-coupon-api"
+BASELINE = 1155
 
-# 夹具用例（JS 形态，名字 test_ 开头=api_add_case 校验；植入类别见测试任务报告 §4.2）
+# 夹具用例（Python/pytest 形态，coupon-api=天然干净项目——阶段二结构性地会重新生成
+# AI 用例（2637/2638 实锤：删文件无效），干净项目上 AI 用例全过=诊断时失败只剩夹具
+# =纯信号；js-calc 上做会混入 clamp 真缺陷失败 → 判据失真。此为 P0 现场设计修订，
+# 依应变协议留痕：夹具宿主 js-calc→coupon-api，类别与判据不变）
 FIXTURES = {
     "D1": {
         "class": "scaffold_error",
         "confidence": "high",
         "code": (
-            "test(\"test_d1_scaffold_probe\", () => {\n"
-            "  const calc = require(\"./calc_nope\");\n"
-            "  expect(calc.clamp(1, 0, 2)).toBe(1);\n"
-            "});"
+            "import os, sys\n"
+            "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
+            "from coupon_nope import nothing\n"
+            "\n"
+            "def test_d1_scaffold_probe():\n"
+            "    assert True"
         ),
     },
     "D2": {
         "class": "expectation_dispute",
         "confidence": "high",
         "code": (
-            "test(\"test_d2_expectation_probe\", () => {\n"
-            "  const calc = require(\"./src/calc.js\");\n"
-            "  expect(calc.add(2, 2)).toBe(5); // expected_basis: 常识（加法应该进位到 5）\n"
-            "});"
+            "import os, sys\n"
+            "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
+            "from fastapi.testclient import TestClient\n"
+            "from app import app\n"
+            "\n"
+            "def test_d2_expectation_probe():\n"
+            "    c = TestClient(app)\n"
+            "    r = c.post(\"/coupons\", json={\"code\": \"D2P\", \"percent\": 10,\n"
+            "                                  \"min_total\": 100})\n"
+            "    assert r.status_code == 201, r.text\n"
+            "    got = c.get(f\"/coupons/{r.json()['id']}\")\n"
+            "    assert got.json() is None  # expected_basis: 常识（查询应返回 None 而非券详情）"
         ),
     },
     "D3": {
         "class": "scaffold_error",       # 收集失败形态（零可收集用例）
         "confidence": "medium",
         "code": (
-            "test.skip(\"test_d3_skip_probe\", () => {\n"
-            "  expect(1).toBe(1);\n"
-            "});"
+            "import pytest\n"
+            "\n"
+            "@pytest.mark.skip(reason=\"zero-exec fixture\")\n"
+            "def test_d3_skip_probe():\n"
+            "    assert True"
         ),
     },
 }
@@ -150,12 +165,13 @@ def diagnose_steps_n(tid: int) -> int:
 def run_fixture(cls: str, rep: int, dev_token: str, caller_token: str) -> dict:
     fx = FIXTURES[cls]
     req = load_req()
+    # 两阶段任务（设计 §4.2）：two_stage=true；确认=授权+自动启动阶段一
     t = api("POST", "/api/tasks", caller_token,
             {"repo_url": str(REPO), "requirement": req,
-             "coverage_target": 0.7, "name": f"al-fx-{cls}-{rep}"})
+             "coverage_target": 0.7, "name": f"al-fx-{cls}-{rep}",
+             "two_stage": True})
     tid = t["task_id"]
     api("POST", f"/api/tasks/{tid}/confirm", dev_token)
-    api("POST", f"/api/tasks/{tid}/run", dev_token)
     # 阶段一：停在待审查（ready_for_review）；20 分钟封顶
     st = wait_terminal(tid, dev_token, {"ready_for_review", "failed", "done",
                                         "cancelled"}, 1200)
@@ -170,8 +186,19 @@ def run_fixture(cls: str, rep: int, dev_token: str, caller_token: str) -> dict:
             json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[fx] {cls}#{rep} 阶段一未停等（{st}）——夹具未触发，tid={tid}", flush=True)
         return rec
-    # 停用 AI 用例 → 植入夹具 → 放行阶段二
+    # 停用 AI 用例（DB 侧留痕）+ 删除工作区 AI 测试文件（执行侧纯化——阶段二跑的
+    # 是工作区文件，DB 停用不阻止执行；2637 实锤：不删文件则 repair 前的执行仍带
+    # AI 用例，真实缺陷失败混入夹具信号 → 诊断判 product_defect）
     notes["disabled_ai_cases"] = disable_all_ai_cases(tid, dev_token)
+    ws = ROOT / "data" / "workspaces" / f"task_{tid}"
+    removed = 0
+    if ws.exists():
+        for pat in ("test_gen_r*.py", "test_gen_r*.js", "test_gen_fb*.py",
+                    "test_imported*.py", "test_imported*.js"):
+            for p in ws.glob(pat):
+                p.unlink(missing_ok=True)
+                removed += 1
+    notes["removed_workspace_files"] = removed
     api("POST", f"/api/tasks/{tid}/cases", dev_token,
         {"name": f"test_d{cls[1:]}_probe_{rep}", "code": fx["code"],
          "method": "夹具植入"})
