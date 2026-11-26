@@ -151,7 +151,9 @@ def strategy_metrics(conn, runs: list[dict], workspace_of) -> dict:
         "n_priorities": n_pri,
         "S_K2_concrete_rate": (n_concrete / n_pri) if n_pri else None,
         "S_K3_real_rate": (n_concrete_real / n_concrete) if n_concrete else None,
-        "S_K4_landed_rate": (n_real_landed / n_concrete) if n_concrete else None,
+        # A0-2（2026-11-27）：分母按设计=真实的优先项（n_concrete_real），
+        # 旧写 n_concrete 把"具体但非真实"的优先项也算了进去
+        "S_K4_landed_rate": (n_real_landed / n_concrete_real) if n_concrete_real else None,
         "S_K5_avg_steps": (steps_sum / n_loops) if n_loops else None,
         "samples": samples,
     }
@@ -159,19 +161,25 @@ def strategy_metrics(conn, runs: list[dict], workspace_of) -> dict:
 
 def workspace_of(conn, task_id: int, cases_only: bool = False) -> list[str]:
     """工作区源码符号集（粗粒度：文件内容字符串列表；cases_only=True 只取用例）。
-    真实率=符号在源码里出现；落地率=符号出现在生成用例里。"""
+    真实率=符号在源码里出现；落地率=符号出现在生成用例里。
+    【A0-2 修订 2026-11-27】源码收集补 .go/.ts/.php/.java（旧版只读 .js/.py，
+    go-api-book 的 S-K3 真实率被压到 0.657，按子串口径真值 1.0）；用例收集补
+    TestGen*_test.go / TestGen*.php / src/test/java/TestGen*.java（gen_tests
+    的生成文件命名真源，TestGenFb* 前缀同被 TestGen* 覆盖）。"""
     ws = ROOT / "data" / "workspaces" / f"task_{task_id}"
     texts: list[str] = []
     if ws.exists():
-        for pat in ("test_gen_r*.js", "test_gen_r*.py", "test_gen_fb*.py", "test_gen*.ts"):
+        for pat in ("test_gen_r*.js", "test_gen_r*.py", "test_gen_fb*.py",
+                    "test_gen*.ts", "TestGen*.go", "TestGen*.php",
+                    "src/test/java/TestGen*.java"):
             for p in ws.glob(pat):
                 texts.append(p.read_text(encoding="utf-8", errors="ignore"))
         if not cases_only:
-            for p in ws.rglob("*.js"):
-                if "node_modules" not in str(p) and "test" not in p.name:
-                    texts.append(p.read_text(encoding="utf-8", errors="ignore"))
-            for p in ws.rglob("*.py"):
-                if "test" not in p.name and "node_modules" not in str(p):
+            for pat in ("*.js", "*.py", "*.go", "*.ts", "*.php", "*.java"):
+                for p in ws.rglob(pat):
+                    if ("node_modules" in str(p) or "test" in p.name
+                            or "vendor" in p.parts):
+                        continue
                     texts.append(p.read_text(encoding="utf-8", errors="ignore"))
     return texts
 
