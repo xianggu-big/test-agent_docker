@@ -1188,10 +1188,13 @@ def make_nodes(deps: GraphDeps) -> dict:
         # （生成文件不存在时 collect_gate_files 返回空，零开销）。
         from ..skills.gen_tests import collect_gate_files
         try:
-            dropped = collect_gate_files(runner, container, conn, tid, Path(state["workspace"]))
+            dropped, gate_reasons = collect_gate_files(runner, container, conn, tid,
+                                                       Path(state["workspace"]))
             if dropped:
                 msg(state["session_id"], "assistant",
-                    "[provision] 顺延的收集闸：废案 " + "、".join(dropped))
+                    "[provision] 顺延的收集闸：废案 "
+                    + "；".join(f"{f}（原因：{(gate_reasons.get(f) or '见日志')[:100]}）"
+                                for f in dropped))
         except Exception as e:      # noqa: BLE001 —— 闸失败不引入新失败面（run 轮归因兜底）
             log.warning("顺延收集闸跳过（%s: %s）", type(e).__name__, e)
         dep = registry.invoke(tid, skills["install_deps"], {

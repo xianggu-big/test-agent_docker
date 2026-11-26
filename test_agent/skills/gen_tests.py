@@ -2243,7 +2243,9 @@ def rebuild_gen_files_from_db(conn, task_id: int, ws: Path) -> int:
 def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[str]:
     """阶段一顺延的收集闸（两阶段执行图 provision 快照后补跑）：逐生成文件做容器内收集闸
     （Python: pytest --collect-only / JS: node --check / PHP: php -l），失败文件整体废案，
-    返回废案文件名清单。test_imported.* 只报告不删库（人工插入用例保留审计，交由人工在
+    返回（废案文件名清单, 原因表{fname: 闸 stderr/stdout 尾部}）——C4（2026-11-27）：
+    此前只记文件名（D2 夹具被废却查不到为何），原因只进 log 不进消息，无从取证。
+    test_imported.* 只报告不删库（人工插入用例保留审计，交由人工在
     评审页处理）。
     2026-11-15 卡 3 取证实锤（1142）：旧清单只有 python/js 形态——go/java/php 生成文件
     不进清单 → 顺延闸对三语言空转 → run 时 [build failed] 无人拦截（TestR1 结果 0 条）。
@@ -2258,13 +2260,15 @@ def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[
         if (Path(ws) / imported_name).exists():
             names.append(imported_name)
     dropped: list[str] = []
-    for fname in names:
+    reasons: dict[str, str] = {}     # C4（2026-11-27）：废案原因随返回值出——此前只记
+    for fname in names:              # 文件名（D2 夹具被废却查不到为何），原因只进 log
         gate_cmd = (["node", "--check", fname] if fname.endswith(".test.js")
                     else ["php", "-l", fname] if fname.endswith(".php")
                     else ["pytest", "--collect-only", "-q", fname])
         r = runner.exec_in(container, gate_cmd, timeout_s=120)
         if r.exit_code == 0:
             continue
+        reasons[fname] = (r.stderr or r.stdout or "").strip()[-160:]
         dropped.append(fname)
         (Path(ws) / fname).unlink(missing_ok=True)
         runner.exec_in(container, ["rm", "-f", f"/work/{fname}"], timeout_s=30)
@@ -2291,6 +2295,9 @@ def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[
             log.info("collect_gate_files task=%s %s 项目级闸通过（%s 个生成文件）",
                      task_id, lang, len(files))
             continue
+        # C4：项目级闸整组废案同样带原因（go build/mvn 编译错误尾部）
+        for fname in files:
+            reasons[fname] = (r.stderr or r.stdout or "").strip()[-160:]
         dropped.extend(files)
         for fname in files:
             (ws / fname).unlink(missing_ok=True)
@@ -2306,4 +2313,4 @@ def collect_gate_files(runner, container, conn, task_id: int, ws: Path) -> list[
                        timeout_s=30)
         log.warning("collect_gate_files task=%s %s 项目级闸失败，整组废案 %s: %s",
                     task_id, lang, files, (r.stderr or "")[-200:])
-    return dropped
+    return dropped, reasons

@@ -116,7 +116,7 @@ def test_collect_gate_go_project_level(tmp_db, tmp_path):
     for f in ("TestGenR1_test.go", "TestGenR2_test.go"):
         _seed_script(tmp_db, tid, f)
     runner = _FakeRunner(fail_prefixes=("go-build-gate",))
-    dropped = collect_gate_files(runner, object(), tmp_db, tid, tmp_path)
+    dropped = collect_gate_files(runner, object(), tmp_db, tid, tmp_path)[0]
     assert sorted(dropped) == ["TestGenR1_test.go", "TestGenR2_test.go"], \
         "go 生成文件必须进顺延闸且失败整组废案（旧形态根本不进清单）"
     assert not (tmp_path / "TestGenR1_test.go").exists()
@@ -129,7 +129,7 @@ def test_collect_gate_go_pass_keeps(tmp_db, tmp_path):
     tid = _mk_task(tmp_db)
     _seed_script(tmp_db, tid, "TestGenR1_test.go")
     runner = _FakeRunner(fail_prefixes=())
-    dropped = collect_gate_files(runner, object(), tmp_db, tid, tmp_path)
+    dropped = collect_gate_files(runner, object(), tmp_db, tid, tmp_path)[0]
     assert dropped == [] and (tmp_path / "TestGenR1_test.go").exists()
 
 
@@ -147,7 +147,7 @@ def test_collect_gate_php_lint_file_level(tmp_db, tmp_path):
             if cmd[0] == "php" and "TestGenR2" in " ".join(cmd):
                 return _R(1, stderr="Parse error")
             return _R(0)
-    dropped = collect_gate_files(_Sel(fail_prefixes=()), object(), tmp_db, 1, tmp_path)
+    dropped = collect_gate_files(_Sel(fail_prefixes=()), object(), tmp_db, 1, tmp_path)[0]
     assert dropped == ["TestGenR2.php"], "php 闸必须逐文件归责"
     assert (tmp_path / "TestGenR1.php").exists() and not (tmp_path / "TestGenR2.php").exists()
 
@@ -159,6 +159,6 @@ def test_collect_gate_java_project_level(tmp_db, tmp_path):
     _mk_task(tmp_db)
     _seed_script(tmp_db, 1, "src/test/java/TestGenR1.java")
     runner = _FakeRunner(fail_prefixes=("mvn",))
-    dropped = collect_gate_files(runner, object(), tmp_db, 1, tmp_path)
+    dropped = collect_gate_files(runner, object(), tmp_db, 1, tmp_path)[0]
     assert dropped == ["src/test/java/TestGenR1.java"]
     assert not (d / "TestGenR1.java").exists()
