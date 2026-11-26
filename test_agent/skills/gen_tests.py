@@ -2098,6 +2098,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
     # —— C3（2026-11-27）：剔除项落库（enabled=0 + 原因）——"生成→剔除→落盘"漏斗
     # 此前只在消息里（且 `[generate 第N轮] {json}` 多数不可解析）不可审计；现在每个
     # 被闸剔除的用例在库里有行可查（source='ai_cull'，content=原因，enabled=0）。
+    go_stripped = go_stripped if "go_stripped" in dir() else []   # 非 go 分支未定义
     cull_rows: list[tuple[str, str]] = []
     for x in (template_rejected or []):
         cull_rows.append((str(x)[:120], "模板展开失败"))

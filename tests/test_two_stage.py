@@ -244,8 +244,9 @@ def test_collect_gate_files_drops_uncollectable(task_env):
             return R()
 
     from test_agent.skills.gen_tests import collect_gate_files as _cgf
-    dropped = _cgf(FakeRunner(), object(), conn, tid, ws)
+    dropped, _reasons = _cgf(FakeRunner(), object(), conn, tid, ws)
     assert dropped == ["test_gen_fb1.py"]
+    assert "ModuleNotFoundError" in (_reasons.get("test_gen_fb1.py") or ""),         "C4：废案原因随返回值出（消息侧可取证）"
     assert not (ws / "test_gen_fb1.py").exists()
     assert (ws / "test_gen_r1.py").exists()
     assert conn.execute("SELECT COUNT(*) AS n FROM test_cases WHERE script_id=?",
