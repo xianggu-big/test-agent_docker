@@ -203,6 +203,39 @@ def test_hallucination_checks_c1_c2(env):
     assert abs(h["checkable_hallucination_rate"] - 2 / 4) < 1e-9
 
 
+def test_hallucination_c1_diagnose_accepts_zero_summary_ref(env):
+    """A0-1（2026-11-27）：AL-2 起 diagnose 提示词让证据引用指向失败摘要编号——
+    第 0 号证据=失败摘要，是真实存在的证据，判成幻觉=平台 bug（v3 规模批 C1=1/1
+    全记无效）。红测试口径：refs=[0] 应 valid、refs=[9]（越界）应 invalid。"""
+    c, tid, uid, pid = env
+    sid, rid = run_ledger.start_run(c, tid, kind="single", goal_text="g")
+    run_ledger.record_step(c, rid, mode="diagnose", loop_no=101, step_no=1,
+                           action_type="call", capability="test.observe.read",
+                           allowed=1, result_status="ok")
+    run_ledger.record_step(c, rid, mode="diagnose", loop_no=101, step_no=2,
+                           action_type="finish", allowed=1,
+                           decision_json=json.dumps({
+                               "action": "finish",
+                               "diagnosis": {"kind": "scaffold_error", "confidence": "high",
+                                             "evidence_refs": [0],   # 失败摘要
+                                             "reason": "r",
+                                             "suggested_action": "scaffold_fix"}}))
+    h = run_metrics.hallucination_checks_for_run(c, rid)
+    assert h["c1"] == {"total": 1, "invalid": 0}       # [0]=失败摘要，不判幻觉
+    # 越界仍判幻觉：ref 9 > max_step=1
+    run_ledger.record_step(c, rid, mode="diagnose", loop_no=101, step_no=3,
+                           action_type="finish", allowed=1,
+                           decision_json=json.dumps({
+                               "action": "finish",
+                               "diagnosis": {"kind": "scaffold_error", "confidence": "high",
+                                             "evidence_refs": [9],
+                                             "reason": "r",
+                                             "suggested_action": "generate"}}))
+    h2 = run_metrics.hallucination_checks_for_run(c, rid)
+    assert h2["c1"]["total"] == 2
+    assert h2["c1"]["invalid"] == 1
+
+
 # ---------- P0-4 ⑥：响应时间起止点与零分母 ----------
 
 def test_response_time_and_summarize_zero_sample(env):

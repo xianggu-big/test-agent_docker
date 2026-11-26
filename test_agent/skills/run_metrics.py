@@ -229,7 +229,7 @@ def hallucination_checks_for_run(conn, run_id: int) -> dict:
         "SELECT COALESCE(MAX(step_no), 0) AS m FROM agent_steps WHERE run_id=? "
         "AND action_type != 'finish'", (run_id,)).fetchone()["m"]
     for r in conn.execute(
-            "SELECT action_type, allowed, deny_reason, decision_json FROM agent_steps "
+            "SELECT mode, action_type, allowed, deny_reason, decision_json FROM agent_steps "
             "WHERE run_id=? ORDER BY step_no", (run_id,)).fetchall():
         if r["action_type"] == "call":
             # C2：每个发起的调用都是一条工具断言（∈菜单+schema=策略闸存在闸/schema 闸）
@@ -248,9 +248,15 @@ def hallucination_checks_for_run(conn, run_id: int) -> dict:
         for ref in diag.get("evidence_refs") or []:
             c1_total += 1
             try:
-                if not (1 <= int(ref) <= max_step):
-                    c1_invalid += 1
+                ref_i = int(ref)
             except (TypeError, ValueError):
+                c1_invalid += 1
+                continue
+            # A0-1（2026-11-27）：AL-2 起 diagnose 提示词把失败摘要编为第 0 号证据
+            # （真实存在的证据），判成幻觉=平台 bug（v3 规模批 C1=1/1 全记无效）
+            if r["mode"] == "diagnose" and ref_i == 0:
+                continue
+            if not (1 <= ref_i <= max_step):
                 c1_invalid += 1
     denom = c1_total + c2_total
     return {
