@@ -1,0 +1,51 @@
+{
+ "label": "recheck_t3",
+ "suite_files": [
+  "test_recheck.py"
+ ],
+ "n_tests": 2,
+ "passed": 1,
+ "failed": 1,
+ "errors": 0,
+ "wall_clock_s": 2.09,
+ "baseline_failures": 1,
+ "detection": {
+  "D1": {
+   "detected": false,
+   "tests": [],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": false,
+   "tests": [],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": false,
+   "tests": [],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": false,
+   "tests": [],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": false,
+   "tests": [],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 0,
+ "defects_real": 5,
+ "detection_rate": 0.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_gwl_2ymt/test_recheck.py::test_duration_boundary"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档",
+ "mutation": {
+  "mutants_total": 17,
+  "killed": 17,
+  "kill_rate": 1.0
+ }
+}
