@@ -5,7 +5,8 @@
 > 数据附件：data/reports/agentloop_scale/{judgment_v3.json, ab_judgment.json,
 > ab_g2_scores.json, gates_audit.json, kpi_after_a0.json, c9_stats.json}。
 > 模型口径：本夜全部 deepseek-flash（生产库 11-20 起 100% flash）；所有"¥"为
-> chat 单价估算（保守上限，实付更低）。余额：期初 ¥11.91 → A5b 完成后 ¥9.56。
+> chat 单价估算（保守上限，实付更低）。余额：期初 ¥11.91 → A5b 完成后 ¥9.56 →
+> bench3 后 ¥9.17（全夜实耗 ≈¥2.74）。
 
 ## 1. 概览
 
@@ -17,7 +18,7 @@
 | A5b 对照臂·关（tag=off） | 17 | ¥0.5364 | server 不带 MTA_AGENT_LOOP |
 | A5b 对照臂·开（tag=on） | 16 | ¥0.5554 | A0 修复后的 v3 |
 | **A5b 合计** | **33** | **¥1.0918** | 停车线 ¥1.30 内 |
-| A5 bench3 抽样（循环开臂） | 10 | 见 §7 | 独立线束，与循环关基线对照 |
+| A5 bench3 抽样（循环开臂） | 10 | ≈¥0.39（余额差额实算；worker 结算件不含成本字段） | 独立线束，与循环关基线对照 |
 
 臂别真源=config_json.flags.agent_loop_enabled（逐格断言，1 格 tag 误挂按真源改归，
 见 §4 坑②）。生产 server 于 A5b 结束后停止（收工态=停止，非恢复无旗标——本夜四段
@@ -114,9 +115,19 @@ raw_decode 救回）：
 
 抽样（种子 42，分层 HEF 4 + BugsInPy 3 + QuixBugs 3，剥装饰后基线名 76 格）；
 基线=bench3_results.json（11-22/23 三轮终账，循环关）。本轮以 MTA_AGENT_LOOP=1
-worker 模式独立线束跑，不写基线账本。
+worker 模式独立线束跑，不写基线账本。实耗 ≈¥0.39（期初 9.56→9.17 余额差额）。
 
-（结果见下表——批次完成后填充）
+| 格 | 循环开臂 | 基线（循环关） | 一致 |
+|---|---|---|---|
+| Python_0 / 11 / 27 / 3 | detected ×4 | detected ×4 | ✓ |
+| find_in_sorted / gcd / sieve | detected ×3 | detected ×3 | ✓ |
+| cookiecutter-bug2 / sanic-bug1 | not_detected | not_detected | ✓ |
+| tornado-bug1 | not_detected（35 失败，fail-to-pass=0） | no_tests（零可收集用例） | ✗（结论同向：均未检出） |
+
+**检出：循环开 7/10 vs 循环关基线 7/10；逐格一致 9/10（唯一分歧两臂同为"未检出"）。**
+真基准轴与 A5b 演示/难项目轴互证：**循环增益无证据，检出无退化**。tornado-bug1 的
+行为差异（关臂零收集 vs 开臂 35 条失败但无 fail-to-pass）是生成形态差异，不是检出
+能力差异；BugsInPy 层 0/3 维持真仓库梯度结论（0/8）。
 
 ## 8. A5b：循环开/关对照臂（预注册判读 G1-G4）
 
@@ -163,7 +174,8 @@ B 臂 n=1（需求歧义区救援）。**C13 关账：现有数据答"无证据"
 3. run_ledger flags 快照缺 flaky_reruns 键（run_ledger.py:89 只记四键）——补一行
    使三闸全量落账（零行为变更，可直接做）。
 4. A5b 教训进应变协议：切臂后先跑 1 格验证 arm 真源再放量。
-5. bench3 循环开臂抽样若与基线有分歧格，值得逐格尸检后再谈结论。
+5. bench3 唯一分歧格 tornado-bug1 已双向定性（关臂零收集 vs 开臂 35 失败无
+   fail-to-pass，结论同向=未检出）；如需更深因果可另做逐格尸检，非必需。
 
 **变更记录**
 
