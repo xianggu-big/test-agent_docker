@@ -525,7 +525,11 @@ def _endpoint_gap_section(endpoint_gaps: list[str] | None) -> str:
 # v1 变更：①修断链（mode_extra_key 的 finish 产物键说明从未注入系统提示词——
 #   tool_loop 直用模块常量，build_agent_decide_system 零调用方；策略产物零出现的
 #   根因之一）②三问判定锚 ③strategy 模式 finish 示例锚定 ④重复观察计数进 obs。
-AGENT_LOOP_PROMPT_VERSION = "v1"
+# v2 变更（Q4，2026-11-26）：仅修正 strategy finish 示例文本——capability_id 简写
+#   gen_cases→test.gen.cases；args_hint {"target"}→{"feedback"}（原示例与菜单/schema
+#   自相矛盾）。提示词结构与其余段落逐字节不变。v1 实测 84/84 优先项未照抄示例错误，
+#   预期 v2 行为与 v1 等价——这是先验不是证据，跨版合并报告需同格对照。
+AGENT_LOOP_PROMPT_VERSION = "v2"
 
 AGENT_DECIDE_SYSTEM = """你是测试 Agent 的决策器。你只能输出一个 JSON 对象，两种形态之一。
 
@@ -557,9 +561,9 @@ AGENT_STRATEGY_FINISH_EXAMPLE = """
 ## 最小 finish 示例（strategy 模式的正确收尾形态——照这个结构写）
 {"action": "finish",
  "summary": "已读 calc 模块源码与首轮用例执行结果：add/sub 正常，clamp 边界有 3 条失败疑似缺陷；缺口是 div 未覆盖。",
- "strategy": {"priorities": [{"order": 1, "capability_id": "gen_cases",
+ "strategy": {"priorities": [{"order": 1, "capability_id": "test.gen.cases",
                               "why": "clamp 失败证据已足，补 div 边界用例",
-                              "args_hint": {"target": "div"}}],
+                              "args_hint": {"feedback": "div 的除零与负数边界未覆盖，补 3 条边界用例"}}],
               "evidence_plan": ["div 各边界的新用例执行结果"],
               "fallback": "若 gen 失败则手动审查 div 源码并报告缺口"}}"""
 

@@ -9,8 +9,12 @@ import types
 
 import pytest
 
+from test_agent.skills import capabilities as caps
 from test_agent.skills import tool_loop
 from test_agent.skills.capabilities import CapResult, TaskCtx
+from test_agent.skills.prompt_library import (AGENT_STRATEGY_FINISH_EXAMPLE,
+                                              build_agent_decide_system)
+from test_agent.skills.registry import _validate_args
 
 
 class _FakeResp:
@@ -207,9 +211,47 @@ def test_observation_warns_when_observe_cap_exhausted(tmp_path, monkeypatch):
 # ---------- 任务5 v1（2026-11-22）：finish 引导——断链修复+三问+示例+重复计数+版本戳 ----------
 
 def test_prompt_version_v1():
-    """版本戳常量（2×2 可比性防线：v0 vs v1 对照必注明）。"""
+    """版本戳常量（2×2 可比性防线：v0/v1/v2 对照必注明）。"""
     from test_agent.skills.prompt_library import AGENT_LOOP_PROMPT_VERSION
-    assert AGENT_LOOP_PROMPT_VERSION == "v1"
+    assert AGENT_LOOP_PROMPT_VERSION == "v2"
+
+
+# ---------- Q4（2026-11-26）：示例机器可核对——示例 ⊆ 菜单、示例参数 ⊆ schema ----------
+
+def _menu_schemas():
+    """真实菜单 {id: inputs_schema}——单一真源是 capabilities，不手抄。"""
+    ctx = types.SimpleNamespace(primary_language="python", agent_mode="strategy")
+    return {c.id: c.inputs_schema for c in caps._build_capabilities(ctx)}
+
+
+def _example_priorities():
+    """从 finish 示例常量里取出 priorities。对常量本身解析，不对系统提示词全文——
+    全文里 '{"action": "finish"' 出现两次（模板行含 {mode_extra_key} 占位，不是合法 JSON）。"""
+    idx = AGENT_STRATEGY_FINISH_EXAMPLE.index('{"action": "finish"')
+    return json.loads(AGENT_STRATEGY_FINISH_EXAMPLE[idx:])["strategy"]["priorities"]
+
+
+def test_strategy_finish_example_injected_verbatim():
+    """示例原样注入 strategy 系统提示词，且不混入 diagnose（防断链、防模式串味）。"""
+    assert AGENT_STRATEGY_FINISH_EXAMPLE in build_agent_decide_system("strategy")
+    assert AGENT_STRATEGY_FINISH_EXAMPLE not in build_agent_decide_system("diagnose")
+
+
+def test_strategy_finish_example_ids_exist_in_menu():
+    """示例里的每个 capability_id 都是真实菜单 id（Q4 起因：示例写了简写 gen_cases）。"""
+    schemas = _menu_schemas()
+    for p in _example_priorities():
+        assert p["capability_id"] in schemas, f"示例能力 id 不在菜单：{p['capability_id']}"
+
+
+def test_strategy_finish_example_args_hints_pass_schema():
+    """示例里每个 args_hint 都能过对应能力的 schema 校验——用策略闸同一个校验器。"""
+    schemas = _menu_schemas()
+    for p in _example_priorities():
+        schema = schemas.get(p["capability_id"])
+        assert schema is not None, f"示例能力 id 不在菜单：{p['capability_id']}"
+        err = _validate_args(schema, p["args_hint"])
+        assert err is None, f"{p['capability_id']} 的示例参数不过 schema：{err}"
 
 
 def test_decide_system_strategy_has_finish_key_and_example():

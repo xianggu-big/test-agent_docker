@@ -54,8 +54,10 @@ def client(env, monkeypatch):
         yield client, headers, c, tid
 
 
-def _make_run(c, tid, kind="single", status="done", summary=None, stop_reason=None):
-    sid, rid = run_ledger.start_run(c, tid, kind=kind, goal_text="g")
+def _make_run(c, tid, kind="single", status="done", summary=None, stop_reason=None,
+              prompt_version=None):
+    sid, rid = run_ledger.start_run(c, tid, kind=kind, goal_text="g",
+                                    prompt_version=prompt_version)
     run_ledger.finish_run(c, rid, status=status, stop_reason=stop_reason,
                           summary_json=json.dumps(summary, ensure_ascii=False)
                           if summary is not None else None)
@@ -276,3 +278,36 @@ def test_outcome_none_for_running_and_summary_null(env):
     sid, rid = run_ledger.start_run(c, tid, kind="single", goal_text="g")   # 不收口
     row = c.execute("SELECT * FROM agent_runs WHERE id=?", (rid,)).fetchone()
     assert run_metrics.outcome_for_run(c, row) is None
+
+
+# ---------- Q4 §5（2026-11-26）：汇总端点标注提示词版本 ----------
+
+def test_api_summary_single_version_no_mixed_keys(client, monkeypatch):
+    """单版本库：只多 prompt_versions 键，无 mixed_* 键（现状输出不变）。"""
+    client_, headers, c, tid = client
+    monkeypatch.setattr(config, "RUN_LEDGER_ENABLED", True)
+    from test_agent.skills.prompt_library import AGENT_LOOP_PROMPT_VERSION
+    _make_run(c, tid, summary=_summary(), prompt_version=AGENT_LOOP_PROMPT_VERSION)
+    _make_run(c, tid, summary=_summary(), prompt_version=AGENT_LOOP_PROMPT_VERSION)
+    r = client_.get("/api/metrics/summary", headers=headers)
+    body = r.json()
+    assert body["prompt_versions"] == {AGENT_LOOP_PROMPT_VERSION: 2}
+    assert "mixed_prompt_versions" not in body and "note" not in body
+
+
+def test_api_summary_mixed_versions_annotated(client, monkeypatch):
+    """混版库：mixed_prompt_versions=true + note；指标照常混版合计不拆分母。"""
+    client_, headers, c, tid = client
+    monkeypatch.setattr(config, "RUN_LEDGER_ENABLED", True)
+    from test_agent.skills.prompt_library import AGENT_LOOP_PROMPT_VERSION
+    _make_run(c, tid, summary=_summary(), prompt_version=AGENT_LOOP_PROMPT_VERSION)
+    rid2 = _make_run(c, tid, summary=_summary())
+    other = "v1" if AGENT_LOOP_PROMPT_VERSION != "v1" else "v0"
+    c.execute("UPDATE agent_runs SET prompt_version=? WHERE id=?", (other, rid2))
+    c.commit()
+    r = client_.get("/api/metrics/summary", headers=headers)
+    body = r.json()
+    assert body["prompt_versions"][other] == 1
+    assert body["mixed_prompt_versions"] is True
+    assert "跨提示词版本" in body["note"]
+    assert body["metrics"]["completion"]["denominator"] == 2

@@ -1009,6 +1009,12 @@ def api_metrics_summary(task_ids: str | None = None, since: str | None = None,
         if not rows:
             return {"ledger_enabled": True, "n_runs": 0, "metrics": None,
                     "note": "无运行样本——零样本返回 null 不报 0"}
+        # Q4 §5（2026-11-26）：提示词版本分布标注——混没混要让读者看得见；
+        # 要不要分版各算/合并报告是论文口径的事，接口不替人决定（不拆分母）。
+        pv: dict[str, int] = {}
+        for r in rows:
+            v = r["prompt_version"] or "unknown"
+            pv[v] = pv.get(v, 0) + 1
         outcomes: dict[str, int] = {}
         rt_values: list[float] = []
         missing_rt = 0
@@ -1034,7 +1040,8 @@ def api_metrics_summary(task_ids: str | None = None, since: str | None = None,
                      if (D - outcomes.get("not_completed_env", 0)) else None)
         tool = run_ledger.guarded(run_metrics.tool_metrics_aggregate, conn,
                                   [r["id"] for r in closed])
-        return {"ledger_enabled": True, "n_runs": len(rows), "n_closed": len(closed),
+        resp = {"ledger_enabled": True, "n_runs": len(rows), "n_closed": len(closed),
+                "prompt_versions": pv,
                 "metrics": {"outcomes": outcomes,
                             "completion": {"denominator": D,
                                            "strict": strict, "with_limitation": degraded,
@@ -1042,6 +1049,11 @@ def api_metrics_summary(task_ids: str | None = None, since: str | None = None,
                                            "not_completed_user_count": outcomes.get("not_completed_user", 0)},
                             "response_time_ms": run_metrics.summarize(rt_values, missing_rt),
                             "tool_metrics": tool}}
+        if len(pv) > 1:
+            resp["mixed_prompt_versions"] = True
+            resp["note"] = ("样本跨提示词版本（" + "、".join(sorted(pv)) +
+                            "）——完成率等指标为混版合计，跨版合并报告需同格对照证据")
+        return resp
     finally:
         conn.close()
 
