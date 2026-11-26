@@ -24,8 +24,10 @@ def _ctx(tmp_path, **snap):
 # ---------- 菜单 ----------
 
 def test_menu_language_and_flag(tmp_path):
-    """菜单按语言过滤（"*" 恒过）+ snapshot 旗标联动（关=不入菜单）。"""
+    """菜单按语言过滤（"*" 恒过）+ snapshot 旗标联动（关=不入菜单）。
+    AL-3（2026-11-26）：strategy 阶段容器类能力不入菜单——容器能力用 diagnose 模式验。"""
     ctx = _ctx(tmp_path, lang="python")
+    ctx.agent_mode = "diagnose"
     ids = [m["id"] for m in capability_menu(ctx)]
     assert "test.observe.read" in ids and "test.run.unit" in ids
     assert "test.snapshot" not in ids, "SNAPSHOT_ROUTE_ENABLED 默认关=snapshot 不入菜单"
@@ -36,6 +38,7 @@ def test_menu_snapshot_flag_on(tmp_path, monkeypatch):
     from test_agent import config
     monkeypatch.setattr(config, "SNAPSHOT_ROUTE_ENABLED", True)
     ctx = _ctx(tmp_path)
+    ctx.agent_mode = "diagnose"   # AL-3：snapshot 是容器类，strategy 菜单不见
     assert "test.snapshot" in [m["id"] for m in capability_menu(ctx)]
 
 

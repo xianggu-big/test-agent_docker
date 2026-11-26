@@ -73,6 +73,45 @@ def _evidence_fp(capability: str, result: CapResult) -> str:
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
 
 
+# AL-5（2026-11-26 设计 F-AL5）："具体"判定——设计报告 §1.1 口径。
+_GENERIC_BANNED = {"tests", "test", "src", "lib", "app", "unit", "case", "cases",
+                   "testing", "coverage", "function", "code", "file", "files"}
+_IDENT_RE = re.compile(r"[A-Za-z][A-Za-z0-9_./-]{2,}")
+_IDENT_STOP = {"the", "and", "for", "with", "this", "that", "should", "then",
+               "when", "where", "each", "case", "test", "tests", "testing",
+               "expect", "assert", "input", "output", "return", "value",
+               "check", "cover", "coverage", "missing", "gap", "lack", "need",
+               "add", "run", "unit", "error", "fail", "failed", "none", "null",
+               "true", "false", "example", "increase", "improve", "enhance",
+               "ensure", "verify", "补充", "覆盖", "测试", "验证"}
+
+
+def _strategy_is_generic(strategy: dict | None) -> bool:
+    """策略是否全是泛指目标（设计 §1.1"具体"判定的机器闸）。
+    具体=优先项的 why/feedback/targets 里抽到至少一个标识符（字母开头、长度 ≥3、
+    去语言关键字/英文填充词）或路径/带下划线/带数字形符号；`.`、`./...`、`tests`、
+    单独项目名不算。全部优先项都抽不到=泛指。无策略/无优先项=泛指。"""
+    if not isinstance(strategy, dict) or not (strategy.get("priorities") or []):
+        return True
+    for p in strategy["priorities"]:
+        texts = [str(p.get("why") or "")]
+        ah = p.get("args_hint") or {}
+        if isinstance(ah, dict):
+            texts.append(str(ah.get("feedback") or ""))
+            texts.append(" ".join(str(t) for t in (ah.get("targets") or [])))
+        blob = " ".join(texts)
+        for m in _IDENT_RE.findall(blob):
+            token = m.lower().strip("./-_")
+            if not token or token in _GENERIC_BANNED or token in _IDENT_STOP:
+                continue
+            # 路径形（calc.js / src/x）或带下划线/带数字=具体符号
+            if "." in m or "/" in m or "_" in m or any(ch.isdigit() for ch in m):
+                return False
+            if len(token) >= 3:
+                return False
+    return True
+
+
 def _execute_capability(deps, ctx: TaskCtx, cap, args: dict) -> tuple[CapResult, int | None]:
     """能力执行：统一经 SkillRegistry.invoke（复用 skill_invocations 审计台账——
     每个 Capability 注册同名 Skill；R0→low/R1→medium 映射避免撞 0-B 高险确认门）。
@@ -101,60 +140,107 @@ def _execute_capability(deps, ctx: TaskCtx, cap, args: dict) -> tuple[CapResult,
         data = json.loads(res.output or "{}")
         return (CapResult(**{k: data.get(k) for k in
                              ("status", "summary", "metrics", "evidence",
-                              "diagnostics", "raw_exit")}), res.invocation_id)
+                              "diagnostics", "raw_exit", "excerpt")}), res.invocation_id)
     except Exception as e:      # noqa: BLE001
         return CapResult(status="failed", summary=f"结果解析失败：{type(e).__name__}"), res.invocation_id
 
 
 def build_observation(ctx: TaskCtx, goal: str, mode: str, menu: list[dict],
                       recent_evidence: list[dict], budget: dict,
-                      used: dict, repeat_fps: dict | None = None) -> str:
-    """观察包（token 封顶）：目标+任务上下文+菜单+近 3 条证据摘要+剩余预算。
-    摘要级——原始大文本永远不进观察（证据文件留盘按需引用）。
-    任务5 v1：repeat_fps（动作指纹→已见次数）注入——重复观察惩罚可见
-    （此前 denied 留痕但下次提示词里看不到重复计数）。"""
+                      used: dict, repeat_fps: dict | None = None,
+                      pre_evidence: list[str] | None = None) -> str:
+    """观察包（token 封顶）：目标+任务上下文+菜单+近期证据+剩余预算。
+    AL-1（2026-11-26 设计 F-AL1）：证据渲染成"头行+缩进的正文摘录"——模型看得见
+    自己取证的内容（检查报告 C1 盲跑根因）；摘录按模式截断（strategy 1500/diagnose 1200）。
+    超上限只裁证据正文中段，"## 输出"及之后的指令段永远完整（此前整包硬截会把尾部指令截掉）。
+    AL-2：pre_evidence=诊断开工即有的失败摘要（第 0 号证据，单列一节）。"""
     snap = ctx.state_snapshot or {}
+    exc_cap = 1500 if mode == "strategy" else 1200
+
+    def _clip_body(text: str, cap: int) -> str:
+        text = (text or "").strip()
+        if len(text) <= cap:
+            return text
+        keep = max(cap - 20, 0) // 2
+        return text[:keep] + "\n…[中略]…\n" + text[-keep:]
+
     ev_lines = []
     for e in recent_evidence:
-        ev_lines.append(f"- step{e.get('step')} {e.get('capability')}={e.get('status')}: "
-                        f"{(e.get('summary') or '')[:120]}")
-    menu_lines = "\n".join(f"- {m['id']} ({m['risk']}) {m['description']}\n"
-                           f"  参数: {m.get('args_hint')}" for m in menu)
-    obs = (
-        f"## 目标\n{goal[:600]}\n\n"
-        f"## 任务上下文\n语言={ctx.primary_language} 工作区={ctx.workspace.name} "
-        f"轮次={snap.get('round_no')} 冻结={snap.get('verify_mode')} 静态={snap.get('static_only')}\n"
-        f"路由范围={snap.get('index_scope_paths') or '全库'}\n\n"
-        f"## 能力菜单（只能从中选）\n{menu_lines}\n\n"
-        f"## 近期证据\n" + ("\n".join(ev_lines) or "（尚无）") + "\n\n"
-        f"## 剩余预算\n步数 {used.get('steps', 0)}/{budget.get('max_steps')} "
-        f"token {used.get('tokens', 0)}/{budget.get('max_tokens')} "
-        f"秒 {used.get('seconds', 0)}/{budget.get('max_seconds')}\n\n"
-        "## 输出\n只输出一个 JSON 对象（call 或 finish 形态，见系统指令）。"
-        + (f"\n注意：这是第 {used.get('steps', 0)} 步（共 {budget.get('max_steps')} 步）"
-           "——信息足够时立即 finish，不要继续观察。")
-    )
-    if (mode == "strategy"
-            and used.get("observe_steps", 0) >= int(budget.get("observe_cap")
-                                                    or config.AGENT_LOOP_OBSERVE_CAP)):
-        obs += ("\n⚠ 观察预算已用尽——本轮必须输出 finish 形态（附 strategy）。"
-                "继续调用观察类能力会被拒绝。")
-    # 任务5 v1：重复观察惩罚进 obs（重复的指纹明示"已看过第 N 次"——
-    # 模型下次决策前可见，不再只留 denied 痕迹）
-    if repeat_fps:
-        rep = [(fp, n) for fp, n in repeat_fps.items() if n >= 2]
-        if rep:
-            obs += (f"\n⚠ 已重复的动作（{len(rep)} 个）：其中 "
-                    + "、".join(f"{fp[:40]}（第 {n} 次）" for fp, n in rep[:3])
-                    + "——重复观察不再提供新信息，请基于已有证据 finish。")
-    return obs[:12000]          # 观察包硬封顶（防菜单/证据膨胀吃满上下文）
+        head = (f"- step{e.get('step')} {e.get('capability')}={e.get('status')}: "
+                f"{(e.get('summary') or '')[:120]}")
+        exc = _clip_body(e.get("excerpt") or "", exc_cap)
+        if exc:
+            ev_lines.append(head + "\n    " + exc.replace("\n", "\n    "))
+        else:
+            ev_lines.append(head)
+    pre_lines = []
+    for i, p in enumerate(pre_evidence or []):
+        pre_lines.append(f"- 摘要[{i}] " + _clip_body(p, exc_cap).replace("\n", "\n  "))
+
+    def _assemble(ev_text: str) -> str:
+        obs = (
+            f"## 目标\n{goal[:600]}\n\n"
+            f"## 任务上下文\n语言={ctx.primary_language} 工作区={ctx.workspace.name} "
+            f"轮次={snap.get('round_no')} 冻结={snap.get('verify_mode')} 静态={snap.get('static_only')}\n"
+            f"路由范围={snap.get('index_scope_paths') or '全库'}\n"
+            + (f"阶段提示：现在是规划阶段，还没有容器，不能运行测试；"
+               f"你的任务是通过读代码定位具体风险点。\n" if mode == "strategy" else "")
+            + "\n"
+            f"## 能力菜单（只能从中选）\n{menu_lines_const}\n\n"
+            + (f"## 上一轮失败摘要（第 0 号证据）\n" + "\n".join(pre_lines) + "\n\n"
+               if pre_lines else "")
+            + f"## 近期证据\n{ev_text}\n\n"
+            f"## 剩余预算\n步数 {used.get('steps', 0)}/{budget.get('max_steps')} "
+            f"token {used.get('tokens', 0)}/{budget.get('max_tokens')} "
+            f"秒 {used.get('seconds', 0)}/{budget.get('max_seconds')}\n\n"
+            "## 输出\n只输出一个 JSON 对象（call 或 finish 形态，见系统指令）。"
+            + (f"\n注意：这是第 {used.get('steps', 0)} 步（共 {budget.get('max_steps')} 步）"
+               "——信息足够时立即 finish，不要继续观察。")
+        )
+        if (mode == "strategy"
+                and used.get("observe_steps", 0) >= int(budget.get("observe_cap")
+                                                        or config.AGENT_LOOP_OBSERVE_CAP)):
+            obs += ("\n⚠ 观察预算已用尽——本轮必须输出 finish 形态（附 strategy）。"
+                    "继续调用观察类能力会被拒绝。")
+        if repeat_fps:
+            rep = [(fp, n) for fp, n in repeat_fps.items() if n >= 2]
+            if rep:
+                obs += (f"\n⚠ 已重复的动作（{len(rep)} 个）：其中 "
+                        + "、".join(f"{fp[:40]}（第 {n} 次）" for fp, n in rep[:3])
+                        + "——重复观察不再提供新信息，请基于已有证据 finish。")
+        return obs
+
+    menu_lines_const = "\n".join(f"- {m['id']} ({m['risk']}) {m['description']}\n"
+                                 f"  参数: {m.get('args_hint')}" for m in menu)
+    CAP = 12000
+    ev_text = "\n".join(ev_lines) or "（尚无）"
+    obs = _assemble(ev_text)
+    if len(obs) > CAP:
+        # 只裁证据正文中段（每条摘录再对半砍），指令段/预算段永不动
+        bodies = [e for e in ev_lines if "\n    " in e]
+        while len(obs) > CAP and bodies:
+            bodies.sort(key=len, reverse=True)
+            big = bodies.pop(0)
+            head, _, body = big.partition("\n    ")
+            body = body.replace("\n    ", "\n")
+            keep = max(len(body) // 4, 40)
+            trimmed = (head + "\n    "
+                       + _clip_body(body, keep).replace("\n", "\n    "))
+            idx = ev_lines.index(big)
+            ev_lines[idx] = trimmed
+            bodies.append(trimmed)
+            ev_text = "\n".join(ev_lines)
+            obs = _assemble(ev_text)
+    return obs if len(obs) <= CAP else _assemble("（证据过多已全部省略——请基于已有信息 finish）")
 
 
 def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
-                  phase: str, loop_no: int = 1) -> dict:
+                  phase: str, loop_no: int = 1,
+                  pre_evidence: list[str] | None = None) -> dict:
     """有界决策循环。mode：strategy（规划前观察）| diagnose（失败证据诊断）。
     loop_no：账本 agent_steps 的循环号（UNIQUE(run_id,loop_no,step_no)——同一 run
     多次进循环必须不同号：strategy=1，diagnose 第 N 轮=100+N，见 agent_nodes）。
+    pre_evidence：诊断开工即有的失败摘要（AL-2，第 0 号证据——模型不必花步数取证）。
     返回 {"stop", "steps", "used", "evidence", "payload"}——payload=finish 动作
     原文（strategy/diagnosis 由调用方提取）。fail-closed：任何循环级异常 →
     stop("hard_error") 且证据如实保留。"""
@@ -165,6 +251,7 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
     new_evidence_streak = 0
     denied_streak = 0
     unparseable = 0
+    generic_retried = False   # AL-5：泛指策略重试闸（最多一次）
     used = {"steps": 0, "tokens": 0, "seconds": 0}
     t0 = time.monotonic()
 
@@ -193,7 +280,8 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
         used["steps"] = step
         used["seconds"] = int(time.monotonic() - t0)
         obs = build_observation(ctx, goal, mode, menu, evidence[-3:], budget, used,
-                                repeat_fps=seen_action_fps)
+                                repeat_fps=seen_action_fps,
+                                pre_evidence=pre_evidence)
         t_dec = time.monotonic()
         try:
             resp = llm.invoke([("system", system_prompt), ("user", obs)])
@@ -221,6 +309,28 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
         unparseable = 0
         action_json = json.dumps(action, ensure_ascii=False)
         if action.get("action") == "finish":
+            # AL-5（2026-11-26 设计 F-AL5）：strategy 泛指策略机器闸——第一次 finish
+            # 全是泛指目标不算数，追加证据要求点名具体符号后重试；第二次仍泛指=
+            # 接受但产物标 strategy_valid=false（判据 A3 的机器口径）。
+            # 仅当 priorities 非空且全泛指时闸（无产物/空优先项=既有"按默认路线走"
+            # 路径，不拦——缺产物另有 finish 引导与 S-K1 口径管）。
+            if mode == "strategy" and "strategy" in action:
+                strat = action.get("strategy") or {}
+                if strat.get("priorities") and _strategy_is_generic(strat):
+                    if not generic_retried:
+                        generic_retried = True
+                        _ledger_step(ctx, mode=mode, loop_no=loop_no, step_no=step,
+                                     action_type="finish", decision_json=action_json,
+                                     allowed=0,
+                                     deny_reason="策略全是泛指目标——要求点名具体函数、文件或边界后重新收尾",
+                                     llm_call_id=llm_call_id, decision_ms=decision_ms)
+                        evidence.append({"step": step, "capability": "-",
+                                         "status": "retry",
+                                         "summary": "策略全是泛指目标，请点名具体函数、文件或边界后重新收尾"})
+                        continue
+                    action["strategy_valid"] = False
+                else:
+                    action["strategy_valid"] = True
             _ledger_step(ctx, mode=mode, loop_no=loop_no, step_no=step,
                          action_type="finish", decision_json=action_json,
                          allowed=1, llm_call_id=llm_call_id, decision_ms=decision_ms)
@@ -301,7 +411,8 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
             if new_evidence_streak >= 2:
                 evidence.append({"step": step, "capability": cap.id,
                                  "status": result.status,
-                                 "summary": result.summary})
+                                 "summary": result.summary,
+                                 "excerpt": result.excerpt})
                 return _stop("no_new_evidence",
                              {"summary": "连续两次无新证据（结果指纹重复）"})
         else:
@@ -309,6 +420,6 @@ def run_tool_loop(deps, ctx: TaskCtx, goal: str, mode: str, budget: dict,
             new_evidence_streak = 0
         evidence.append({"step": step, "capability": cap.id, "status": result.status,
                          "summary": result.summary, "metrics": result.metrics,
-                         "evidence": result.evidence})
+                         "evidence": result.evidence, "excerpt": result.excerpt})
     used["seconds"] = int(time.monotonic() - t0)
     return _stop("budget", {"summary": "步数耗尽——已获证据如实保留"})

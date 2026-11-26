@@ -78,7 +78,7 @@ def test_goal_met_with_payload(tmp_path, monkeypatch):
               json.dumps({"action": "finish", "summary": "读完",
                           "strategy": {"priorities": [{"order": 1,
                                                        "capability_id": "test.run.unit",
-                                                       "why": "先跑"}],
+                                                       "why": "clamp 第 9 行 x==hi 应返回 hi，补边界用例"}],
                                        "evidence_plan": ["run_stdout"],
                                        "fallback": "回退全库"}})]
     result, _ = _run(tmp_path, script, monkeypatch=monkeypatch)
@@ -156,7 +156,7 @@ def test_observe_cap_forces_finish_path(tmp_path, monkeypatch):
     script = reads + [json.dumps({"action": "finish", "summary": "观察够了",
                                   "strategy": {"priorities": [{"order": 1,
                                                                "capability_id": "test.run.unit",
-                                                               "why": "跑"}]}})]
+                                                               "why": "clamp 第 9 行 x==hi 应返回 hi，补边界用例"}]}})]
     result, _ = _run(tmp_path, script, budget={"max_steps": 6, "max_tokens": 99999,
                                                "max_seconds": 9999}, monkeypatch=monkeypatch)
     assert result["stop"] == "goal_met", f"实得 {result['stop']}"
@@ -179,14 +179,15 @@ def test_observe_cap_zero_denies_first_observe(tmp_path, monkeypatch):
 
 
 def test_observe_cap_not_for_execute(tmp_path, monkeypatch):
-    """execute 类不受观察子预算限（run.unit 第 4 步仍放行——子预算只管 observe kind）。"""
+    """execute 类不受观察子预算限（gen.cases 第 4 步仍放行——子预算只管 observe kind；
+    AL-3 后 run.unit 在 strategy 模式被阶段闸拒，execute 例子换成宿主侧 gen.cases）。"""
     from test_agent import config
     monkeypatch.setattr(config, "AGENT_LOOP_OBSERVE_CAP", 3)
     monkeypatch.setattr(tool_loop, "_execute_capability", lambda *a, **k: CapResult(
-        status="ok", summary="run ok", metrics={"exit_code": 0},
+        status="ok", summary="gen ok", metrics={"exit_code": 0},
         evidence=[{"kind": "x", "path": "p", "sha256": "h"*64}]))
-    script = [json.dumps({"action": "call", "capability": "test.run.unit",
-                          "args": {"targets": ["a.py"]}}) for _ in range(4)]
+    script = [json.dumps({"action": "call", "capability": "test.gen.cases",
+                          "args": {"feedback": "clamp x==hi 边界补测"}}) for _ in range(4)]
     script.append(json.dumps({"action": "finish", "summary": "ok",
                               "strategy": {"priorities": []}}))
     result, _ = _run(tmp_path, script, budget={"max_steps": 6, "max_tokens": 99999,
@@ -211,9 +212,9 @@ def test_observation_warns_when_observe_cap_exhausted(tmp_path, monkeypatch):
 # ---------- 任务5 v1（2026-11-22）：finish 引导——断链修复+三问+示例+重复计数+版本戳 ----------
 
 def test_prompt_version_v1():
-    """版本戳常量（2×2 可比性防线：v0/v1/v2 对照必注明）。"""
+    """版本戳常量（2×2 可比性防线：v0/v1/v2/v3 对照必注明）。"""
     from test_agent.skills.prompt_library import AGENT_LOOP_PROMPT_VERSION
-    assert AGENT_LOOP_PROMPT_VERSION == "v2"
+    assert AGENT_LOOP_PROMPT_VERSION == "v3"
 
 
 # ---------- Q4（2026-11-26）：示例机器可核对——示例 ⊆ 菜单、示例参数 ⊆ schema ----------

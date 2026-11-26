@@ -1329,6 +1329,7 @@ def make_nodes(deps: GraphDeps) -> dict:
             "index_scope_paths": state.get("index_scope_paths") or [],
             "endpoint_gaps": state.get("index_endpoint_gaps") or [],
             "agent_diagnosis": state.get("agent_diagnosis"),
+            "agent_strategy": state.get("agent_strategy"),   # AL-6：目标传给生成提示词
             "coverage_gaps": (state.get("per_file") or [])
                              if config.COVERAGE_FEEDBACK_ENABLED else [],  # ①缺口回灌（V4 开关）
             "coverage_target": state.get("coverage_target"),

@@ -92,8 +92,10 @@ def _llm_script_read_then_finish():
                     "args": {"path": "a.py", "mode": "read"}}),
         json.dumps({"action": "finish",
                     "summary": "读完了",
+                    # v3 泛指闸：why 需点名具体符号（"证据足"会触发重试——脚本耗尽）
                     "strategy": {"priorities": [{"order": 1, "capability_id": "test.gen.cases",
-                                                 "why": "证据足", "args_hint": {}}],
+                                                 "why": "clamp 第 9 行 x==hi 应返回 hi，补边界用例",
+                                                 "args_hint": {}}],
                                 "evidence_plan": [], "fallback": "手动审查"}}),
     ]
 

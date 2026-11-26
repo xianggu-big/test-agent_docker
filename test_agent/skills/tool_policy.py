@@ -54,10 +54,22 @@ def authorize(action: dict, ctx: TaskCtx, *, menu: list[dict] | None = None,
     if not cap_id or not isinstance(args, dict):
         return Decision(False, reason="call 缺 capability 或 args（协议违规）")
 
+    # 密钥闸（0-D）提前到存在/阶段闸之前（任务四 AL-3 起安全优先序）：args 任何键
+    # 命中黑名单正则 → 拒绝——安全语义不该被阶段语义遮蔽（阶段拒绝会改写 reason）
+    for k in args:
+        if caps_mod._SECRET_KEY_RE.search(str(k)):
+            return Decision(False, reason=f"密钥键名越界：{k}")
+
     # 2) 存在闸：能力在菜单内（未注册/语言不兼容/旗标关=不可见即不可用；
     #    目录插件经 find_capability_extended——verified/active+digest 封存才可见）
     cap = caps_mod.find_capability_extended(ctx, cap_id)
     if cap is None or not any(m["id"] == cap_id for m in menu):
+        # AL-3（2026-11-26 设计 F-AL3）：strategy 阶段容器未创建——容器类能力被
+        # 菜单过滤后仍被点名时，拒绝原因写明阶段语义（比"不在菜单"更有信息量）。
+        if ctx.agent_mode == "strategy" and cap is not None \
+                and getattr(cap, "needs_container", False):
+            return Decision(False, reason=f"该能力在当前阶段不可用（容器未创建）：{cap_id}"
+                                          "——现在是规划阶段，请用读代码类能力定位风险点")
         return Decision(False, reason=f"能力不在菜单：{cap_id}")
 
     # 3) schema 闸：复用 0-B 校验器（严格模式——未知键拒）
@@ -66,10 +78,7 @@ def authorize(action: dict, ctx: TaskCtx, *, menu: list[dict] | None = None,
     if err:
         return Decision(False, reason=f"参数校验拒绝：{err}")
 
-    # 4) 密钥闸（0-D）：args 任何键命中黑名单正则 → 拒绝；permissions.secrets 恒空校验
-    for k in args:
-        if caps_mod._SECRET_KEY_RE.search(str(k)):
-            return Decision(False, reason=f"密钥键名越界：{k}")
+    # 4) 密钥权限声明校验（键名黑名单已提前到协议闸后——安全优先序）
     if cap.permissions.get("secrets"):
         return Decision(False, reason="能力声明了 secrets 权限（MVP 恒空，配置异常）")
 

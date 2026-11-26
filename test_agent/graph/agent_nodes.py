@@ -44,6 +44,53 @@ def _make_ctx(deps, state: dict, mode: str) -> TaskCtx:
         run_id=state.get("run_id"))   # 运行账本（T3）：None=账本关/降级，零写入
 
 
+def build_failure_digest(snap: dict) -> str:
+    """AL-2（2026-11-26 设计 F-AL2）：diagnose 一开工就有的失败摘要（确定性、
+    零 LLM、零步数成本）。轮次/判定/归因/通过失败跳过数/退出码+失败用例清单
+    （≤20 条，复用 repair.failing_nodeids / error_class_of / failure_summary_of）
+    +错误输出尾部 800 字+可疑信号（复用 attribution 特征表）。
+    0/0 显式写"零执行：没有任何用例被执行，不是覆盖率不足"。"""
+    from ..skills.attribution import _CASE_FAIL_HINTS, _ENV_FAIL_HINTS, _scan_hints
+    from ..graph.repair import failing_nodeids, error_class_of, failure_summary_of
+
+    snap = snap or {}
+    counts = snap.get("case_counts") or {}
+    passed = int(counts.get("passed") or 0)
+    failed = int(counts.get("failed") or 0)
+    skipped = int(counts.get("skipped") or 0)
+    total = int(counts.get("total") or (passed + failed + skipped))
+    lines = [
+        f"轮次={snap.get('round_no')} 判定={snap.get('verdict') or '-'} "
+        f"归因={snap.get('failure_kind') or '-'} "
+        f"通过={passed} 失败={failed} 跳过={skipped} 总数={total} "
+        f"退出码={snap.get('last_exit')}",
+    ]
+    if passed == 0 and failed == 0:
+        lines.append("**零执行**：没有任何用例被执行，不是覆盖率不足")
+    # 失败清单：优先用驱动侧已解析的 failure_lines；否则从 stdout 解析
+    fails = list(snap.get("failure_lines") or [])
+    if not fails and (snap.get("last_stdout") or ""):
+        for nid in failing_nodeids(snap["last_stdout"])[:20]:
+            fails.append(f"{nid} | {error_class_of(snap['last_stdout'], nid)}"
+                         f" | {failure_summary_of(snap['last_stdout'], nid, 160)}")
+    if fails:
+        lines.append("失败清单（≤20 条，用例 | 错误类 | 消息）：")
+        lines.extend(f"  - {f[:200]}" for f in fails[:20])
+    err_tail = (snap.get("last_stderr") or "")[-800:]
+    if err_tail:
+        lines.append("错误输出尾部：")
+        lines.append("  " + err_tail.replace("\n", "\n  "))
+    blob = f"{snap.get('last_stderr') or ''}\n{snap.get('last_stdout') or ''}"
+    env_h = _scan_hints(blob, _ENV_FAIL_HINTS)
+    case_h = _scan_hints(blob, _CASE_FAIL_HINTS)
+    if env_h or case_h:
+        lines.append("可疑信号："
+                     + ("；".join(f"环境特征 {h}" for h in env_h[:2])
+                        + ("；" if env_h and case_h else "")
+                        + "；".join(f"用例特征 {h}" for h in case_h[:2])))
+    return "\n".join(lines)[:4000]
+
+
 def make_agent_nodes(deps):
     """返回 {"strategy": fn, "diagnose": fn}——builder 仅在 MTA_AGENT_LOOP 开时注册。"""
     conn = deps.conn
@@ -87,10 +134,14 @@ def make_agent_nodes(deps):
         budget = {"max_steps": config.AGENT_LOOP_DIAG_STEPS,
                   "max_tokens": max(config.AGENT_LOOP_MAX_TOKENS // 3, 10000),
                   "max_seconds": config.AGENT_LOOP_MAX_SECONDS}
+        # AL-2（设计 F-AL2）：开工即有失败摘要（第 0 号证据）——模型直接引用，
+        # 不必再花步数取证；0/0 显式"零执行"。
+        digest = build_failure_digest(state)
         result = run_tool_loop(deps, ctx,
                                goal="诊断上一轮失败：归类并给出下一步建议（只读证据）",
                                mode="diagnose", budget=budget, phase="agent_diagnose",
-                               loop_no=100 + int(state.get("round_no") or 1))
+                               loop_no=100 + int(state.get("round_no") or 1),
+                               pre_evidence=[digest] if digest else None)
         # loop_no=100+N：strategy 用 1，diagnose 与其错开（UNIQUE(run_id,loop_no,step_no)）
         diagnosis = (result.get("payload") or {}).get("diagnosis") or {}
         _msg(conn, state["session_id"],

@@ -60,6 +60,9 @@ class CapResult:
     evidence: list = field(default_factory=list)     # [{"kind","path","sha256"}]
     diagnostics: list = field(default_factory=list)  # [{"code","message"}]
     raw_exit: int | None = None
+    # AL-1（2026-11-26 设计 F-AL1）：进观察空间的正文摘录——此前能力只回一行摘要，
+    # 模型看不到自己取证的内容（检查报告 C1"盲跑"根因）。按模式截断在消费侧做。
+    excerpt: str = ""
 
 
 @dataclass
@@ -76,6 +79,7 @@ class Capability:
     timeout_s: int
     compat_images: list = field(default_factory=list)
     handler: Callable | None = None
+    needs_container: bool = False   # AL-3（2026-11-26）：strategy 阶段无容器，容器类能力不进菜单
 
 
 def _evidence_file(ctx: TaskCtx, kind: str, name: str, text: str) -> dict:
@@ -119,7 +123,7 @@ def _cap_observe_read(ctx: TaskCtx, args: dict) -> CapResult:
         body = "\n".join(entries)
         ev = _evidence_file(ctx, "file_list", "list.txt", body)
         return CapResult(status="ok", summary=f"{rel}: {len(entries)} 项",
-                         evidence=[ev])
+                         evidence=[ev], excerpt=body)
     text = p.read_text(encoding="utf-8", errors="replace")
     if mode == "grep":
         pat = args.get("pattern") or ""
@@ -132,7 +136,7 @@ def _cap_observe_read(ctx: TaskCtx, args: dict) -> CapResult:
         body = "\n".join(hits) or f"（无命中：{pat[:60]}）"
         ev = _evidence_file(ctx, "grep", "grep.txt", body)
         return CapResult(status="ok", summary=f"{rel}: {len(hits)} 命中（≤50 封顶）",
-                         evidence=[ev])
+                         evidence=[ev], excerpt=body)
     lines = text.splitlines()
     off = int(args.get("offset") or 1)
     lim = min(int(args.get("limit") or 200), 200)
@@ -142,7 +146,7 @@ def _cap_observe_read(ctx: TaskCtx, args: dict) -> CapResult:
     return CapResult(status="ok",
                      summary=f"{rel}: 行 {off}-{off + len(window) - 1}"
                              f"（共 {len(lines)} 行，≤200 行窗口）",
-                     evidence=[ev])
+                     evidence=[ev], excerpt=body)
 
 
 def _cap_observe_env(ctx: TaskCtx, args: dict) -> CapResult:
@@ -155,7 +159,7 @@ def _cap_observe_env(ctx: TaskCtx, args: dict) -> CapResult:
         ev = _evidence_file(ctx, "env_stack", "stack.json", body)
         return CapResult(status="ok", summary="stack 探测完成",
                          metrics={"language": 0 if not st.get("language") else 1},
-                         evidence=[ev],
+                         evidence=[ev], excerpt=body[:1200],
                          diagnostics=[{"code": "STACK", "message": body[:400]}])
     if probe == "canary":
         from .attribution import canary_cmd, canary_ok
@@ -193,10 +197,13 @@ def _cap_run_unit(ctx: TaskCtx, args: dict) -> CapResult:
     metrics = {"passed": _n(r"(\d+) passed"), "failed": _n(r"(\d+) failed"),
                "exit_code": r.exit_code}
     status = "ok" if r.exit_code == 0 else "failed"
+    fail_lines = [ln for ln in (r.stderr or "").splitlines() if ln.strip()][:12]
+    exc = (f"exit={r.exit_code} passed={metrics['passed']} failed={metrics['failed']}\n"
+           + "\n".join(fail_lines))[:1500]
     return CapResult(status=status,
                      summary=f"{len(targets)} 目标：{metrics['passed']} 过 "
                              f"{metrics['failed']} 败（exit={r.exit_code}）",
-                     metrics=metrics, evidence=[ev], raw_exit=r.exit_code)
+                     metrics=metrics, evidence=[ev], raw_exit=r.exit_code, excerpt=exc)
 
 
 def _cap_observe_coverage(ctx: TaskCtx, args: dict) -> CapResult:
@@ -208,7 +215,7 @@ def _cap_observe_coverage(ctx: TaskCtx, args: dict) -> CapResult:
     body = json.dumps(r, ensure_ascii=False, indent=1)[:3000]
     ev = _evidence_file(ctx, "coverage", "coverage.json", body)
     return CapResult(status="ok", summary=f"coverage_check 判读：{r.get('status')}",
-                     evidence=[ev],
+                     evidence=[ev], excerpt=body,
                      diagnostics=[{"code": "COVERAGE", "message": body[:400]}])
 
 
@@ -221,7 +228,10 @@ def _cap_observe_logs(ctx: TaskCtx, args: dict) -> CapResult:
              (snap.get("last_stderr") or "")[-n * 200:]]
     body = "\n---\n".join(p for p in parts if p)[:6000]
     ev = _evidence_file(ctx, "logs", "logs.txt", body)
-    return CapResult(status="ok", summary="日志尾部已取证", evidence=[ev])
+    # AL-1：错误输出优先（stderr 尾 800 在前），stdout 尾 400 垫后（设计 F-AL1 表）
+    exc = ((snap.get("last_stderr") or "")[-800:]
+           + "\n---stdout---\n" + (snap.get("last_stdout") or "")[-400:])
+    return CapResult(status="ok", summary="日志尾部已取证", evidence=[ev], excerpt=exc)
 
 
 def _cap_gen_cases(ctx: TaskCtx, args: dict) -> CapResult:
@@ -430,11 +440,11 @@ def _build_capabilities(ctx: TaskCtx) -> list[Capability]:
         "test.snapshot": {"type": "object", "properties": {},
                           "additionalProperties": False},
     }
-    mk = lambda cid, kind, langs, desc, evk, risk, t, handler: Capability(
+    mk = lambda cid, kind, langs, desc, evk, risk, t, handler, needs_container=False: Capability(
         id=cid, version="1.0.0", kind=kind, languages=langs, description=desc,
         inputs_schema=schemas[cid], evidence_kinds=evk,
         permissions={"fs": ["test_artifacts_write"], "network": "none", "secrets": []},
-        risk=risk, timeout_s=t, handler=handler)
+        risk=risk, timeout_s=t, handler=handler, needs_container=needs_container)
     lang = [ctx.primary_language or "python"]
     caps = [
         mk("test.observe.read", "observe", ["*"], "读文件/列目录/grep（workspace 相对路径，截窗封顶）",
@@ -442,7 +452,8 @@ def _build_capabilities(ctx: TaskCtx) -> list[Capability]:
         mk("test.observe.env", "observe", ["*"], "环境探测（stack/金丝雀）",
            ["env_stack"], "R0", 90, _cap_observe_env),
         mk("test.run.unit", "execute", ["*"], "容器内运行指定测试目标子集",
-           ["run_stdout"], "R0", 600, _cap_run_unit),
+           ["run_stdout"], "R0", 600, _cap_run_unit,
+           needs_container=True),
         mk("test.observe.coverage", "observe", ["*"], "覆盖率判读（coverage_check）",
            ["coverage"], "R0", 10, _cap_observe_coverage),
         mk("test.observe.logs", "observe", ["*"], "运行日志尾部取证",
@@ -452,32 +463,55 @@ def _build_capabilities(ctx: TaskCtx) -> list[Capability]:
         mk("test.edit.scaffold", "edit", ["*"], "脚手架修复（AST diff 分类闸；断言/删除拒绝）",
            ["scaffold_diff"], "R1", 30, _cap_edit_scaffold),
         mk("test.assert.db", "execute", ["*"], "数据库断言（sidecar 只读闸）",
-           ["db_assert_out"], "R1", 120, _cap_assert_generic("db_assert")),
+           ["db_assert_out"], "R1", 120, _cap_assert_generic("db_assert"),
+           needs_container=True),
         mk("test.assert.ui", "execute", ["*"], "UI 断言（Playwright）",
-           ["ui_assert_out"], "R1", 300, _cap_assert_generic("ui_assert")),
+           ["ui_assert_out"], "R1", 300, _cap_assert_generic("ui_assert"),
+           needs_container=True),
         mk("test.assert.grpc", "execute", ["*"], "gRPC 断言（grpcurl）",
-           ["grpc_assert_out"], "R1", 120, _cap_assert_generic("grpc_assert")),
+           ["grpc_assert_out"], "R1", 120, _cap_assert_generic("grpc_assert"),
+           needs_container=True),
         mk("test.diff.replay", "execute", ["*"], "差分复跑（buggy/fixed 对照，需工作区 .git）",
-           ["diff_gate"], "R0", 600, _cap_diff_replay),
+           ["diff_gate"], "R0", 600, _cap_diff_replay,
+           needs_container=True),
     ]
     if getattr(config, "SNAPSHOT_ROUTE_ENABLED", False):
         caps.append(mk("test.snapshot", "execute", ["*"], "快照对比（黄金基线 oracle）",
-                       ["snapshot"], "R0", 120, _cap_snapshot))
+                       ["snapshot"], "R0", 120, _cap_snapshot,
+                       needs_container=True))
     return caps
 
 
 def _schema_hint(schema: dict) -> str:
     """菜单参数提示（渐进披露的"简述"层——设计稿 §3.1 菜单含 inputs 简述；
-    冒烟实锤：不给参数提示模型盲猜 args 会被 schema 闸拒）。"""
+    冒烟实锤：不给参数提示模型盲猜 args 会被 schema 闸拒）。
+    AL-4（2026-11-26）：整数带上限/区间、字符串带长度上限——模型不用猜范围。"""
     if not isinstance(schema, dict) or not schema:
         return "无参数"
     props = schema.get("properties") or {}
     req = set(schema.get("required") or [])
     parts = []
     for k, spec in props.items():
-        t = spec.get("type") or ("|".join(str(x) for x in spec["enum"])
-                                 if "enum" in spec else "any")
-        parts.append(f"{k}{'*' if k in req else ''}:{t}")
+        raw_t = spec.get("type") or ("|".join(str(x) for x in spec["enum"])
+                                     if "enum" in spec else "any")
+        t = "int" if raw_t == "integer" else raw_t   # 设计示例口径：tail_n:int(≤50)
+        rng = ""
+        if raw_t == "integer":
+            mn, mx = spec.get("minimum"), spec.get("maximum")
+            if mn is not None and mx is not None:
+                rng = f"({mn}-{mx})"
+            elif mx is not None:
+                rng = f"(≤{mx})"
+            elif mn is not None:
+                rng = f"(≥{mn})"
+        elif t == "string" and spec.get("maxLength"):
+            rng = f"(≤{spec['maxLength']})"
+        elif t == "array" and (spec.get("minItems") is not None
+                               or spec.get("maxItems") is not None):
+            mn, mx = spec.get("minItems"), spec.get("maxItems")
+            rng = (f"({mn if mn is not None else 0}-{mx})" if mx is not None
+                   else f"(≥{mn})")
+        parts.append(f"{k}{'*' if k in req else ''}:{t}{rng}")
     return " ".join(parts) or "无参数"
 
 
@@ -493,6 +527,10 @@ def capability_menu(ctx: TaskCtx) -> list[dict]:
             all_caps.extend(catalog_capabilities(ctx))
         except Exception as e:           # noqa: BLE001 —— 目录异常=仅内置能力
             log.warning("目录插件加载失败（%s: %s）", type(e).__name__, e)
+    if ctx.agent_mode == "strategy":
+        # AL-3（2026-11-26 设计 F-AL3）：strategy 阶段容器未创建——容器类能力
+        # 不进菜单（读代码/宿主侧栈探测/宿主生成保留；run/断言/差分/快照移除）。
+        all_caps = [c for c in all_caps if not getattr(c, "needs_container", False)]
     menu = []
     for c in all_caps:
         if not ("*" in c.languages or (ctx.primary_language or "").lower() in c.languages):

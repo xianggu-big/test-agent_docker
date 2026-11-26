@@ -529,7 +529,12 @@ def _endpoint_gap_section(endpoint_gaps: list[str] | None) -> str:
 #   gen_cases→test.gen.cases；args_hint {"target"}→{"feedback"}（原示例与菜单/schema
 #   自相矛盾）。提示词结构与其余段落逐字节不变。v1 实测 84/84 优先项未照抄示例错误，
 #   预期 v2 行为与 v1 等价——这是先验不是证据，跨版合并报告需同格对照。
-AGENT_LOOP_PROMPT_VERSION = "v2"
+# v3 变更（任务四 AL-5，2026-11-26 设计报告 F-AL5）：strategy finish 示例换成
+#   模型真正看得到的形态（读到了某文件某行的什么→所以测哪个边界，点名具体符号）；
+#   明令禁止泛指目标（./...、tests、单独项目名）；diagnose 补收尾示例（证据引用
+#   指向失败摘要编号）与两条纪律（摘要够用直接收尾/证据不足才给 low）。
+#   配套机器闸 _strategy_is_generic 在 tool_loop（泛指重试一次+strategy_valid 标记）。
+AGENT_LOOP_PROMPT_VERSION = "v3"
 
 AGENT_DECIDE_SYSTEM = """你是测试 Agent 的决策器。你只能输出一个 JSON 对象，两种形态之一。
 
@@ -555,17 +560,32 @@ AGENT_DECIDE_SYSTEM = """你是测试 Agent 的决策器。你只能输出一个
 5. 你不能修改被测产品代码、不能写任务终态、不能放宽断言——这些平台会硬拒绝。"""
 
 # finish 示例锚定（任务5：防御矩阵 P2 结论复用——对照示例强于负面清单；
-# 2×2 首夜实锤模型不知道 finish 要附 strategy 键）
+# 2×2 首夜实锤模型不知道 finish 要附 strategy 键。
+# v3：示例换成模型真正看得到的形态——点名具体符号与边界（检查报告 C6：
+# v1 实测 53/74 优先项是 ./...、tests 泛指；泛指由 tool_loop 机器闸拦截重试））
 AGENT_STRATEGY_FINISH_EXAMPLE = """
 
 ## 最小 finish 示例（strategy 模式的正确收尾形态——照这个结构写）
+## 硬规则：每条优先项必须点名具体符号（函数/类/接口路径）和具体边界；
+## why 写成"读到了什么 → 所以测什么"；禁止 "."、"./..."、"tests"、单独项目名这类泛指目标。
 {"action": "finish",
- "summary": "已读 calc 模块源码与首轮用例执行结果：add/sub 正常，clamp 边界有 3 条失败疑似缺陷；缺口是 div 未覆盖。",
- "strategy": {"priorities": [{"order": 1, "capability_id": "test.gen.cases",
-                              "why": "clamp 失败证据已足，补 div 边界用例",
-                              "args_hint": {"feedback": "div 的除零与负数边界未覆盖，补 3 条边界用例"}}],
-              "evidence_plan": ["div 各边界的新用例执行结果"],
-              "fallback": "若 gen 失败则手动审查 div 源码并报告缺口"}}"""
+ "summary": "读了 src/calc.js 第 1-16 行：clamp 在第 9 行用 Math.min(Math.max(x, lo), hi) 夹取；add 和 div 没有输入校验。缺口：clamp 的 x==hi 和 lo>hi 没测，div 的 b=0 没测。",
+ "strategy": {"priorities": [
+   {"order": 1, "capability_id": "test.gen.cases",
+    "why": "第 9 行的 clamp 用 min 和 max 夹取，x 等于 hi 时应返回 hi 本身。针对 x==hi、x==lo、lo>hi 各补一条",
+    "args_hint": {"feedback": "clamp(x, lo, hi) 的边界：x==hi 得 hi，x==lo 得 lo，以及 lo>hi 时的行为",
+                  "targets": ["src/calc.js"]}}],
+  "evidence_plan": ["这三条边界用例的执行结果"], "fallback": "生成失败就人工审查 clamp 并报告缺口"}}"""
+
+# diagnose 收尾示例（AL-5：证据引用指向失败摘要编号——摘要作为第 0 号证据单列）
+AGENT_DIAGNOSE_FINISH_EXAMPLE = """
+
+## 最小 finish 示例（diagnose 模式的正确收尾形态——照这个结构写；
+## 证据引用指向失败摘要的编号，第 0 号证据=失败摘要 → evidence_refs:[0]）
+{"action": "finish",
+ "summary": "失败摘要显示 12 条用例报同一个错：Cannot find module './calc_nope'。这是导入路径错，不是产品行为问题。",
+ "diagnosis": {"kind": "scaffold_error", "confidence": "high", "evidence_refs": [0],
+               "reason": "全部失败是同一个签名，零通过", "suggested_action": "scaffold_fix"}}"""
 
 AGENT_STRATEGY_FINISH_KEY = (
     '，并附 "strategy": {"priorities": [{"order": 1, "capability_id": "...", '
@@ -590,12 +610,15 @@ AGENT_DIAGNOSE_DISCIPLINE = """
 1. 每个结论必须引用至少一条证据（引用近期证据的 step 序号）。
 2. 证据不足时 confidence 用 "low"，宁可不确定也不硬猜。
 3. 你不能修改任何文件，不能重跑测试，只能读证据。
+4. 观察包第 0 号证据是上一轮失败摘要（轮次/判定/归因/计数/失败清单/可疑信号）——
+   失败摘要已经够用的时候直接收尾，不必为了凑步数再取证。
 若诊断为疑似产品缺陷，后续生成将被要求"照常如实断言预期，不得迁就当前行为"。"""
 
 
 def build_agent_decide_system(mode: str) -> str:
     """DECIDE 系统提示词：strategy/diagnose 两模式在 finish 形态附不同产物键。
-    任务5 v1（2026-11-22）：strategy 模式追加 finish 示例锚定。"""
+    任务5 v1（2026-11-22）：strategy 模式追加 finish 示例锚定。
+    v3（2026-11-26）：diagnose 模式追加收尾示例（证据引用指向失败摘要）。"""
     extra = (AGENT_STRATEGY_FINISH_KEY if mode == "strategy"
              else AGENT_DIAGNOSE_FINISH_KEY)
     text = AGENT_DECIDE_SYSTEM.replace("{mode_extra_key}", extra)
@@ -603,17 +626,36 @@ def build_agent_decide_system(mode: str) -> str:
         text += AGENT_STRATEGY_FINISH_EXAMPLE
     if mode == "diagnose":
         text += AGENT_DIAGNOSE_DISCIPLINE
+        text += AGENT_DIAGNOSE_FINISH_EXAMPLE
     return text
+
+
+def _gen_targets_section(targets: list | None) -> str:
+    """AL-7（2026-11-26 设计 F-AL7）：定向补测目标注入生成提示词。
+    不传/空=空串，输出逐字节不变。信息提供而非行为指令。
+    共用 helper：生成提示词有两条拼装路径（ctx_budget 有/无），必须同用此函数
+    （11-20 端点缺口只接一条路径而失效的教训）。"""
+    clean = [str(t).strip() for t in (targets or []) if str(t).strip()]
+    if not clean:
+        return ""
+    items = "\n".join(f"- {t}" for t in clean[:8])
+    return ("\n\n## 定向补测目标（Agent 策略点名，供参考——测试条件仍必须锚真值清单）\n"
+            f"{items}\n优先围绕上述目标文件/符号补测，禁止虚构清单外的目标。")
 
 
 def _agent_strategy_section(strategy: dict | None) -> str:
     """strategy 产物注入 plan 提示词（设计稿 §3.7）。无策略=空串，输出逐字节不变
-    （_endpoint_gap_section 同款纪律）。信息提供而非行为指令——测试条件仍锚真值清单。"""
+    （_endpoint_gap_section 同款纪律）。信息提供而非行为指令——测试条件仍锚真值清单。
+    AL-6（2026-11-26 设计 F-AL6）：每条优先项加目标行（来自参数提示 targets，截 120 字）。"""
     if not strategy:
         return ""
     lines = ["\n\n## 测试策略建议（Agent 策略节点产出，供参考——测试条件仍必须锚真值清单）"]
     for p in (strategy.get("priorities") or [])[:5]:
         lines.append(f"- {p.get('order')}. {p.get('capability_id')}：{p.get('why')}")
+        ah = p.get("args_hint") or {}
+        tg = ah.get("targets") if isinstance(ah, dict) else None
+        if tg:
+            lines.append(f"  目标：{str(tg)[:120]}")
     fb = strategy.get("fallback")
     if fb:
         lines.append(f"- 降级路线：{fb}")
@@ -663,6 +705,8 @@ def build_user_prompt(sources: list[tuple[str, str]], requirement: str,
                       sut_mismatch: str | None = None,
                       endpoint_gaps: list[str] | None = None,
                       agent_diagnosis: dict | None = None,
+                      agent_strategy: dict | None = None,
+                      gen_targets: list | None = None,
                       layer_aware: bool = False,
                       ctx_budget: int | None = None,
                       harness_card: dict | None = None,
@@ -1024,8 +1068,11 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "expected": "预期输出/状态变化",
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
     "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
+        agent_sec = (_agent_strategy_section(agent_strategy)
+                     + _gen_targets_section(gen_targets))   # AL-6/7 共用 helper
         return (lean + repo_probe_text
-                + _endpoint_gap_section(endpoint_gaps)             + _agent_diagnosis_section(agent_diagnosis))
+                + _endpoint_gap_section(endpoint_gaps)
+                + _agent_diagnosis_section(agent_diagnosis) + agent_sec)
 
     final_prompt = f"""## 被测源码
 {src_text}
@@ -1054,8 +1101,11 @@ expected = 预期结果（断言依据，必须先于执行确定）；expected_
     "expected_basis": "需求明示（仅当预期可在需求原文中直接定位；推断而来用「源码推导」/「常识」/「模型推断」)",
     "code": "{code_example}"}}]}}{trunc_note}{final_lang_reminder}"""
 
-    if endpoint_gaps:
-        final_prompt += _endpoint_gap_section(endpoint_gaps)             + _agent_diagnosis_section(agent_diagnosis)
+    if endpoint_gaps or agent_diagnosis or agent_strategy or gen_targets:
+        final_prompt += (_endpoint_gap_section(endpoint_gaps)
+                         + _agent_diagnosis_section(agent_diagnosis)
+                         + _agent_strategy_section(agent_strategy)
+                         + _gen_targets_section(gen_targets))
     _markers = [("## 用例设计方法", "## 输出格式"),
                 ("## 上一轮覆盖缺口", "## 用例设计方法"),
                 ("## 端点缺口补测", "## 输出格式"),

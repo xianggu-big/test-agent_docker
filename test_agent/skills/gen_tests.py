@@ -1833,6 +1833,18 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                     if config.SUT_MANIFEST_ENABLED and not feedback else None)
     if sut_mismatch:
         log.warning("gen_tests task=%s 需求-能力错配：%s", task_id, sut_mismatch)
+    # AL-7（2026-11-26 设计 F-AL7，Q4 范围外 F1）：targets 由此真实消费——
+    # 优先策略产物的 args_hint.targets，回退显式 args.targets；注入"定向补测目标"段。
+    strat = (args.get("agent_strategy") or {})
+    gen_targets = (args.get("targets") or [])
+    if not gen_targets:
+        for p in (strat.get("priorities") or []):
+            ah = p.get("args_hint") or {}
+            if isinstance(ah, dict) and ah.get("targets"):
+                gen_targets = list(ah["targets"])
+                break
+    if gen_targets:
+        log.info("gen_tests task=%s 定向补测目标 %d 项（AL-7）", task_id, len(gen_targets))
     resp = llm.invoke([("system", SYSTEM_PROMPT),
                        ("user", build_user_prompt(sources, args.get("requirement", ""),
                                                   args.get("coverage_gaps"),
@@ -1860,6 +1872,8 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
                                                   sut_mismatch=sut_mismatch,
                                                   endpoint_gaps=(args.get("endpoint_gaps") or None),
                                                   agent_diagnosis=(args.get("agent_diagnosis") or None),
+                                                  agent_strategy=(args.get("agent_strategy") or None),
+                                                  gen_targets=(gen_targets or None),
                                                   ctx_budget=getattr(llm, "_ctx_budget", None),
                                                   **_repo_probe_payload(ws)))])
     log_llm_call(task_id, phase, resp,
