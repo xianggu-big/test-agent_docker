@@ -21,7 +21,9 @@ import inspect
 import json
 import re
 import subprocess
+import os
 import sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # ✓ 符号在 GBK 控制台必炸（2026-11-27 D 夜实锤）
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -388,8 +390,12 @@ def part2_pytest(extra: list[str] | None = None) -> list[Item]:
         runs.append(("全量回归", extra, None))
     for name, paths, expect in runs:
         r = subprocess.run([sys.executable, "-m", "pytest", *paths, "-q", "--no-header"],
-                           cwd=ROOT, capture_output=True, text=True, timeout=600)
-        last = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else "(无输出)"
+                           cwd=ROOT, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace",   # GBK 控制台实锤
+                           env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                           timeout=600)
+        _out = r.stdout or ""
+        last = _out.strip().splitlines()[-1] if _out.strip() else "(无输出)"
         n_pass, n_fail = _parse_pytest(last)
         good = r.returncode == 0 and n_fail == 0 and (expect is None or n_pass == expect)
         out.append(Item(f"pytest {name}", "OK" if good else "FAIL",
