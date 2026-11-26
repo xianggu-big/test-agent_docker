@@ -64,7 +64,8 @@ def boot_ci(values: list[float], stat="mean", n_boot: int = 10000) -> tuple[floa
 
 
 def per_cell_g3(conn, task_id: int, req_text: str) -> dict:
-    """G3 三件：用例数（执行过的用例结果行）、失败数、无依据失败占比。"""
+    """G3 三件：用例数（执行过的用例结果行）、失败数、无依据失败占比。
+    test_cases 无 task_id 列——经 test_scripts.script_id 关联（schema 实测）。"""
     rows = conn.execute(
         "SELECT nodeid, status FROM test_case_results WHERE task_id=?",
         (task_id,)).fetchall()
@@ -74,13 +75,15 @@ def per_cell_g3(conn, task_id: int, req_text: str) -> dict:
     for f in failed:
         name = (f["nodeid"] or "").split("::")[-1]
         case = conn.execute(
-            "SELECT expected_basis, expected FROM test_cases WHERE task_id=? AND name=? "
-            "ORDER BY id DESC LIMIT 1", (task_id, name)).fetchone()
+            "SELECT c.expected_basis, c.expected FROM test_cases c "
+            "JOIN test_scripts s ON s.id=c.script_id WHERE s.task_id=? AND c.name=? "
+            "ORDER BY c.id DESC LIMIT 1", (task_id, name)).fetchone()
         if case is None:
             # nodeid 与 case name 可能带后缀——退化为前缀匹配
             case = conn.execute(
-                "SELECT expected_basis, expected FROM test_cases WHERE task_id=? "
-                "AND ? LIKE name || '%'", (task_id, name)).fetchone()
+                "SELECT c.expected_basis, c.expected FROM test_cases c "
+                "JOIN test_scripts s ON s.id=c.script_id WHERE s.task_id=? "
+                "AND ? LIKE c.name || '%'", (task_id, name)).fetchone()
         basis = (case["expected_basis"] if case else None) or ""
         if ("常识" in basis or "模型推断" in basis or "推断" in basis):
             expected = (case["expected"] if case else "") or ""
@@ -112,7 +115,24 @@ def main() -> int:
     conn = _conn()
     on_cells = load_arm("on")
     off_cells = load_arm("off")
-    out: dict = {"n_on": len(on_cells), "n_off": len(off_cells)}
+    # 臂别真源=config_json.flags.agent_loop_enabled；tag 误挂的格按真源重新归臂
+    # （纪律原文：分析按 config_json.flags 分臂，不按任务号段/文件名）
+    reassigned = []
+    all_cells = [("on", on_cells), ("off", off_cells)]
+    true_on, true_off = [], []
+    for tag, cells in all_cells:
+        for c in cells:
+            if c.get("arm_loop_enabled") is True:
+                true_on.append(c)
+                if tag != "on":
+                    reassigned.append({"file": c["_file"], "tag": tag, "true_arm": "on"})
+            elif c.get("arm_loop_enabled") is False:
+                true_off.append(c)
+                if tag != "off":
+                    reassigned.append({"file": c["_file"], "tag": tag, "true_arm": "off"})
+    on_cells, off_cells = true_on, true_off
+    out: dict = {"n_on": len(on_cells), "n_off": len(off_cells),
+                 "reassigned_by_arm_truth": reassigned}
 
     # 臂别断言（真源=config_json.flags）
     for tag, cells in (("on", on_cells), ("off", off_cells)):

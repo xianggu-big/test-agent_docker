@@ -92,11 +92,14 @@ def collect_suite_files(suite_dir: Path) -> list[Path]:
 
 
 def _real_runner(ws: Path) -> tuple[str, list[str], float]:
-    """真 runner：宿主 pytest 重放（与 grade_corpus 同款假设）。返回 (尾行, 失败集, 耗时)。"""
+    """真 runner：宿主 pytest 重放（与 grade_corpus 同款假设）。返回 (尾行, 失败集, 耗时)。
+    encoding 显式 utf-8（2026-11-27 实锤：GBK 控制台下 text=True 默认按 cp936 解
+    pytest 的 UTF-8 输出 → UnicodeDecodeError → 误判"套件无法收集"）。"""
     t0 = time.monotonic()
     r = subprocess.run([sys.executable, "-m", "pytest", str(ws), "-q", "--tb=no",
                         "--no-header", "-rEf", "-p", "no:cacheprovider"],
-                       capture_output=True, text=True, timeout=_RUNNER_TIMEOUT)
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=_RUNNER_TIMEOUT)
     elapsed = time.monotonic() - t0
     out = r.stdout or ""
     tail = out.strip().splitlines()[-1] if out.strip() else ""
