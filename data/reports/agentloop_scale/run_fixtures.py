@@ -56,19 +56,13 @@ FIXTURES = {
     "D2": {
         "class": "expectation_dispute",
         "confidence": "high",
+        # 【协议修订 2026-11-27，任务卡 A3】原 fastapi TestClient 形态三格全被收集闸
+        # 废案（收集闸先于依赖安装，import fastapi 在收集期崩=夹具未达诊断层）。
+        # 改纯 stdlib 形态过收集闸：断言恒假 + expected_basis 常识 → 诊断层应判
+        # expectation_dispute。宿主维持 coupon-api（P0 修订留痕不变）。
         "code": (
-            "import os, sys\n"
-            "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
-            "from fastapi.testclient import TestClient\n"
-            "from app import app\n"
-            "\n"
-            "def test_d2_expectation_probe():\n"
-            "    c = TestClient(app)\n"
-            "    r = c.post(\"/coupons\", json={\"code\": \"D2P\", \"percent\": 10,\n"
-            "                                  \"min_total\": 100})\n"
-            "    assert r.status_code == 201, r.text\n"
-            "    got = c.get(f\"/coupons/{r.json()['id']}\")\n"
-            "    assert got.json() is None  # expected_basis: 常识（查询应返回 None 而非券详情）"
+            "def test_d2_probe():\n"
+            "    assert 1 == 2  # expected_basis: 常识"
         ),
     },
     "D3": {
@@ -117,9 +111,17 @@ def cost_of_task(tid: int) -> float:
                      for _m, p, cm in rows), 4)
 
 
-def spent_so_far() -> float:
+def spent_so_far(tag: str = "") -> float:
+    """tag 非空=只算该批次（结算件名 fixture_<tag>_*）；tag 空=只算无 tag 批
+    （fixture_D* 旧命名——不能把别的批次的账算进来）。"""
+    import re as _re
     total = 0.0
-    for f in CELLS.glob("fixture_*.json"):
+    if tag:
+        files = CELLS.glob(f"fixture_{tag}_*.json")
+    else:
+        files = [f for f in CELLS.glob("fixture_*.json")
+                 if not _re.match(r"fixture_[a-z]", f.name)]
+    for f in files:
         total += json.load(open(f, encoding="utf-8")).get("cost_yuan_est", 0.0)
     return round(total, 4)
 
@@ -162,27 +164,29 @@ def diagnose_steps_n(tid: int) -> int:
         conn.close()
 
 
-def run_fixture(cls: str, rep: int, dev_token: str, caller_token: str) -> dict:
+def run_fixture(cls: str, rep: int, dev_token: str, caller_token: str,
+                tag: str = "") -> dict:
     fx = FIXTURES[cls]
     req = load_req()
     # 两阶段任务（设计 §4.2）：two_stage=true；确认=授权+自动启动阶段一
     t = api("POST", "/api/tasks", caller_token,
             {"repo_url": str(REPO), "requirement": req,
-             "coverage_target": 0.7, "name": f"al-fx-{cls}-{rep}",
+             "coverage_target": 0.7, "name": f"al-fx-{cls}-{rep}" + (f"-{tag}" if tag else ""),
              "two_stage": True})
     tid = t["task_id"]
     api("POST", f"/api/tasks/{tid}/confirm", dev_token)
+    fname = f"fixture_{tag + '_' if tag else ''}{cls}_{rep}.json"
     # 阶段一：停在待审查（ready_for_review）；20 分钟封顶
     st = wait_terminal(tid, dev_token, {"ready_for_review", "failed", "done",
                                         "cancelled"}, 1200)
     notes = {"stage1_status": st}
     if st != "ready_for_review":
         row = api("GET", f"/api/tasks/{tid}", dev_token)
-        rec = {"cls": cls, "rep": rep, "task_id": tid, "status": st,
+        rec = {"cls": cls, "rep": rep, "tag": tag, "task_id": tid, "status": st,
                "triggered": False,
                "error": (row.get("error") or "")[:200],
                "cost_yuan_est": cost_of_task(tid), "notes": notes}
-        (CELLS / f"fixture_{cls}_{rep}.json").write_text(
+        (CELLS / fname).write_text(
             json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[fx] {cls}#{rep} 阶段一未停等（{st}）——夹具未触发，tid={tid}", flush=True)
         return rec
@@ -207,15 +211,16 @@ def run_fixture(cls: str, rep: int, dev_token: str, caller_token: str) -> dict:
     diag_n = diagnose_steps_n(tid)
     triggered = diag_n > 0        # 路由自检②：账本里有诊断循环
     # 路由自检①：第一轮判定是补测（repair 轮存在）——由诊断循环存在近似（同账本）
-    rec = {"cls": cls, "rep": rep, "task_id": tid, "status": st2,
+    rec = {"cls": cls, "rep": rep, "tag": tag, "task_id": tid, "status": st2,
            "triggered": triggered, "diagnose_steps": diag_n,
            "cost_yuan_est": cost_of_task(tid), "notes": notes}
-    (CELLS / f"fixture_{cls}_{rep}.json").write_text(
+    (CELLS / fname).write_text(
         json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
-    # 标签落档（kpi 脚本消费）
+    # 标签落档（kpi 脚本消费）；tag 区分批次（如 P1b 三闸重跑=gates）
     labels = json.loads(LABELS.read_text(encoding="utf-8")) if LABELS.exists() else {}
     labels[str(tid)] = {"class": fx["class"], "confidence": fx["confidence"],
-                        "fixture": cls, "triggered": triggered}
+                        "fixture": cls, "triggered": triggered,
+                        **({"tag": tag} if tag else {})}
     LABELS.write_text(json.dumps(labels, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"[fx] {cls}#{rep} tid={tid} status={st2} 诊断循环={diag_n} "
           f"{'触发' if triggered else '未触发'} cost≈¥{rec['cost_yuan_est']}", flush=True)
@@ -228,13 +233,14 @@ def main() -> int:
     ap.add_argument("--classes", default="D1,D2,D3")
     ap.add_argument("--reps", type=int, default=3)
     ap.add_argument("--parking", type=float, required=True)
+    ap.add_argument("--tag", default="", help="批次标签（结算件 fixture_<tag>_*；防覆盖）")
     ap.add_argument("--dry", action="store_true")
     args = ap.parse_args()
     CELLS.mkdir(parents=True, exist_ok=True)
     classes = [c.strip().upper() for c in args.classes.split(",") if c.strip()]
     plan = [(c, i) for c in classes for i in range(1, args.reps + 1)]
-    print(f"[fixtures] 计划 {len(plan)} 格（{classes}×{args.reps}）；"
-          f"已花费 ¥{spent_so_far()}；停车线 ¥{args.parking}")
+    print(f"[fixtures] 计划 {len(plan)} 格（{classes}×{args.reps} tag={args.tag or '无'}）；"
+          f"已花费 ¥{spent_so_far(args.tag)}；停车线 ¥{args.parking}")
     if args.dry:
         for c, i in plan:
             print(f"  {c}#{i} 类别={FIXTURES[c]['class']} 置信={FIXTURES[c]['confidence']}"
@@ -252,19 +258,23 @@ def main() -> int:
     caller_token = _login("caller", "caller123")
     form_attempt = {c: 0 for c in classes}      # D1 调形态计数
     for cls, rep in plan:
+        out_name = f"fixture_{args.tag + '_' if args.tag else ''}{cls}_{rep}.json"
+        if (CELLS / out_name).exists():
+            print(f"[skip] {out_name} 已留档")
+            continue
         if in_peak():
             print(f"[gate] 高峰段——停新格")
             break
-        if spent_so_far() + 0.08 > args.parking:
-            print(f"[gate] 触停车线 ¥{spent_so_far()}——停止放量")
+        if spent_so_far(args.tag) + 0.08 > args.parking:
+            print(f"[gate] 触停车线 ¥{spent_so_far(args.tag)}——停止放量")
             break
-        rec = run_fixture(cls, rep, dev_token, caller_token)
+        rec = run_fixture(cls, rep, dev_token, caller_token, tag=args.tag)
         if cls == "D1" and not rec.get("triggered") and form_attempt[cls] < 2:
             # 调形态：D1 未触发诊断允许同类调 2 次（设计 §4.2）
             form_attempt[cls] += 1
             print(f"[fx] D1 未触发——调形态第 {form_attempt[cls]} 次重跑该格")
-            run_fixture(cls, rep, dev_token, caller_token)
-    print(f"[fixtures] 累计花费 ¥{spent_so_far()} / 停车线 ¥{args.parking}")
+            run_fixture(cls, rep, dev_token, caller_token, tag=args.tag)
+    print(f"[fixtures] 累计花费 ¥{spent_so_far(args.tag)} / 停车线 ¥{args.parking}")
     return 0
 
 
