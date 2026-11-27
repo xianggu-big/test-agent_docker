@@ -114,10 +114,11 @@ PLAN_ENABLED = True                  # plan/RTM 测试条件拆解（变量 V3�
 COVERAGE_FEEDBACK_ENABLED = True     # 缺口回灌 generate 提示词（变量 V4：False=盲补）
 GEN_BOUNDARY_ATTACK = False          # 边界攻击纪律（变量 V6：True=强制每函数至少 1 条边界外输入；
                                      # corpus-002 recall=0 的改进实验，默认关）
-WITNESS_CONTINUE_ENABLED = _flag("MTA_V8", False)  # 证人冻结+继续补测（变量 V8：True=疑似产品缺陷不首轮停，
+WITNESS_CONTINUE_ENABLED = False     # 证人冻结+继续补测（变量 V8：True=疑似产品缺陷不首轮停，
                                      # 断言失败证人冻结挂账、其指纹不参与熔断，继续补测至
                                      # 非证人全过+覆盖达标或预算耗尽；X 格 V2/V4 循环类开关的
-                                     # 表达前提——证人首轮即停则循环机制无运行空间）
+                                     # 表达前提——证人首轮即停则循环机制无运行空间。
+                                     # 旗标化赋值在下方 _flag 定义之后（MTA_V8，2026-11-27 V8 小卡）
 GEN_CROSS_REVIEW_ENABLED = False     # 生成用例 LLM 交叉语义审（变量 V9，vision §3.6 第 3 道闸）：
                                      # 审查者角色逐案审断言是否对应需求，fail 单独重造 1 次、
                                      # 复审仍 fail 剔除（单案处置不拖累整批）；审查输出不可解析
@@ -177,6 +178,7 @@ def _flag(env_key: str, default: bool) -> bool:
 
 
 DEFENSE_V2_ENABLED = False
+WITNESS_CONTINUE_ENABLED = _flag("MTA_V8", False)   # V8 小卡（2026-11-27）：旗标化，默认关=行为不变
 SUT_MANIFEST_ENABLED = _flag("MTA_SUT_MANIFEST", False)
 # 任务6 java 半（2026-11-22）：多模块 jacoco 兜底——多模块 Maven 每模块各产
 # jacoco.xml，适配器只认根 target 单 XML → 解析失败熔断（存疑 35 姊妹首案）。
