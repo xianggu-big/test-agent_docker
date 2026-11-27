@@ -68,6 +68,19 @@ def load_project_sources(project: Path = PROJECT) -> dict[str, str]:
             for name in MUTATION_FILES}
 
 
+# 阶段 0 留出项目 corpus-001（密码强度校验器，2026-11-27；卡冻结后才读的真值）：根因一处——
+# check_length 的 `n >= max_len` 应为 `n > max_len`；D1/D4/D5 是它在三个函数上的表现，修法同一处；
+# D2/D3 为 decoy 不进分母。默认语料仍是 corpus-003（行为不变），--corpus corpus-001 才启用。
+SRC_FILES_BY_CORPUS = {"corpus-001": ("checker.py",)}   # 语料的源文件清单（默认沿用语料 003 的三个）
+FIXES_BY_CORPUS = {
+    "corpus-001": {
+        "D1": [("checker.py", "if n >= max_len:", "if n > max_len:")],
+        "D4": [("checker.py", "if n >= max_len:", "if n > max_len:")],
+        "D5": [("checker.py", "if n >= max_len:", "if n > max_len:")],
+    },
+}
+
+
 def apply_fix(srcs: dict[str, str], defect_id: str,
               fixes: dict | None = None) -> dict[str, str]:
     """对源码组应用 defect_id 的唯一修复，返回新源码组；命中数≠1 抛 ValueError。"""
@@ -231,12 +244,23 @@ def score_suite(suite_dir: Path, out: Path | None = None, label: str = "",
 
 
 def main() -> int:
+    global FIXES, MUTATION_FILES
     ap = argparse.ArgumentParser()
     ap.add_argument("suite_dir")
+    ap.add_argument("--corpus", default="corpus-003", help="语料编号（默认 corpus-003；留出项目用 corpus-001）")
     ap.add_argument("--label", default="")
     ap.add_argument("--no-mutation", action="store_true")
     a = ap.parse_args()
-    rep = score_suite(Path(a.suite_dir), label=a.label, do_mutation=not a.no_mutation)
+    kw = {}
+    if a.corpus != "corpus-003":
+        cdir = ROOT / "data" / "corpus" / a.corpus
+        out_dir = cdir / "g_scores"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        FIXES = FIXES_BY_CORPUS[a.corpus]
+        MUTATION_FILES = SRC_FILES_BY_CORPUS[a.corpus]
+        kw = dict(project_dir=cdir / "project", corpus=cdir,
+                  out=out_dir / f"{a.label or 'suite'}.json")
+    rep = score_suite(Path(a.suite_dir), label=a.label, do_mutation=not a.no_mutation, **kw)
     print(json.dumps({k: v for k, v in rep.items() if k != "detection"},
                      ensure_ascii=False, indent=1))
     det = rep.get("detection") or {}

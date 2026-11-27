@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 import re
 
+from .case_results import normalize_case_name
+
 UNFOUNDED_BASIS = ("常识", "模型推断", "推断", "约定", "惯常")
 
 
@@ -40,6 +42,28 @@ def _req_supports(expected: str, req_text: str) -> bool:
     return False
 
 
+def _case_index(conn, task_id: int) -> dict[str, tuple[str, str]]:
+    """任务登记用例索引：规范化名 → (expected_basis, expected)。
+    2026-11-27 阶段 0 实锤：go/js 渲染层会改名（去 test_ 前缀、加 TestR{轮次}_ 前缀），
+    精确名匹配在 go 上一律落空 → 全记"未登记"→ 误判无依据。改用与 origin 判定
+    同一套规范化名（case_results.normalize_case_name）。"""
+    from .case_results import normalize_case_name
+    idx: dict[str, tuple[str, str]] = {}
+    for r in conn.execute(
+            "SELECT c.name, c.expected_basis, c.expected FROM test_cases c "
+            "JOIN test_scripts s ON s.id=c.script_id WHERE s.task_id=?", (task_id,)):
+        idx[normalize_case_name(r["name"])] = ((r["expected_basis"] or ""),
+                                               (r["expected"] or ""))
+    return idx
+
+
+def is_unfounded(basis: str, expected: str, req_text: str) -> bool:
+    """无依据 = 预期在需求里找不到线索，且依据标签属常识/推断一类（或未登记）。"""
+    basis = basis or "（未登记）"
+    return (not _req_supports(expected or "", req_text)) and (
+        any(k in basis for k in UNFOUNDED_BASIS) or basis == "（未登记）")
+
+
 def audit_retained_failures(conn, task_id: int, stdout: str,
                             failing_nodeids=None) -> dict:
     """逐条保留失败标注依据与可追溯性。返回：
@@ -51,23 +75,14 @@ def audit_retained_failures(conn, task_id: int, stdout: str,
     req_row = conn.execute("SELECT requirement_text FROM test_tasks WHERE id=?",
                            (task_id,)).fetchone()
     req_text = (req_row["requirement_text"] if req_row else "") or ""
+    idx = _case_index(conn, task_id)
     rows: list[dict] = []
     for nid in nodeids:
         name = (nid or "").split("::")[-1].split("/")[0]
-        case = conn.execute(
-            "SELECT c.expected_basis, c.expected FROM test_cases c "
-            "JOIN test_scripts s ON s.id=c.script_id WHERE s.task_id=? AND c.name=? "
-            "ORDER BY c.id DESC LIMIT 1", (task_id, name)).fetchone()
-        if case is None:
-            case = conn.execute(
-                "SELECT c.expected_basis, c.expected FROM test_cases c "
-                "JOIN test_scripts s ON s.id=c.script_id WHERE s.task_id=? "
-                "AND ? LIKE c.name || '%'", (task_id, name)).fetchone()
-        basis = (case["expected_basis"] if case else None) or "（未登记）"
-        expected = (case["expected"] if case else "") or ""
+        basis, expected = idx.get(normalize_case_name(name), ("", ""))
+        basis = basis or "（未登记）"
         traceable = _req_supports(expected, req_text)
-        unfounded = (not traceable) and (
-            any(k in basis for k in UNFOUNDED_BASIS) or basis == "（未登记）")
+        unfounded = is_unfounded(basis, expected, req_text)
         rows.append({"nodeid": nid, "name": name, "basis": basis,
                      "req_traceable": traceable, "unfounded": unfounded})
     n = len(rows)
