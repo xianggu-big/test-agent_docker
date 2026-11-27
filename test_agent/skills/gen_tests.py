@@ -740,6 +740,42 @@ def _loads_tolerant(s: str):
     raise ValueError("tolerant parse loop limit")
 
 
+def _log_culls(conn, task_id: int, script_id: int, fname: str, round_no, cull_rows) -> int:
+    """C3 剔除项台账（独立表 test_case_culls）。
+
+    2026-11-27 午后根根：旧实现把剔除项写进 test_cases（source='ai_cull'）——该列有
+    CHECK 只许 builtin/ai/imported，插入必炸；且炸在 test_cases 插入与 commit 之间，
+    事务半开、写锁不释放，整库 "database is locked"（阶段 0 实锤四次服务卡死）。
+    现约定：主写入段先提交；台账另起事务；台账失败只告警并回滚自身，绝不抛出。"""
+    if not cull_rows:
+        return 0
+    try:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS test_case_culls (
+                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                 task_id    INTEGER NOT NULL,
+                 script_id  INTEGER NOT NULL,
+                 filename   TEXT,
+                 round_no   INTEGER,
+                 name       TEXT NOT NULL,
+                 reason     TEXT NOT NULL,
+                 created_at TEXT NOT NULL DEFAULT (datetime('now')))""")
+        conn.executemany(
+            "INSERT INTO test_case_culls(task_id, script_id, filename, round_no, name, reason) "
+            "VALUES (?,?,?,?,?,?)",
+            [(task_id, script_id, fname, int(round_no or 1), n, r) for n, r in cull_rows])
+        conn.commit()
+        return len(cull_rows)
+    except Exception as e:      # noqa: BLE001 —— 台账是旁路，绝不拖累用例落库
+        try:
+            conn.rollback()
+        except Exception:       # noqa: BLE001
+            pass
+        log.warning("gen_tests task=%s 剔除台账写入失败（旁路）: %s: %s",
+                    task_id, type(e).__name__, e)
+        return 0
+
+
 def _parse_cases(text: str, lang: str | None = None) -> dict | None:
     """从 LLM 回复中鲁棒提取 JSON；解析失败返回 None（诚实降级，不硬造用例）。
 
@@ -2095,9 +2131,7 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         (task_id, args.get("module_id"), framework, version, fname, content,
          hashlib.sha256(content.encode()).hexdigest()[:16]))
     script_id = cur.lastrowid
-    # —— C3（2026-11-27）：剔除项落库（enabled=0 + 原因）——"生成→剔除→落盘"漏斗
-    # 此前只在消息里（且 `[generate 第N轮] {json}` 多数不可解析）不可审计；现在每个
-    # 被闸剔除的用例在库里有行可查（source='ai_cull'，content=原因，enabled=0）。
+    # —— C3：剔除项台账（主写入之前收集，主写入提交之后落库）——
     go_stripped = go_stripped if "go_stripped" in dir() else []   # 非 go 分支未定义
     cull_rows: list[tuple[str, str]] = []
     for x in (template_rejected or []):
@@ -2110,20 +2144,22 @@ def generate_tests(api_key: str, args: dict, task_id: int, runner) -> str:
         cull_rows.append((str(nm)[:120], f"交叉语义审剔除：{rs}"))
     for x in (go_stripped or []):
         cull_rows.append((str(x)[:120], "Go 幻觉函数剔除"))
-    for c in data["cases"]:
-        conn.execute(
-            """INSERT INTO test_cases(script_id, source, name, method, content,
+    # 2026-11-27 午后根根（阶段 0 四次卡死实锤）：主写入段任何失败都必须回滚——
+    # 半开事务=写锁不释放=整库 "database is locked"，服务假死。
+    try:
+        for c in data["cases"]:
+            conn.execute(
+                """INSERT INTO test_cases(script_id, source, name, method, content,
                                       priority, input, steps, expected, expected_basis)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (script_id, "ai", c.get("name", "unnamed"), c.get("method"), c["code"],
-             c.get("priority"), c.get("input"), c.get("steps"),
-             c.get("expected"), c.get("expected_basis")))
-    for cname, creason in cull_rows:
-        conn.execute(
-            """INSERT INTO test_cases(script_id, source, name, method, content, enabled)
-               VALUES (?, 'ai_cull', ?, NULL, ?, 0)""",
-            (script_id, cname, f"[已剔除] {creason}"))
-    conn.commit()
+                (script_id, "ai", c.get("name", "unnamed"), c.get("method"), c["code"],
+                 c.get("priority"), c.get("input"), c.get("steps"),
+                 c.get("expected"), c.get("expected_basis")))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    _log_culls(conn, task_id, script_id, fname, args.get("round_no", 1), cull_rows)
 
     # —— 回灌容器（依赖随项目走，生成物也随项目走）。
     # 两阶段准备图里 generate 先于 provision（阶段一出题无考场）：容器不存在时不炸，

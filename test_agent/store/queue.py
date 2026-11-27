@@ -262,16 +262,25 @@ class QueueWorker:
         finally:
             self._running_task = None
             set_current_queue_id(None)
-        conn = get_conn()
+        # 2026-11-27 午后根根（阶段 0 实锤）：收尾写入自身失败（如整库被别的半开事务锁住）
+        # 不得把 worker 打回空闲轮询——那会让队列行永远停在 running、任务晾在中间态。
+        # 收尾与"失败落终态"各自 best-effort，worker 照常回到取活循环。
         try:
-            conn.execute(
-                "UPDATE exec_queue SET status=?, finished_at=datetime('now'), error=? WHERE id=?",
-                ("done" if ok else "failed", err, qid))
-            conn.commit()
-        finally:
-            conn.close()
+            conn = get_conn()
+            try:
+                conn.execute(
+                    "UPDATE exec_queue SET status=?, finished_at=datetime('now'), error=? WHERE id=?",
+                    ("done" if ok else "failed", err, qid))
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:              # noqa: BLE001
+            log.error("队列收尾写入失败 task=%s: %s: %s", tid, type(e).__name__, e)
         if not ok:
-            _fail_task_if_pending(tid, err)   # 状态机四断点：失败必须落到任务终态
+            try:
+                _fail_task_if_pending(tid, err)   # 状态机四断点：失败必须落到任务终态
+            except Exception as e:          # noqa: BLE001
+                log.error("任务失败态落库失败 task=%s: %s: %s", tid, type(e).__name__, e)
         return True
 
 
