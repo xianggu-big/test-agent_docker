@@ -114,7 +114,7 @@ PLAN_ENABLED = True                  # plan/RTM 测试条件拆解（变量 V3�
 COVERAGE_FEEDBACK_ENABLED = True     # 缺口回灌 generate 提示词（变量 V4：False=盲补）
 GEN_BOUNDARY_ATTACK = False          # 边界攻击纪律（变量 V6：True=强制每函数至少 1 条边界外输入；
                                      # corpus-002 recall=0 的改进实验，默认关）
-WITNESS_CONTINUE_ENABLED = False     # 证人冻结+继续补测（变量 V8：True=疑似产品缺陷不首轮停，
+WITNESS_CONTINUE_ENABLED = _flag("MTA_V8", False)  # 证人冻结+继续补测（变量 V8：True=疑似产品缺陷不首轮停，
                                      # 断言失败证人冻结挂账、其指纹不参与熔断，继续补测至
                                      # 非证人全过+覆盖达标或预算耗尽；X 格 V2/V4 循环类开关的
                                      # 表达前提——证人首轮即停则循环机制无运行空间）
