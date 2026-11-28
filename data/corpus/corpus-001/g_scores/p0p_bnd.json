@@ -1,0 +1,41 @@
+{
+ "label": "p0p_bnd",
+ "suite_files": [
+  "test_boundary_auto.py"
+ ],
+ "n_tests": 8,
+ "passed": 6,
+ "failed": 2,
+ "errors": 0,
+ "wall_clock_s": 1.85,
+ "baseline_failures": 2,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_ldfhodge/test_boundary_auto.py::test_bnd_check_length_len_eq_max_64",
+    "data/tmp_g_score/gscore_ldfhodge/test_boundary_auto.py::test_bnd_is_strong_len_eq_max_64"
+   ],
+   "location": "checker.py::check_length"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_ldfhodge/test_boundary_auto.py::test_bnd_check_length_len_eq_max_64",
+    "data/tmp_g_score/gscore_ldfhodge/test_boundary_auto.py::test_bnd_is_strong_len_eq_max_64"
+   ],
+   "location": "checker.py::strength_score"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_ldfhodge/test_boundary_auto.py::test_bnd_check_length_len_eq_max_64",
+    "data/tmp_g_score/gscore_ldfhodge/test_boundary_auto.py::test_bnd_is_strong_len_eq_max_64"
+   ],
+   "location": "checker.py::is_strong"
+  }
+ },
+ "detected_count": 3,
+ "defects_real": 3,
+ "detection_rate": 1.0
+}

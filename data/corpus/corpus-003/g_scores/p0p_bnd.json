@@ -1,0 +1,48 @@
+{
+ "label": "p0p_bnd",
+ "suite_files": [
+  "test_boundary_auto.py"
+ ],
+ "n_tests": 6,
+ "passed": 3,
+ "failed": 3,
+ "errors": 0,
+ "wall_clock_s": 2.36,
+ "baseline_failures": 3,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_eomh4m99/test_boundary_auto.py::test_bnd_booking_duration_4h_want_201"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_eomh4m99/test_boundary_auto.py::test_bnd_price_discount_at_3h"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": false,
+   "tests": [],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_eomh4m99/test_boundary_auto.py::test_bnd_adjacent_no_conflict"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": false,
+   "tests": [],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 3,
+ "defects_real": 5,
+ "detection_rate": 0.6
+}

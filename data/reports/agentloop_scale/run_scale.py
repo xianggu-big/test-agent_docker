@@ -29,6 +29,8 @@ HERE = Path(__file__).parent
 CELLS = HERE / "cells"
 PRICE = {"deepseek-chat": (1, 2), "deepseek-reasoner": (4, 16)}
 PEAK_START = ("09:00", "14:00")   # 高峰段起点
+PEAK_END = ("12:00", "18:00")     # 高峰段终点（2026-11-27 修正：旧实现把 [09:00,14:00) 当高峰，
+                                  # 等于把 14:00-18:00 的真高峰放行——用户硬规则是 09-12 与 14-18）
 PROJECTS = {
     "js-calc": {"repo": "data/demo/js-calc", "baseline": 1156},
     "go-api-book": {"repo": "data/demo/go-api-book", "baseline": 1159},
@@ -38,6 +40,8 @@ PROJECTS = {
     # 是演示项目"泛需求"的对照面）。覆盖率天花板问题由它破解。
     "corpus-003": {"repo": "data/corpus/corpus-003/project", "baseline": None,
                    "req_file": "REQUIREMENT.md"},
+    # 阶段 0 留出项目（P5）：执行者未读其缺陷真值；需求由 --card 覆盖
+    "corpus-001": {"repo": "data/corpus/corpus-001/project", "baseline": None, "req_file": None},
 }
 
 
@@ -115,7 +119,7 @@ def spent_so_far(tag: str) -> float:
 
 def in_peak() -> bool:
     now = time.strftime("%H:%M")
-    return PEAK_START[0] <= now < PEAK_START[1]
+    return any(a <= now < b for a, b in zip(PEAK_START, PEAK_END))
 
 
 def four_table_check(tid: int, loop_on: bool | None = True) -> dict:
@@ -163,9 +167,58 @@ def four_table_check(tid: int, loop_on: bool | None = True) -> dict:
         conn.close()
 
 
+# ---------------- 阶段 0（2026-11-27 预注册卡）：需求覆盖 + 大纲拼接 ----------------
+_REQ_TEXT = None            # --card：泛需求（从预注册卡的代码块逐字抽取，覆盖项目默认需求）
+_OUTLINE_CARD = None        # --outline：从同一张卡抽取大纲并拼在需求后面（B 臂）
+_OUTLINE_NAME = "auto"      # --outline-name 甲/乙/auto（auto=按项目类型确定性判定）
+_OUTLINE_JOIN = (chr(10) * 2 + "参考测试大纲（按项目实际情况取舍适用的条目）：" + chr(10))
+_API_SIGNALS = ("@app.route", "@app.get", "@app.post", "@router.", "@RequestMapping",
+                "@GetMapping", "@PostMapping", "FastAPI(", "Flask(", "gin.",
+                "http.HandleFunc", "app.GET(", "router.GET(", "r.GET(", "@app.api_route",
+                "addRoute")
+
+
+def extract_block(card_path: str, anchor_prefix: str) -> str:
+    """从预注册卡里"锚行之后的第一个代码围栏块"逐字抽取（需求与大纲共用，不手工复制）。"""
+    lines = Path(card_path).read_text(encoding="utf-8").splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith(anchor_prefix))
+    f_from = next(i for i in range(start, len(lines)) if lines[i].startswith("```"))
+    f_to = next(i for i in range(f_from + 1, len(lines)) if lines[i].startswith("```"))
+    body = chr(10).join(lines[f_from + 1:f_to]).strip()
+    assert body, f"预注册卡代码块为空：{anchor_prefix}"
+    return body
+
+
+def detect_outline_name(repo) -> str:
+    """项目类型确定性判定（零 LLM）：有 openapi.json 或路由框架信号 → 甲（API），否则乙（库）。"""
+    if list(repo.glob("openapi.json")) + list(repo.glob("*/openapi.json")):
+        return "甲"
+    for ext in ("*.py", "*.go", "*.js", "*.ts", "*.java", "*.php"):
+        for f in list(repo.rglob(ext))[:200]:
+            if "node_modules" in str(f) or "vendor" in f.parts or "test" in f.name:
+                continue
+            try:
+                text = f.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if any(sig in text for sig in _API_SIGNALS):
+                return "甲"
+    return "乙"
+
+
+def phase0_requirement(key: str) -> tuple[str, str | None]:
+    """返回 (需求全文, 大纲名或 None)。A 臂=泛需求；B 臂=泛需求+大纲。"""
+    proj = PROJECTS[key]
+    req = _REQ_TEXT if _REQ_TEXT is not None else load_req(proj["baseline"], proj)
+    if not _OUTLINE_CARD:
+        return req, None
+    name = _OUTLINE_NAME if _OUTLINE_NAME != "auto" else detect_outline_name(ROOT / proj["repo"])
+    return req + _OUTLINE_JOIN + extract_block(_OUTLINE_CARD, "### 大纲" + name), name
+
+
 def run_cell(key: str, idx: int, tag: str, dev_token: str, caller_token: str) -> dict:
     proj = PROJECTS[key]
-    req = load_req(proj["baseline"], proj)
+    req, outline_name = phase0_requirement(key)
     t = api("POST", "/api/tasks", caller_token,
             {"repo_url": str(ROOT / proj["repo"]), "requirement": req,
              "coverage_target": 0.7, "name": f"al-{tag}-{key}-{idx}"})
@@ -183,7 +236,8 @@ def run_cell(key: str, idx: int, tag: str, dev_token: str, caller_token: str) ->
     cost = cost_of_task(tid)
     arm = arm_loop_enabled(tid)
     ft = four_table_check(tid, loop_on=arm if arm is not None else True)
-    rec = {"key": key, "idx": idx, "tag": tag, "task_id": tid, "status": row.get("status"),
+    rec = {"key": key, "idx": idx, "tag": tag, "outline": outline_name,
+           "req_chars": len(req), "task_id": tid, "status": row.get("status"),
            "error": (row.get("error") or "")[:200], "cost_yuan_est": cost,
            "duration_s": round(time.time() - t0, 1), "four_table": ft,
            "arm_loop_enabled": arm, "coverage_line": coverage_of_task(tid)}
@@ -205,9 +259,19 @@ def main() -> int:
                     help="逗号分隔项目子集（默认全部；A5b 分臂/分块用）")
     ap.add_argument("--start", type=int, default=1, help="每项目起始 idx（含）")
     ap.add_argument("--end", type=int, default=None, help="每项目结束 idx（含，默认=start+n-1）")
+    ap.add_argument("--card", default="", help="阶段 0：预注册卡路径（泛需求逐字抽取）")
+    ap.add_argument("--outline", action="store_true", help="阶段 0：拼接大纲（B 臂），需 --card")
+    ap.add_argument("--outline-name", default="auto", help="大纲名 甲/乙/auto")
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--dry", action="store_true")
     args = ap.parse_args()
+    global _REQ_TEXT, _OUTLINE_CARD, _OUTLINE_NAME
+    if args.outline and not args.card:
+        print("[scale] --outline 必须配 --card")
+        return 2
+    _REQ_TEXT = extract_block(args.card, "**泛需求**") if args.card else None
+    _OUTLINE_CARD = args.card if args.outline else None
+    _OUTLINE_NAME = args.outline_name
     CELLS.mkdir(parents=True, exist_ok=True)
 
     # 计划构造提前到登录前——--dry 不依赖 server（2026-11-27 A5b：驱动器可离线预览）
@@ -228,6 +292,10 @@ def main() -> int:
             mark = ("已留档" if (CELLS / f"scale_{args.tag}_{key}_{idx}.json").exists()
                     else "待跑")
             print(f"  {key}#{idx} {mark}")
+        if _OUTLINE_CARD:
+            for key in keys:
+                nm = _OUTLINE_NAME if _OUTLINE_NAME != "auto" else detect_outline_name(ROOT / PROJECTS[key]["repo"])
+                print(f"  {key}: 大纲{nm}（需求 {len(phase0_requirement(key)[0])} 字符）")
         print("[scale] dry 完成——未烧钱")
         return 0
 

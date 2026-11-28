@@ -1,0 +1,62 @@
+{
+ "label": "p0b_t2787",
+ "suite_files": [
+  "test_gen_r3.py"
+ ],
+ "n_tests": 49,
+ "passed": 37,
+ "failed": 12,
+ "errors": 0,
+ "wall_clock_s": 2.48,
+ "baseline_failures": 12,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_validate_duration_边界值[max=4\\u5c0f\\u65f6\\uff08\\u95ed\\u533a\\u95f4\\u5e94\\u5408\\u6cd5\\uff09]"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_quote_total_折扣阈值_边界值分析[3\\u5c0f\\u65f6\\u521a\\u597d\\u8fbe\\u6298\\u6263\\u9608\\u503c]",
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_quote_total_折扣阈值_边界值分析[4\\u5c0f\\u65f6\\u6298\\u6263]",
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_quote_total_舍入_边界值分析[55*4*0.9=198]",
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_quote_total_错误折扣率_错误推测法"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_read_booking_创建后可查_语句分支覆盖"
+   ],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_create_booking_相邻时段不冲突_判定表",
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_has_overlap_相邻与重叠_判定表[\\u76f8\\u90bb\\u4e0d\\u7b97\\u91cd\\u53e0]",
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_has_overlap_错误推测法_包含与相邻"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_cancel_booking_重复取消应409_状态流转"
+   ],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 5,
+ "defects_real": 5,
+ "detection_rate": 1.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_create_booking_时长4小时应成功_边界值分析",
+  "data/tmp_g_score/gscore__678lyut/test_gen_r3.py::test_quote_total_舍入_边界值分析[148.5 \\u56db\\u820d\\u4e94\\u5165]"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档"
+}

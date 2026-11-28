@@ -1,0 +1,32 @@
+{
+ "label": "p0b_t2806",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 49,
+ "passed": 49,
+ "failed": 0,
+ "errors": 0,
+ "wall_clock_s": 1.88,
+ "baseline_failures": 0,
+ "detection": {
+  "D1": {
+   "detected": false,
+   "tests": [],
+   "location": "checker.py::check_length"
+  },
+  "D4": {
+   "detected": false,
+   "tests": [],
+   "location": "checker.py::strength_score"
+  },
+  "D5": {
+   "detected": false,
+   "tests": [],
+   "location": "checker.py::is_strong"
+  }
+ },
+ "detected_count": 0,
+ "defects_real": 3,
+ "detection_rate": 0.0
+}

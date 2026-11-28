@@ -1,0 +1,46 @@
+{
+ "label": "p0a_t2792",
+ "suite_files": [
+  "test_gen_r2.py",
+  "test_gen_r3.py"
+ ],
+ "n_tests": 41,
+ "passed": 36,
+ "failed": 5,
+ "errors": 0,
+ "wall_clock_s": 2.1,
+ "baseline_failures": 5,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_vg_fw_ui/test_gen_r3.py::test_is_strong_边界值分析"
+   ],
+   "location": "checker.py::check_length"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_vg_fw_ui/test_gen_r3.py::test_is_strong_边界值分析"
+   ],
+   "location": "checker.py::strength_score"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_vg_fw_ui/test_gen_r3.py::test_is_strong_边界值分析"
+   ],
+   "location": "checker.py::is_strong"
+  }
+ },
+ "detected_count": 3,
+ "defects_real": 3,
+ "detection_rate": 1.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_vg_fw_ui/test_gen_r2.py::test_is_strong_自定义边界_边界值分析",
+  "data/tmp_g_score/gscore_vg_fw_ui/test_gen_r2.py::test_strength_score_判定表",
+  "data/tmp_g_score/gscore_vg_fw_ui/test_gen_r3.py::test_check_length_错误推测法",
+  "data/tmp_g_score/gscore_vg_fw_ui/test_gen_r3.py::test_is_strong_自定义边界_边界值分析"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档"
+}

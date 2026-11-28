@@ -33,6 +33,7 @@ CELLS = HERE / "cells"
 LABELS = HERE / "fixture_labels.json"
 PRICE = {"deepseek-chat": (1, 2)}
 PEAK_START = ("09:00", "14:00")
+PEAK_END = ("12:00", "18:00")   # 2026-11-27 修正（见 run_scale.py）
 REPO = ROOT / "data/demo/L2场景-coupon-api"
 BASELINE = 1155
 
@@ -128,7 +129,7 @@ def spent_so_far(tag: str = "") -> float:
 
 def in_peak() -> bool:
     now = time.strftime("%H:%M")
-    return PEAK_START[0] <= now < PEAK_START[1]
+    return any(a <= now < b for a, b in zip(PEAK_START, PEAK_END))
 
 
 def wait_terminal(tid: int, token: str, want: set[str], timeout_s: int) -> str:

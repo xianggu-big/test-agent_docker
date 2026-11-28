@@ -1,0 +1,55 @@
+{
+ "label": "p0a_t2776",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 32,
+ "passed": 24,
+ "failed": 8,
+ "errors": 0,
+ "wall_clock_s": 3.32,
+ "baseline_failures": 8,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_slcbcwch/test_gen_r1.py::test_validate_duration_边界值分析[max]"
+   ],
+   "location": "booking.py::validate_duration"
+  },
+  "D2": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_slcbcwch/test_gen_r1.py::test_create_booking_等价类划分_另一组有效值",
+    "data/tmp_g_score/gscore_slcbcwch/test_gen_r1.py::test_quote_total_边界值分析[max-1]",
+    "data/tmp_g_score/gscore_slcbcwch/test_gen_r1.py::test_quote_total_边界值分析[max]"
+   ],
+   "location": "booking.py::quote_total"
+  },
+  "D3": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_slcbcwch/test_gen_r1.py::test_read_booking_等价类划分"
+   ],
+   "location": "app.py::read_booking"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_slcbcwch/test_gen_r1.py::test_has_overlap_判定表",
+    "data/tmp_g_score/gscore_slcbcwch/test_gen_r1.py::test_has_overlap_边界值分析"
+   ],
+   "location": "booking.py::has_overlap"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_slcbcwch/test_gen_r1.py::test_cancel_booking_错误推测法"
+   ],
+   "location": "app.py::cancel_booking"
+  }
+ },
+ "detected_count": 5,
+ "defects_real": 5,
+ "detection_rate": 1.0
+}

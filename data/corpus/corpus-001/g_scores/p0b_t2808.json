@@ -1,0 +1,42 @@
+{
+ "label": "p0b_t2808",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 70,
+ "passed": 68,
+ "failed": 2,
+ "errors": 0,
+ "wall_clock_s": 1.96,
+ "baseline_failures": 2,
+ "detection": {
+  "D1": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_d24mvkvg/test_gen_r1.py::test_is_strong_边界值_边界值分析[\\u957f\\u5ea664=max \\u4e0d\\u542b\\u7aef\\u70b9\\uff08\\u6e90\\u7801 n>=max_len \\u62d2\\u7edd\\uff09]"
+   ],
+   "location": "checker.py::check_length"
+  },
+  "D4": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_d24mvkvg/test_gen_r1.py::test_is_strong_边界值_边界值分析[\\u957f\\u5ea664=max \\u4e0d\\u542b\\u7aef\\u70b9\\uff08\\u6e90\\u7801 n>=max_len \\u62d2\\u7edd\\uff09]"
+   ],
+   "location": "checker.py::strength_score"
+  },
+  "D5": {
+   "detected": true,
+   "tests": [
+    "data/tmp_g_score/gscore_d24mvkvg/test_gen_r1.py::test_is_strong_边界值_边界值分析[\\u957f\\u5ea664=max \\u4e0d\\u542b\\u7aef\\u70b9\\uff08\\u6e90\\u7801 n>=max_len \\u62d2\\u7edd\\uff09]"
+   ],
+   "location": "checker.py::is_strong"
+  }
+ },
+ "detected_count": 3,
+ "defects_real": 3,
+ "detection_rate": 1.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_d24mvkvg/test_gen_r1.py::test_check_length_非字符串类型_等价类划分[\\u5217\\u8868\\u7c7b\\u578b]"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档"
+}

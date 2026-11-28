@@ -1,0 +1,36 @@
+{
+ "label": "p0b_t2807",
+ "suite_files": [
+  "test_gen_r1.py"
+ ],
+ "n_tests": 50,
+ "passed": 49,
+ "failed": 1,
+ "errors": 0,
+ "wall_clock_s": 1.91,
+ "baseline_failures": 1,
+ "detection": {
+  "D1": {
+   "detected": false,
+   "tests": [],
+   "location": "checker.py::check_length"
+  },
+  "D4": {
+   "detected": false,
+   "tests": [],
+   "location": "checker.py::strength_score"
+  },
+  "D5": {
+   "detected": false,
+   "tests": [],
+   "location": "checker.py::is_strong"
+  }
+ },
+ "detected_count": 0,
+ "defects_real": 3,
+ "detection_rate": 0.0,
+ "unmatched_failures": [
+  "data/tmp_g_score/gscore_7ye0wfd5/test_gen_r1.py::test_is_strong_自定义上下限_边界值分析[min-1]"
+ ],
+ "unmatched_note": "基线失败中未对应任何植入缺陷的用例（多为写错/写崩的测试）——不冒充检出，如实留档"
+}
