@@ -1117,7 +1117,19 @@ def make_nodes(deps: GraphDeps) -> dict:
         # 两阶段"布考场"（docs/两阶段人机协作流程设计-20261031.md）：快照前按审查结论
         # 重写生成用例文件（评审页勾掉/增补的用例以库为准），再补跑阶段一顺延的收集闸
         if state.get("two_stage_rebuild"):
-            from ..skills.gen_tests import collect_gate_files, rebuild_gen_files_from_db
+            from ..skills.gen_tests import (collect_gate_files, rebuild_gen_files_from_db,
+                                            _rebuild_imported_file)
+            # 0'' 缺口②（2026-11-28）：修复轮布考场重建以库为准——但 rebuild 只覆盖
+            # test_gen%，cases API 插入的 imported 用例在修复轮从工作区消失（0'' 实锤）。
+            # 补物化 test_imported.py（仅 enabled=1，与克隆路径同款函数）。
+            _n_imp = conn.execute(
+                """SELECT COUNT(*) FROM test_cases c JOIN test_scripts s ON s.id=c.script_id
+                   WHERE s.task_id=? AND c.source='imported' AND c.enabled=1""",
+                (tid,)).fetchone()[0]
+            if _n_imp:
+                _rebuild_imported_file(conn, tid, Path(state["workspace"]))
+                msg(state["session_id"], "assistant",
+                    f"[rebuild] 修复轮重建 test_imported.py（imported 用例 {_n_imp} 条）")
             if state.get("verify_mode") == 1:
                 # 0-A（2026-11-20 设计稿 §2.1）：验证任务布考场优先按冻结快照逐字节重写
                 # ——G9 实锤 DB 重写有 repr 风格差（语义零改字节不同）；快照缺失诚实回退

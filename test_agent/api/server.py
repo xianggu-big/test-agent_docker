@@ -1289,8 +1289,11 @@ def api_add_case(tid: int, body: dict, user: dict = Depends(staff)):
         """SELECT c.name FROM test_cases c JOIN test_scripts s ON s.id = c.script_id
            WHERE s.task_id = ?""", (tid,))}
     def_name = _sanitize_name(name, len(used), used)
-    # A5 同款 def 名重写：name↔nodeid 对齐 + 文件内唯一性真正生效
-    m = re.search(r"def\s+\w+", code)
+    # A5 同款 def 名重写：name↔nodeid 对齐 + 文件内唯一性真正生效。
+    # 0'' 缺口①（2026-11-28）：仅单 def 用例才重写——多 def 文件（如整套件注入）的
+    # 首个 def 可能是 fixture，改名会悬空全部引用（REST 注入实锤）。
+    defs = re.findall(r"def\s+\w+", code)
+    m = re.search(r"def\s+\w+", code) if len(defs) == 1 else None
     if m:
         code = code[:m.start()] + f"def {def_name}" + code[m.end():]
 
