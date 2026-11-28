@@ -118,6 +118,12 @@ def load_defects(conn, task_id: int) -> list[dict]:
     """
     case_index = _load_case_index(conn, task_id)
     cond_index = _load_condition_index(conn, task_id)
+    # 阶段 2（2026-11-28）：争议区分账——无据预期（常识/推断/未登记且需求无可对齐
+    # 线索）的缺陷标 lane='dispute'（预期存疑待裁决），与有据缺陷分列。
+    from .expectation_audit import is_unfounded
+    _req_row = conn.execute("SELECT requirement_text FROM test_tasks WHERE id=?",
+                            (task_id,)).fetchone()
+    _req_text = (_req_row["requirement_text"] if _req_row else "") or ""
     rows = conn.execute(
         """SELECT round_no, level, nodeid, name, status, message
            FROM test_case_results
@@ -141,6 +147,8 @@ def load_defects(conn, task_id: int) -> list[dict]:
                 "method": info.get("method") or "未标注",
                 "content": info.get("content") or "（用例代码未落库，nodeid 见上）",
                 "condition": cond.get("condition"),
+                "lane": ("dispute" if is_unfounded(basis, info.get("expected") or "",
+                                                   _req_text) else "defect"),
                 "requirement_ref": cond.get("requirement_ref") if "requirement_ref" in cond.keys() else None,
             }
             merged[key] = d

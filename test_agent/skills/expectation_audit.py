@@ -20,26 +20,28 @@ UNFOUNDED_BASIS = ("常识", "模型推断", "推断", "约定", "惯常")
 
 
 def _req_supports(expected: str, req_text: str) -> bool:
-    """需求可追溯性（独特 token 匹配，2026-11-27 校准）：expected 的英文词（≥3 字母）、
-    数字结果码（4xx/2xx/状态码）、中文 4-gram 任一出现在需求原文=有需求线索。
-    不用 2-gram——主题词（"会议室"）与通用词（"返回""应"）会假阳性（单测实锤：
-    "删除不存在会议室应失败"被 2-gram"会议"误判可溯）。校准取舍：宁漏判不误判——
-    可溯性只是人工裁决的标签，误标"可溯"只会少降级不会冤枉产品。"""
+    """需求可追溯性（独特 token 匹配，2026-11-27 校准；2026-11-28 阶段 2 收紧）：
+    expected 的英文词（≥3 字母）、数字结果码（4xx/2xx 状态码）、中文 4-gram 与需求
+    原文的对齐信号数 ≥2 才算可溯——单主题词命中是惯例断言的伪装（阶段 0 H2 实锤：
+    coupon 误报 0→3/5 全是惯例断言，单信号"可溯"会放走误报）。不用 2-gram——
+    主题词与通用词（"返回""应"）会假阳性。取舍仍是宁漏判不误判。"""
     exp = expected or ""
     req_low = (req_text or "").lower()
     if not exp.strip() or not req_low.strip():
         return False
+    signals = 0
     for tok in re.findall(r"[A-Za-z_][A-Za-z0-9_]{2,}", exp):
         if tok.lower() in req_low:
-            return True
+            signals += 1
     for tok in re.findall(r"\d{3}", exp):          # 状态码级数字
         if tok in req_text:
-            return True
+            signals += 1
     for tok in re.findall(r"[\u4e00-\u9fff]{2,}", exp):
         for i in range(len(tok) - 3):
             if tok[i:i + 4] in req_text:
-                return True
-    return False
+                signals += 1
+                break
+    return signals >= 2
 
 
 def _case_index(conn, task_id: int) -> dict[str, tuple[str, str]]:

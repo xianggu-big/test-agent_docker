@@ -24,8 +24,9 @@ def _env(tmp_path):
                     "content,content_hash) VALUES(?,'pytest',1,'test_gen_r1.py','c','h')",
                     (tid,)).lastrowid
     cases = [
-        # 植入缺陷 D1（时长边界）——expected 有需求线索 + basis=源码推导 → 有据
-        ("test_create_booking_时长4小时", "源码推导", "预约时长 4 小时应创建成功（需求闭区间 1~4 小时）"),
+        # 植入缺陷 D1（时长边界）——expected 是契约原文（多对齐信号）+ basis=源码推导 → 有据
+        # （2026-11-28 阶段 2 口径收紧：可溯须 ≥2 个对齐信号，单主题词算无据）
+        ("test_create_booking_时长4小时", "源码推导", "预约时长必须在 1~4 小时闭区间内"),
         # 常识预期 + 需求不提 title → 无据（39 字需求实锤同型）
         ("test_create_room_空name应400", "常识", "空 name 应被拒绝且不落库"),
         # 模型推断 + 需求不提 → 无据
@@ -64,3 +65,14 @@ def test_全无据降级判定(tmp_path):
         "test_gen_r1.py::test_delete_room_不存在应404"])
     assert a["n_failed"] == 2 and a["n_unfounded"] == 2
     assert a["all_unfounded"] is True       # → nodes 侧降级 expectation_dispute
+
+
+def test_校准收紧_单一对齐信号不算可溯(tmp_path):
+    """阶段 0' 教训（阶段 2）：单一主题词命中（如"会议室"）不算需求可溯——
+    惯例断言的 expected 常含主题词，单信号判可溯会放走误报。须 ≥2 个对齐信号。"""
+    from test_agent.skills.expectation_audit import _req_supports
+    req = "会议室预约 API：预约时长必须在 1~4 小时闭区间内。"
+    # ≥2 个对齐信号（"预约时长" 4-gram + "1" 所在区间文本 4-gram）→ 可溯
+    assert _req_supports("预约时长必须在 1~4 小时闭区间内", req) is True  # 契约原文含多信号
+    # 恰好 1 个对齐信号（仅"预约时长"）→ 不可溯：单主题词是惯例断言的伪装
+    assert _req_supports("预约时长不足 1 小时应拒绝", req) is False

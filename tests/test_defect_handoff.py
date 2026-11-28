@@ -187,3 +187,42 @@ def test_render_fix_prompt_clustered_no_crash(db, monkeypatch):
     assert "缺陷组" in text                       # 聚类组头进入了交付物
     assert "禁止修改、删除、跳过下列测试用例与断言" in text
     assert "BUG-01" in text and "BUG-02" in text
+
+
+def test_缺陷清单_无据预期进争议区分账(tmp_path, monkeypatch):
+    """阶段 2（2026-11-28）：load_defects 给每条缺陷标 lane——依据为常识/推断且
+    预期与需求无可对齐线索 → lane='dispute'（预期存疑待裁决）；其余 'defect'。"""
+    from test_agent.skills.defect_handoff import load_defects
+    from test_agent import config
+    from test_agent.store import db
+    dbp = tmp_path / "t.db"
+    monkeypatch.setattr(config, "DB_PATH", dbp)
+    c = db.get_conn(dbp)
+    db.init_db(dbp)
+    uid = c.execute("INSERT INTO users(username,password_hash) VALUES('u','x')").lastrowid
+    pid = c.execute("INSERT INTO projects(user_id,repo_url,name) VALUES(?,'r','n')",
+                    (uid,)).lastrowid
+    req = "优惠券 API：code 长度 2~8、percent 1~100，成功返回 201。"
+    tid = c.execute("INSERT INTO test_tasks(project_id,user_id,coverage_target,status,"
+                    "confirmed,requirement_text) VALUES(?,?,0.7,'failed',1,?)",
+                    (pid, uid, req)).lastrowid
+    sid = c.execute("INSERT INTO test_scripts(task_id,framework,version,filename,"
+                    "content,content_hash) VALUES(?,'pytest',1,'test_gen_r1.py','c','h')",
+                    (tid,)).lastrowid
+    # 有据：预期与需求可对齐（code 长度）；无据：惯例断言（重复下单 409——需求未写）
+    c.execute("INSERT INTO test_cases(script_id,source,name,content,expected_basis,expected) "
+              "VALUES(?,'ai','test_code_下限','c','需求明示','code 长度 2 应返回 201')", (sid,))
+    c.execute("INSERT INTO test_cases(script_id,source,name,content,expected_basis,expected) "
+              "VALUES(?,'ai','test_repeat_409','c','常识','重复创建同一 code 应返回 409')", (sid,))
+    c.execute("INSERT INTO test_case_results(task_id, round_no, level, nodeid, name, status,"
+              " origin) VALUES(?,1,'L1','t::test_code_下限','test_code_下限','failed','generated')",
+              (tid,))
+    c.execute("INSERT INTO test_case_results(task_id, round_no, level, nodeid, name, status,"
+              " origin) VALUES(?,1,'L1','t::test_repeat_409','test_repeat_409','failed','generated')",
+              (tid,))
+    c.commit()
+    ds = load_defects(c, tid)
+    lane = {d["name"]: d["lane"] for d in ds}
+    assert lane["test_code_下限"] == "defect"
+    assert lane["test_repeat_409"] == "dispute", "无据惯例断言必须进争议区"
+    c.close()
